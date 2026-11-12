@@ -21,6 +21,7 @@ from n3w_t1_core_updater_ha_usb_media import (
     USB_LABEL,
     FormatAuthorization,
     UsbCapacityReport,
+    validate_filesystem_uuid,
 )
 from n3w_t1_core_updater_ha_usb_state import (
     PHASE_INDEX,
@@ -45,6 +46,7 @@ from n3w_t1_core_updater_ha_usb_state import (
 )
 from n3w_t1_core_updater_v2_common import (
     AUTHORIZATION_ID,
+    SHA256,
     UpdaterV2Error,
     sha256_bytes,
 )
@@ -90,6 +92,40 @@ def record_media_bound(
             "usb_filesystem_uuid": filesystem_uuid,
             "usb_measured_usable_bytes": measured_usable_bytes,
             "usb_mount_authority": f"filesystem_uuid:{filesystem_uuid}",
+            "usb_capacity_verified": True,
+        },
+    )
+
+
+def record_compatible_media(
+    document: dict[str, Any],
+    *,
+    public_fingerprint: str,
+    filesystem_uuid: str,
+    measured_usable_bytes: int,
+    capacity_report: UsbCapacityReport,
+) -> dict[str, Any]:
+    current = validate_transaction_document(document)
+    if current["phase"] != U1:
+        raise UpdaterV2Error("ha_usb_media_bind_phase_invalid")
+    if (
+        not isinstance(public_fingerprint, str)
+        or SHA256.fullmatch(public_fingerprint) is None
+    ):
+        raise UpdaterV2Error("usb_public_fingerprint_invalid")
+    validate_filesystem_uuid(filesystem_uuid)
+    if capacity_report.capacity_pass is not True:
+        raise UpdaterV2Error("ha_usb_capacity_not_verified")
+    if capacity_report.measured_usable_bytes != measured_usable_bytes:
+        raise UpdaterV2Error("ha_usb_measured_capacity_drift")
+    return transition(
+        current,
+        U2,
+        updates={
+            "usb_device_identity_public_fingerprint": public_fingerprint,
+            "usb_filesystem_uuid": filesystem_uuid,
+            "usb_measured_usable_bytes": measured_usable_bytes,
+            "usb_mount_authority": f"observed_filesystem_uuid:{filesystem_uuid}",
             "usb_capacity_verified": True,
         },
     )

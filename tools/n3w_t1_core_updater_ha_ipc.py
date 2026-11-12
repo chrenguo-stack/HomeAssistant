@@ -57,6 +57,8 @@ _RECOVERABLE_MEDIA_CODES = frozenset(
         "usb_mount_source_invalid",
         "usb_filesystem_uuid_mismatch",
         "usb_bound_filesystem_contract_invalid",
+        "usb_transaction_media_unavailable",
+        "ha_usb_target_reprepare_required",
     }
 )
 
@@ -517,8 +519,13 @@ class HaUsbIpcExecutor:
             if document is None:
                 raise UpdaterV2Error("ha_ota_ipc_transaction_missing")
             self._require_same_admission(document, admission)
-            with self._controller_lock:
-                self.prepare_controller.revalidate_and_request_install()
+            try:
+                with self._controller_lock:
+                    self.prepare_controller.revalidate_and_request_install()
+            except UpdaterV2Error as error:
+                if str(error) != "ha_usb_target_reprepare_required":
+                    raise
+                self._start_prepare_worker("resume", fail_if_running=False)
             return self.status()
         if action == "CONFIRM_USB_ERASE":
             if self.prepare_controller is None:

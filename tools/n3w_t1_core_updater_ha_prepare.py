@@ -15,9 +15,11 @@ from n3w_t1_core_updater_ha_recovery import (
     validate_image_recovery_record,
 )
 from n3w_t1_core_updater_ha_usb import (
+    record_compatible_media,
     record_media_bound,
     record_target_ready,
     request_install,
+    request_target_reprepare,
     start_target_preparation,
 )
 from n3w_t1_core_updater_ha_usb_media import (
@@ -156,11 +158,13 @@ class PreparePipelineBackend(Protocol):
     ) -> PreparedUsbMedia:
         """Format only the already revalidated candidate and return bound media."""
 
-    def reopen_bound_media(
+    def resolve_transaction_media(
         self,
         transaction: dict[str, Any],
+        *,
+        write_required: bool,
     ) -> PreparedUsbMedia | None:
-        """Reopen only the UUID/fingerprint already durably bound at U2."""
+        """Resolve current safe compatible product media without old identity binding."""
 
     def sync_transaction_metadata(
         self,
@@ -451,10 +455,7 @@ class HaUsbPrepareController:
         observed = tuple(self.backend.inventory())
         for candidate in observed:
             candidate.validate()
-        baseline = sorted(
-            candidate.public_fingerprint
-            for candidate in observed
-        )
+        baseline: list[str] = []
         release_identity = current["target_manifest_identity"].get("release_identity")
         if not isinstance(release_identity, str):
             raise UpdaterV2Error("ha_usb_prepare_release_invalid")
@@ -534,6 +535,54 @@ class HaUsbPrepareController:
         if transaction["phase"] != U1:
             return self.public_status()
         state = self._matching_prepare_state(transaction)
+
+        existing_media = self.backend.resolve_transaction_media(
+            transaction,
+            write_required=True,
+        )
+        if existing_media is not None:
+            now = int(time.time())
+            snapshot = validate_capacity_snapshot(
+                self.backend.capacity_snapshot(
+                    transaction,
+                    calculated_at_unix=now,
+                )
+            )
+            capacity_inputs = capacity_inputs_from_snapshot(snapshot)
+            report = assess_capacity(
+                existing_media.measured_usable_bytes,
+                capacity_inputs,
+            )
+            if report.capacity_pass is not True:
+                self.backend.abort_prepared_media(existing_media)
+                blocked = dict(state)
+                blocked["capacity_snapshot"] = snapshot
+                blocked["error_code"] = "usb_capacity_not_verified"
+                blocked["updated_at_unix"] = now
+                self.prepare_store.write(blocked)
+                return self.public_status()
+
+            u2 = record_compatible_media(
+                transaction,
+                public_fingerprint=existing_media.public_fingerprint,
+                filesystem_uuid=existing_media.filesystem_uuid,
+                measured_usable_bytes=existing_media.measured_usable_bytes,
+                capacity_report=report,
+            )
+            self.transaction_store.write(u2)
+            self.backend.sync_transaction_metadata(u2, existing_media)
+            u3 = start_target_preparation(u2)
+            self.backend.sync_transaction_metadata(u3, existing_media)
+            self.transaction_store.write(u3)
+            target = self.backend.prepare_target(
+                transaction=u3,
+                media=existing_media,
+            )
+            u4 = record_target_ready(u3, target=target)
+            self.backend.sync_transaction_metadata(u4, existing_media)
+            self.transaction_store.write(u4)
+            return self.public_status()
+
         baseline = set(state["baseline_public_fingerprints"])
         fresh = tuple(
             candidate
@@ -688,9 +737,12 @@ class HaUsbPrepareController:
         transaction = self._transaction()
         if transaction["phase"] not in {U2, U3}:
             raise UpdaterV2Error("ha_usb_prepare_resume_phase_invalid")
-        media = self.backend.reopen_bound_media(transaction)
+        media = self.backend.resolve_transaction_media(
+            transaction,
+            write_required=True,
+        )
         if media is None:
-            raise UpdaterV2Error("usb_bound_media_unavailable")
+            raise UpdaterV2Error("usb_transaction_media_unavailable")
         current = transaction
         if current["phase"] == U2:
             self.backend.sync_transaction_metadata(current, media)
@@ -709,18 +761,32 @@ class HaUsbPrepareController:
         transaction = self._transaction()
         if transaction["phase"] != U4:
             raise UpdaterV2Error("ha_usb_install_revalidation_phase_invalid")
-        media = self.backend.reopen_bound_media(transaction)
-        if media is None:
-            raise UpdaterV2Error("usb_bound_media_unavailable")
-        target = validate_image_recovery_record(
-            self.backend.verify_prepared_target(
-                transaction=transaction,
-                media=media,
-            ),
-            expected_kind="target",
-            expected_image_ref=transaction["target_image_ref"],
-            expected_archive_sha256=transaction["target_archive_sha256"],
+        media = self.backend.resolve_transaction_media(
+            transaction,
+            write_required=True,
         )
+        if media is None:
+            raise UpdaterV2Error("usb_transaction_media_unavailable")
+        try:
+            target = validate_image_recovery_record(
+                self.backend.verify_prepared_target(
+                    transaction=transaction,
+                    media=media,
+                ),
+                expected_kind="target",
+                expected_image_ref=transaction["target_image_ref"],
+                expected_archive_sha256=transaction["target_archive_sha256"],
+            )
+        except UpdaterV2Error as error:
+            if str(error) not in {
+                "ha_target_destination_invalid",
+                "ha_target_existing_identity_invalid",
+            }:
+                raise
+            u3 = request_target_reprepare(transaction)
+            self.backend.sync_transaction_metadata(u3, media)
+            self.transaction_store.write(u3)
+            raise UpdaterV2Error("ha_usb_target_reprepare_required") from error
         if target.archive_size_bytes != transaction["target_archive_size"]:
             raise UpdaterV2Error("ha_usb_target_archive_size_mismatch")
         u5 = request_install(transaction, target=target)
@@ -756,7 +822,15 @@ class HaUsbPrepareController:
 
         if phase == U1:
             state = self._matching_prepare_state(transaction)
-            candidate = state.get("candidate")
+            raw_candidate = state.get("candidate")
+            candidate = (
+                {
+                    "display_model": raw_candidate["display_model"],
+                    "display_capacity_bytes": raw_candidate["display_capacity_bytes"],
+                }
+                if isinstance(raw_candidate, dict)
+                else None
+            )
             confirmation_required = bool(state.get("confirmation_required"))
             error_code = state.get("error_code")
             if snapshot is None:
