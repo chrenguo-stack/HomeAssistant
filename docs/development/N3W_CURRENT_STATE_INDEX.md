@@ -1,5 +1,6 @@
 ## 2026-11-13 — R17 real-T1 dependency-safe recovery PHYSICAL_CLOSED_PASS / R18 install-intent successor next
 
+- Core Stack current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
 - Exact R17 authorized head `f96f7d85983b6bc3b05de15b48528d6fe9f16fcd` completed fresh CI `16/16 SUCCESS`.
 - The real-T1 executor revalidated the exact failed post-R16 prestate, then claimed and consumed the one-shot authorization.
 - Dependency-safe lifecycle completed successfully: services owner stopped before OTA host daemon; only repaired `prepare_host.py` was activated; host daemon started before services owner.
