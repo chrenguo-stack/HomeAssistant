@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import hashlib
 import importlib.util
 import json
@@ -85,10 +86,18 @@ def test_executor_and_remote_script_compile() -> None:
     compile(EXECUTOR.read_text(encoding="utf-8"), str(EXECUTOR), "exec")
     compile(module.REMOTE_SCRIPT, "<v1-2-source-activation-r2>", "exec")
     assert module.GATE_ID == GATE
-    assert GATE in module.REMOTE_SCRIPT
+
+    tree = ast.parse(module.REMOTE_SCRIPT)
+    constants = {
+        node.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+    }
+    assert GATE in constants
     assert (
+        "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_"
         "REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_ACTIVATION_20261112_01"
-        not in module.REMOTE_SCRIPT
+        not in constants
     )
 
 
