@@ -32,19 +32,27 @@ def load_remote_namespace():
     return namespace
 
 
-def test_manifest_is_granted_once_for_exact_post_r2_successor() -> None:
+def test_manifest_is_terminal_consumed_after_r13_pass() -> None:
     d = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert d["gate_id"] == GATE
     assert d["authorization_id"] == GATE
     assert d["confirmation"] == CONFIRMATION
-    assert d["live_execution_authorized"] is True
-    assert d["authorization_state"] == {"granted": True, "claimed": False, "consumed": False, "replay_permitted": False}
-    assert d["authorization_grant"] == {
-        "source": "explicit_user_authorization_in_chat",
-        "date": "2026-11-13",
-        "scope": "post_r2_u4_writable_mount_restoration_on_real_t1_only",
-        "execute_in_next_chat": False,
-    }
+    assert d["live_execution_authorized"] is False
+    assert d["authorization_state"] == {"granted": False, "claimed": True, "consumed": True, "replay_permitted": False}
+    assert d["authorization_grant"]["terminal"] == (
+        "consumed_by_real_t1_r13_writable_mount_restoration_pass"
+    )
+    terminal = d["terminal_execution_record"]
+    assert terminal["status"] == "POST_REBOOT_U4_MOUNT_RESTORATION_PASS"
+    assert terminal["remote_returncode"] == 0
+    assert terminal["authorization_claimed"] is True
+    assert terminal["authorization_consumed"] is True
+    assert terminal["replay_permitted"] is False
+    assert terminal["writable_mount_restored"] is True
+    assert terminal["transaction_phase"] == "U4_READY_TO_INSTALL"
+    assert terminal["transaction_mutation"] is False
+    assert terminal["u5_transition"] is False
+    assert terminal["u6_plus"] is False
     assert d["predecessor_terminal"]["expected_status"] == "V1_2_SOURCE_ACTIVATION_PASS"
     assert d["predecessor_terminal"]["authorization_consumed"] is True
     assert d["predecessor_terminal"]["source_target_count"] == 8
