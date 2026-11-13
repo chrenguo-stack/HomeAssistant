@@ -1,4 +1,4 @@
-### 2026-11-13 KF-152 R16 lifecycle regression — post-R16 forensic PASS / R17 source candidate
+### 2026-11-13 KF-152 R16 lifecycle regression — post-R16 forensic PASS / R17 CI CLOSED_PASS
 
 ```text
 R16_RESULT=STOP
@@ -24,6 +24,8 @@ LIVE_TRANSACTION_SHA256=dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e59468
 LIVE_USB_MOUNT_STATE=UNMOUNTED
 
 R17_SOURCE_CANDIDATE_HEAD=642bb94b621ac5f991f690900602802d08e6bca0
+R17_EXACT_CI_HEAD=c70719af8cb888d574a8cb59cf68510e83cf6211
+R17_FRESH_CI=16_OF_16_SUCCESS
 R17_LIVE_EXECUTION_AUTHORIZED=false
 ```
 
@@ -49,6 +51,7 @@ R17 repair:
 - requires strict host/services/Broker owner health, exact container image identities, Manager-side IPC READY_TO_INSTALL and unchanged U4 transaction;
 - rollback uses the same dependency-safe ordering and restores predecessor source before service recovery;
 - no mount/unmount, transaction/USB mutation, INSTALL, U5/U6+, board access or merge.
+- exact closure head `c70719af8cb888d574a8cb59cf68510e83cf6211` completed 16/16 fresh CI SUCCESS; the next gate is the real-T1 read-only R17 preflight, not live recovery execution.
 
 Regression guard:
 - any executor that stops a systemd unit required by a production owner must model reverse dependency propagation on both execute and rollback paths;

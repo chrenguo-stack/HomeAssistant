@@ -1,4 +1,4 @@
-## 2026-11-13 — KF-152 post-R16 forensic PASS / R17 dependency-safe successor ungranted
+## 2026-11-13 — R17 exact-head CI CLOSED_PASS / real-T1 read-only preflight next
 
 - Core Stack current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
 - Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
@@ -9,9 +9,10 @@
 - Exact U4 transaction remains unchanged at SHA-256 `dc6252c...`, phase `U4_READY_TO_INSTALL`, and USB remains a compatible unmounted N3W-UPDATE ext4 device. No R16 transaction/USB/U5/U6+ mutation occurred.
 - KF-152 is the reintroduction of the already-proven Stage B systemd lifecycle defect: services owner Requires the OTA host daemon. The physically proven safe sequence is stop services → stop host → apply/restore → start host → start services → validate.
 - R17 source candidate `642bb94b621ac5f991f690900602802d08e6bca0` is ungranted. Executor `8538406a546a1c9dc85e1476c5c5d8feff88fb3b`, manifest `f67095c796414077a94b9bbb2ab25fce6f7f661e`, focused test `a313645fb3f68bcece93a73ca3e4b1c213053115`.
+- R17 exact closure head `c70719af8cb888d574a8cb59cf68510e83cf6211` completed fresh CI `16/16 SUCCESS`; Manager A-to-B run `43377682706`, storage/image lifecycle run `43377682423`, and HA target-binding run `43377682585` all closed successfully.
 - R17 binds the exact failed post-R16 prestate, activates only `prepare_host.py`, restarts Manager/HA through their existing services owner, preserves Broker, transaction and USB, and stops before INSTALL/U5.
 - R17 rollback uses the same dependency-safe lifecycle. Live execution is not authorized.
-- Next gate: fresh CI for the exact R17 head, then a real-T1 read-only preflight only.
+- Next gate: execute the exact R17 real-T1 read-only preflight only. A PASS establishes eligibility for a separate new one-shot recovery authorization boundary; it does not authorize or execute recovery.
 
 ## 2026-11-12 — V1.2 source activation AUTHORIZED / new-chat execution boundary
 

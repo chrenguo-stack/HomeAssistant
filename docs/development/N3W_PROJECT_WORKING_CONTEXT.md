@@ -1,7 +1,7 @@
-## Stable updater authority — 2026-11-13 KF-152 post-R16 forensic closure / R17 ungranted successor
+## Stable updater authority — 2026-11-13 R17 exact-head CI CLOSED_PASS / read-only preflight next
 
 ```text
-PROJECT_WORKING_CONTEXT_VERSION=6.4
+PROJECT_WORKING_CONTEXT_VERSION=6.5
 
 CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
 CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
@@ -33,6 +33,8 @@ LIVE_PREPARE_HOST_SHA256=f8b63b54e0da053a264a6c174a2988dabd75852117a27aec9a383a5
 LIVE_USB_MOUNT_STATE=UNMOUNTED
 
 R17_SOURCE_CANDIDATE_HEAD=642bb94b621ac5f991f690900602802d08e6bca0
+R17_EXACT_CI_HEAD=c70719af8cb888d574a8cb59cf68510e83cf6211
+R17_FRESH_CI=16_OF_16_SUCCESS
 R17_AUTHORIZATION_STATE=UNGRANTED
 R17_DEPENDENCY_SAFE_LIFECYCLE=true
 R17_ACTIVATED_SOURCE_FILE=tools/n3w_t1_core_updater_ha_prepare_host.py
@@ -41,11 +43,14 @@ R17_U5_TRANSITION=false
 R17_U6_PLUS=false
 BOARD_ACCESS=false
 MERGE=false
+NEXT_ONE_GATE=R17_REAL_T1_READONLY_PREFLIGHT
 ```
 
 Post-R16 forensic proves that source rollback restored the old prepare_host bytes but runtime rollback was incomplete: the OTA host daemon is healthy while the services owner remains failed and Manager/Home Assistant remain stopped. Broker and the exact U4 transaction remain intact.
 
 R17 is an ungranted successor bound to that exact failed prestate. It reuses the Stage B R3 physically proven dependency-safe lifecycle, activates only the KF-151 prepare_host repair, starts the services owner after the host daemon, and requires strict healthy owner/container/IPC/U4 postvalidation. Its rollback uses the same service order and restores the predecessor source before restarting both owners. It does not mount USB, submit INSTALL, mutate transaction/USB state, enter U5/U6+, access boards or merge.
+
+The exact R17 closure head completed 16/16 fresh CI SUCCESS. The next gate is only the real-T1 read-only preflight. A PASS may be used to request and bind a separate new one-shot live recovery authorization; no live recovery permission exists at this checkpoint.
 
 ## Stable updater authority — 2026-11-12 KF-147 R12 real-T1 read-only preflight PASS / authorization boundary
 
