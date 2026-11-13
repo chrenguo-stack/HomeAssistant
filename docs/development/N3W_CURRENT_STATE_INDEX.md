@@ -1,6 +1,13 @@
 ## 2026-11-13 — R17 real-T1 dependency-safe recovery PHYSICAL_CLOSED_PASS / R18 install-intent successor next
 
 - Core Stack current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current Manager: `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical clean reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; current repository Core Stack authority remains APPLIED_ACCEPTED.
 - Exact R17 authorized head `f96f7d85983b6bc3b05de15b48528d6fe9f16fcd` completed fresh CI `16/16 SUCCESS`.
 - The real-T1 executor revalidated the exact failed post-R16 prestate, then claimed and consumed the one-shot authorization.
 - Dependency-safe lifecycle completed successfully: services owner stopped before OTA host daemon; only repaired `prepare_host.py` was activated; host daemon started before services owner.
