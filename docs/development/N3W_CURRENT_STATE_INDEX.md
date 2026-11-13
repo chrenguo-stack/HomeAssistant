@@ -1,4 +1,4 @@
-## 2026-11-13 — R17 real-T1 dependency-safe recovery PHYSICAL_CLOSED_PASS / R18 install-intent successor next
+## 2026-11-13 — R18 real-T1 read-only preflight PASS / new one-shot INSTALL-U5 authorization boundary
 
 - Core Stack current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
 - Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
@@ -8,17 +8,15 @@
 - Historical clean reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
 - Historical clean reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
 - Live upgrade accepted; current repository Core Stack authority remains APPLIED_ACCEPTED.
-- Exact R17 authorized head `f96f7d85983b6bc3b05de15b48528d6fe9f16fcd` completed fresh CI `16/16 SUCCESS`.
-- The real-T1 executor revalidated the exact failed post-R16 prestate, then claimed and consumed the one-shot authorization.
-- Dependency-safe lifecycle completed successfully: services owner stopped before OTA host daemon; only repaired `prepare_host.py` was activated; host daemon started before services owner.
-- Live `prepare_host.py` is SHA-256 `fd2898cf9d63ae143b9620e56a19e9789306c802440bb9424cfc30064bc53005`.
-- OTA host daemon, services owner and Broker owner are `active/running/success` with `NRestarts=0`; Manager, Home Assistant and Broker containers are running with restart count 0 on the frozen runtime image identities.
-- Manager IPC is `READY_TO_INSTALL`; exact transaction remains `U4_READY_TO_INSTALL` at SHA-256 `dc6252c...`.
-- Compatible `N3W-UPDATE` ext4 media remains present and unmounted; current `/dev/sda1` is observation only, not durable identity.
-- R17 made no transaction/USB mutation and did not enter INSTALL intent, U5 or U6+; rollback was not required.
-- R17 authorization is terminal consumed/no-replay. Neither R15 nor R17 may be retried.
-- KF-152 is now physically closed.
-- Next bounded work is repository-only preparation of a new R18 U4→U5 INSTALL-intent successor bound to the repaired live source and healthy U4 runtime. Live INSTALL/U5 remains unauthorized until a new explicit one-shot grant.
+- R18 exact head `323a64ff24e1c846546140a20bf294aef78b4434` completed fresh CI `16/16 SUCCESS`.
+- Real-T1 R18 read-only preflight returned `PASS / RC=0` with `u5_transition_eligible=true`.
+- The repaired eight-file source set is exact; live `prepare_host.py` remains SHA-256 `fd2898cf...`.
+- Manager, Home Assistant and Broker are running with restart count 0; OTA service is active/running/success with `NRestarts=0`; Manager IPC is `READY_TO_INSTALL`.
+- Exact transaction remains `U4_READY_TO_INSTALL` at SHA-256 `dc6252c...`.
+- Exact bound USB UUID/public fingerprint is present as compatible ext4 `N3W-UPDATE` and remains unmounted; current `/dev/sda1` is observation only.
+- The preflight caused no host/source/transaction/USB/metadata/service/container mutation and did not enter U5/U6+.
+- R18 remains ungranted/unclaimed/unconsumed. A separate explicit one-shot authorization is required before INSTALL intent may be submitted.
+- Next gate: `R18_NEW_ONE_SHOT_INSTALL_U5_AUTHORIZATION`.
 
 ## 2026-11-12 — V1.2 source activation AUTHORIZED / new-chat execution boundary
 

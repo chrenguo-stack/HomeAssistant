@@ -1,41 +1,35 @@
-## Stable updater authority — 2026-11-13 R17 real-T1 recovery PHYSICAL_CLOSED_PASS / R18 successor preparation
+## Stable updater authority — 2026-11-13 R18 real-T1 preflight PASS / INSTALL-U5 authorization boundary
 
 ```text
-PROJECT_WORKING_CONTEXT_VERSION=6.6
+PROJECT_WORKING_CONTEXT_VERSION=6.7
 
 CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
 CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
 CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
 CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
 CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
 PR=807
 PR_STATE=OPEN_DRAFT_UNMERGED
+
+R18_EXACT_HEAD=323a64ff24e1c846546140a20bf294aef78b4434
+R18_FRESH_CI=16_OF_16_SUCCESS
+R18_READONLY_PREFLIGHT=PASS
+R18_U5_TRANSITION_ELIGIBLE=true
+R18_AUTHORIZATION_STATE=UNGRANTED
+R18_LIVE_EXECUTION_AUTHORIZED=false
 
 LAST_PROVEN_TRANSACTION_PHASE=U4_READY_TO_INSTALL
 LAST_PROVEN_TRANSACTION_SHA256=dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259
 LAST_PROVEN_IPC_PHASE=READY_TO_INSTALL
 LAST_PROVEN_USB_MOUNT_STATE=UNMOUNTED
-
-R17_AUTHORIZED_HEAD=f96f7d85983b6bc3b05de15b48528d6fe9f16fcd
-R17_AUTHORIZED_HEAD_CI=16_OF_16_SUCCESS
-R17_RESULT=KF152_R17_RECOVERY_ACTIVATION_PASS
-R17_AUTHORIZATION_CONSUMED=true
-R17_REPLAY_PERMITTED=false
-R17_ROLLBACK_REQUIRED=false
-R17_TRANSACTION_MUTATION=false
-R17_USB_MUTATION=false
-R17_U5_TRANSITION=false
-R17_U6_PLUS=false
-
 LIVE_PREPARE_HOST_SHA256=fd2898cf9d63ae143b9620e56a19e9789306c802440bb9424cfc30064bc53005
-LIVE_HOST_DAEMON=active_running_success_nrestarts0
-LIVE_SERVICES_OWNER=active_running_success_nrestarts0
-LIVE_MANAGER=running_exit0_restart0
-LIVE_HOMEASSISTANT=running_exit0_restart0
-LIVE_BROKER=running_exit0_restart0
-KF152_STATUS=PHYSICAL_CLOSED_PASS
 
-NEXT_ONE_GATE=R18_U4_TO_U5_INSTALL_INTENT_SUCCESSOR_SOURCE_PREPARATION
+R18_PREFLIGHT_MUTATION=false
+NEXT_ONE_GATE=R18_NEW_ONE_SHOT_INSTALL_U5_AUTHORIZATION
 LIVE_MUTATION_AUTHORIZED=false
 INSTALL_INTENT_AUTHORIZED=false
 U5_AUTHORIZED=false
@@ -44,9 +38,9 @@ BOARD_ACCESS=false
 MERGE=false
 ```
 
-R17 physically closed KF-152. The dependency-safe service lifecycle restored Manager and Home Assistant while activating only the repaired `prepare_host.py`; Broker remained healthy. Postvalidation proved exact repaired source, healthy owners/containers, Manager IPC `READY_TO_INSTALL`, unchanged U4 transaction, and compatible unmounted USB. The R17 one-shot is consumed and must never be replayed.
+R18 is now physically proven eligible for the bounded U4→U5 INSTALL-intent transition. The real-T1 preflight bound the repaired source set, healthy runtime, exact U4 transaction, Manager IPC READY_TO_INSTALL and exact compatible unmounted USB without mutation. The product-side `lsblk --tree` media resolver repair is live and the harness no longer requires a stale pre-mounted U4 assumption.
 
-The next engineering boundary is repository-only R18 successor preparation for a new U4→U5 INSTALL-intent attempt. It must bind the repaired live source and healthy U4 runtime, inherit the exact transaction/media authorities, and remain ungranted until a separate explicit live authorization.
+This PASS does not grant INSTALL. R18 remains ungranted and must receive a separate one-shot live authorization before any U5 transition.
 
 ## Stable updater authority — 2026-11-12 KF-147 R12 real-T1 read-only preflight PASS / authorization boundary
 
