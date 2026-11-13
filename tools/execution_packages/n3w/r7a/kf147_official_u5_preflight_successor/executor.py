@@ -19,7 +19,7 @@ MANIFEST_PATH = Path(__file__).with_name("manifest.json")
 SSH_TRANSPORT_PATH = ROOT / "tools" / "n3w_t1_ssh_transport.py"
 GATE_ID = (
     "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_"
-    "U4_TO_U5_INSTALL_INTENT_R7_PREFLIGHT_20261111_01"
+    "OFFICIAL_U5_PREFLIGHT_R14_20261113_01"
 )
 
 
@@ -400,7 +400,7 @@ def main():
         plan = json.loads(base64.b64decode(sys.argv[1]).decode("utf-8"))
         if plan.get("gate_id") != (
             "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_"
-            "U4_TO_U5_INSTALL_INTENT_R7_PREFLIGHT_20261111_01"
+            "OFFICIAL_U5_PREFLIGHT_R14_20261113_01"
         ):
             raise Stop("gate_id_invalid")
 
