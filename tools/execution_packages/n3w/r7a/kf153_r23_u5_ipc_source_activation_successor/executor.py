@@ -319,9 +319,14 @@ def execute(plan,authorization,confirmation):
     if sha_file(backup)!=plan["installed_source_sha256"][plan["ipc_remote_path"]]: raise Stop("r23_backup_drift")
     state_root.mkdir(mode=0o700); os.chown(state_root,0,0); fsync_dir(state_root.parent)
     durable_json(state_root/"preflight.json",pre)
+    result={"schema":"gh.n3w-t1-kf153-r23-u5-ipc-source-activation/1","status":"STOP","authorization_claimed":False,"authorization_consumed":False,"replay_permitted":False,"authorization_claim_persistence_unknown":False,"host_source_mutation":False,"lifecycle_mutation_started":False,"usb_mount_mutation":False,"transaction_mutation":False,"usb_transaction_metadata_mutation":False,"host_daemon_restart":False,"services_owner_restart":False,"u6_plus":False,"rollback_required":False,"rollback":None,"board_access":False,"merge":False}
     claim={"authorization_id":plan["authorization_id"],"claimed":True,"consumed":True,"replay_permitted":False}
-    durable_json(state_root/"authorization_claim.json",claim)
-    result={"schema":"gh.n3w-t1-kf153-r23-u5-ipc-source-activation/1","status":"STOP","authorization_claimed":True,"authorization_consumed":True,"replay_permitted":False,"host_source_mutation":False,"lifecycle_mutation_started":False,"usb_mount_mutation":False,"transaction_mutation":False,"usb_transaction_metadata_mutation":False,"host_daemon_restart":False,"services_owner_restart":False,"u6_plus":False,"rollback_required":False,"rollback":None,"board_access":False,"merge":False}
+    try:
+        durable_json(state_root/"authorization_claim.json",claim)
+    except Exception as claim_error:
+        result.update(status="STOP_UNKNOWN",reason="authorization_claim_persistence_unknown:"+type(claim_error).__name__+":"+str(claim_error)[:180],authorization_claimed=True,authorization_consumed=True,replay_permitted=False,authorization_claim_persistence_unknown=True)
+        return result
+    result.update(authorization_claimed=True,authorization_consumed=True,replay_permitted=False)
     try:
         postclaim=verify_runtime(plan,target_source=False,require_ipc=False)
         if postclaim["transaction_sha256"]!=pre["transaction_sha256"]: raise Stop("postclaim_transaction_drift")
@@ -347,7 +352,17 @@ def execute(plan,authorization,confirmation):
             raise Stop("postactivation_runtime_timeout:"+(str(last) if last else "unknown"))
         if post["transaction_sha256"]!=pre["transaction_sha256"]: raise Stop("u5_transaction_drift_after_activation")
         result.update(status="KF153_R23_U5_IPC_SOURCE_ACTIVATION_PASS",source_activated=True,u5_preserved=True,ipc_recovered=True,post=post)
-        shutil.rmtree(stage_root)
+        try:
+            shutil.rmtree(stage_root)
+        except Exception as cleanup_error:
+            result["completed_remote_status"]=result["status"]
+            result["status"]="STOP_POSTSUCCESS_CLEANUP"
+            result["postsuccess_cleanup_error"]=type(cleanup_error).__name__+":"+str(cleanup_error)[:240]
+            result["rollback_required"]=False
+            try:
+                durable_json(state_root/"postsuccess_cleanup_failure.json",result)
+            except Exception:
+                pass
         return result
     except Exception as error:
         result["first_failed_operation"]=type(error).__name__+":"+str(error)[:240]
