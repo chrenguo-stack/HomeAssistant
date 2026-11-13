@@ -3,11 +3,14 @@
 - Core Stack current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
 - Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
 - Current Manager: `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical clean reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; current repository Core Stack authority remains APPLIED_ACCEPTED.
 - R15 exact authorized attempt at `6e29ec53eb2f454e977c5d9afa280d3b18cd2171` claimed and consumed its one-shot authorization, then STOPped before any transaction/USB/U5 mutation with `ipc_request_rejected:usb_transaction_media_unavailable`. It is permanently non-replayable.
 - Real-T1 read-only comparison on util-linux 2.41.3 physically proved KF-151: the old production `lsblk --json ...` emitted disk and partition as flat top-level objects with no disk `children`; adding explicit `--tree` nested the partition under the disk exactly as `resolve_transaction_media()` requires.
 - Bound media simultaneously remained valid ext4 `N3W-UPDATE`, UUID `967cf065-abe5-49ee-8499-7c3f50d2c48f`, mounted rw,nodev,nosuid,noexec at the transaction-derived path.
 - Product repair head `5e0db1092e697be79e63c9f213fffe6fd4d7b2cc` adds only explicit `--tree` to the production backend and closes fresh CI 16/16 SUCCESS.
-- R16 ungranted successor candidate `5438fe87715b40f96778f65c1d600e522eeb910b` validates the full eight-file V1.2 source set but activates only `n3w_t1_core_updater_ha_prepare_host.py`; executor `d7d02e1554d36e05ef596637064811634b18fbda`, manifest `17efdb847bff873ff1ef181e2da63c2b86f46adb`, focused test `b4bb5f0cb69f738230688405628547002c4072a9`.
+- R16 ungranted successor candidate `5438fe87715b40f96778f65c1d600e522eeb910b` validates the full eight-file V1.2 source set but activates only `n3w_t1_core_updater_ha_prepare_host.py`; executor `121e37118c08cb4b7c647ace08f016f07900d5f4`, manifest `72d74639fb167b78da9953083fb2a223c0fdb637`, focused test `b4bb5f0cb69f738230688405628547002c4072a9`.
 - R16 only permits OTA host-daemon restart on a future separately authorized execute; it does not restart the services owner, does not submit INSTALL, does not enter U5/U6+, and does not access boards or merge.
 - Current next gate is source/CI/read-only preparation only. No live R16 mutation authorization exists.
 
