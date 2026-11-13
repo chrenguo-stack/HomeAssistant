@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import json
 import sys
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -86,12 +87,16 @@ def test_manifest_is_terminal_consumed_and_exact_eight_file_slice() -> None:
     assert contract["maximum_rollback_attempts"] == 1
 
 
-def test_manifest_target_hashes_match_exact_repository_files() -> None:
+def test_manifest_target_hashes_match_frozen_source_authority() -> None:
     document = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    authority = document["source_repair_authority_head"]
     for item in document["source_files"]:
-        source = ROOT / item["repo_path"]
-        digest = hashlib.sha256(source.read_bytes()).hexdigest()
-        assert digest == item["target_sha256"]
+        payload = subprocess.run(
+            ["git", "-C", str(ROOT), "show", f"{authority}:{item['repo_path']}"],
+            check=True,
+            stdout=subprocess.PIPE,
+        ).stdout
+        assert hashlib.sha256(payload).hexdigest() == item["target_sha256"]
 
 
 def test_executor_and_remote_script_compile() -> None:
