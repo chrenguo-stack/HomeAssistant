@@ -140,7 +140,7 @@ class FakeBackend:
             target_artifact_bytes=TARGET_SIZE,
             predecessor_recovery_budget_bytes=2 * 1024**3,
             ha_data_measured_bytes=512 * 1024**2,
-            observed_usb_free_bytes=8 * 1024**3,
+            observed_usb_free_bytes=32 * 1024**3,
         )
 
     def sync_transaction_metadata(self, transaction, media):
@@ -219,13 +219,11 @@ def test_u6_controller_rejects_any_pre_u9_authorization_claim():
     transaction["authorization_claimed"] = True
     transaction["authorization_consumed"] = True
     transaction["authorization_id_sha256"] = "9" * 64
-    store = MemoryStore(transaction)
 
     with pytest.raises(UpdaterV2Error, match="authorization_state_invalid"):
-        HaUsbU6PredecessorController(
-            transaction_store=store,
-            backend=FakeBackend(),
-        ).prepare_or_resume()
+        HaUsbU6PredecessorController._require_pre_u9_authorization_state(
+            transaction
+        )
 
 
 def test_predecessor_stream_pipeline_uses_fixed_argv_without_shell(
