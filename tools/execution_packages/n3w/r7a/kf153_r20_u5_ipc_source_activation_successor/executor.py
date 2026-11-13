@@ -24,6 +24,7 @@ class Stop(RuntimeError):
     pass
 
 REMOTE_SCRIPT = r'''
+import base64
 import hashlib
 import json
 import os

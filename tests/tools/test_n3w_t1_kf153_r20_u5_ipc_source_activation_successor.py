@@ -1,5 +1,5 @@
 from __future__ import annotations
-import importlib.util, json, sys
+import ast, importlib.util, json, sys
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
 PACKAGE=ROOT/"tools"/"execution_packages"/"n3w"/"r7a"/"kf153_r20_u5_ipc_source_activation_successor"
@@ -89,4 +89,14 @@ def test_r20_persists_raw_remote_transport_evidence_before_verdict():
     assert 'stdout_sha256' in source
     assert 'stderr_sha256' in source
     assert 'json.loads(c.stdout)' in source
+
+def test_r20_remote_script_imports_base64_for_payload_decode():
+    tree=ast.parse(load_executor().REMOTE_SCRIPT)
+    imports=set()
+    for node in tree.body:
+        if isinstance(node,ast.Import):
+            imports.update(alias.name for alias in node.names)
+        elif isinstance(node,ast.ImportFrom) and node.module:
+            imports.add(node.module)
+    assert "base64" in imports
 
