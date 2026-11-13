@@ -3,15 +3,15 @@
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_POST_R2_U4_WRITABLE_MOUNT_RESTORATION_R13_20261113_01",
   "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_POST_R2_U4_WRITABLE_MOUNT_RESTORATION_R13_20261113_01",
   "confirmation": "EXECUTE KF147 POST R2 U4 WRITABLE MOUNT RESTORATION R13: YES",
-  "live_execution_authorized": false,
+  "live_execution_authorized": true,
   "authorization_state": {
-    "granted": false,
+    "granted": true,
     "claimed": false,
     "consumed": false,
     "replay_permitted": false
   },
   "authorization_grant": {
-    "source": "not_granted",
+    "source": "explicit_user_authorization_in_chat",
     "date": "2026-11-13",
     "scope": "post_r2_u4_writable_mount_restoration_on_real_t1_only",
     "execute_in_next_chat": false
