@@ -1,8 +1,7 @@
-## Stable updater authority — 2026-11-13 R18 INSTALL-U5 one-shot GRANTED / authorized-head CI boundary
+## Stable updater authority — 2026-11-13 R18 consumed STOP / forensic required
 
 ```text
-PROJECT_WORKING_CONTEXT_VERSION=6.8
-
+PROJECT_WORKING_CONTEXT_VERSION=6.9
 CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
 CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
 CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
@@ -12,32 +11,20 @@ HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
 HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
 LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
 
-PR=807
-PR_STATE=OPEN_DRAFT_UNMERGED
-
-R18_SOURCE_CI_HEAD=323a64ff24e1c846546140a20bf294aef78b4434
-R18_SOURCE_CI=16_OF_16_SUCCESS
-R18_READONLY_PREFLIGHT_CLOSURE_HEAD=ce3e02e289fe90766ec331e096b8306db6ff5bee
-R18_READONLY_PREFLIGHT=PASS
-
-R18_AUTHORIZATION_GRANTED=true
-R18_AUTHORIZATION_CLAIMED=false
-R18_AUTHORIZATION_CONSUMED=false
+R18_RESULT=STOP
+R18_REASON=ipc_request_unavailable:1
+R18_AUTHORIZATION_CONSUMED=true
 R18_REPLAY_PERMITTED=false
-R18_LIVE_EXECUTION_AUTHORIZED=true
-R18_FRESH_AUTHORIZED_HEAD_CI_REQUIRED=true
-
-R18_MAXIMUM_PHASE=U5_INSTALL_REQUESTED_REVALIDATING
-R18_U6_PLUS_AUTHORIZED=false
-R18_AUTOMATIC_RETRY=false
-R18_ROLLBACK_PERMITTED=false
+R18_POSTSUBMIT_FINAL_STATE_VERIFIED=false
+KF153_ROOT_CAUSE_STATUS=CANDIDATE_NOT_YET_PHYSICALLY_PROVEN
+NEXT_ONE_GATE=R19_REAL_T1_POST_R18_READONLY_FORENSIC
+LIVE_MUTATION_AUTHORIZED=false
+U6_PLUS_AUTHORIZED=false
 BOARD_ACCESS=false
 MERGE=false
-
-NEXT_ONE_GATE=R18_FRESH_AUTHORIZED_HEAD_CI_THEN_LIVE_EXECUTE
 ```
 
-R18 is now explicitly authorized for one bounded live attempt after the exact authorized head completes fresh CI. The authorization permits only the repaired product path to reopen the exact bound removable media, submit INSTALL intent, write the U5 host/USB transaction metadata and stop at U5. It does not authorize U6+, source deployment, service restart, container mutation, board access, merge, automatic retry or rollback.
+R18 is terminal consumed/no-replay. The return-time U4 observation is not sufficient to prove the final post-timeout state because the synchronous server may have continued processing after the client exited.
 
 ## Stable updater authority — 2026-11-12 KF-147 R12 real-T1 read-only preflight PASS / authorization boundary
 

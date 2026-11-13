@@ -1,4 +1,4 @@
-## 2026-11-13 — R18 one-shot INSTALL-U5 authorization GRANTED / fresh authorized-head CI next
+## 2026-11-13 — R18 consumed STOP / post-submit final state not yet proven
 
 - Core Stack current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
 - Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
@@ -8,11 +8,10 @@
 - Historical clean reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
 - Historical clean reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
 - Live upgrade accepted; current repository Core Stack authority remains APPLIED_ACCEPTED.
-- R18 source head `323a64ff24e1c846546140a20bf294aef78b4434` completed `16/16 SUCCESS`, and real-T1 read-only preflight closed PASS at `ce3e02e289fe90766ec331e096b8306db6ff5bee`.
-- User explicitly granted the new one-shot R18 INSTALL/U5 boundary.
-- Authorization is granted/unclaimed/unconsumed/no-replay and is limited to product-side media reopen plus U4→U5 INSTALL-intent submission.
-- Maximum allowed phase is `U5_INSTALL_REQUESTED_REVALIDATING`; U6+, source deployment, service restart, Manager/HA/Broker mutation, board access, merge, automatic retry and rollback are forbidden.
-- Fresh CI for the exact authorized head is mandatory before real-T1 execute.
+- R18 authorized head `41e1388801cef86c25b2d815ac5583f9feeb00f4` completed 16/16 CI, then the live one-shot stopped with `ipc_request_unavailable:1` after durable claim.
+- R18 authorization is consumed/no-replay. At return time no transaction/USB/U5 mutation was observed and U6+ remained false, but this is not final-state authority.
+- Source review identifies a candidate timeout race: 5-second client socket timeout versus synchronous media reopen/target validation, with response `sendall` outside the dispatch exception guard.
+- Next step is read-only post-submit forensic; R18 must not be rerun.
 
 ## 2026-11-12 — V1.2 source activation AUTHORIZED / new-chat execution boundary
 

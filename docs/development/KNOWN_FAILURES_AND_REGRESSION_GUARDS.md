@@ -1,3 +1,27 @@
+### 2026-11-13 KF-153 R18 IPC submit timeout / post-submit state ambiguity — FORENSIC_REQUIRED
+
+```text
+R18_RESULT=STOP
+R18_REASON=ipc_request_unavailable:1
+R18_AUTHORIZATION_CLAIMED=true
+R18_AUTHORIZATION_CONSUMED=true
+R18_REPLAY_PERMITTED=false
+R18_TRANSACTION_MUTATION_OBSERVED_AT_RETURN=false
+R18_USB_MUTATION_OBSERVED_AT_RETURN=false
+R18_U5_TRANSITION_OBSERVED_AT_RETURN=false
+R18_U6_PLUS=false
+R18_POSTSUBMIT_FINAL_STATE_VERIFIED=false
+ROOT_CAUSE_STATUS=CANDIDATE_NOT_YET_PHYSICALLY_PROVEN
+```
+
+Source review shows the R18 probe uses a 5-second socket timeout while INSTALL is handled synchronously and may reopen media plus verify the prepared target before returning. The server then calls `sendall(response)` outside the dispatch exception guard. This creates a credible timeout/deferred-completion/BrokenPipe race, but physical forensic is required before closing root cause.
+
+Regression guard:
+- R18 is consumed/no-replay and must never be retried;
+- a post-submit transport timeout cannot prove “no mutation” until durable host/USB state is re-read later;
+- long synchronous IPC operations need a client timeout matching their bounded execution budget;
+- response write failure must not kill the serving thread.
+
 ### 2026-11-13 KF-152 R17 dependency-safe source activation — PHYSICAL_CLOSED_PASS
 
 ```text

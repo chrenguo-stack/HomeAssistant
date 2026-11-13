@@ -37,13 +37,30 @@ def test_manifest_authorization_state_and_binds_r17_closed_u4() -> None:
     assert d["gate_id"] == GATE
     assert d["authorization_id"] == GATE
     assert d["confirmation"] == CONFIRMATION
-    granted = d["live_execution_authorized"] is True
-    assert d["authorization_state"] == {
-        "granted": granted,
-        "claimed": False,
-        "consumed": False,
-        "replay_permitted": False,
-    }
+    if d.get("superseded") is True:
+        assert d["live_execution_authorized"] is False
+        assert d["authorization_state"] == {
+            "granted": False,
+            "claimed": True,
+            "consumed": True,
+            "replay_permitted": False,
+        }
+        terminal = d["terminal_live_result"]
+        assert terminal["status"] == "STOP"
+        assert terminal["reason"] == "Stop:ipc_request_unavailable:1"
+        assert terminal["authorization_consumed"] is True
+        assert terminal["replay_permitted"] is False
+        assert terminal["postsubmit_final_state_verified"] is False
+        assert terminal["replay_forbidden"] is True
+        granted = False
+    else:
+        granted = d["live_execution_authorized"] is True
+        assert d["authorization_state"] == {
+            "granted": granted,
+            "claimed": False,
+            "consumed": False,
+            "replay_permitted": False,
+        }
     if granted:
         grant = d["authorization_grant"]
         assert grant["boundary"] == "R18_NEW_ONE_SHOT_INSTALL_U5_AUTHORIZATION"
@@ -205,3 +222,15 @@ def test_workflow_covers_r18() -> None:
     assert w.count("tools/execution_packages/n3w/r7a/kf152_r18_u4_to_u5_install_intent_successor/**") == 1
     assert w.count("tools/execution_packages/n3w/r7a/kf152_r18_u4_to_u5_install_intent_successor/executor.py") == 1
     assert w.count("tests/tools/test_n3w_t1_kf152_r18_u4_to_u5_install_intent_successor.py") == 2
+
+
+def test_superseded_r18_is_terminal_consumed_nonreplayable() -> None:
+    d = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    assert d["superseded"] is True
+    assert d["live_execution_authorized"] is False
+    assert d["authorization_state"] == {
+        "granted": False,
+        "claimed": True,
+        "consumed": True,
+        "replay_permitted": False,
+    }

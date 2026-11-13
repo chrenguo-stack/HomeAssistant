@@ -1,11 +1,11 @@
 {
   "schema": "gh.n3w-t1-kf152-r18-u4-u5-install-intent-transition-manifest/1",
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF152_R18_U4_TO_U5_INSTALL_INTENT_20261113_01",
-  "live_execution_authorized": true,
+  "live_execution_authorized": false,
   "authorization_state": {
-    "granted": true,
-    "claimed": false,
-    "consumed": false,
+    "granted": false,
+    "claimed": true,
+    "consumed": true,
     "replay_permitted": false
   },
   "package_source_authority": {
@@ -158,5 +158,32 @@
     "merge": false,
     "automatic_retry": false,
     "rollback_permitted": false
+  },
+  "superseded": true,
+  "superseded_reason": "r18_live_claim_consumed_stop_ipc_request_unavailable_1_postsubmit_state_ambiguous",
+  "terminal_live_result": {
+    "status": "STOP",
+    "reason": "Stop:ipc_request_unavailable:1",
+    "authorization_claimed": true,
+    "authorization_consumed": true,
+    "replay_permitted": false,
+    "host_state_mutation": true,
+    "host_source_mutation": false,
+    "transaction_mutation_observed_at_return": false,
+    "usb_mutation_observed_at_return": false,
+    "usb_transaction_metadata_mutation_observed_at_return": false,
+    "u5_transition_observed_at_return": false,
+    "split_state_detected_at_return": false,
+    "u6_plus": false,
+    "service_restart": false,
+    "manager_mutation": false,
+    "homeassistant_mutation": false,
+    "broker_mutation": false,
+    "board_access": false,
+    "merge": false,
+    "remote_returncode": 2,
+    "local_returncode": 2,
+    "postsubmit_final_state_verified": false,
+    "replay_forbidden": true
   }
 }
