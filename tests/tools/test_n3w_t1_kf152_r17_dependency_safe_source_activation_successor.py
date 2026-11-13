@@ -22,11 +22,32 @@ def load_executor():
     return module
 
 
-def test_manifest_is_ungranted_and_binds_exact_failed_r16_prestate() -> None:
+def test_manifest_authorization_state_and_binds_exact_failed_r16_prestate() -> None:
     d = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert d["gate_id"] == GATE
-    assert d["live_execution_authorized"] is False
-    assert d["authorization_state"] == {"granted": False, "claimed": False, "consumed": False, "replay_permitted": False}
+    granted = d["live_execution_authorized"] is True
+    assert d["authorization_state"] == {
+        "granted": granted,
+        "claimed": False,
+        "consumed": False,
+        "replay_permitted": False,
+    }
+    if granted:
+        grant = d["authorization_grant"]
+        assert grant["scope"] == "kf152_r17_dependency_safe_single_file_prepare_host_source_activation_only"
+        assert grant["source_ci_head"] == "c70719af8cb888d574a8cb59cf68510e83cf6211"
+        assert grant["source_ci_result"] == "16_OF_16_SUCCESS"
+        assert grant["readonly_preflight_status"] == "PASS"
+        assert grant["readonly_preflight_pr807_comment_id"] == 6846290623
+        assert grant["readonly_preflight_transaction_phase"] == "U4_READY_TO_INSTALL"
+        assert grant["readonly_preflight_transaction_sha256"] == "dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259"
+        assert grant["maximum_phase"] == "U4_READY_TO_INSTALL"
+        assert grant["install_intent_authorized"] is False
+        assert grant["u5_authorized"] is False
+        assert grant["u6_plus_authorized"] is False
+        assert grant["board_access"] is False
+        assert grant["merge"] is False
+        assert grant["automatic_retry"] is False
     f = d["post_r16_forensic"]
     assert f["status"] == "PASS"
     assert f["prepare_host_live_sha256"] == "f8b63b54e0da053a264a6c174a2988dabd75852117a27aec9a383a5d07706172"

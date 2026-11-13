@@ -3,9 +3,9 @@
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF152_DEPENDENCY_SAFE_SOURCE_ACTIVATION_R17_20261113_01",
   "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF152_DEPENDENCY_SAFE_SOURCE_ACTIVATION_R17_20261113_01",
   "confirmation": "EXECUTE KF152 DEPENDENCY SAFE SOURCE ACTIVATION R17: YES",
-  "live_execution_authorized": false,
+  "live_execution_authorized": true,
   "authorization_state": {
-    "granted": false,
+    "granted": true,
     "claimed": false,
     "consumed": false,
     "replay_permitted": false
@@ -186,5 +186,23 @@
     "board_access": false,
     "merge": false
   },
-  "stop_boundary": "STOP_AFTER_DEPENDENCY_SAFE_SOURCE_ACTIVATION_AND_U4_RUNTIME_POSTVALIDATION_BEFORE_INSTALL_INTENT"
+  "stop_boundary": "STOP_AFTER_DEPENDENCY_SAFE_SOURCE_ACTIVATION_AND_U4_RUNTIME_POSTVALIDATION_BEFORE_INSTALL_INTENT",
+  "authorization_grant": {
+    "source": "explicit_user_authorization_in_chat",
+    "date": "2026-11-13",
+    "scope": "kf152_r17_dependency_safe_single_file_prepare_host_source_activation_only",
+    "source_ci_head": "c70719af8cb888d574a8cb59cf68510e83cf6211",
+    "source_ci_result": "16_OF_16_SUCCESS",
+    "readonly_preflight_status": "PASS",
+    "readonly_preflight_pr807_comment_id": 6846290623,
+    "readonly_preflight_transaction_phase": "U4_READY_TO_INSTALL",
+    "readonly_preflight_transaction_sha256": "dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259",
+    "maximum_phase": "U4_READY_TO_INSTALL",
+    "install_intent_authorized": false,
+    "u5_authorized": false,
+    "u6_plus_authorized": false,
+    "board_access": false,
+    "merge": false,
+    "automatic_retry": false
+  }
 }
