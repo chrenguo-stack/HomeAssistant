@@ -1,9 +1,9 @@
 {
   "schema": "gh.n3w-t1-kf147-u4-u5-install-intent-transition-manifest/1",
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U4_TO_U5_INSTALL_INTENT_TRANSITION_R11_20261112_01",
-  "live_execution_authorized": true,
+  "live_execution_authorized": false,
   "authorization_state": {
-    "granted": true,
+    "granted": false,
     "claimed": false,
     "consumed": false,
     "replay_permitted": false
@@ -110,5 +110,8 @@
     "authorization_consumed": true,
     "replay_permitted": false,
     "u4_preserved": true
-  }
+  },
+  "superseded": true,
+  "superseded_by": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_POST_R2_U4_WRITABLE_MOUNT_RESTORATION_R13_20261113_01",
+  "superseded_reason": "stale_pre_v1_2_source_and_fixed_container_contract"
 }
