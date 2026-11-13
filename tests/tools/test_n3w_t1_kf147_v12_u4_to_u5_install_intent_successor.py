@@ -37,8 +37,33 @@ def test_manifest_binds_r14_v12_and_dynamic_runtime_identity() -> None:
     assert d["gate_id"] == GATE
     assert d["authorization_id"] == GATE
     assert d["confirmation"] == CONFIRMATION
-    granted = d["live_execution_authorized"] is True
-    assert d["authorization_state"] == {"granted": granted, "claimed": False, "consumed": False, "replay_permitted": False}
+    if d.get("superseded") is True:
+        assert d["live_execution_authorized"] is False
+        assert d["authorization_state"] == {
+            "granted": False,
+            "claimed": True,
+            "consumed": True,
+            "replay_permitted": False,
+        }
+        assert d["terminal_live_result"] == {
+            "status": "STOP",
+            "reason": "ipc_request_rejected:usb_transaction_media_unavailable",
+            "authorization_claimed": True,
+            "authorization_consumed": True,
+            "transaction_mutation": False,
+            "usb_mutation": False,
+            "u5_transition": False,
+            "split_state_detected": False,
+            "u6_plus": False,
+        }
+    else:
+        granted = d["live_execution_authorized"] is True
+        assert d["authorization_state"] == {
+            "granted": granted,
+            "claimed": False,
+            "consumed": False,
+            "replay_permitted": False,
+        }
     assert d["r14_predecessor"]["source_head"] == "340d5b4641735acd49c822139d4be75fea86aae0"
     assert d["r14_predecessor"]["expected_status"] == "PASS"
     live = d["expected_live_entry"]
@@ -134,3 +159,16 @@ def test_workflow_covers_r15() -> None:
     assert w.count("tools/execution_packages/n3w/r7a/kf147_v12_u4_to_u5_install_intent_successor/**") == 1
     assert w.count("tools/execution_packages/n3w/r7a/kf147_v12_u4_to_u5_install_intent_successor/executor.py") == 1
     assert w.count("tests/tools/test_n3w_t1_kf147_v12_u4_to_u5_install_intent_successor.py") == 2
+
+
+def test_superseded_r15_is_terminal_consumed_and_nonreplayable() -> None:
+    d = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    if d.get("superseded") is not True:
+        pytest.skip("R15 has not reached terminal superseded state")
+    assert d["superseded_reason"] == (
+        "r15_live_claim_consumed_stop_kf151_usb_media_resolver_lsblk_tree_defect"
+    )
+    assert d["live_execution_authorized"] is False
+    assert d["authorization_state"]["claimed"] is True
+    assert d["authorization_state"]["consumed"] is True
+    assert d["authorization_state"]["replay_permitted"] is False
