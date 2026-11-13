@@ -1,20 +1,15 @@
-## 2026-11-13 — R14 real-T1 PASS / R15 V1.2 install-intent successor under fresh CI
+## 2026-11-13 — KF-151 real-T1 root cause PHYSICAL_PROVEN / R16 ungranted source activation
 
 - Core Stack current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
 - Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
-- Current Manager: `local/greenhouse-manager:fresh-5b32e1ae8210`.
-- Current Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
-- Current Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
-- Historical clean reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
-- Historical clean reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
-- Live upgrade accepted; current repository Core Stack authority remains APPLIED_ACCEPTED.
-- R14 exact real-T1 official U5 read-only preflight PASS at `340d5b4641735acd49c822139d4be75fea86aae0`; RC 0, no transaction/USB/source/service/container mutation, no authorization claim/consume, no U6+.
-- U4 remains authoritative: transaction `dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259`; target `eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973` / 835,309,535 bytes; IPC READY_TO_INSTALL; 8/8 V1.2 source set.
-- Bound USB resolved on this boot as `/dev/sda1`, but durable identity remains filesystem UUID `967cf065-abe5-49ee-8499-7c3f50d2c48f` + public fingerprint `e45fba0ad3e9997be2738c7a8f25d5c342ebba66ddbf822b1f6bf6a016c2ed93`; fixed `/dev/sdX` is forbidden as authority.
-- R15 ungranted successor candidate: `309961bc11fae31fd85185bb373a6e3d173021ca`; executor `cca8fa2516a5bbcc77cafc8029adcc5291139bf3`; manifest `cec46aab8572385b438fab2b0d5cc5c9ae9f7c5f`; focused test `557ea01d10b3bb5801167f78288e49025063f8cf`.
-- R15 requires the local R14 PASS evidence before any T1 transition, revalidates all 8 V1.2 source hashes, resolves containers dynamically by image, and performs only one INSTALL intent before stopping at U5.
-- First R15 CI exposed a docs-only Core Stack authority-anchor omission in the previous handoff top section; source repair is not implicated. This section restores the required authority/source/image/historical anchors.
-- Existing user authorization remains conditional and unbound until exact R15 source review + fresh CI PASS; no second user prompt is required. U6+, board access and merge remain unauthorized.
+- Current Manager: `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- R15 exact authorized attempt at `6e29ec53eb2f454e977c5d9afa280d3b18cd2171` claimed and consumed its one-shot authorization, then STOPped before any transaction/USB/U5 mutation with `ipc_request_rejected:usb_transaction_media_unavailable`. It is permanently non-replayable.
+- Real-T1 read-only comparison on util-linux 2.41.3 physically proved KF-151: the old production `lsblk --json ...` emitted disk and partition as flat top-level objects with no disk `children`; adding explicit `--tree` nested the partition under the disk exactly as `resolve_transaction_media()` requires.
+- Bound media simultaneously remained valid ext4 `N3W-UPDATE`, UUID `967cf065-abe5-49ee-8499-7c3f50d2c48f`, mounted rw,nodev,nosuid,noexec at the transaction-derived path.
+- Product repair head `5e0db1092e697be79e63c9f213fffe6fd4d7b2cc` adds only explicit `--tree` to the production backend and closes fresh CI 16/16 SUCCESS.
+- R16 ungranted successor candidate `5438fe87715b40f96778f65c1d600e522eeb910b` validates the full eight-file V1.2 source set but activates only `n3w_t1_core_updater_ha_prepare_host.py`; executor `d7d02e1554d36e05ef596637064811634b18fbda`, manifest `17efdb847bff873ff1ef181e2da63c2b86f46adb`, focused test `b4bb5f0cb69f738230688405628547002c4072a9`.
+- R16 only permits OTA host-daemon restart on a future separately authorized execute; it does not restart the services owner, does not submit INSTALL, does not enter U5/U6+, and does not access boards or merge.
+- Current next gate is source/CI/read-only preparation only. No live R16 mutation authorization exists.
 
 ## 2026-11-12 — V1.2 source activation AUTHORIZED / new-chat execution boundary
 

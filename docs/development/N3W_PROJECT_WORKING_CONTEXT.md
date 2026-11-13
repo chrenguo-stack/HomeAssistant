@@ -1,7 +1,7 @@
-## Stable updater authority — 2026-11-13 R14 real-T1 CLOSED_PASS / R15 V1.2 U4→U5 successor source candidate
+## Stable updater authority — 2026-11-13 KF-151 physical root-cause closure / R16 ungranted recovery successor
 
 ```text
-PROJECT_WORKING_CONTEXT_VERSION=6.1
+PROJECT_WORKING_CONTEXT_VERSION=6.2
 
 CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
 CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
@@ -14,38 +14,35 @@ LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
 
 PR=807
 PR_STATE=OPEN_DRAFT_UNMERGED
-R14_EXECUTED_HEAD=340d5b4641735acd49c822139d4be75fea86aae0
-R14_RESULT=PASS
-R14_RC=0
-R14_OFFICIAL_U5_PREFLIGHT_PASS=true
 LAST_PROVEN_TRANSACTION_PHASE=U4_READY_TO_INSTALL
 LAST_PROVEN_TRANSACTION_SHA256=dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259
-LAST_PROVEN_TARGET_SHA256=eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973
-LAST_PROVEN_TARGET_SIZE_BYTES=835309535
-LAST_PROVEN_IPC_PHASE=READY_TO_INSTALL
-LAST_PROVEN_SOURCE_SET=8/8_V1_2_TARGET
-LAST_PROVEN_USB_UUID=967cf065-abe5-49ee-8499-7c3f50d2c48f
-LAST_PROVEN_USB_PUBLIC_FINGERPRINT=e45fba0ad3e9997be2738c7a8f25d5c342ebba66ddbf822b1f6bf6a016c2ed93
-LAST_OBSERVED_USB_PARTITION=/dev/sda1
-FIXED_DEV_SDX_AUTHORITY=false
 
-R15_SOURCE_HEAD=309961bc11fae31fd85185bb373a6e3d173021ca
-R15_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_V12_U4_TO_U5_INSTALL_INTENT_R15_20261113_01
-R15_AUTHORIZATION_STATE=UNGRANTED
-R15_FRESH_CI=IN_PROGRESS_REPAIRING_DOC_AUTHORITY_ANCHOR
-INSTALL_AFTER_R15_CI_USER_AUTHORIZED=true
-INSTALL_REAUTH_REQUIRED=false
-INSTALL_AUTHORIZATION_MAX_PHASE=U5_INSTALL_REQUESTED_REVALIDATING
+R15_RESULT=STOP
+R15_AUTHORIZATION_CONSUMED=true
+R15_REPLAY_PERMITTED=false
+R15_U5_TRANSITION=false
+R15_SPLIT_STATE_DETECTED=false
+
+KF151_ROOT_CAUSE=PHYSICAL_PROVEN
+KF151_SOURCE_REPAIR_HEAD=5e0db1092e697be79e63c9f213fffe6fd4d7b2cc
+KF151_SOURCE_REPAIR_CI=16_OF_16_SUCCESS
+
+R16_SOURCE_CANDIDATE_HEAD=5438fe87715b40f96778f65c1d600e522eeb910b
+R16_AUTHORIZATION_STATE=UNGRANTED
+R16_ACTIVATED_SOURCE_FILE=tools/n3w_t1_core_updater_ha_prepare_host.py
+R16_SERVICES_OWNER_RESTART=false
+R16_INSTALL_INTENT=false
+R16_U5_TRANSITION=false
 U6_PLUS_AUTHORIZED=false
 BOARD_ACCESS=false
 MERGE=false
 ```
 
-R14 is now a real-T1 CLOSED_PASS boundary. Its read-only result proved the exact U4 transaction, target archive, writable UUID/fingerprint-bound USB, eight-file V1.2 source set, healthy OTA service and READY_TO_INSTALL IPC without claiming authorization or mutating T1 state.
+R15 is a terminal consumed/no-replay boundary. Its failed INSTALL request did not mutate the host transaction, USB transaction metadata or U5 state.
 
-R15 reuses only the bounded R11 INSTALL-intent transaction shape. It removes the stale three-file/fixed-container contract, requires the local R14 PASS evidence, verifies all eight installed V1.2 source SHA-256 values, resolves current containers dynamically by expected image/runtime image ID, revalidates U4 and USB metadata before claim, claims a non-replayable one-shot authorization before INSTALL, and stops at U5 INSTALL_REQUESTED_REVALIDATING. No source deployment, service restart, U6+, board access or merge is permitted.
+KF-151 is now physically proven on the real T1: without explicit `--tree`, util-linux 2.41.3 emitted the USB disk and partition as flat siblings, so the product resolver's disk-local descendant scan found no partition. With explicit `--tree`, the same partition appears under the disk's `children`. The one-line product repair is exact and fresh-CI closed.
 
-The first R15 CI surfaced a repository-document contract regression from the prior docs-only handoff: the first Current State/Index sections no longer carried the Core Stack current-authority anchors required by the authority checker. The repair restores those anchors and does not alter R15 execution semantics.
+R16 is a new ungranted recovery successor. It validates all eight installed V1.2 source files but stages, backs up, installs and rolls back only `prepare_host.py`. It leaves Manager/Home Assistant/Broker running, restarts only the OTA host daemon, proves U4/USB/IPC again, and stops before INSTALL/U5. A future real-T1 execute requires a new explicit live-mutation authorization.
 
 ## Stable updater authority — 2026-11-12 KF-147 R12 real-T1 read-only preflight PASS / authorization boundary
 

@@ -1,4 +1,4 @@
-### 2026-11-13 KF-151 R15 INSTALL media resolver false-negative — lsblk hierarchy not explicitly requested
+### 2026-11-13 KF-151 R15 INSTALL media resolver false-negative — PHYSICAL_PROVEN / source repair CLOSED_PASS
 
 ```text
 R15_RESULT=STOP
@@ -11,24 +11,38 @@ R15_USB_MUTATION=false
 R15_U5_TRANSITION=false
 R15_SPLIT_STATE_DETECTED=false
 R15_U6_PLUS=false
+
+KF151_ROOT_CAUSE=PHYSICAL_PROVEN
+KF151_SOURCE_REPAIR_HEAD=5e0db1092e697be79e63c9f213fffe6fd4d7b2cc
+KF151_SOURCE_REPAIR_CI=16_OF_16_SUCCESS
+R16_SOURCE_CANDIDATE_HEAD=5438fe87715b40f96778f65c1d600e522eeb910b
+R16_LIVE_EXECUTION_AUTHORIZED=false
 ```
 
 Root cause:
-- R14/R15 outer preflight explicitly used `lsblk --tree` and proved the exact UUID/fingerprint-bound ext4 media mounted at the transaction-derived path.
-- The production `SubprocessPrepareBackend._lsblk()` used JSON `lsblk` with `PATH,TYPE,...` columns but omitted `--tree` and also omitted the `NAME` column.
-- `resolve_transaction_media()` subsequently requires nested `children` to find exactly one partition. On the real T1 this command shape can therefore produce no partition descendants, leaving the eligible-media set empty and returning `None`, which maps to `usb_transaction_media_unavailable`.
-- Existing unit tests injected already-nested synthetic `children` and therefore did not verify the real `lsblk` argv/tree contract.
+- R14/R15 outer preflight explicitly used `lsblk --tree` and proved the bound USB/partition.
+- Production `SubprocessPrepareBackend._lsblk()` used JSON `lsblk` with `PATH,TYPE,...` but omitted `--tree` and `NAME`, while `resolve_transaction_media()` requires nested `children`.
+- Real T1 util-linux 2.41.3 read-only proof confirmed the exact failure mechanism: the old product command emitted the USB disk and partition as separate top-level objects and the disk had no `children`; the otherwise identical command with explicit `--tree` nested the partition under the disk.
+- Therefore `_flatten_blocks([disk])` on the old command sees no partition, the eligible-media set is empty, `resolve_transaction_media()` returns `None`, and INSTALL admission reports `usb_transaction_media_unavailable`.
+- At the same time the physical media remained valid ext4 `N3W-UPDATE`, exact bound UUID, and rw,nodev,nosuid,noexec mount; this was not a missing/damaged USB.
 
 Repair:
-- require `--tree` in the single production `_lsblk()` command so all inventory consumers receive explicit disk/partition hierarchy;
-- add a regression test freezing the exact command shape and requiring `--tree`;
-- preserve UUID/fingerprint, root-device exclusion, ext4/N3W-UPDATE, mount-target and write-required checks unchanged;
-- R15 is terminal consumed/no-replay. This source repair does not authorize source deployment, daemon/service restart, another INSTALL attempt, U5/U6+, board access or merge.
+- production `_lsblk()` now explicitly requests `--tree`;
+- regression freezes the exact real argv contract so mocks cannot assume hierarchy the subprocess did not request;
+- historical V1.2 activation manifests remain immutable and their tests bind against each frozen source head;
+- exact repair head `5e0db1092e697be79e63c9f213fffe6fd4d7b2cc` completed 16/16 fresh CI SUCCESS.
+
+Recovery successor:
+- R15 is terminal consumed/no-replay and cannot be retried;
+- R16 validates the full eight-file installed V1.2 set but marks only `prepare_host.py` for activation;
+- a future authorized R16 execute may stage/backup/atomically install that one file and restart only the OTA host daemon, with one bounded source rollback;
+- R16 does not restart the services owner, submit INSTALL, mutate transaction/USB state, enter U5/U6+, access boards or merge;
+- R16 is currently UNGRANTED. Source/CI/read-only preparation may continue, but any real-T1 source mutation requires a new explicit authorization.
 
 Regression guards:
-- any resolver that consumes nested `children` from `lsblk --json` must explicitly request `--tree` or include another documented tree-enabling column and freeze that command in tests;
-- mocks must not assume hierarchy that the real subprocess argv does not request;
-- claim-after-STOP authorization is terminal consumed; source repair and fresh CI may continue, but a new live mutation authorization is required before deploying the repaired host source or retrying INSTALL.
+- any resolver consuming nested `children` from `lsblk --json` must explicitly request `--tree` or another documented hierarchy-enabling form and freeze that argv in tests;
+- synthetic fixtures must not silently provide hierarchy that the real command does not request;
+- a claimed/consumed one-shot authorization remains terminal even when the action fails before transaction mutation.
 
 ### 2026-11-12 KF-147 R11 post-reboot U4 mount precondition — R12 successor source CLOSED_PASS
 
