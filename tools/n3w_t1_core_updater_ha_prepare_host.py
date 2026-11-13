@@ -1443,7 +1443,12 @@ class SubprocessPrepareBackend:
                     transaction=transaction,
                     media=media,
                 )
-            except UpdaterV2Error:
+            except UpdaterV2Error as error:
+                if str(error) not in {
+                    "ha_predecessor_archive_identity_invalid",
+                    "ha_predecessor_archive_budget_exceeded",
+                }:
+                    raise
                 if not destination.is_file():
                     raise UpdaterV2Error(
                         "ha_predecessor_destination_invalid"
