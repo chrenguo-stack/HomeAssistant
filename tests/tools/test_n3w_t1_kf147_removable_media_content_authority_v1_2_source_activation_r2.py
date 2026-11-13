@@ -42,23 +42,46 @@ def load_executor():
     return module
 
 
-def test_manifest_is_granted_once_for_exact_successor() -> None:
+def test_manifest_is_terminal_consumed_after_r2_pass() -> None:
     document = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert document["gate_id"] == GATE
     assert document["authorization_id"] == GATE
-    assert document["live_execution_authorized"] is True
+    assert document["live_execution_authorized"] is False
     assert document["authorization_state"] == {
-        "granted": True,
-        "claimed": False,
-        "consumed": False,
+        "granted": False,
+        "claimed": True,
+        "consumed": True,
         "replay_permitted": False,
     }
-    assert document["authorization_grant"] == {
-        "source": "explicit_user_authorization_in_chat",
-        "date": "2026-11-13",
-        "scope": "successor_exact_8_file_v1_2_source_slice_on_real_t1_only",
-        "execute_in_next_chat": False,
-    }
+    grant = document["authorization_grant"]
+    assert grant["source"] == "explicit_user_authorization_in_chat"
+    assert grant["date"] == "2026-11-13"
+    assert grant["scope"] == (
+        "successor_exact_8_file_v1_2_source_slice_on_real_t1_only"
+    )
+    assert grant["execute_in_next_chat"] is False
+    assert grant["terminal"] == (
+        "consumed_by_real_t1_r2_source_activation_pass"
+    )
+
+    terminal = document["terminal_execution_record"]
+    assert terminal["status"] == "V1_2_SOURCE_ACTIVATION_PASS"
+    assert terminal["remote_returncode"] == 0
+    assert terminal["authorization_claimed"] is True
+    assert terminal["authorization_consumed"] is True
+    assert terminal["replay_permitted"] is False
+    assert terminal["source_activated"] is True
+    assert terminal["source_set_target_count"] == 8
+    assert terminal["transaction_phase"] == "U4_READY_TO_INSTALL"
+    assert terminal["transaction_sha256"] == (
+        "dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259"
+    )
+    assert terminal["transaction_mutation"] is False
+    assert terminal["u4_preserved"] is True
+    assert terminal["usb_mutation"] is False
+    assert terminal["u5_transition"] is False
+    assert terminal["u6_plus"] is False
+    assert terminal["rollback_required"] is False
     predecessor = document["predecessor_consumed_gate"]
     assert predecessor["authorization_consumed"] is True
     assert predecessor["replay_permitted"] is False
@@ -165,30 +188,33 @@ def test_successor_keeps_old_gate_non_replayable_and_u4_only() -> None:
     assert "request_install(" not in source
 
 
-def test_granted_execute_still_runs_readonly_preflight_before_staging() -> None:
+def test_terminal_consumed_package_cannot_be_replayed() -> None:
     document = json.loads(MANIFEST.read_text(encoding="utf-8"))
-    assert document["live_execution_authorized"] is True
+    assert document["live_execution_authorized"] is False
     assert document["authorization_state"] == {
-        "granted": True,
-        "claimed": False,
-        "consumed": False,
+        "granted": False,
+        "claimed": True,
+        "consumed": True,
         "replay_permitted": False,
     }
 
     source = EXECUTOR.read_text(encoding="utf-8")
-    manifest = source.index("manifest = read_manifest(")
-    transport = source.index("transport_type = load_transport()", manifest)
-    preflight = source.index(
-        'remote_mode(\n            transport,\n            "preflight"',
-        transport,
-    )
-    stage = source.index(
-        'transport.run_remote(\n            [\n                "install",',
-        preflight,
-    )
-    assert manifest < transport < preflight < stage
-    assert "execute=args.execute" in source
+    assert '"manifest_authorization_state_invalid"' in source
     assert 'raise Stop("live_execution_not_authorized")' in source
+    assert document["authorization_state"] not in (
+        {
+            "granted": True,
+            "claimed": False,
+            "consumed": False,
+            "replay_permitted": False,
+        },
+        {
+            "granted": False,
+            "claimed": False,
+            "consumed": False,
+            "replay_permitted": False,
+        },
+    )
 
 
 def test_target_binding_workflow_covers_r2_package() -> None:
