@@ -822,7 +822,7 @@ def main():
         plan = json.loads(base64.b64decode(sys.argv[2]).decode("utf-8"))
         if plan.get("gate_id") != (
             "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_"
-            "REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_ACTIVATION_20261112_01"
+            "REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_ACTIVATION_R2_20261113_01"
         ):
             raise Stop("gate_id_invalid")
         if mode == "preflight":
