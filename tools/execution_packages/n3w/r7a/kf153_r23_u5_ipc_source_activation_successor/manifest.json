@@ -1,0 +1,91 @@
+{
+  "schema": "gh.n3w-t1-kf153-r23-u5-ipc-source-activation-manifest/1",
+  "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF153_U5_IPC_SOURCE_ACTIVATION_R23_20261113_01",
+  "live_execution_authorized": false,
+  "authorization_state": {
+    "granted": false,
+    "claimed": false,
+    "consumed": false,
+    "replay_permitted": false
+  },
+  "package_source_authority": {
+    "tools/execution_packages/n3w/r7a/kf153_r23_u5_ipc_source_activation_successor/executor.py": "5c06f6610c7c897552925c21cdc16ae9206a792e",
+    "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
+    "tools/n3w_t1_core_updater_ha_ipc.py": "ad3978f0b4cea0a611073c189b0d45abd1cf3a0a"
+  },
+  "predecessor": {
+    "r22_source_authority_head": "aa5eb8b8ccb7628aae782d00d4b97fa8fe741239",
+    "r22_source_tree": "482b191e8115886a02e5f8f5af7d20181779bd3d",
+    "r22_live_execution_authorized": false,
+    "r22_authorization_granted": false,
+    "r22_superseded_before_t1_preflight": true,
+    "r22_superseded_reason": "expanded historical guard review found KF-108 unknown postclaim transport propagation gap",
+    "r20_authorization_consumed": true,
+    "r20_replay_permitted": false,
+    "r21_forensic_classification": "ROLLBACK_RUNTIME_RECOVERED"
+  },
+  "expected_live_entry": {
+    "transaction_id_sha256": "ca89774eb4254d0f861cc2aef136eee41e90fd6106559c0fd8d66e3ee00a3738",
+    "transaction_sha256": "adfcf60d958c112edf61e2f4e31d73b16229fd027180ed68b87b8953231f0144",
+    "usb_filesystem_uuid": "967cf065-abe5-49ee-8499-7c3f50d2c48f",
+    "usb_public_fingerprint": "e45fba0ad3e9997be2738c7a8f25d5c342ebba66ddbf822b1f6bf6a016c2ed93",
+    "usb_phase_sha256": "acec5c51c5b8dc4ef5b1860dc61c77d377c923730c13a74ede0bf41d1e88d468",
+    "mount_target": "/run/n3w-t1-ota/media/ca89774eb4254d0f",
+    "installed_source_sha256": {
+      "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_backup.py": "88f23297da7ddb12274c8a99005a55386fcf86c4e1183adc2bee5dfd02f9efd1",
+      "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_ipc.py": "b080e20bf272ed22c51a91c96832759fcc88175825ab1740ae6b98aff8ff3a1b",
+      "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_prepare.py": "cc69aac8e2eab764a8d9d497b323e3f72816b9dd127d53dd356471a80101d892",
+      "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_prepare_host.py": "fd2898cf9d63ae143b9620e56a19e9789306c802440bb9424cfc30064bc53005",
+      "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_recovery.py": "2b8f9917b3eddb016eec6703c7048e2a08ce65e8d547fd00d2b8d86c0c8a4b7a",
+      "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_usb.py": "2c7ccafc84072bb3d49ea2bf1e35b8c95e99f53748ffcd95741d2e8912edc9fe",
+      "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_usb_media.py": "8579da19258829231eacb7b961d7ef151f2a2e1c49cb9506f7c7824dccbb31f8",
+      "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_usb_state.py": "05a380caca20d95e80771807aa44a3c8a687162a2eac19ab376d85d65ffa10ee"
+    },
+    "containers": {
+      "manager": {
+        "image": "local/greenhouse-manager:fresh-44e7d7472714",
+        "runtime_image_id": "sha256:1471828ab07cf9b71c01a6e78994711a5954f0a178b8be087a28bb65a967c7d2"
+      },
+      "homeassistant": {
+        "image": "local/n3w-homeassistant:2026.10.0-0c73235a",
+        "runtime_image_id": "sha256:c261fa53f30508951833492ba2a19af6cfbb6aa8f2806b531d8f5c6599265306"
+      },
+      "broker": {
+        "image": "local/n3w-mosquitto:2.1.2-3184566d",
+        "runtime_image_id": "sha256:df265f1e2b2e3dc35d5eb194e698c598e01c5ebca370da307b34332f9bf0a563"
+      }
+    }
+  },
+  "ipc_remote_path": "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_ipc.py",
+  "state_root": "/var/lib/n3w-t1-core-updater/kf153-r23-u5-ipc-source-activation-20261113-01",
+  "remote_staging_root": "/var/lib/n3w-t1-core-updater/staging/kf153-r23-u5-ipc-source-activation-20261113-01",
+  "execution_contract": {
+    "read_only_preflight": true,
+    "activated_source_file_count": 1,
+    "activated_source_file": "tools/n3w_t1_core_updater_ha_ipc.py",
+    "u5_prestate_required": true,
+    "install_resubmit": false,
+    "stop_services_before_usb_unmount": true,
+    "usb_unmount_before_host_stop": true,
+    "start_host_before_usb_remount": true,
+    "usb_remount_before_services_start": true,
+    "dependency_safe_service_lifecycle": true,
+    "transaction_mutation": false,
+    "usb_transaction_metadata_mutation": false,
+    "usb_mount_mutation_on_execute": true,
+    "u6_plus": false,
+    "automatic_retry": false,
+    "maximum_rollback_attempts": 1,
+    "board_access": false,
+    "merge": false,
+    "fixed_dev_sdx_authority": false,
+    "host_runtime_root_readiness_timeout_seconds": 60,
+    "rollback_runtime_readiness_timeout_seconds": 180,
+    "unknown_postinvoke_transport_consumes_authorization": true,
+    "invalid_execute_result_consumes_authorization": true,
+    "postsuccess_cleanup_failure_reports_stop": true
+  },
+  "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF153_U5_IPC_SOURCE_ACTIVATION_R23_20261113_01",
+  "confirmation": "EXECUTE KF153 R23 U5 IPC SOURCE ACTIVATION: YES",
+  "stop_boundary": "STOP_AFTER_R23_U5_IPC_SOURCE_ACTIVATION_AND_U5_RUNTIME_POSTVALIDATION_BEFORE_U6_PLUS"
+}
