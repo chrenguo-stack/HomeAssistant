@@ -22,11 +22,26 @@ def load_executor():
     return module
 
 
-def test_manifest_ungranted_single_file_activation_full_eight_file_validation() -> None:
+def test_manifest_authorization_state_and_single_file_activation_full_eight_file_validation() -> None:
     d = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert d["gate_id"] == GATE
-    assert d["live_execution_authorized"] is False
-    assert d["authorization_state"] == {"granted": False, "claimed": False, "consumed": False, "replay_permitted": False}
+    granted = d["live_execution_authorized"] is True
+    assert d["authorization_state"] == {
+        "granted": granted,
+        "claimed": False,
+        "consumed": False,
+        "replay_permitted": False,
+    }
+    if granted:
+        grant = d["authorization_grant"]
+        assert grant["scope"] == "kf151_exact_single_file_prepare_host_source_activation_only"
+        assert grant["source_ci_head"] == "3513742801758bc44981c7bf3f0e9ffe6fa5fd56"
+        assert grant["source_ci_result"] == "16_OF_16_SUCCESS"
+        assert grant["maximum_phase"] == "U4_READY_TO_INSTALL"
+        assert grant["install_intent_authorized"] is False
+        assert grant["u5_authorized"] is False
+        assert grant["u6_plus_authorized"] is False
+        assert grant["automatic_retry"] is False
     assert len(d["source_files"]) == 8
     activated = [x for x in d["source_files"] if x["activate"]]
     assert len(activated) == 1
