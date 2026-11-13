@@ -27,7 +27,6 @@
     "usb_public_fingerprint": "e45fba0ad3e9997be2738c7a8f25d5c342ebba66ddbf822b1f6bf6a016c2ed93",
     "usb_phase_sha256": "acec5c51c5b8dc4ef5b1860dc61c77d377c923730c13a74ede0bf41d1e88d468",
     "mount_target": "/run/n3w-t1-ota/media/ca89774eb4254d0f",
-    "usb_partition_hint": "/dev/sda1",
     "installed_source_sha256": {
       "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_backup.py": "88f23297da7ddb12274c8a99005a55386fcf86c4e1183adc2bee5dfd02f9efd1",
       "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_ipc.py": "b080e20bf272ed22c51a91c96832759fcc88175825ab1740ae6b98aff8ff3a1b",
@@ -74,7 +73,8 @@
     "automatic_retry": false,
     "maximum_rollback_attempts": 1,
     "board_access": false,
-    "merge": false
+    "merge": false,
+    "fixed_dev_sdx_authority": false
   },
   "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF153_U5_IPC_SOURCE_ACTIVATION_R20_20261113_01",
   "confirmation": "EXECUTE KF153 R20 U5 IPC SOURCE ACTIVATION: YES",

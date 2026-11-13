@@ -55,3 +55,20 @@ def test_workflow_covers_r20():
     assert w.count("tools/execution_packages/n3w/r7a/kf153_r20_u5_ipc_source_activation_successor/**")==1
     assert w.count("tools/execution_packages/n3w/r7a/kf153_r20_u5_ipc_source_activation_successor/executor.py")==1
     assert w.count("tests/tools/test_n3w_t1_kf153_r20_u5_ipc_source_activation_successor.py")==2
+
+
+def test_r20_never_uses_fixed_dev_sdx_authority():
+    d=json.loads(MANIFEST.read_text(encoding="utf-8"))
+    assert "usb_partition_hint" not in d["expected_live_entry"]
+    assert d["execution_contract"]["fixed_dev_sdx_authority"] is False
+    source=EXECUTOR.read_text(encoding="utf-8")
+    assert "/dev/sda1" not in source
+    assert "/dev/sdb1" not in source
+    assert 'UUID="+plan["usb_filesystem_uuid"]' in load_executor().REMOTE_SCRIPT
+
+
+def test_r20_claim_is_durable_and_rollback_is_lifecycle_gated():
+    remote=load_executor().REMOTE_SCRIPT
+    assert 'durable_json(state_root/"authorization_claim.json",claim)' in remote
+    assert 'result["lifecycle_mutation_started"]=True' in remote
+    assert 'result["rollback_required"]=bool(result["lifecycle_mutation_started"]' in remote

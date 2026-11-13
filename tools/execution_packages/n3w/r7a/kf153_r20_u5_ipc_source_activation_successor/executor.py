@@ -209,6 +209,17 @@ def fsync_dir(path):
     try: os.fsync(fd)
     finally: os.close(fd)
 
+def durable_json(path,value):
+    path=Path(path)
+    payload=(json.dumps(value,sort_keys=True,indent=2)+"\n").encode()
+    flags=os.O_WRONLY|os.O_CREAT|os.O_EXCL|getattr(os,"O_NOFOLLOW",0)
+    fd=os.open(path,flags,0o600)
+    try:
+        os.write(fd,payload); os.fsync(fd)
+    finally:
+        os.close(fd)
+    fsync_dir(path.parent)
+
 def atomic_install(source,destination):
     source=Path(source); destination=Path(destination)
     if source.is_symlink() or not source.is_file(): raise Stop("staged_source_invalid")
@@ -246,14 +257,17 @@ def rollback(plan,backup_dir):
     result={"attempted":True,"status":"STOP","errors":[]}
     try:
         run(["systemctl","stop",SERVICES_UNIT],timeout=150,check=False); wait_unit(SERVICES_UNIT,"inactive",90)
-        current=run(["findmnt","--noheadings","--output","TARGET","--source",plan["usb_partition_hint"]],timeout=30,check=False)
+        probe=run(["blkid","-t","UUID="+plan["usb_filesystem_uuid"],"-o","device"],timeout=30,check=False)
+        matches=[x.strip() for x in probe.stdout.splitlines() if x.strip()] if probe.returncode==0 else []
+        if len(matches)!=1: raise Stop("rollback_usb_uuid_cardinality_invalid")
+        partition=matches[0]
+        current=run(["findmnt","--noheadings","--output","TARGET","--source",partition],timeout=30,check=False)
         if current.returncode==0 and current.stdout.strip():
             run(["umount",plan["mount_target"]],timeout=60,check=False)
         run(["systemctl","stop",HOST_UNIT],timeout=90,check=False); wait_unit(HOST_UNIT,"inactive",60)
         atomic_install(Path(backup_dir)/"ha_ipc.py",plan["ipc_remote_path"])
         verify_sources(plan,target=False)
         run(["systemctl","start",HOST_UNIT],timeout=90); wait_unit(HOST_UNIT,"active",60)
-        partition=run(["blkid","-t","UUID="+plan["usb_filesystem_uuid"],"-o","device"],timeout=30).stdout.strip()
         mount_exact(plan,partition)
         run(["systemctl","start",SERVICES_UNIT],timeout=180); wait_unit(SERVICES_UNIT,"active",120)
         result["post"]=verify_runtime(plan,target_source=False,require_ipc=True)
@@ -277,14 +291,15 @@ def execute(plan,authorization,confirmation):
     backup_dir.mkdir(mode=0o700); os.chown(backup_dir,0,0)
     backup=backup_dir/"ha_ipc.py"; shutil.copyfile(plan["ipc_remote_path"],backup); os.chmod(backup,0o600); os.chown(backup,0,0)
     if sha_file(backup)!=plan["installed_source_sha256"][plan["ipc_remote_path"]]: raise Stop("r20_backup_drift")
-    state_root.mkdir(mode=0o700); os.chown(state_root,0,0)
-    payload=(json.dumps(pre,sort_keys=True,indent=2)+"\n").encode(); (state_root/"preflight.json").write_bytes(payload); os.chmod(state_root/"preflight.json",0o600)
+    state_root.mkdir(mode=0o700); os.chown(state_root,0,0); fsync_dir(state_root.parent)
+    durable_json(state_root/"preflight.json",pre)
     claim={"authorization_id":plan["authorization_id"],"claimed":True,"consumed":True,"replay_permitted":False}
-    (state_root/"authorization_claim.json").write_text(json.dumps(claim,sort_keys=True,indent=2)+"\n",encoding="utf-8"); os.chmod(state_root/"authorization_claim.json",0o600)
-    result={"schema":"gh.n3w-t1-kf153-r20-u5-ipc-source-activation/1","status":"STOP","authorization_claimed":True,"authorization_consumed":True,"replay_permitted":False,"host_source_mutation":False,"usb_mount_mutation":False,"transaction_mutation":False,"usb_transaction_metadata_mutation":False,"host_daemon_restart":False,"services_owner_restart":False,"u6_plus":False,"rollback_required":False,"rollback":None,"board_access":False,"merge":False}
+    durable_json(state_root/"authorization_claim.json",claim)
+    result={"schema":"gh.n3w-t1-kf153-r20-u5-ipc-source-activation/1","status":"STOP","authorization_claimed":True,"authorization_consumed":True,"replay_permitted":False,"host_source_mutation":False,"lifecycle_mutation_started":False,"usb_mount_mutation":False,"transaction_mutation":False,"usb_transaction_metadata_mutation":False,"host_daemon_restart":False,"services_owner_restart":False,"u6_plus":False,"rollback_required":False,"rollback":None,"board_access":False,"merge":False}
     try:
         postclaim=verify_runtime(plan,target_source=False,require_ipc=False)
         if postclaim["transaction_sha256"]!=pre["transaction_sha256"]: raise Stop("postclaim_transaction_drift")
+        result["lifecycle_mutation_started"]=True
         run(["systemctl","stop",SERVICES_UNIT],timeout=150,check=False); wait_unit(SERVICES_UNIT,"inactive",90)
         partition=unmount_exact(plan); result["usb_mount_mutation"]=True
         run(["systemctl","stop",HOST_UNIT],timeout=90,check=False); wait_unit(HOST_UNIT,"inactive",60)
@@ -309,10 +324,11 @@ def execute(plan,authorization,confirmation):
         return result
     except Exception as error:
         result["first_failed_operation"]=type(error).__name__+":"+str(error)[:240]
-        result["rollback_required"]=True
-        result["rollback"]=rollback(plan,backup_dir)
+        result["rollback_required"]=bool(result["lifecycle_mutation_started"] or result["host_source_mutation"] or result["usb_mount_mutation"])
+        if result["rollback_required"]:
+            result["rollback"]=rollback(plan,backup_dir)
         try:
-            (state_root/"failure.json").write_text(json.dumps(result,sort_keys=True,indent=2)+"\n",encoding="utf-8"); os.chmod(state_root/"failure.json",0o600)
+            durable_json(state_root/"failure.json",result)
         except Exception: pass
         return result
 
@@ -321,6 +337,10 @@ def main():
     try:
         if plan.get("gate_id")!="N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF153_U5_IPC_SOURCE_ACTIVATION_R20_20261113_01": raise Stop("gate_id_invalid")
         if mode=="preflight":
+            if Path(plan["state_root"]).exists() or Path(plan["state_root"]).is_symlink():
+                raise Stop("r20_state_root_residue")
+            if Path(plan["remote_staging_root"]).exists() or Path(plan["remote_staging_root"]).is_symlink():
+                raise Stop("r20_staging_root_residue")
             pre=verify_runtime(plan,target_source=False,require_ipc=False)
             result={"schema":"gh.n3w-t1-kf153-r20-u5-ipc-source-activation-preflight/1","status":"PASS","read_only":True,"activation_eligible":True,"live_execution_authorized":plan.get("live_execution_authorized") is True,"preflight":pre,"host_source_mutation":False,"usb_mount_mutation":False,"transaction_mutation":False,"usb_transaction_metadata_mutation":False,"service_restart":False,"u6_plus":False}
         elif mode=="execute":
