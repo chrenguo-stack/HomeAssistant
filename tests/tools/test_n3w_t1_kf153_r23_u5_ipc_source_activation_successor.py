@@ -155,3 +155,36 @@ def test_r23_manifest_records_r22_supersession_and_kf108_guards():
     assert c["unknown_postinvoke_transport_consumes_authorization"] is True
     assert c["invalid_execute_result_consumes_authorization"] is True
     assert c["postsuccess_cleanup_failure_reports_stop"] is True
+
+
+def test_r23_claim_persistence_failure_is_unknown_consumed_before_mutation():
+    remote=load_executor().REMOTE_SCRIPT
+    assert 'authorization_claim_persistence_unknown' in remote
+    assert 'status="STOP_UNKNOWN"' in remote
+    assert 'authorization_claimed=True,authorization_consumed=True,replay_permitted=False,authorization_claim_persistence_unknown=True' in remote
+    claim_pos=remote.index('durable_json(state_root/"authorization_claim.json",claim)')
+    lifecycle_pos=remote.index('result["lifecycle_mutation_started"]=True')
+    assert claim_pos < lifecycle_pos
+
+
+def test_r23_remote_postsuccess_cleanup_failure_does_not_rollback_success():
+    remote=load_executor().REMOTE_SCRIPT
+    pass_pos=remote.index('result.update(status="KF153_R23_U5_IPC_SOURCE_ACTIVATION_PASS"')
+    cleanup_pos=remote.index('shutil.rmtree(stage_root)',pass_pos)
+    stop_pos=remote.index('result["status"]="STOP_POSTSUCCESS_CLEANUP"',cleanup_pos)
+    return_pos=remote.index('return result',stop_pos)
+    general_except_pos=remote.index('except Exception as error:',return_pos)
+    assert pass_pos < cleanup_pos < stop_pos < return_pos < general_except_pos
+    segment=remote[cleanup_pos:return_pos]
+    assert 'result["rollback_required"]=False' in segment
+    assert 'rollback(plan,backup_dir)' not in segment
+
+
+def test_r23_manifest_freezes_full_kf108_contract():
+    d=json.loads(MANIFEST.read_text(encoding="utf-8"))
+    c=d["execution_contract"]
+    assert c["authorization_claim_persistence_unknown_consumes_authorization"] is True
+    assert c["unknown_postinvoke_transport_consumes_authorization"] is True
+    assert c["invalid_execute_result_consumes_authorization"] is True
+    assert c["postsuccess_remote_cleanup_failure_no_rollback"] is True
+    assert c["postsuccess_cleanup_failure_reports_stop"] is True
