@@ -72,3 +72,11 @@ def test_r20_claim_is_durable_and_rollback_is_lifecycle_gated():
     assert 'durable_json(state_root/"authorization_claim.json",claim)' in remote
     assert 'result["lifecycle_mutation_started"]=True' in remote
     assert 'result["rollback_required"]=bool(result["lifecycle_mutation_started"]' in remote
+
+def test_r20_package_source_authority_matches_exact_head():
+    m=load_executor()
+    head=m.git_text("rev-parse","HEAD")
+    d=m.read_manifest(head,execute=False)
+    for path,blob in d["package_source_authority"].items():
+        assert m.git_text("rev-parse","HEAD:"+path)==blob
+
