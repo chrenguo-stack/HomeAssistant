@@ -42,19 +42,19 @@ def load_executor():
     return module
 
 
-def test_manifest_is_ungranted_exact_successor() -> None:
+def test_manifest_is_granted_once_for_exact_successor() -> None:
     document = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert document["gate_id"] == GATE
     assert document["authorization_id"] == GATE
-    assert document["live_execution_authorized"] is False
+    assert document["live_execution_authorized"] is True
     assert document["authorization_state"] == {
-        "granted": False,
+        "granted": True,
         "claimed": False,
         "consumed": False,
         "replay_permitted": False,
     }
     assert document["authorization_grant"] == {
-        "source": "not_granted",
+        "source": "explicit_user_authorization_in_chat",
         "date": "2026-11-13",
         "scope": "successor_exact_8_file_v1_2_source_slice_on_real_t1_only",
         "execute_in_next_chat": False,
@@ -165,18 +165,29 @@ def test_successor_keeps_old_gate_non_replayable_and_u4_only() -> None:
     assert "request_install(" not in source
 
 
-def test_ungranted_package_allows_preflight_but_not_execute() -> None:
+def test_granted_execute_still_runs_readonly_preflight_before_staging() -> None:
     document = json.loads(MANIFEST.read_text(encoding="utf-8"))
-    assert document["live_execution_authorized"] is False
+    assert document["live_execution_authorized"] is True
     assert document["authorization_state"] == {
-        "granted": False,
+        "granted": True,
         "claimed": False,
         "consumed": False,
         "replay_permitted": False,
     }
+
     source = EXECUTOR.read_text(encoding="utf-8")
-    assert 'if execute and document.get("live_execution_authorized") is not True' in source
-    assert 'if not execute and document.get("live_execution_authorized") is not False' in source
+    manifest = source.index("manifest = read_manifest(")
+    transport = source.index("transport_type = load_transport()", manifest)
+    preflight = source.index(
+        'remote_mode(\n            transport,\n            "preflight"',
+        transport,
+    )
+    stage = source.index(
+        'transport.run_remote(\n            [\n                "install",',
+        preflight,
+    )
+    assert manifest < transport < preflight < stage
+    assert "execute=args.execute" in source
     assert 'raise Stop("live_execution_not_authorized")' in source
 
 
