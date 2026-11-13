@@ -41,18 +41,20 @@ def load_remote_namespace():
     return namespace
 
 
-def test_manifest_is_authorized_once_and_binds_r10_u4_state() -> None:
+def test_manifest_is_superseded_ungranted_and_binds_historical_r10_u4_state() -> None:
     document = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert document["gate_id"] == GATE
     assert document["authorization_id"] == GATE
     assert document["confirmation"] == CONFIRMATION
-    assert document["live_execution_authorized"] is True
+    assert document["live_execution_authorized"] is False
     assert document["authorization_state"] == {
-        "granted": True,
+        "granted": False,
         "claimed": False,
         "consumed": False,
         "replay_permitted": False,
     }
+    assert document["superseded"] is True
+    assert document["superseded_reason"] == "stale_pre_v1_2_source_and_fixed_container_contract"
     assert document["predecessor_terminal"] == {
         "gate": "R10_U5_SOURCE_ACTIVATION",
         "state_root": (
