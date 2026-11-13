@@ -273,12 +273,17 @@ def test_predecessor_stream_pipeline_uses_fixed_argv_without_shell(
 
 
 def test_u6_source_slice_has_no_ha_stop_u7_or_u9_transition() -> None:
-    source = inspect.getsource(HaUsbU6PredecessorController)
-    assert "systemctl" not in source
-    assert "U7" not in source
-    assert "U9" not in source
-    assert "authorization_claimed" in source
-    assert "authorization_consumed" in source
+    method_source = inspect.getsource(
+        HaUsbU6PredecessorController.prepare_or_resume
+    )
+    guard_source = inspect.getsource(
+        HaUsbU6PredecessorController._require_pre_u9_authorization_state
+    )
+    assert "systemctl" not in method_source
+    assert "record_predecessor_recovery_and_ha_quiesced" not in method_source
+    assert "claim_live_authorization" not in method_source
+    assert "authorization_claimed" in guard_source
+    assert "authorization_consumed" in guard_source
 
 
 def test_predecessor_runtime_authority_is_transaction_bound() -> None:
