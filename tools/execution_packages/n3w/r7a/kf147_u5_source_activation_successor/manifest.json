@@ -3,9 +3,9 @@
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U5_SOURCE_ACTIVATION_R10_20261111_01",
   "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U5_SOURCE_ACTIVATION_R10_20261111_01",
   "confirmation": "EXECUTE KF147 U5 SOURCE ACTIVATION R10: YES",
-  "live_execution_authorized": true,
+  "live_execution_authorized": false,
   "authorization_state": {
-    "granted": true,
+    "granted": false,
     "claimed": false,
     "consumed": false,
     "replay_permitted": false
@@ -113,5 +113,8 @@
     "board_access": false,
     "merge": false
   },
-  "stop_boundary": "STOP_AFTER_U5_SOURCE_ACTIVATION_AND_U4_POSTVALIDATION_BEFORE_NEW_INSTALL_INTENT_PREFLIGHT"
+  "stop_boundary": "STOP_AFTER_U5_SOURCE_ACTIVATION_AND_U4_POSTVALIDATION_BEFORE_NEW_INSTALL_INTENT_PREFLIGHT",
+  "superseded": true,
+  "superseded_by": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_ACTIVATION_R2_20261113_01",
+  "superseded_reason": "superseded_by_completed_v1_2_r2_source_activation"
 }
