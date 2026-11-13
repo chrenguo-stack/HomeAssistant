@@ -4,8 +4,6 @@ import copy
 import inspect
 import subprocess
 from pathlib import Path
-from types import SimpleNamespace
-
 import pytest
 
 import n3w_t1_core_updater_ha_capacity as capacity
@@ -281,3 +279,69 @@ def test_u6_source_slice_has_no_ha_stop_u7_or_u9_transition() -> None:
     assert "U9" not in source
     assert "authorization_claimed" in source
     assert "authorization_consumed" in source
+
+
+def test_predecessor_runtime_authority_is_transaction_bound() -> None:
+    transaction = u5_transaction()
+    runtime_id = "sha256:" + "c" * 64
+    transaction["current_image_identity"] = {
+        "runtime_image_id": runtime_id,
+        "platform": "linux/arm64",
+    }
+
+    assert (
+        host.SubprocessPrepareBackend._expected_predecessor_runtime_id(
+            transaction,
+            CURRENT,
+        )
+        == runtime_id
+    )
+
+    drifted = copy.deepcopy(transaction)
+    drifted["current_image_identity"]["runtime_image_id"] = "sha256:" + "d" * 64
+    assert (
+        host.SubprocessPrepareBackend._expected_predecessor_runtime_id(
+            drifted,
+            CURRENT,
+        )
+        != runtime_id
+    )
+
+
+def test_predecessor_runtime_authority_fails_closed_without_exact_binding() -> None:
+    transaction = u5_transaction()
+
+    with pytest.raises(
+        UpdaterV2Error,
+        match="transaction_identity_invalid",
+    ):
+        host.SubprocessPrepareBackend._expected_predecessor_runtime_id(
+            transaction,
+            CURRENT,
+        )
+
+    transaction["current_image_identity"] = {
+        "runtime_image_id": "sha256:" + "c" * 64,
+        "platform": "linux/amd64",
+    }
+    with pytest.raises(
+        UpdaterV2Error,
+        match="transaction_identity_invalid",
+    ):
+        host.SubprocessPrepareBackend._expected_predecessor_runtime_id(
+            transaction,
+            CURRENT,
+        )
+
+
+def test_predecessor_prepare_and_verify_both_enforce_transaction_runtime_id() -> None:
+    prepare_source = inspect.getsource(
+        host.SubprocessPrepareBackend.prepare_predecessor_recovery
+    )
+    verify_source = inspect.getsource(
+        host.SubprocessPrepareBackend.verify_prepared_predecessor
+    )
+
+    for source in (prepare_source, verify_source):
+        assert "_expected_predecessor_runtime_id" in source
+        assert "verdict.runtime_image_id != expected_runtime_id" in source
