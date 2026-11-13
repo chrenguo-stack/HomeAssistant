@@ -3,9 +3,9 @@
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF151_USB_MEDIA_RESOLVER_SOURCE_ACTIVATION_R16_20261113_01",
   "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF151_USB_MEDIA_RESOLVER_SOURCE_ACTIVATION_R16_20261113_01",
   "confirmation": "EXECUTE KF151 USB MEDIA RESOLVER SOURCE ACTIVATION R16: YES",
-  "live_execution_authorized": false,
+  "live_execution_authorized": true,
   "authorization_state": {
-    "granted": false,
+    "granted": true,
     "claimed": false,
     "consumed": false,
     "replay_permitted": false
@@ -161,5 +161,19 @@
     "board_access": false,
     "merge": false
   },
-  "stop_boundary": "STOP_AFTER_KF151_SOURCE_ACTIVATION_AND_U4_POSTVALIDATION_BEFORE_INSTALL_INTENT"
+  "stop_boundary": "STOP_AFTER_KF151_SOURCE_ACTIVATION_AND_U4_POSTVALIDATION_BEFORE_INSTALL_INTENT",
+  "authorization_grant": {
+    "source": "explicit_user_authorization_in_chat",
+    "date": "2026-11-13",
+    "scope": "kf151_exact_single_file_prepare_host_source_activation_only",
+    "source_ci_head": "3513742801758bc44981c7bf3f0e9ffe6fa5fd56",
+    "source_ci_result": "16_OF_16_SUCCESS",
+    "maximum_phase": "U4_READY_TO_INSTALL",
+    "install_intent_authorized": false,
+    "u5_authorized": false,
+    "u6_plus_authorized": false,
+    "board_access": false,
+    "merge": false,
+    "automatic_retry": false
+  }
 }
