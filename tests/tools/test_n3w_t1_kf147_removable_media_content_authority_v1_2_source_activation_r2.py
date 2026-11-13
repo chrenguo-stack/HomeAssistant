@@ -85,6 +85,29 @@ def test_executor_and_remote_script_compile() -> None:
     compile(EXECUTOR.read_text(encoding="utf-8"), str(EXECUTOR), "exec")
     compile(module.REMOTE_SCRIPT, "<v1-2-source-activation-r2>", "exec")
     assert module.GATE_ID == GATE
+    assert GATE in module.REMOTE_SCRIPT
+    assert (
+        "REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_ACTIVATION_20261112_01"
+        not in module.REMOTE_SCRIPT
+    )
+
+
+def test_manifest_binds_exact_r2_executor_blob() -> None:
+    document = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    expected = document["package_source_authority"][
+        "tools/execution_packages/n3w/r7a/"
+        "kf147_removable_media_content_authority_v1_2_source_activation_r2/"
+        "executor.py"
+    ]
+    import subprocess
+
+    observed = subprocess.run(
+        ["git", "-C", str(ROOT), "hash-object", str(EXECUTOR)],
+        check=True,
+        stdout=subprocess.PIPE,
+        text=True,
+    ).stdout.strip()
+    assert observed == expected
 
 
 def test_runtime_readiness_wait_is_bounded_and_post_restart_only() -> None:
