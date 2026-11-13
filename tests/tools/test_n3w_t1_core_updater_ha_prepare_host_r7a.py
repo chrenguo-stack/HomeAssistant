@@ -29,6 +29,31 @@ def completed(stdout: bytes = b"", returncode: int = 0) -> subprocess.CompletedP
     )
 
 
+def test_lsblk_explicitly_requests_tree_for_partition_hierarchy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, ...]] = []
+
+    def fake_run(argv, **_kwargs):
+        calls.append(tuple(argv))
+        return completed(json.dumps({"blockdevices": []}).encode())
+
+    monkeypatch.setattr(host.subprocess, "run", fake_run)
+
+    assert host.SubprocessPrepareBackend()._lsblk() == []
+    assert calls == [
+        (
+            "lsblk",
+            "--json",
+            "--bytes",
+            "--paths",
+            "--tree",
+            "--output",
+            "PATH,TYPE,RM,RO,SIZE,MODEL,SERIAL,WWN,TRAN,MOUNTPOINTS,MAJ:MIN",
+        )
+    ]
+
+
 def test_policy_v2_computes_dynamic_backup_above_eight_gib() -> None:
     policy = host.HostReleasePolicy(
         release_identity="homeassistant-2026.10.4",

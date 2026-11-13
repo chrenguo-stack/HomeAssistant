@@ -1,11 +1,11 @@
 {
   "schema": "gh.n3w-t1-kf147-v12-u4-u5-install-intent-transition-manifest/1",
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_V12_U4_TO_U5_INSTALL_INTENT_R15_20261113_01",
-  "live_execution_authorized": true,
+  "live_execution_authorized": false,
   "authorization_state": {
-    "granted": true,
-    "claimed": false,
-    "consumed": false,
+    "granted": false,
+    "claimed": true,
+    "consumed": true,
     "replay_permitted": false
   },
   "package_source_authority": {
@@ -130,5 +130,18 @@
     "fresh_ci_head": "631c9600c2993842fc423559b7e8751899d89993",
     "fresh_ci_result": "16_OF_16_SUCCESS",
     "maximum_phase": "U5_INSTALL_REQUESTED_REVALIDATING"
+  },
+  "superseded": true,
+  "superseded_reason": "r15_live_claim_consumed_stop_kf151_usb_media_resolver_lsblk_tree_defect",
+  "terminal_live_result": {
+    "status": "STOP",
+    "reason": "ipc_request_rejected:usb_transaction_media_unavailable",
+    "authorization_claimed": true,
+    "authorization_consumed": true,
+    "transaction_mutation": false,
+    "usb_mutation": false,
+    "u5_transition": false,
+    "split_state_detected": false,
+    "u6_plus": false
   }
 }

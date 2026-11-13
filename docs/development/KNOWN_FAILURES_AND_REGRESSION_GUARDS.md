@@ -1,3 +1,35 @@
+### 2026-11-13 KF-151 R15 INSTALL media resolver false-negative — lsblk hierarchy not explicitly requested
+
+```text
+R15_RESULT=STOP
+R15_REASON=ipc_request_rejected:usb_transaction_media_unavailable
+R15_AUTHORIZATION_CLAIMED=true
+R15_AUTHORIZATION_CONSUMED=true
+R15_REPLAY_PERMITTED=false
+R15_TRANSACTION_MUTATION=false
+R15_USB_MUTATION=false
+R15_U5_TRANSITION=false
+R15_SPLIT_STATE_DETECTED=false
+R15_U6_PLUS=false
+```
+
+Root cause:
+- R14/R15 outer preflight explicitly used `lsblk --tree` and proved the exact UUID/fingerprint-bound ext4 media mounted at the transaction-derived path.
+- The production `SubprocessPrepareBackend._lsblk()` used JSON `lsblk` with `PATH,TYPE,...` columns but omitted `--tree` and also omitted the `NAME` column.
+- `resolve_transaction_media()` subsequently requires nested `children` to find exactly one partition. On the real T1 this command shape can therefore produce no partition descendants, leaving the eligible-media set empty and returning `None`, which maps to `usb_transaction_media_unavailable`.
+- Existing unit tests injected already-nested synthetic `children` and therefore did not verify the real `lsblk` argv/tree contract.
+
+Repair:
+- require `--tree` in the single production `_lsblk()` command so all inventory consumers receive explicit disk/partition hierarchy;
+- add a regression test freezing the exact command shape and requiring `--tree`;
+- preserve UUID/fingerprint, root-device exclusion, ext4/N3W-UPDATE, mount-target and write-required checks unchanged;
+- R15 is terminal consumed/no-replay. This source repair does not authorize source deployment, daemon/service restart, another INSTALL attempt, U5/U6+, board access or merge.
+
+Regression guards:
+- any resolver that consumes nested `children` from `lsblk --json` must explicitly request `--tree` or include another documented tree-enabling column and freeze that command in tests;
+- mocks must not assume hierarchy that the real subprocess argv does not request;
+- claim-after-STOP authorization is terminal consumed; source repair and fresh CI may continue, but a new live mutation authorization is required before deploying the repaired host source or retrying INSTALL.
+
 ### 2026-11-12 KF-147 R11 post-reboot U4 mount precondition — R12 successor source CLOSED_PASS
 
 ```text

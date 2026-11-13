@@ -424,6 +424,7 @@ class SubprocessPrepareBackend:
                 "--json",
                 "--bytes",
                 "--paths",
+                "--tree",
                 "--output",
                 "PATH,TYPE,RM,RO,SIZE,MODEL,SERIAL,WWN,TRAN,MOUNTPOINTS,MAJ:MIN",
             )
