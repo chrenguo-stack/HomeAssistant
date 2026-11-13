@@ -40,17 +40,19 @@ def load_remote_namespace():
     return namespace
 
 
-def test_manifest_is_granted_unclaimed_and_binds_exact_u4_state() -> None:
+def test_manifest_is_superseded_ungranted_and_binds_historical_u4_state() -> None:
     document = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert document["gate_id"] == GATE
     assert document["authorization_id"] == GATE
-    assert document["live_execution_authorized"] is True
+    assert document["live_execution_authorized"] is False
     assert document["authorization_state"] == {
-        "granted": True,
+        "granted": False,
         "claimed": False,
         "consumed": False,
         "replay_permitted": False,
     }
+    assert document["superseded"] is True
+    assert document["superseded_reason"] == "stale_pre_v1_2_source_and_runtime_contract"
     assert document["state_root"].endswith(
         "kf147-u5-writable-mount-restoration-r8-20261111-01"
     )
