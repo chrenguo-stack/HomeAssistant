@@ -10,11 +10,11 @@ def load_executor():
     spec=importlib.util.spec_from_file_location("n3w_r20",EXECUTOR); assert spec is not None and spec.loader is not None
     m=importlib.util.module_from_spec(spec); sys.modules[spec.name]=m; spec.loader.exec_module(m); return m
 
-def test_manifest_ungranted_u5_scope():
+def test_manifest_granted_one_shot_u5_scope():
     d=json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert d["gate_id"]==GATE
-    assert d["live_execution_authorized"] is False
-    assert d["authorization_state"]=={"granted":False,"claimed":False,"consumed":False,"replay_permitted":False}
+    assert d["live_execution_authorized"] is True
+    assert d["authorization_state"]=={"granted":True,"claimed":False,"consumed":False,"replay_permitted":False}
     c=d["execution_contract"]
     assert c["activated_source_file_count"]==1
     assert c["activated_source_file"]=="tools/n3w_t1_core_updater_ha_ipc.py"
@@ -76,7 +76,7 @@ def test_r20_claim_is_durable_and_rollback_is_lifecycle_gated():
 def test_r20_package_source_authority_matches_exact_head():
     m=load_executor()
     head=m.git_text("rev-parse","HEAD")
-    d=m.read_manifest(head,execute=False)
+    d=m.read_manifest(head,execute=True)
     for path,blob in d["package_source_authority"].items():
         assert m.git_text("rev-parse","HEAD:"+path)==blob
 
