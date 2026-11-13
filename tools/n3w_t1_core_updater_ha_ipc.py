@@ -859,4 +859,9 @@ class UnixSocketHaOtaServer:
                         accepted=False,
                         code=_public_code(error),
                     )
-                connection.sendall(response)
+                try:
+                    connection.sendall(response)
+                except OSError:
+                    if self._stop.is_set():
+                        return
+                    continue

@@ -1,4 +1,4 @@
-### 2026-11-13 KF-153 R18 IPC submit timeout / post-submit state ambiguity — FORENSIC_REQUIRED
+### 2026-11-13 KF-153 R18 IPC timeout / delayed U5 / BrokenPipe serving-thread death — PHYSICAL_PROVEN
 
 ```text
 R18_RESULT=STOP
@@ -6,21 +6,42 @@ R18_REASON=ipc_request_unavailable:1
 R18_AUTHORIZATION_CLAIMED=true
 R18_AUTHORIZATION_CONSUMED=true
 R18_REPLAY_PERMITTED=false
-R18_TRANSACTION_MUTATION_OBSERVED_AT_RETURN=false
-R18_USB_MUTATION_OBSERVED_AT_RETURN=false
-R18_U5_TRANSITION_OBSERVED_AT_RETURN=false
-R18_U6_PLUS=false
-R18_POSTSUBMIT_FINAL_STATE_VERIFIED=false
-ROOT_CAUSE_STATUS=CANDIDATE_NOT_YET_PHYSICALLY_PROVEN
+
+R19_RESULT=PASS
+R19_CLASSIFICATION=DELAYED_U5_TRANSITION_COMPLETE
+R19_TRANSACTION_PHASE=U5_INSTALL_REQUESTED_REVALIDATING
+R19_TRANSACTION_SHA256=adfcf60d958c112edf61e2f4e31d73b16229fd027180ed68b87b8953231f0144
+R19_USB_MOUNT_STATE=MOUNTED
+R19_USB_TRANSACTION_PHASE=U5_INSTALL_REQUESTED_REVALIDATING
+R19_IPC_STATUS_RETURNCODE=1
+R19_IPC_STATUS_ERROR=EAGAIN
+R19_JOURNAL_BROKEN_PIPE_SEEN=true
+R19_JOURNAL_TRACEBACK_SEEN=true
+R19_HOST_UNIT_NRESTARTS=0
+R19_U6_PLUS=false
+
+ROOT_CAUSE_STATUS=PHYSICAL_PROVEN
+SOURCE_REPAIR=RESPONSE_SEND_OSERROR_CONTAINMENT
 ```
 
-Source review shows the R18 probe uses a 5-second socket timeout while INSTALL is handled synchronously and may reopen media plus verify the prepared target before returning. The server then calls `sendall(response)` outside the dispatch exception guard. This creates a credible timeout/deferred-completion/BrokenPipe race, but physical forensic is required before closing root cause.
+Physical proof:
+- R18 durable failure residue recorded U4 immediately after the 5-second client-side IPC failure;
+- later R19 found both the host transaction and bound USB transaction metadata durably at U5, with the exact USB still mounted and identity-matched;
+- the host journal records `BrokenPipeError` after the delayed operation completed;
+- the host daemon remained the same active process with `NRestarts=0`, while a later IPC status connect failed with `EAGAIN`;
+- source places `connection.sendall(response)` outside the request-dispatch exception guard.
 
-Regression guard:
-- R18 is consumed/no-replay and must never be retried;
-- a post-submit transport timeout cannot prove “no mutation” until durable host/USB state is re-read later;
-- long synchronous IPC operations need a client timeout matching their bounded execution budget;
-- response write failure must not kill the serving thread.
+Root cause:
+- the R18 probe timed out before the synchronous INSTALL revalidation completed;
+- the server later completed U5 successfully;
+- sending the response to the already-disconnected client raised an unhandled OSError/BrokenPipe and terminated only the IPC serving thread.
+
+Repair / guards:
+- R18 is terminal consumed/no-replay and must never resubmit INSTALL;
+- response-write OSError from a disconnected peer must be contained per connection and the serving loop must continue;
+- regression injects a deterministic BrokenPipe on the first response and requires the second request to succeed;
+- live recovery must start from already-achieved U5 and preserve the exact mounted media/transaction; do not roll back to U4 merely to reproduce the request;
+- source repair deployment remains separately unauthorized.
 
 ### 2026-11-13 KF-152 R17 dependency-safe source activation — PHYSICAL_CLOSED_PASS
 

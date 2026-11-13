@@ -1,30 +1,40 @@
-## Stable updater authority — 2026-11-13 R18 consumed STOP / forensic required
+## Stable updater authority — 2026-11-13 KF-153 PHYSICAL_PROVEN / U5 IPC repair source
 
 ```text
-PROJECT_WORKING_CONTEXT_VERSION=6.9
+PROJECT_WORKING_CONTEXT_VERSION=7.0
+
 CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
 CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
 CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
 CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
 CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
-HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
-HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
 LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
 
-R18_RESULT=STOP
-R18_REASON=ipc_request_unavailable:1
 R18_AUTHORIZATION_CONSUMED=true
 R18_REPLAY_PERMITTED=false
-R18_POSTSUBMIT_FINAL_STATE_VERIFIED=false
-KF153_ROOT_CAUSE_STATUS=CANDIDATE_NOT_YET_PHYSICALLY_PROVEN
-NEXT_ONE_GATE=R19_REAL_T1_POST_R18_READONLY_FORENSIC
+R19_RESULT=PASS
+R19_CLASSIFICATION=DELAYED_U5_TRANSITION_COMPLETE
+LIVE_TRANSACTION_PHASE=U5_INSTALL_REQUESTED_REVALIDATING
+LIVE_TRANSACTION_SHA256=adfcf60d958c112edf61e2f4e31d73b16229fd027180ed68b87b8953231f0144
+LIVE_USB_MOUNT_STATE=MOUNTED
+LIVE_USB_TRANSACTION_PHASE=U5_INSTALL_REQUESTED_REVALIDATING
+LIVE_IPC_SERVING_THREAD=FAILED_AFTER_BROKEN_PIPE
+LIVE_HOST_DAEMON=active_running_success_nrestarts0
+
+KF153_ROOT_CAUSE_STATUS=PHYSICAL_PROVEN
+KF153_SOURCE_REPAIR=RESPONSE_SEND_OSERROR_CONTAINMENT
+LIVE_SOURCE_REPAIR_DEPLOYED=false
+
+NEXT_ONE_GATE=KF153_SOURCE_REPAIR_FRESH_CI_AND_U5_SAFE_ACTIVATION_SUCCESSOR_PREPARATION
 LIVE_MUTATION_AUTHORIZED=false
 U6_PLUS_AUTHORIZED=false
 BOARD_ACCESS=false
 MERGE=false
 ```
 
-R18 is terminal consumed/no-replay. The return-time U4 observation is not sufficient to prove the final post-timeout state because the synchronous server may have continued processing after the client exited.
+The system is already in durable U5. R19 proves the R18 client timeout was not an INSTALL failure; the synchronous server completed the U5 host and USB metadata transition later, then an unhandled response-write BrokenPipe killed only the IPC serving thread. The daemon process, services owner, Manager, Home Assistant and Broker stayed running.
+
+The repository repair is intentionally narrow: response send failure from a disconnected client no longer terminates the serving loop. Any live source activation must preserve the already-mounted U5 media and transaction and requires a separate authorization.
 
 ## Stable updater authority — 2026-11-12 KF-147 R12 real-T1 read-only preflight PASS / authorization boundary
 

@@ -320,6 +320,78 @@ def test_unix_server_enforces_peer_uid_and_round_trip(tmp_path: Path) -> None:
         server.stop()
 
 
+
+def test_server_survives_client_disconnect_during_response_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executor, _, _ = _executor(tmp_path)
+    dispatcher = HaUsbIpcDispatcher(executor)
+    path = tmp_path / "ha-ota.sock"
+    server = UnixSocketHaOtaServer(
+        dispatcher=dispatcher,
+        path=path,
+        expected_peer_uid=os.getuid(),
+    )
+
+    payload = (
+        json.dumps(
+            {"schema": REQUEST_SCHEMA, "operation": "status"},
+            separators=(",", ":"),
+        ).encode("utf-8")
+        + b"\n"
+    )
+
+    class FakeConnection:
+        def __init__(self, *, fail_send: bool, stop_after_send: bool = False) -> None:
+            self.fail_send = fail_send
+            self.stop_after_send = stop_after_send
+            self.blocks = [payload, b""]
+            self.sent = b""
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, _type, _value, _traceback):
+            return False
+
+        def settimeout(self, _timeout: float) -> None:
+            return None
+
+        def recv(self, _size: int) -> bytes:
+            return self.blocks.pop(0)
+
+        def sendall(self, value: bytes) -> None:
+            if self.fail_send:
+                raise BrokenPipeError(32, "Broken pipe")
+            self.sent += value
+            if self.stop_after_send:
+                server._stop.set()
+
+    first = FakeConnection(fail_send=True)
+    second = FakeConnection(fail_send=False, stop_after_send=True)
+
+    class FakeListener:
+        def __init__(self) -> None:
+            self.connections = [first, second]
+
+        def accept(self):
+            if not self.connections:
+                raise AssertionError("server stopped accepting too late")
+            return self.connections.pop(0), None
+
+    monkeypatch.setattr(server, "_peer_uid", lambda _connection: os.getuid())
+    server._socket = FakeListener()
+    server._stop.clear()
+
+    server._serve()
+
+    assert second.sent
+    response = json.loads(second.sent.decode("utf-8"))
+    assert response["accepted"] is True
+    assert response["phase"] == "DISCOVERED"
+    assert response["code"] == "status"
+
 def test_server_rejects_existing_socket_path(tmp_path: Path) -> None:
     path = tmp_path / "ha-ota.sock"
     path.write_text("not a socket", encoding="utf-8")

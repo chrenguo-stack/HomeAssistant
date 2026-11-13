@@ -23,10 +23,16 @@
     "postsubmit_final_state_verified": false
   },
   "source_hypothesis": {
-    "status": "CANDIDATE_NOT_YET_PHYSICALLY_PROVEN",
+    "status": "PHYSICAL_PROVEN",
     "client_socket_timeout_seconds": 5,
     "server_dispatch_is_synchronous": true,
-    "server_sendall_outside_dispatch_exception_guard": true
+    "server_sendall_outside_dispatch_exception_guard": true,
+    "physical_proof": {
+      "delayed_u5_observed": true,
+      "broken_pipe_observed": true,
+      "host_process_not_restarted": true,
+      "ipc_status_unavailable_after_broken_pipe": true
+    }
   },
   "expected_live_entry": {
     "usb_filesystem_uuid": "967cf065-abe5-49ee-8499-7c3f50d2c48f",
@@ -63,5 +69,37 @@
     "board_access": false,
     "merge": false
   },
-  "stop_boundary": "STOP_AFTER_POST_R18_READONLY_FORENSIC_CLASSIFICATION"
+  "stop_boundary": "STOP_AFTER_POST_R18_READONLY_FORENSIC_CLASSIFICATION",
+  "terminal_forensic_result": {
+    "status": "PASS",
+    "classification": "DELAYED_U5_TRANSITION_COMPLETE",
+    "forensic_complete": true,
+    "transaction_phase": "U5_INSTALL_REQUESTED_REVALIDATING",
+    "transaction_sha256": "adfcf60d958c112edf61e2f4e31d73b16229fd027180ed68b87b8953231f0144",
+    "transaction_unchanged_during_forensic": true,
+    "usb_mount_state": "MOUNTED",
+    "usb_mount_target": "/run/n3w-t1-ota/media/ca89774eb4254d0f",
+    "usb_mount_target_expected": true,
+    "usb_identity_matches": true,
+    "usb_transaction_phase": "U5_INSTALL_REQUESTED_REVALIDATING",
+    "usb_phase_sha256": "acec5c51c5b8dc4ef5b1860dc61c77d377c923730c13a74ede0bf41d1e88d468",
+    "ipc_status_returncode": 1,
+    "ipc_status_error": "BlockingIOError:[Errno 11] Resource temporarily unavailable",
+    "journal_broken_pipe_seen": true,
+    "journal_traceback_seen": true,
+    "journal_timeout_seen": false,
+    "host_unit": "active_running_success_nrestarts0_pid3961",
+    "services_owner": "active_running_success_nrestarts0_pid3972",
+    "broker_owner": "active_running_success_nrestarts0_pid1419",
+    "manager": "running_exit0_restart0",
+    "homeassistant": "running_exit0_restart0",
+    "broker": "running_exit0_restart0",
+    "host_mutation": false,
+    "transaction_mutation": false,
+    "usb_mutation": false,
+    "service_restart": false,
+    "u6_plus": false,
+    "board_access": false,
+    "merge": false
+  }
 }

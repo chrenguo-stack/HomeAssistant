@@ -1,4 +1,4 @@
-## 2026-11-13 — R18 consumed STOP / post-submit final state not yet proven
+## 2026-11-13 — KF-153 physical closure / U5 reached / IPC thread repair source
 
 - Core Stack current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
 - Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
@@ -8,10 +8,13 @@
 - Historical clean reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
 - Historical clean reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
 - Live upgrade accepted; current repository Core Stack authority remains APPLIED_ACCEPTED.
-- R18 authorized head `41e1388801cef86c25b2d815ac5583f9feeb00f4` completed 16/16 CI, then the live one-shot stopped with `ipc_request_unavailable:1` after durable claim.
-- R18 authorization is consumed/no-replay. At return time no transaction/USB/U5 mutation was observed and U6+ remained false, but this is not final-state authority.
-- Source review identifies a candidate timeout race: 5-second client socket timeout versus synchronous media reopen/target validation, with response `sendall` outside the dispatch exception guard.
-- Next step is read-only post-submit forensic; R18 must not be rerun.
+- R19 physically proves R18 completed asynchronously after its 5-second client timeout: host transaction and USB metadata are both `U5_INSTALL_REQUESTED_REVALIDATING`.
+- Exact USB identity still matches and remains mounted at the transaction-derived target with `rw,nosuid,nodev,noexec`.
+- The OTA host process stayed active with the same PID and zero restarts, while journal records `BrokenPipeError` in the IPC server and a later status connect returns `EAGAIN`; the serving thread died without restarting the daemon.
+- KF-153 root cause is therefore physically proven: short client timeout preceded synchronous INSTALL completion, then the response write to the disconnected client escaped the dispatch exception guard and killed the IPC serving thread.
+- Minimal source repair catches response-write `OSError` and continues accepting new clients; regression deterministically injects a BrokenPipe on the first response and requires a second request to succeed.
+- U5 is already reached. R18 must never be replayed, and no successor may resubmit INSTALL.
+- Next: fresh source CI, then prepare a U5-safe source-activation successor. Live activation remains separately unauthorized.
 
 ## 2026-11-12 — V1.2 source activation AUTHORIZED / new-chat execution boundary
 
