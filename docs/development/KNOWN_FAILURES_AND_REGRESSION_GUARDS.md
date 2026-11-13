@@ -1,3 +1,51 @@
+### 2026-11-13 KF-152 R16 source-activation lifecycle regression — services owner reverse Requires
+
+```text
+R16_RESULT=STOP
+R16_REASON=Stop:services_owner_not_active
+R16_AUTHORIZATION_CLAIMED=true
+R16_AUTHORIZATION_CONSUMED=true
+R16_REPLAY_PERMITTED=false
+R16_HOST_SOURCE_MUTATION=true
+R16_HOST_DAEMON_RESTART=true
+R16_SERVICES_OWNER_RESTART=false
+R16_ROLLBACK_REQUIRED=true
+R16_ROLLBACK_STATUS=STOP
+R16_TRANSACTION_MUTATION=false
+R16_USB_MUTATION=false
+R16_U5_TRANSITION=false
+R16_U6_PLUS=false
+```
+
+Root cause:
+- `n3wfc4-services-activation.service.d/95-n3w-ha-ota.conf` contains `Requires=n3w-t1-ha-ota.service` and `After=n3w-t1-ha-ota.service`.
+- R16 intentionally removed services-owner stop/start and stopped only the OTA host daemon during source replacement.
+- systemd propagated the host-daemon stop through the reverse Requires relationship, leaving the services owner inactive; that owner supervises Manager + Home Assistant.
+- R16 post-validation therefore failed at `services_owner_not_active`.
+- R16 rollback repeated the same incomplete lifecycle: it restored source and restarted the host daemon but did not start the services owner, so rollback validation stopped on the same condition.
+- This exact failure mode had already been physically proven and repaired in Stage B R3; the closure document explicitly records the safe lifecycle ordering.
+
+Known-safe repair rule:
+```text
+STOP services owner
+STOP host daemon
+APPLY or RESTORE source
+START host daemon
+START services owner
+VALIDATE
+```
+
+Regression guards:
+- any source activation that stops `n3w-t1-ha-ota.service` must model the deployed reverse `Requires=` from the services owner;
+- “host-daemon-only restart” is invalid while that dependency exists;
+- success and rollback must use the same dependency-safe lifecycle ordering;
+- a STOP after claimed/consumed authorization is terminal; R16 must never replay;
+- rollback STOP means final live source/service state is UNKNOWN_FRESH until read-only forensic proof;
+- no INSTALL/U5/U6+ progression is allowed until source/service recovery is independently closed.
+
+Prior physical authority:
+`docs/development/N3W_T1_KF147_STAGE_B_SYSTEMD_LIFECYCLE_R3_LIVE_VALIDATION_CLOSURE_20261110.md`.
+
 ### 2026-11-13 KF-151 R15 INSTALL media resolver false-negative — PHYSICAL_PROVEN / source repair CLOSED_PASS
 
 ```text

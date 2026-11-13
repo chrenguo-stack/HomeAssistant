@@ -3,11 +3,11 @@
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF151_USB_MEDIA_RESOLVER_SOURCE_ACTIVATION_R16_20261113_01",
   "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF151_USB_MEDIA_RESOLVER_SOURCE_ACTIVATION_R16_20261113_01",
   "confirmation": "EXECUTE KF151 USB MEDIA RESOLVER SOURCE ACTIVATION R16: YES",
-  "live_execution_authorized": true,
+  "live_execution_authorized": false,
   "authorization_state": {
-    "granted": true,
-    "claimed": false,
-    "consumed": false,
+    "granted": false,
+    "claimed": true,
+    "consumed": true,
     "replay_permitted": false
   },
   "package_source_authority": {
@@ -175,5 +175,24 @@
     "board_access": false,
     "merge": false,
     "automatic_retry": false
+  },
+  "superseded": true,
+  "superseded_reason": "r16_live_claim_consumed_stop_kf152_systemd_reverse_requires_lifecycle_regression",
+  "terminal_live_result": {
+    "status": "STOP",
+    "reason": "Stop:services_owner_not_active",
+    "authorization_claimed": true,
+    "authorization_consumed": true,
+    "host_source_mutation": true,
+    "host_daemon_restart": true,
+    "services_owner_restart": false,
+    "transaction_mutation": false,
+    "usb_mutation": false,
+    "u5_transition": false,
+    "u6_plus": false,
+    "rollback_required": true,
+    "rollback_status": "STOP",
+    "rollback_reason": "Stop:services_owner_not_active",
+    "live_poststate": "UNKNOWN_FRESH_REQUIRES_READONLY_FORENSIC"
   }
 }

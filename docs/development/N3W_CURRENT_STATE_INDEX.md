@@ -1,18 +1,15 @@
-## 2026-11-13 — KF-151 real-T1 root cause PHYSICAL_PROVEN / R16 ungranted source activation
+## 2026-11-13 — KF-152 R16 consumed STOP / post-R16 read-only forensic next
 
 - Core Stack current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
 - Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
 - Current Manager: `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
-- Historical clean reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
-- Historical clean reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
-- Live upgrade accepted; current repository Core Stack authority remains APPLIED_ACCEPTED.
-- R15 exact authorized attempt at `6e29ec53eb2f454e977c5d9afa280d3b18cd2171` claimed and consumed its one-shot authorization, then STOPped before any transaction/USB/U5 mutation with `ipc_request_rejected:usb_transaction_media_unavailable`. It is permanently non-replayable.
-- Real-T1 read-only comparison on util-linux 2.41.3 physically proved KF-151: the old production `lsblk --json ...` emitted disk and partition as flat top-level objects with no disk `children`; adding explicit `--tree` nested the partition under the disk exactly as `resolve_transaction_media()` requires.
-- Bound media simultaneously remained valid ext4 `N3W-UPDATE`, UUID `967cf065-abe5-49ee-8499-7c3f50d2c48f`, mounted rw,nodev,nosuid,noexec at the transaction-derived path.
-- Product repair head `5e0db1092e697be79e63c9f213fffe6fd4d7b2cc` adds only explicit `--tree` to the production backend and closes fresh CI 16/16 SUCCESS.
-- R16 ungranted successor candidate `5438fe87715b40f96778f65c1d600e522eeb910b` validates the full eight-file V1.2 source set but activates only `n3w_t1_core_updater_ha_prepare_host.py`; executor `121e37118c08cb4b7c647ace08f016f07900d5f4`, manifest `72d74639fb167b78da9953083fb2a223c0fdb637`, focused test `b4bb5f0cb69f738230688405628547002c4072a9`.
-- R16 only permits OTA host-daemon restart on a future separately authorized execute; it does not restart the services owner, does not submit INSTALL, does not enter U5/U6+, and does not access boards or merge.
-- Current next gate is source/CI/read-only preparation only. No live R16 mutation authorization exists.
+- Historical clean reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`; Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- R16 authorized head `763559089b7339c0a7c3612bdeaa91cbf29a0a8b` completed 16/16 CI SUCCESS, then its one-shot live execution claimed and consumed authorization.
+- R16 STOPped with `services_owner_not_active` after the one-file source mutation and OTA host-daemon restart; transaction/USB state remained unchanged and no U5/U6+ transition occurred.
+- R16 rollback was attempted but also STOPped on `services_owner_not_active`; therefore the final prepare_host source hash and Manager/Home Assistant runtime state are UNKNOWN_FRESH until read-only forensic evidence is collected.
+- Root cause is a regression of the already-proven Stage B lifecycle contract: the services owner has `Requires=n3w-t1-ha-ota.service`, so stopping the host daemon propagates a stop to the services owner. The proven safe order is stop services owner → stop host → apply/restore → start host → start services owner → validate.
+- R16 is terminal consumed/no-replay. No automatic retry or live recovery is authorized.
+- Next gate is read-only post-R16 forensic only; INSTALL/U5/U6+, board access and merge remain forbidden.
 
 ## 2026-11-12 — V1.2 source activation AUTHORIZED / new-chat execution boundary
 

@@ -1,7 +1,7 @@
-## Stable updater authority — 2026-11-13 KF-151 physical root-cause closure / R16 ungranted recovery successor
+## Stable updater authority — 2026-11-13 KF-152 R16 terminal consumed / dependency-safe recovery boundary
 
 ```text
-PROJECT_WORKING_CONTEXT_VERSION=6.2
+PROJECT_WORKING_CONTEXT_VERSION=6.3
 
 CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
 CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
@@ -17,32 +17,30 @@ PR_STATE=OPEN_DRAFT_UNMERGED
 LAST_PROVEN_TRANSACTION_PHASE=U4_READY_TO_INSTALL
 LAST_PROVEN_TRANSACTION_SHA256=dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259
 
-R15_RESULT=STOP
-R15_AUTHORIZATION_CONSUMED=true
-R15_REPLAY_PERMITTED=false
-R15_U5_TRANSITION=false
-R15_SPLIT_STATE_DETECTED=false
-
-KF151_ROOT_CAUSE=PHYSICAL_PROVEN
-KF151_SOURCE_REPAIR_HEAD=5e0db1092e697be79e63c9f213fffe6fd4d7b2cc
-KF151_SOURCE_REPAIR_CI=16_OF_16_SUCCESS
-
-R16_SOURCE_CANDIDATE_HEAD=5438fe87715b40f96778f65c1d600e522eeb910b
-R16_AUTHORIZATION_STATE=UNGRANTED
-R16_ACTIVATED_SOURCE_FILE=tools/n3w_t1_core_updater_ha_prepare_host.py
-R16_SERVICES_OWNER_RESTART=false
-R16_INSTALL_INTENT=false
+R16_AUTHORIZED_HEAD=763559089b7339c0a7c3612bdeaa91cbf29a0a8b
+R16_RESULT=STOP
+R16_AUTHORIZATION_CONSUMED=true
+R16_REPLAY_PERMITTED=false
+R16_TRANSACTION_MUTATION=false
+R16_USB_MUTATION=false
 R16_U5_TRANSITION=false
+R16_U6_PLUS=false
+R16_ROLLBACK_STATUS=STOP
+
+KF152_ROOT_CAUSE=SYSTEMD_REVERSE_REQUIRES_LIFECYCLE_REGRESSION
+KNOWN_SAFE_LIFECYCLE_ORDER=STOP_SERVICES__STOP_HOST__MUTATE_OR_RESTORE__START_HOST__START_SERVICES
+LIVE_POST_R16_STATE=UNKNOWN_FRESH
+NEXT_ONE_GATE=KF152_R17_POST_R16_READONLY_FORENSIC
+LIVE_MUTATION_AUTHORIZED=false
+U5_AUTHORIZED=false
 U6_PLUS_AUTHORIZED=false
 BOARD_ACCESS=false
 MERGE=false
 ```
 
-R15 is a terminal consumed/no-replay boundary. Its failed INSTALL request did not mutate the host transaction, USB transaction metadata or U5 state.
+R16 reintroduced a systemd lifecycle failure already closed during Stage B R3. The deployed services-owner drop-in requires the OTA host daemon. Stopping the host daemon therefore stops the services owner, which owns Manager and Home Assistant. R16 restarted only the host daemon, so post-validation failed; its rollback restored files before the same service-state check but did not restart the services owner, so rollback validation also STOPped.
 
-KF-151 is now physically proven on the real T1: without explicit `--tree`, util-linux 2.41.3 emitted the USB disk and partition as flat siblings, so the product resolver's disk-local descendant scan found no partition. With explicit `--tree`, the same partition appears under the disk's `children`. The one-line product repair is exact and fresh-CI closed.
-
-R16 is a new ungranted recovery successor. It validates all eight installed V1.2 source files but stages, backs up, installs and rolls back only `prepare_host.py`. It leaves Manager/Home Assistant/Broker running, restarts only the OTA host daemon, proves U4/USB/IPC again, and stops before INSTALL/U5. A future real-T1 execute requires a new explicit live-mutation authorization.
+The historical Stage B R3 physical closure already proved the dependency-safe ordering: stop services owner, stop host daemon, apply/restore source, start host daemon, start services owner, then validate. R16 is consumed and must not be replayed. Before any R17 live recovery, read-only evidence must establish the exact post-R16 prepare_host hash, service/container states and unchanged U4 transaction/USB state.
 
 ## Stable updater authority — 2026-11-12 KF-147 R12 real-T1 read-only preflight PASS / authorization boundary
 
