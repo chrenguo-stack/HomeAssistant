@@ -42,6 +42,7 @@ DEFAULT_HOST_RELEASE_POLICY = Path(
 )
 DEFAULT_RUNTIME_ROOT = Path("/run/n3w-t1-ota")
 DEFAULT_HA_DATA_ROOT = Path("/var/lib/n3wfc4-homeassistant")
+HOMEASSISTANT_CONTAINER = "n3wfc4-homeassistant-1"
 MAX_POLICY_BYTES = 64 * 1024
 MAX_DOWNLOAD_BYTES = 8 * 1024 * 1024 * 1024
 MAX_CAPACITY_INPUT_BYTES = 64 * 1024 * 1024 * 1024
@@ -1296,6 +1297,49 @@ class SubprocessPrepareBackend:
         return runtime_id
 
     @staticmethod
+    def _require_predecessor_container_authority(
+        transaction: dict[str, Any],
+        image_ref: str,
+    ) -> str:
+        expected_runtime_id = (
+            SubprocessPrepareBackend._expected_predecessor_runtime_id(
+                transaction,
+                image_ref,
+            )
+        )
+        payload = _run(
+            (
+                "docker",
+                "inspect",
+                "--type",
+                "container",
+                HOMEASSISTANT_CONTAINER,
+            )
+        )
+        try:
+            value = json.loads(payload.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise UpdaterV2Error(
+                "ha_predecessor_container_identity_invalid"
+            ) from error
+        if (
+            not isinstance(value, list)
+            or len(value) != 1
+            or not isinstance(value[0], dict)
+        ):
+            raise UpdaterV2Error("ha_predecessor_container_identity_invalid")
+        container = value[0]
+        config = container.get("Config")
+        observed_ref = config.get("Image") if isinstance(config, dict) else None
+        observed_runtime_id = container.get("Image")
+        if (
+            observed_ref != image_ref
+            or observed_runtime_id != expected_runtime_id
+        ):
+            raise UpdaterV2Error("ha_predecessor_container_runtime_drift")
+        return expected_runtime_id
+
+    @staticmethod
     def _cleanup_stale_predecessor_temporaries(predecessor_dir: Path) -> None:
         removed = False
         for item in predecessor_dir.iterdir():
@@ -1376,6 +1420,11 @@ class SubprocessPrepareBackend:
         ):
             raise UpdaterV2Error("ha_predecessor_image_ref_invalid")
 
+        expected_runtime_id = self._require_predecessor_container_authority(
+            transaction,
+            image_ref,
+        )
+
         mount_path = Path(media.mount_path)
         if mount_path.is_symlink() or not mount_path.is_dir():
             raise UpdaterV2Error("usb_mount_path_invalid")
@@ -1424,10 +1473,16 @@ class SubprocessPrepareBackend:
                 ) from error
             if identity.archive_size_bytes > policy.predecessor_recovery_budget_bytes:
                 raise UpdaterV2Error("ha_predecessor_archive_budget_exceeded")
-            expected_runtime_id = self._expected_predecessor_runtime_id(
-                transaction,
-                image_ref,
-            )
+            if (
+                self._require_predecessor_container_authority(
+                    transaction,
+                    image_ref,
+                )
+                != expected_runtime_id
+            ):
+                raise UpdaterV2Error(
+                    "ha_predecessor_container_runtime_drift"
+                )
             verdict = portable.verify_docker_image(identity, image_ref)
             if (
                 verdict.status != "VERIFIED"
@@ -1470,6 +1525,10 @@ class SubprocessPrepareBackend:
             or not image_ref.startswith("local/n3w-homeassistant:")
         ):
             raise UpdaterV2Error("ha_predecessor_image_ref_invalid")
+        expected_runtime_id = self._require_predecessor_container_authority(
+            transaction,
+            image_ref,
+        )
         destination = (
             Path(media.mount_path)
             / "n3w-update"
@@ -1491,10 +1550,14 @@ class SubprocessPrepareBackend:
             ) from error
         if identity.archive_size_bytes > policy.predecessor_recovery_budget_bytes:
             raise UpdaterV2Error("ha_predecessor_archive_budget_exceeded")
-        expected_runtime_id = self._expected_predecessor_runtime_id(
-            transaction,
-            image_ref,
-        )
+        if (
+            self._require_predecessor_container_authority(
+                transaction,
+                image_ref,
+            )
+            != expected_runtime_id
+        ):
+            raise UpdaterV2Error("ha_predecessor_container_runtime_drift")
         verdict = portable.verify_docker_image(identity, image_ref)
         if (
             verdict.status != "VERIFIED"
