@@ -1,0 +1,67 @@
+{
+  "schema": "gh.n3w-t1-kf153-r19-post-r18-ipc-timeout-readonly-forensic-manifest/1",
+  "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF153_POST_R18_IPC_TIMEOUT_READONLY_FORENSIC_R19_20261113_01",
+  "live_execution_authorized": false,
+  "authorization_state": {
+    "granted": false,
+    "claimed": false,
+    "consumed": false,
+    "replay_permitted": false
+  },
+  "package_source_authority": {
+    "tools/execution_packages/n3w/r7a/kf153_r19_post_r18_ipc_timeout_readonly_forensic/executor.py": "56289930aa6ea0877e446084246ffde4ac91fc9b",
+    "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7"
+  },
+  "predecessor_r18": {
+    "authorized_head": "41e1388801cef86c25b2d815ac5583f9feeb00f4",
+    "terminal_closure_head": "96f740de4391f10501cc496292d2b73e9d5f88fe",
+    "status": "STOP",
+    "reason": "Stop:ipc_request_unavailable:1",
+    "authorization_claimed": true,
+    "authorization_consumed": true,
+    "replay_permitted": false,
+    "postsubmit_final_state_verified": false
+  },
+  "source_hypothesis": {
+    "status": "CANDIDATE_NOT_YET_PHYSICALLY_PROVEN",
+    "client_socket_timeout_seconds": 5,
+    "server_dispatch_is_synchronous": true,
+    "server_sendall_outside_dispatch_exception_guard": true
+  },
+  "expected_live_entry": {
+    "usb_filesystem_uuid": "967cf065-abe5-49ee-8499-7c3f50d2c48f",
+    "usb_public_fingerprint": "e45fba0ad3e9997be2738c7a8f25d5c342ebba66ddbf822b1f6bf6a016c2ed93",
+    "mount_target": "/run/n3w-t1-ota/media/ca89774eb4254d0f",
+    "containers": {
+      "manager": {
+        "image": "local/greenhouse-manager:fresh-44e7d7472714",
+        "runtime_image_id": "sha256:1471828ab07cf9b71c01a6e78994711a5954f0a178b8be087a28bb65a967c7d2"
+      },
+      "homeassistant": {
+        "image": "local/n3w-homeassistant:2026.10.0-0c73235a",
+        "runtime_image_id": "sha256:c261fa53f30508951833492ba2a19af6cfbb6aa8f2806b531d8f5c6599265306"
+      },
+      "broker": {
+        "image": "local/n3w-mosquitto:2.1.2-3184566d",
+        "runtime_image_id": "sha256:df265f1e2b2e3dc35d5eb194e698c598e01c5ebca370da307b34332f9bf0a563"
+      }
+    }
+  },
+  "execution_contract": {
+    "read_only": true,
+    "ipc_status_only": true,
+    "install_submit": false,
+    "mount": false,
+    "umount": false,
+    "source_deployment": false,
+    "service_restart": false,
+    "container_mutation": false,
+    "transaction_mutation": false,
+    "usb_mutation": false,
+    "u5_transition": false,
+    "u6_plus": false,
+    "board_access": false,
+    "merge": false
+  },
+  "stop_boundary": "STOP_AFTER_POST_R18_READONLY_FORENSIC_CLASSIFICATION"
+}

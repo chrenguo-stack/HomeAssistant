@@ -61,11 +61,13 @@ on:
       - "tools/execution_packages/n3w/r7a/kf151_usb_media_resolver_source_activation_successor/**"
       - "tools/execution_packages/n3w/r7a/kf152_r17_dependency_safe_source_activation_successor/**"
       - "tools/execution_packages/n3w/r7a/kf152_r18_u4_to_u5_install_intent_successor/**"
+      - "tools/execution_packages/n3w/r7a/kf153_r19_post_r18_ipc_timeout_readonly_forensic/**"
       - "tests/tools/test_n3w_t1_kf147_official_u5_preflight_successor.py"
       - "tests/tools/test_n3w_t1_kf147_v12_u4_to_u5_install_intent_successor.py"
       - "tests/tools/test_n3w_t1_kf151_usb_media_resolver_source_activation_successor.py"
       - "tests/tools/test_n3w_t1_kf152_r17_dependency_safe_source_activation_successor.py"
       - "tests/tools/test_n3w_t1_kf152_r18_u4_to_u5_install_intent_successor.py"
+      - "tests/tools/test_n3w_t1_kf153_r19_post_r18_ipc_timeout_readonly_forensic.py"
       - "tools/execution_packages/n3w/r7a/kf147_removable_media_content_authority_v1_2_readonly_preexecution/**"
       - "tests/tools/test_n3w_t1_kf147_removable_media_content_authority_v1_2_readonly_preexecution.py"
       - "tools/execution_packages/n3w/r7a/kf147_removable_media_content_authority_v1_2_source_activation/**"
@@ -159,6 +161,7 @@ jobs:
             tools/execution_packages/n3w/r7a/kf151_usb_media_resolver_source_activation_successor/executor.py \
             tools/execution_packages/n3w/r7a/kf152_r17_dependency_safe_source_activation_successor/executor.py \
             tools/execution_packages/n3w/r7a/kf152_r18_u4_to_u5_install_intent_successor/executor.py \
+            tools/execution_packages/n3w/r7a/kf153_r19_post_r18_ipc_timeout_readonly_forensic/executor.py \
             tools/execution_packages/n3w/r7a/kf147_removable_media_content_authority_v1_2_readonly_preexecution/executor.py \
             tools/execution_packages/n3w/r7a/kf147_removable_media_content_authority_v1_2_source_activation/executor.py \
             tools/execution_packages/n3w/r7a/kf147_removable_media_content_authority_v1_2_source_activation_r2/executor.py \
@@ -201,6 +204,7 @@ jobs:
             tests/tools/test_n3w_t1_kf151_usb_media_resolver_source_activation_successor.py \
             tests/tools/test_n3w_t1_kf152_r17_dependency_safe_source_activation_successor.py \
             tests/tools/test_n3w_t1_kf152_r18_u4_to_u5_install_intent_successor.py \
+            tests/tools/test_n3w_t1_kf153_r19_post_r18_ipc_timeout_readonly_forensic.py \
             tests/tools/test_n3w_t1_kf147_removable_media_content_authority_v1_2_readonly_preexecution.py \
             tests/tools/test_n3w_t1_kf147_removable_media_content_authority_v1_2_source_activation.py \
             tests/tools/test_n3w_t1_kf147_removable_media_content_authority_v1_2_source_activation_r2.py \
