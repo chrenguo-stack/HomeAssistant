@@ -60,18 +60,21 @@ def load_executor():
     return module
 
 
-def test_manifest_is_authorized_once_and_exact_three_file_source_slice() -> None:
+def test_manifest_is_superseded_ungranted_historical_three_file_slice() -> None:
     doc = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert doc["gate_id"] == GATE
     assert doc["authorization_id"] == GATE
     assert doc["confirmation"] == CONFIRMATION
-    assert doc["live_execution_authorized"] is True
+    assert doc["live_execution_authorized"] is False
     assert doc["authorization_state"] == {
-        "granted": True,
+        "granted": False,
         "claimed": False,
         "consumed": False,
         "replay_permitted": False,
     }
+
+    assert doc["superseded"] is True
+    assert doc["superseded_reason"] == "superseded_by_completed_v1_2_r2_source_activation"
 
     observed = {item["repo_path"]: item for item in doc["source_files"]}
     assert set(observed) == set(EXPECTED_SOURCE_FILES)
