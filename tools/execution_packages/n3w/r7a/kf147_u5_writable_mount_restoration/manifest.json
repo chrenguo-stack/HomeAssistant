@@ -3,9 +3,9 @@
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U5_WRITABLE_MOUNT_RESTORATION_R8_20261111_01",
   "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U5_WRITABLE_MOUNT_RESTORATION_R8_20261111_01",
   "confirmation": "EXECUTE KF147 U5 WRITABLE MOUNT RESTORATION R8: YES",
-  "live_execution_authorized": true,
+  "live_execution_authorized": false,
   "authorization_state": {
-    "granted": true,
+    "granted": false,
     "claimed": false,
     "consumed": false,
     "replay_permitted": false
@@ -94,5 +94,8 @@
     "automatic_retry": false,
     "rollback_attempts_max": 1
   },
-  "stop_boundary": "STOP_AFTER_WRITABLE_MOUNT_RESTORATION_AND_POSTVALIDATION_BEFORE_OFFICIAL_U5_PREFLIGHT_RERUN"
+  "stop_boundary": "STOP_AFTER_WRITABLE_MOUNT_RESTORATION_AND_POSTVALIDATION_BEFORE_OFFICIAL_U5_PREFLIGHT_RERUN",
+  "superseded": true,
+  "superseded_by": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_POST_R2_U4_WRITABLE_MOUNT_RESTORATION_R13_20261113_01",
+  "superseded_reason": "stale_pre_v1_2_source_and_runtime_contract"
 }
