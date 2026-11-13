@@ -3,11 +3,11 @@
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_ACTIVATION_R2_20261113_01",
   "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_ACTIVATION_R2_20261113_01",
   "confirmation": "EXECUTE KF147 REMOVABLE MEDIA CONTENT AUTHORITY V1.2 SOURCE ACTIVATION R2: YES",
-  "live_execution_authorized": true,
+  "live_execution_authorized": false,
   "authorization_state": {
-    "granted": true,
-    "claimed": false,
-    "consumed": false,
+    "granted": false,
+    "claimed": true,
+    "consumed": true,
     "replay_permitted": false
   },
   "package_source_authority": {
@@ -138,7 +138,8 @@
     "source": "explicit_user_authorization_in_chat",
     "date": "2026-11-13",
     "scope": "successor_exact_8_file_v1_2_source_slice_on_real_t1_only",
-    "execute_in_next_chat": false
+    "execute_in_next_chat": false,
+    "terminal": "consumed_by_real_t1_r2_source_activation_pass"
   },
   "predecessor_consumed_gate": {
     "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_ACTIVATION_20261112_01",
@@ -148,5 +149,30 @@
     "replay_permitted": false,
     "rollback_restoration_readonly_verified": true,
     "u4_preserved": true
+  },
+  "terminal_execution_record": {
+    "status": "V1_2_SOURCE_ACTIVATION_PASS",
+    "remote_returncode": 0,
+    "authorization_claimed": true,
+    "authorization_consumed": true,
+    "replay_permitted": false,
+    "source_activated": true,
+    "source_set_target_count": 8,
+    "host_source_mutation": true,
+    "host_daemon_restart": true,
+    "services_owner_restart": true,
+    "transaction_phase": "U4_READY_TO_INSTALL",
+    "transaction_sha256": "dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259",
+    "transaction_mutation": false,
+    "u4_preserved": true,
+    "usb_mutation": false,
+    "u5_transition": false,
+    "u6_plus": false,
+    "homeassistant_mutation": false,
+    "manager_mutation": false,
+    "broker_mutation": false,
+    "rollback_required": false,
+    "board_access": false,
+    "merge": false
   }
 }
