@@ -43,6 +43,7 @@ def test_executor_and_remote_compile_and_require_r13_terminal() -> None:
     compile(EXECUTOR.read_text(encoding="utf-8"), str(EXECUTOR), "exec")
     compile(m.REMOTE_SCRIPT, "<kf147-r14>", "exec")
     assert m.GATE_ID == GATE
+    assert "U4_TO_U5_INSTALL_INTENT_R7_PREFLIGHT_20261111_01" not in EXECUTOR.read_text(encoding="utf-8")
     assert "R6_ROOT" not in m.REMOTE_SCRIPT
     assert "R13_ROOT" in m.REMOTE_SCRIPT
     assert 'terminal.get("status") != "POST_REBOOT_U4_MOUNT_RESTORATION_PASS"' in m.REMOTE_SCRIPT
