@@ -1,3 +1,37 @@
+### 2026-11-13 KF-153 R20 source-activation lifecycle-readiness races / R21 recovery / R22 successor — PHYSICAL_PROVEN / SOURCE_CI_CLOSED_PASS
+
+```text
+R20_AUTH_HEAD=fcc821ffa298b9927b105f510e826cdecb5b64b7
+R20_RESULT=STOP
+R20_AUTHORIZATION_CLAIMED=true
+R20_AUTHORIZATION_CONSUMED=true
+R20_REPLAY_PERMITTED=false
+R20_FIRST_FAILED_OPERATION=runtime_root_invalid
+R20_ROLLBACK_ERROR=container_drift:homeassistant
+
+R21_RESULT=PASS
+R21_CLASSIFICATION=ROLLBACK_RUNTIME_RECOVERED
+R21_LIVE_RECOVERY_REQUIRED=false
+
+R22_SOURCE_AUTHORITY_HEAD=aa5eb8b8ccb7628aae782d00d4b97fa8fe741239
+R22_FRESH_CI=16_OF_16_SUCCESS
+R22_LIVE_EXECUTION_AUTHORIZED=false
+```
+
+Physical proof:
+- R20 installed the intended target IPC source, restarted the OTA host, then immediately attempted USB remount and stopped because the systemd-owned `/run/n3w-t1-ota` runtime root was not yet ready.
+- automatic rollback restored and verified the predecessor IPC source, restarted the host, remounted USB and restarted services, but performed final runtime verification immediately and stopped while Home Assistant was still converging.
+- R21 later proved predecessor source, unchanged exact U5 transaction, USB mount, systemd owners and all three containers were stable; no persistent T1 corruption remained.
+
+Root cause / regression guard:
+- `systemctl is-active=active` is not a sufficient readiness oracle for a unit-owned `RuntimeDirectory`, socket, mount parent or dependent application containers.
+- after host start, forward and rollback paths must wait for exact runtime-root metadata before USB remount.
+- after services-owner start, rollback acceptance must use a bounded retry window for exact container/runtime convergence rather than a single immediate probe.
+- one-shot authorization consumption is terminal even when the executor later rolls back; R20 must never be replayed.
+- R20 state/staging residue is historical evidence and must not be reused as successor authority.
+- R22 uses a distinct gate/state root/authorization ID, remains ungranted, and must pass a fresh read-only real-T1 preflight before any new live authorization can be considered.
+- future reviews must compare old and new architecture/execution records so retired assumptions are not silently reintroduced.
+
 ### 2026-11-13 KF-153 R18 IPC timeout / delayed U5 / BrokenPipe serving-thread death — PHYSICAL_PROVEN
 
 ```text

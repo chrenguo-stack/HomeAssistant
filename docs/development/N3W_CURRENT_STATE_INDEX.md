@@ -1,3 +1,18 @@
+## 2026-11-13 — KF-153 R21 rollback recovered / R22 readiness successor CI CLOSED_PASS / read-only preflight next
+
+- PR #807 remains OPEN / DRAFT / UNMERGED.
+- R20 live source activation consumed its one-shot outer authorization and is permanently non-replayable. It mutated the IPC source and USB lifecycle, then stopped at `runtime_root_invalid`; automatic rollback restored the predecessor source but its immediate final check stopped at `container_drift:homeassistant`.
+- R21 real-T1 read-only forensic later proved the rollback runtime recovered: predecessor IPC SHA-256 `b080e20b...` is live, the exact U5 transaction SHA-256 `adfcf60d...` is unchanged, USB is mounted at the transaction-derived target, host/services/broker owners are active/running with zero restarts, and Manager/Home Assistant/Broker are running with restart_count=0.
+- R21 therefore classifies the R20 terminal STOP as lifecycle-readiness verification races, not persistent runtime corruption. No live recovery is required.
+- R22 successor source authority is `aa5eb8b8ccb7628aae782d00d4b97fa8fe741239` / tree `482b191e8115886a02e5f8f5af7d20181779bd3d`.
+- R22 adds a bounded 60-second systemd RuntimeDirectory readiness wait before USB remount on both forward and rollback host-start paths, plus a bounded 180-second / 2-second-poll predecessor runtime convergence check during rollback.
+- R22 is a new ungranted package with a new state root and authorization ID. R20 authorization remains consumed and cannot be inherited.
+- R22 fresh CI is CLOSED_PASS: 16/16 SUCCESS, 0 failure, 0 pending.
+- New-chat mandatory first action: cross-compare the earlier HA-USB/source-activation design and R17/R18/R19/R20 execution records against the V1.2 content-authority design and R22 successor. Explicitly re-check lifecycle ownership, systemd RuntimeDirectory readiness, container convergence, exact-source binding, harness false-PASS history, and authorization claim/consume/replay boundaries.
+- Only after that comparison and a fresh exact-source rebind should the real-T1 R22 `--preflight-only` run.
+- The next gate is read-only only. No source staging/deployment, mount/unmount, service restart, transaction mutation, INSTALL resubmit, U6+, board access or merge is authorized.
+- Handoff V1.4: `docs/development/N3W_T1_KF153_R22_LIFECYCLE_READINESS_TO_REAL_T1_READONLY_PREFLIGHT_NEW_CHAT_HANDOFF_V1.0_20261113.md`.
+
 ## 2026-11-13 — KF-153 physical closure / U5 reached / IPC thread repair source
 
 - Core Stack current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.

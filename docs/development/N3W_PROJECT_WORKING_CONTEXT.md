@@ -1,3 +1,55 @@
+## Stable updater authority — 2026-11-13 KF-153 R21 recovered / R22 readiness successor CI CLOSED_PASS
+
+```text
+PROJECT_WORKING_CONTEXT_VERSION=7.1
+
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+
+R20_AUTHORIZATION_CONSUMED=true
+R20_REPLAY_PERMITTED=false
+R20_RESULT=STOP
+R20_FIRST_FAILED_OPERATION=runtime_root_invalid
+R20_ROLLBACK_RESULT=STOP
+R20_ROLLBACK_ERROR=container_drift:homeassistant
+
+R21_FORENSIC_CLASSIFICATION=ROLLBACK_RUNTIME_RECOVERED
+LIVE_TRANSACTION_PHASE=U5_INSTALL_REQUESTED_REVALIDATING
+LIVE_TRANSACTION_SHA256=adfcf60d958c112edf61e2f4e31d73b16229fd027180ed68b87b8953231f0144
+LIVE_IPC_SOURCE_SHA256=b080e20bf272ed22c51a91c96832759fcc88175825ab1740ae6b98aff8ff3a1b
+LIVE_USB_MOUNT_STATE=MOUNTED
+LIVE_HOST_DAEMON=active_running_success_nrestarts0
+LIVE_SERVICES_OWNER=active_running_success_nrestarts0
+LIVE_BROKER_OWNER=active_running_success_nrestarts0
+LIVE_MANAGER=running_exit0_restart0
+LIVE_HOMEASSISTANT=running_exit0_restart0
+LIVE_BROKER=running_exit0_restart0
+
+R22_SOURCE_AUTHORITY_HEAD=aa5eb8b8ccb7628aae782d00d4b97fa8fe741239
+R22_SOURCE_TREE=482b191e8115886a02e5f8f5af7d20181779bd3d
+R22_FRESH_CI=16_OF_16_SUCCESS
+R22_LIVE_EXECUTION_AUTHORIZED=false
+R22_AUTHORIZATION_GRANTED=false
+R22_REPLAY_PERMITTED=false
+
+NEXT_CHAT_FIRST_ACTION=CROSS_COMPARE_OLD_AND_NEW_ARCHITECTURE_AND_EXECUTION_RECORDS
+NEXT_ONE_GATE=R22_REAL_T1_READONLY_PREFLIGHT
+LIVE_MUTATION_AUTHORIZED=false
+INSTALL_RESUBMIT=false
+U6_PLUS_AUTHORIZED=false
+BOARD_ACCESS=false
+MERGE=false
+```
+
+R20 is terminal consumed/no-replay. R21 physically proves its rollback ultimately returned the T1 to the exact predecessor IPC source and stable U5 runtime. The R20 forward `runtime_root_invalid` and rollback `container_drift:homeassistant` are classified as executor lifecycle-readiness races rather than persistent runtime corruption.
+
+R22 is a new successor rather than a replay. It waits for the systemd-owned `/run/n3w-t1-ota` RuntimeDirectory before USB remount and gives rollback runtime verification a bounded convergence window. R22 is source/CI ready but completely ungranted.
+
+Before any R22 T1 operation, the next chat must first cross-compare the earlier execution lineage (R17/R18/R19/R20) with the V1.2 content-authority architecture and R22. The next physical action is read-only preflight only; a PASS must stop at a separate future live-authorization boundary.
+
+Authority:
+`docs/development/N3W_T1_KF153_R22_LIFECYCLE_READINESS_TO_REAL_T1_READONLY_PREFLIGHT_NEW_CHAT_HANDOFF_V1.0_20261113.md`.
+
 ## Stable updater authority — 2026-11-13 KF-153 PHYSICAL_PROVEN / U5 IPC repair source
 
 ```text
