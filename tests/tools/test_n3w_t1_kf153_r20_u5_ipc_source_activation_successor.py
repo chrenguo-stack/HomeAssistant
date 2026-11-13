@@ -80,3 +80,13 @@ def test_r20_package_source_authority_matches_exact_head():
     for path,blob in d["package_source_authority"].items():
         assert m.git_text("rev-parse","HEAD:"+path)==blob
 
+def test_r20_persists_raw_remote_transport_evidence_before_verdict():
+    source=EXECUTOR.read_text(encoding="utf-8")
+    assert 'write_remote_evidence(evidence,"preflight_remote",pre_transport)' in source
+    assert 'write_private_json(evidence/"preflight.json",pre)' in source
+    assert 'pre_transport.returncode!=0' in source
+    assert 'write_remote_evidence(evidence,"execute_remote",ex_transport)' in source
+    assert 'stdout_sha256' in source
+    assert 'stderr_sha256' in source
+    assert 'json.loads(c.stdout)' in source
+

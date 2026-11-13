@@ -387,6 +387,37 @@ def prepare_evidence_root(path: Path)->Path:
     if root.stat().st_uid!=os.geteuid() or stat.S_IMODE(root.stat().st_mode)!=0o700: raise Stop("evidence_root_metadata_invalid")
     return root
 
+def write_private_json(path: Path,value: Any)->None:
+    payload=(json.dumps(value,sort_keys=True,indent=2)+"\n").encode()
+    flags=os.O_WRONLY|os.O_CREAT|os.O_EXCL|getattr(os,"O_NOFOLLOW",0)
+    fd=os.open(path,flags,0o600)
+    try:
+        os.write(fd,payload); os.fsync(fd)
+    finally:
+        os.close(fd)
+
+def write_private_text(path: Path,value: str)->None:
+    payload=value.encode()
+    flags=os.O_WRONLY|os.O_CREAT|os.O_EXCL|getattr(os,"O_NOFOLLOW",0)
+    fd=os.open(path,flags,0o600)
+    try:
+        os.write(fd,payload); os.fsync(fd)
+    finally:
+        os.close(fd)
+
+def write_remote_evidence(evidence: Path,prefix: str,completed)->None:
+    stdout=completed.stdout or ""
+    stderr=completed.stderr or ""
+    write_private_json(evidence/(prefix+"_transport.json"),{
+        "returncode":completed.returncode,
+        "stdout_length":len(stdout),
+        "stderr_length":len(stderr),
+        "stdout_sha256":hashlib.sha256(stdout.encode()).hexdigest(),
+        "stderr_sha256":hashlib.sha256(stderr.encode()).hexdigest(),
+    })
+    write_private_text(evidence/(prefix+"_stdout.txt"),stdout)
+    write_private_text(evidence/(prefix+"_stderr.txt"),stderr)
+
 def load_transport():
     spec=importlib.util.spec_from_file_location("n3w_r20_transport",SSH_TRANSPORT_PATH)
     if spec is None or spec.loader is None: raise Stop("ssh_transport_import_invalid")
@@ -397,7 +428,7 @@ def remote_mode(transport,mode,plan,*extra,timeout=300):
     c=transport.run_remote(["python3","-c",REMOTE_SCRIPT,mode,payload,*extra],timeout=timeout,check=False)
     try: result=json.loads(c.stdout)
     except Exception: result={"status":"STOP","reason":"remote_result_invalid"}
-    return c.returncode,result,c.stderr
+    return c,result
 
 def main()->int:
     p=argparse.ArgumentParser()
@@ -415,9 +446,10 @@ def main()->int:
         plan=dict(manifest["expected_live_entry"])
         plan.update({"gate_id":GATE_ID,"authorization_id":manifest["authorization_id"],"confirmation":manifest["confirmation"],"live_execution_authorized":manifest["live_execution_authorized"],"authorization_state":manifest["authorization_state"],"state_root":manifest["state_root"],"remote_staging_root":manifest["remote_staging_root"],"ipc_remote_path":manifest["ipc_remote_path"],"target_ipc_sha256":target_sha})
         transport_type=load_transport(); transport=transport_type(target=args.t1_ssh_target,known_hosts=args.known_hosts.expanduser(),expected_host_key_sha256=args.expected_host_key_sha256); transport.start_epoch(); result["t1_access"]=True
-        pre_rc,pre,pre_err=remote_mode(transport,"preflight",plan,timeout=240)
-        (evidence/"preflight.json").write_text(json.dumps(pre,sort_keys=True,indent=2)+"\n",encoding="utf-8")
-        if pre_rc!=0 or pre.get("status")!="PASS": raise Stop("r20_preflight_failed:"+str(pre.get("reason")))
+        pre_transport,pre=remote_mode(transport,"preflight",plan,timeout=240)
+        write_remote_evidence(evidence,"preflight_remote",pre_transport)
+        write_private_json(evidence/"preflight.json",pre)
+        if pre_transport.returncode!=0 or pre.get("status")!="PASS": raise Stop("r20_preflight_failed:"+str(pre.get("reason")))
         if args.preflight_only:
             result.update(pre); result["t1_access"]=True; rc=0
         else:
@@ -428,9 +460,10 @@ def main()->int:
             transport.scp_to(TARGET_SOURCE,remote_file,timeout=180)
             transport.run_remote(["chmod","0600",remote_file],timeout=30)
             result["remote_staging"]=True
-            ex_rc,remote,ex_err=remote_mode(transport,"execute",plan,args.authorization_id,args.confirm,timeout=600)
-            result.update(remote); result["t1_access"]=True; result["remote_returncode"]=ex_rc
-            rc=0 if ex_rc==0 and remote.get("status")=="KF153_R20_U5_IPC_SOURCE_ACTIVATION_PASS" else 2
+            ex_transport,remote=remote_mode(transport,"execute",plan,args.authorization_id,args.confirm,timeout=600)
+            write_remote_evidence(evidence,"execute_remote",ex_transport)
+            result.update(remote); result["t1_access"]=True; result["remote_returncode"]=ex_transport.returncode
+            rc=0 if ex_transport.returncode==0 and remote.get("status")=="KF153_R20_U5_IPC_SOURCE_ACTIVATION_PASS" else 2
     except Exception as error:
         result["reason"]=type(error).__name__+":"+str(error)[:240]
     finally:
