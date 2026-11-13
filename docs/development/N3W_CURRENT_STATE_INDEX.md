@@ -1,3 +1,16 @@
+## 2026-11-13 — R13 writable mount PASS / R14 official U5 preflight ready / INSTALL conditionally authorized
+
+- PR #807 remains open/draft/unmerged; its base is `fix/kf147-post-destructive-stop-readonly-forensic-20261110` at `ab277001dc9b31dcccb4d36b1507cec5f26d5a1d`, not `main`. `main` was `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d` at alignment.
+- R13 real-T1 writable-mount restoration PASS at executed head `6e1023b9cdfabb3997d2b7b0813f644f0df599e2`; one-shot authorization is claimed+consumed and non-replayable.
+- Real T1 remains at `U4_READY_TO_INSTALL`, transaction SHA-256 `dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259`; exact target `eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973` / 835,309,535 bytes; 8/8 V1.2 source set; IPC READY_TO_INSTALL.
+- Bound N3W-UPDATE ext4 media is currently mounted writable with `rw,nodev,nosuid,noexec`; the observed `/dev/sdX` node is runtime-only evidence and must not become durable identity authority.
+- R14 exact source head `340d5b4641735acd49c822139d4be75fea86aae0`; executor `5fa5233fc3e7c63d0ab21f9ab41df74b270a1ec7`, manifest `830e1e523740d415b569e24963b79e83b64bfc48`, focused test `abe41fd07e642a1a07e343cd624adb1cc38716cc`.
+- R14 first CI failed only because the copied executor retained two stale R7 gate literals. The repair is local and exact; fresh CI on the repaired head is 16/16 SUCCESS. HA target-binding run `43345439735` and Manager A-to-B run `43345439966` are SUCCESS.
+- Next physical gate is R14 real-T1 official U5 read-only preflight. It has no execute path and performs no mount/transaction/INSTALL/U5 mutation.
+- User explicitly authorized continuation: if R14 real-T1 preflight PASS, do not request authorization again before INSTALL. Build/review/test a new exact V1.2-compatible U4->U5 install-intent successor, bind the user's one-shot grant after fresh CI, and execute it.
+- This conditional authorization stops at U5 `U5_INSTALL_REQUESTED_REVALIDATING`; it does not authorize stale R11 replay, U6+, board access or merge.
+- Handoff V1.4: `docs/development/N3W_T1_KF147_R14_OFFICIAL_U5_PREFLIGHT_TO_AUTHORIZED_INSTALL_NEW_CHAT_HANDOFF_V1.0_20261113.md`.
+
 ## 2026-11-12 — V1.2 source activation AUTHORIZED / new-chat execution boundary
 
 - Core Stack current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.

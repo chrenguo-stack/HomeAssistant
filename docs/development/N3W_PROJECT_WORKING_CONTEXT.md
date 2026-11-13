@@ -1,3 +1,65 @@
+## Stable updater authority — 2026-11-13 KF-147 R13 PASS / R14 official U5 preflight CLOSED_SOURCE / conditional INSTALL authorization
+
+```text
+PROJECT_WORKING_CONTEXT_VERSION=6.0
+
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+PR_BASE_REF=fix/kf147-post-destructive-stop-readonly-forensic-20261110
+PR_BASE_SHA=ab277001dc9b31dcccb4d36b1507cec5f26d5a1d
+MAIN_HEAD_AT_ALIGNMENT=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+
+R13_EXECUTED_HEAD=6e1023b9cdfabb3997d2b7b0813f644f0df599e2
+R13_RESULT=POST_REBOOT_U4_MOUNT_RESTORATION_PASS
+R13_AUTHORIZATION_CLAIMED=true
+R13_AUTHORIZATION_CONSUMED=true
+R13_REPLAY_PERMITTED=false
+R13_WRITABLE_MOUNT_RESTORED=true
+R13_TRANSACTION_MUTATION=false
+R13_U5_TRANSITION=false
+
+LAST_PROVEN_TRANSACTION_PHASE=U4_READY_TO_INSTALL
+LAST_PROVEN_TRANSACTION_SHA256=dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259
+LAST_PROVEN_TARGET_SHA256=eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973
+LAST_PROVEN_TARGET_SIZE_BYTES=835309535
+LAST_PROVEN_IPC_PHASE=READY_TO_INSTALL
+LAST_PROVEN_USB_MOUNT=rw,nodev,nosuid,noexec
+LAST_PROVEN_SOURCE_SET=8/8_V1_2_TARGET
+
+R14_SOURCE_HEAD=340d5b4641735acd49c822139d4be75fea86aae0
+R14_TREE=7fd26a27a76769aab949e235e68d93ea1b4fb333
+R14_EXECUTOR_BLOB=5fa5233fc3e7c63d0ab21f9ab41df74b270a1ec7
+R14_MANIFEST_BLOB=830e1e523740d415b569e24963b79e83b64bfc48
+R14_TEST_BLOB=abe41fd07e642a1a07e343cd624adb1cc38716cc
+R14_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_OFFICIAL_U5_PREFLIGHT_R14_20261113_01
+R14_FRESH_CI=16/16_SUCCESS
+R14_REAL_T1_PREFLIGHT_EXECUTED=false
+R14_MODE=READ_ONLY_ONLY
+
+NEXT_ONE_GATE=R14_REAL_T1_OFFICIAL_U5_READONLY_PREFLIGHT
+NEXT_AFTER_R14_PASS=V1_2_COMPATIBLE_U4_TO_U5_INSTALL_INTENT_SUCCESSOR
+INSTALL_AFTER_R14_PASS_USER_AUTHORIZED=true
+INSTALL_REAUTH_REQUIRED=false
+INSTALL_AUTHORIZATION_CONDITION=R14_REAL_T1_PREFLIGHT_PASS_PLUS_EXACT_SUCCESSOR_SOURCE_REVIEW_AND_FRESH_CI
+INSTALL_AUTHORIZATION_MAX_PHASE=U5_INSTALL_REQUESTED_REVALIDATING
+U6_PLUS_AUTHORIZED=false
+OLD_R11_REPLAY_ALLOWED=false
+BOARD_ACCESS=false
+MERGE=false
+
+HANDOFF_TEMPLATE_VERSION=1.4
+HANDOFF=docs/development/N3W_T1_KF147_R14_OFFICIAL_U5_PREFLIGHT_TO_AUTHORIZED_INSTALL_NEW_CHAT_HANDOFF_V1.0_20261113.md
+```
+
+R13 real-T1 writable-mount restoration is CLOSED_PASS and its one-shot authorization is terminal consumed/no-replay. The exact V1.2 eight-file source set, target archive and U4 transaction were revalidated after the writable mount; the USB remains mounted with the product writable options and IPC remains READY_TO_INSTALL.
+
+R14 is a new read-only-only official U5 preflight successor. The first R14 CI exposed a stale R7 gate literal; the local unambiguous repair replaced both top-level and embedded remote gate constants, rebound the executor blob, and added a regression assertion. Fresh CI is now 16/16 SUCCESS on exact source head `340d5b4641735acd49c822139d4be75fea86aae0`. No R14 real-T1 access has occurred yet.
+
+The user explicitly authorized the new conversation to proceed without another authorization prompt after R14 real-T1 preflight PASS. That authorization is conditional and bounded: create/review/test a new V1.2-compatible U4->U5 INSTALL-intent successor, bind the one-shot grant to the exact candidate after fresh CI, then execute the INSTALL request/U5 transition. It does not authorize stale R11 replay, U6+, board access or merge.
+
+Authority:
+`docs/development/N3W_T1_KF147_R14_OFFICIAL_U5_PREFLIGHT_TO_AUTHORIZED_INSTALL_NEW_CHAT_HANDOFF_V1.0_20261113.md`.
+
 ## Stable updater authority — 2026-11-12 KF-147 R12 real-T1 read-only preflight PASS / authorization boundary
 
 ```text
