@@ -9,7 +9,7 @@
     "replay_permitted": false
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/kf147_official_u5_preflight_successor/executor.py": "3830b930b0f104ef397b16a2ee27ffe0218b0f94",
+    "tools/execution_packages/n3w/r7a/kf147_official_u5_preflight_successor/executor.py": "5fa5233fc3e7c63d0ab21f9ab41df74b270a1ec7",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
     "tools/n3w_t1_core_updater_ha_usb_state.py": "4bd0c268bb8258d05eadf92d52a322a1d3e51f36",
     "tools/n3w_t1_core_updater_ha_usb.py": "dc8218344061d93f524ca7cc786f7aacfa27e1db",
