@@ -3,9 +3,9 @@
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_ACTIVATION_R2_20261113_01",
   "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_ACTIVATION_R2_20261113_01",
   "confirmation": "EXECUTE KF147 REMOVABLE MEDIA CONTENT AUTHORITY V1.2 SOURCE ACTIVATION R2: YES",
-  "live_execution_authorized": false,
+  "live_execution_authorized": true,
   "authorization_state": {
-    "granted": false,
+    "granted": true,
     "claimed": false,
     "consumed": false,
     "replay_permitted": false
@@ -135,7 +135,7 @@
   },
   "stop_boundary": "STOP_AFTER_V1_2_SOURCE_ACTIVATION_R2_AND_U4_POSTVALIDATION_BEFORE_INSTALL_INTENT",
   "authorization_grant": {
-    "source": "not_granted",
+    "source": "explicit_user_authorization_in_chat",
     "date": "2026-11-13",
     "scope": "successor_exact_8_file_v1_2_source_slice_on_real_t1_only",
     "execute_in_next_chat": false
