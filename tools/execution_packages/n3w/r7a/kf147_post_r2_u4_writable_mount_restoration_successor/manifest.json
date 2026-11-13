@@ -3,18 +3,19 @@
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_POST_R2_U4_WRITABLE_MOUNT_RESTORATION_R13_20261113_01",
   "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_POST_R2_U4_WRITABLE_MOUNT_RESTORATION_R13_20261113_01",
   "confirmation": "EXECUTE KF147 POST R2 U4 WRITABLE MOUNT RESTORATION R13: YES",
-  "live_execution_authorized": true,
+  "live_execution_authorized": false,
   "authorization_state": {
-    "granted": true,
-    "claimed": false,
-    "consumed": false,
+    "granted": false,
+    "claimed": true,
+    "consumed": true,
     "replay_permitted": false
   },
   "authorization_grant": {
     "source": "explicit_user_authorization_in_chat",
     "date": "2026-11-13",
     "scope": "post_r2_u4_writable_mount_restoration_on_real_t1_only",
-    "execute_in_next_chat": false
+    "execute_in_next_chat": false,
+    "terminal": "consumed_by_real_t1_r13_writable_mount_restoration_pass"
   },
   "state_root": "/var/lib/n3w-t1-core-updater/kf147-post-r2-u4-writable-mount-restoration-r13-20261113-01",
   "package_source_authority": {
@@ -119,5 +120,34 @@
     "rollback_attempts_max": 1,
     "fixed_container_id_authority": false
   },
-  "stop_boundary": "STOP_AFTER_POST_R2_U4_WRITABLE_MOUNT_RESTORATION_AND_POSTVALIDATION_BEFORE_OFFICIAL_U5_PREFLIGHT"
+  "stop_boundary": "STOP_AFTER_POST_R2_U4_WRITABLE_MOUNT_RESTORATION_AND_POSTVALIDATION_BEFORE_OFFICIAL_U5_PREFLIGHT",
+  "terminal_execution_record": {
+    "status": "POST_REBOOT_U4_MOUNT_RESTORATION_PASS",
+    "remote_returncode": 0,
+    "authorization_claimed": true,
+    "authorization_consumed": true,
+    "replay_permitted": false,
+    "host_state_mutation": true,
+    "usb_mutation": true,
+    "writable_mount_attempted": true,
+    "writable_mount_restored": true,
+    "runtime_directory_creation_attempted": true,
+    "runtime_directories_created": 2,
+    "transaction_phase": "U4_READY_TO_INSTALL",
+    "transaction_sha256": "dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259",
+    "transaction_mutation": false,
+    "source_target_count": 8,
+    "target_archive_sha256": "eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973",
+    "target_archive_size_bytes": 835309535,
+    "usb_transaction_phase": "U4_READY_TO_INSTALL",
+    "service_restart": false,
+    "homeassistant_mutation": false,
+    "manager_mutation": false,
+    "broker_mutation": false,
+    "u5_transition": false,
+    "u6_plus": false,
+    "rollback_attempted": false,
+    "board_access": false,
+    "merge": false
+  }
 }
