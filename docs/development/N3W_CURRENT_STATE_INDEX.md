@@ -3,7 +3,7 @@
 - Core Stack current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
 - Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
 - Historical clean reference source remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
-- Current Core Stack live upgrade accepted; repository authority remains `APPLIED_ACCEPTED` while KF-153 successor work changes only the HA-USB source-activation control path.
+- Live upgrade accepted; repository authority remains `APPLIED_ACCEPTED` while KF-153 successor work changes only the HA-USB source-activation control path.
 - PR #807 remains OPEN / DRAFT / UNMERGED.
 - R20 remains consumed/no-replay. R21 still proves stable predecessor IPC source and unchanged durable U5 runtime.
 - The prior R22 real-T1 preflight entry is superseded before any new T1 access. Expanded pre-V1.2 guard review found a KF-108-class execution-state propagation gap.
