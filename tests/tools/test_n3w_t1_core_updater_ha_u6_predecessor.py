@@ -343,5 +343,77 @@ def test_predecessor_prepare_and_verify_both_enforce_transaction_runtime_id() ->
     )
 
     for source in (prepare_source, verify_source):
-        assert "_expected_predecessor_runtime_id" in source
+        assert "_require_predecessor_container_authority" in source
         assert "verdict.runtime_image_id != expected_runtime_id" in source
+
+
+def test_predecessor_container_authority_matches_transaction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime_id = "sha256:" + "c" * 64
+    transaction = u5_transaction()
+    transaction["current_image_identity"] = {
+        "runtime_image_id": runtime_id,
+        "platform": "linux/arm64",
+    }
+
+    def fake_run(argv, **_kwargs):
+        assert tuple(argv) == (
+            "docker",
+            "inspect",
+            "--type",
+            "container",
+            host.HOMEASSISTANT_CONTAINER,
+        )
+        return (
+            '[{"Config":{"Image":"' + CURRENT + '"},"Image":"' + runtime_id + '"}]'
+        ).encode()
+
+    monkeypatch.setattr(host, "_run", fake_run)
+
+    assert (
+        host.SubprocessPrepareBackend._require_predecessor_container_authority(
+            transaction,
+            CURRENT,
+        )
+        == runtime_id
+    )
+
+
+def test_predecessor_container_runtime_drift_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transaction = u5_transaction()
+    transaction["current_image_identity"] = {
+        "runtime_image_id": "sha256:" + "c" * 64,
+        "platform": "linux/arm64",
+    }
+
+    def fake_run(_argv, **_kwargs):
+        return (
+            '[{"Config":{"Image":"' + CURRENT + '"},"Image":"sha256:'
+            + "d" * 64
+            + '"}]'
+        ).encode()
+
+    monkeypatch.setattr(host, "_run", fake_run)
+
+    with pytest.raises(
+        UpdaterV2Error,
+        match="container_runtime_drift",
+    ):
+        host.SubprocessPrepareBackend._require_predecessor_container_authority(
+            transaction,
+            CURRENT,
+        )
+
+
+def test_existing_recovery_is_not_deleted_for_authority_failure() -> None:
+    source = inspect.getsource(
+        host.SubprocessPrepareBackend.prepare_predecessor_recovery
+    )
+    assert '"ha_predecessor_archive_identity_invalid"' in source
+    assert '"ha_predecessor_archive_budget_exceeded"' in source
+    assert '"ha_predecessor_container_runtime_drift"' not in source.split(
+        "destination.unlink()", 1
+    )[0].split("if str(error) not in", 1)[1]
