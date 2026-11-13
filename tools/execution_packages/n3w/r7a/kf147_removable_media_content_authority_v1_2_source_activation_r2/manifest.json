@@ -11,10 +11,10 @@
     "replay_permitted": false
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/kf147_removable_media_content_authority_v1_2_source_activation_r2/executor.py": "bb6c06266e6f17c47f93312f62aca73530dc24c9",
+    "tools/execution_packages/n3w/r7a/kf147_removable_media_content_authority_v1_2_source_activation_r2/executor.py": "4a1b9e1da5a930f6358ce745931253926937e37f",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7"
   },
-  "source_repair_authority_head": "c18ec36aff1c5b9f4957da6847f3c31a7771d896",
+  "source_repair_authority_head": "1613eee5a60a3e425d8ff8da098a8550464b2b63",
   "readonly_preexecution_package_head": "24671c19b72f58e069f63b97992826681caca8e2",
   "source_files": [
     {
