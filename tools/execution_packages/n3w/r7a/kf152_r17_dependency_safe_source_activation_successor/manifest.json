@@ -11,7 +11,7 @@
     "replay_permitted": false
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/kf152_r17_dependency_safe_source_activation_successor/executor.py": "5ba0c8b203d07f307ddcca71e3686bb0c32c4034",
+    "tools/execution_packages/n3w/r7a/kf152_r17_dependency_safe_source_activation_successor/executor.py": "8538406a546a1c9dc85e1476c5c5d8feff88fb3b",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7"
   },
   "source_repair_authority_head": "5e0db1092e697be79e63c9f213fffe6fd4d7b2cc",

@@ -687,12 +687,18 @@ def baseline(plan, *, target_sources):
         or host.get("NRestarts") != "0"
     ):
         raise Stop("host_service_not_healthy")
-    if services.get("ActiveState") != "active":
+    if (
+        services.get("ActiveState") != "active"
+        or services.get("SubState") != "running"
+        or services.get("Result") != "success"
+        or services.get("NRestarts") != "0"
+    ):
         raise Stop("services_owner_not_active")
     if (
         broker_owner.get("ActiveState") != "active"
         or broker_owner.get("SubState") != "running"
         or broker_owner.get("Result") != "success"
+        or broker_owner.get("NRestarts") != "0"
     ):
         raise Stop("broker_owner_not_healthy")
     containers = verify_containers(plan)

@@ -75,6 +75,14 @@ def test_execute_and_rollback_use_dependency_safe_order() -> None:
         assert section.index('run(["systemctl", "start", HOST_UNIT]') < section.index('run(["systemctl", "start", SERVICES_UNIT]')
 
 
+def test_postactivation_requires_strict_owner_health() -> None:
+    remote = load_executor().REMOTE_SCRIPT
+    assert 'services.get("SubState") != "running"' in remote
+    assert 'services.get("Result") != "success"' in remote
+    assert 'services.get("NRestarts") != "0"' in remote
+    assert 'broker_owner.get("NRestarts") != "0"' in remote
+
+
 def test_contract_has_no_install_u5_u6_or_usb_mutation() -> None:
     remote = load_executor().REMOTE_SCRIPT
     assert '"action": "INSTALL"' not in remote
