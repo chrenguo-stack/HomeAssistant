@@ -1,9 +1,9 @@
 {
   "schema": "gh.n3w-t1-kf147-v12-u4-u5-install-intent-transition-manifest/1",
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_V12_U4_TO_U5_INSTALL_INTENT_R15_20261113_01",
-  "live_execution_authorized": false,
+  "live_execution_authorized": true,
   "authorization_state": {
-    "granted": false,
+    "granted": true,
     "claimed": false,
     "consumed": false,
     "replay_permitted": false
@@ -122,8 +122,13 @@
   "conditional_authorization": {
     "user_authorized_continuation": true,
     "activated_by_r14_real_t1_pass": true,
-    "binding_pending_exact_source_review_and_fresh_ci": true,
-    "grant_commit_required": true,
-    "no_second_user_prompt_required": true
+    "binding_pending_exact_source_review_and_fresh_ci": false,
+    "grant_commit_required": false,
+    "no_second_user_prompt_required": true,
+    "authorization_source": "explicit_user_instruction_2026_11_13",
+    "source_review_head": "309961bc11fae31fd85185bb373a6e3d173021ca",
+    "fresh_ci_head": "631c9600c2993842fc423559b7e8751899d89993",
+    "fresh_ci_result": "16_OF_16_SUCCESS",
+    "maximum_phase": "U5_INSTALL_REQUESTED_REVALIDATING"
   }
 }
