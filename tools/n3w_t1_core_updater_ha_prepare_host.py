@@ -1271,6 +1271,31 @@ class SubprocessPrepareBackend:
 
 
     @staticmethod
+    def _expected_predecessor_runtime_id(
+        transaction: dict[str, Any],
+        image_ref: str,
+    ) -> str:
+        if transaction.get("current_image_ref") != image_ref:
+            raise UpdaterV2Error("ha_predecessor_transaction_ref_drift")
+        identity = transaction.get("current_image_identity")
+        runtime_id = (
+            identity.get("runtime_image_id")
+            if isinstance(identity, dict)
+            else None
+        )
+        platform = identity.get("platform") if isinstance(identity, dict) else None
+        if (
+            not isinstance(runtime_id, str)
+            or not runtime_id.startswith("sha256:")
+            or SHA256.fullmatch(runtime_id[7:]) is None
+            or platform != "linux/arm64"
+        ):
+            raise UpdaterV2Error(
+                "ha_predecessor_transaction_identity_invalid"
+            )
+        return runtime_id
+
+    @staticmethod
     def _cleanup_stale_predecessor_temporaries(predecessor_dir: Path) -> None:
         removed = False
         for item in predecessor_dir.iterdir():
@@ -1399,8 +1424,15 @@ class SubprocessPrepareBackend:
                 ) from error
             if identity.archive_size_bytes > policy.predecessor_recovery_budget_bytes:
                 raise UpdaterV2Error("ha_predecessor_archive_budget_exceeded")
+            expected_runtime_id = self._expected_predecessor_runtime_id(
+                transaction,
+                image_ref,
+            )
             verdict = portable.verify_docker_image(identity, image_ref)
-            if verdict.status != "VERIFIED":
+            if (
+                verdict.status != "VERIFIED"
+                or verdict.runtime_image_id != expected_runtime_id
+            ):
                 raise UpdaterV2Error(
                     "ha_predecessor_runtime_identity_mismatch"
                 )
@@ -1459,8 +1491,15 @@ class SubprocessPrepareBackend:
             ) from error
         if identity.archive_size_bytes > policy.predecessor_recovery_budget_bytes:
             raise UpdaterV2Error("ha_predecessor_archive_budget_exceeded")
+        expected_runtime_id = self._expected_predecessor_runtime_id(
+            transaction,
+            image_ref,
+        )
         verdict = portable.verify_docker_image(identity, image_ref)
-        if verdict.status != "VERIFIED":
+        if (
+            verdict.status != "VERIFIED"
+            or verdict.runtime_image_id != expected_runtime_id
+        ):
             raise UpdaterV2Error("ha_predecessor_runtime_identity_mismatch")
         self._require_bound_media(media)
         return ImageRecoveryRecord(
