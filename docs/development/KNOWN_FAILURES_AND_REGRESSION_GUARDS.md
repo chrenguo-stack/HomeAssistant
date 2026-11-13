@@ -1,50 +1,60 @@
-### 2026-11-13 KF-152 R16 source-activation lifecycle regression — services owner reverse Requires
+### 2026-11-13 KF-152 R16 lifecycle regression — post-R16 forensic PASS / R17 source candidate
 
 ```text
 R16_RESULT=STOP
 R16_REASON=Stop:services_owner_not_active
-R16_AUTHORIZATION_CLAIMED=true
 R16_AUTHORIZATION_CONSUMED=true
 R16_REPLAY_PERMITTED=false
-R16_HOST_SOURCE_MUTATION=true
-R16_HOST_DAEMON_RESTART=true
-R16_SERVICES_OWNER_RESTART=false
-R16_ROLLBACK_REQUIRED=true
-R16_ROLLBACK_STATUS=STOP
+R16_SOURCE_ROLLBACK_BYTES_RESTORED=true
+R16_RUNTIME_ROLLBACK_COMPLETE=false
 R16_TRANSACTION_MUTATION=false
 R16_USB_MUTATION=false
 R16_U5_TRANSITION=false
 R16_U6_PLUS=false
+
+POST_R16_FORENSIC=PASS
+LIVE_PREPARE_HOST_SHA256=f8b63b54e0da053a264a6c174a2988dabd75852117a27aec9a383a5d07706172
+LIVE_HOST_DAEMON=active
+LIVE_SERVICES_OWNER=failed
+LIVE_MANAGER=exited_137
+LIVE_HOMEASSISTANT=exited_137
+LIVE_BROKER=running
+LIVE_TRANSACTION_PHASE=U4_READY_TO_INSTALL
+LIVE_TRANSACTION_SHA256=dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259
+LIVE_USB_MOUNT_STATE=UNMOUNTED
+
+R17_SOURCE_CANDIDATE_HEAD=642bb94b621ac5f991f690900602802d08e6bca0
+R17_LIVE_EXECUTION_AUTHORIZED=false
 ```
 
 Root cause:
-- `n3wfc4-services-activation.service.d/95-n3w-ha-ota.conf` contains `Requires=n3w-t1-ha-ota.service` and `After=n3w-t1-ha-ota.service`.
-- R16 intentionally removed services-owner stop/start and stopped only the OTA host daemon during source replacement.
-- systemd propagated the host-daemon stop through the reverse Requires relationship, leaving the services owner inactive; that owner supervises Manager + Home Assistant.
-- R16 post-validation therefore failed at `services_owner_not_active`.
-- R16 rollback repeated the same incomplete lifecycle: it restored source and restarted the host daemon but did not start the services owner, so rollback validation stopped on the same condition.
-- This exact failure mode had already been physically proven and repaired in Stage B R3; the closure document explicitly records the safe lifecycle ordering.
+- the deployed services-owner drop-in has `Requires=n3w-t1-ha-ota.service`;
+- R16 stopped only the host daemon, so systemd stopped the services owner and its Manager/Home Assistant Compose lifecycle;
+- R16 restarted the host daemon but omitted the services owner on both success and rollback paths;
+- this is the same lifecycle defect already physically proven and closed in Stage B R3.
 
-Known-safe repair rule:
-```text
-STOP services owner
-STOP host daemon
-APPLY or RESTORE source
-START host daemon
-START services owner
-VALIDATE
-```
+Post-R16 forensic:
+- the one-file source rollback itself succeeded: live `prepare_host.py` is exactly the predecessor SHA-256;
+- the R16 staged repaired target and predecessor backup remain exact;
+- OTA host daemon is active/running, services owner is failed, Manager and Home Assistant are exited 137, Broker remains running;
+- U4 transaction SHA/phase and verification flags are unchanged;
+- compatible USB is present and unmounted, matching the pre-R16 state.
 
-Regression guards:
-- any source activation that stops `n3w-t1-ha-ota.service` must model the deployed reverse `Requires=` from the services owner;
-- “host-daemon-only restart” is invalid while that dependency exists;
-- success and rollback must use the same dependency-safe lifecycle ordering;
-- a STOP after claimed/consumed authorization is terminal; R16 must never replay;
-- rollback STOP means final live source/service state is UNKNOWN_FRESH until read-only forensic proof;
-- no INSTALL/U5/U6+ progression is allowed until source/service recovery is independently closed.
+R17 repair:
+- requires exactly that failed prestate before claim;
+- validates R16 consumed terminal residue and exact staged/backup hashes;
+- stops services owner first, then host daemon;
+- activates only repaired `prepare_host.py`;
+- starts host daemon first, then services owner;
+- requires strict host/services/Broker owner health, exact container image identities, Manager-side IPC READY_TO_INSTALL and unchanged U4 transaction;
+- rollback uses the same dependency-safe ordering and restores predecessor source before service recovery;
+- no mount/unmount, transaction/USB mutation, INSTALL, U5/U6+, board access or merge.
 
-Prior physical authority:
-`docs/development/N3W_T1_KF147_STAGE_B_SYSTEMD_LIFECYCLE_R3_LIVE_VALIDATION_CLOSURE_20261110.md`.
+Regression guard:
+- any executor that stops a systemd unit required by a production owner must model reverse dependency propagation on both execute and rollback paths;
+- “restart only the required unit” is not safe when another active production owner `Requires=` it;
+- success postvalidation must require owner `active/running/success`, not only `ActiveState=active`.
+
 
 ### 2026-11-13 KF-151 R15 INSTALL media resolver false-negative — PHYSICAL_PROVEN / source repair CLOSED_PASS
 

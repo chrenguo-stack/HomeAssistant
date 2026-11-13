@@ -1,7 +1,7 @@
-## Stable updater authority — 2026-11-13 KF-152 R16 terminal consumed / dependency-safe recovery boundary
+## Stable updater authority — 2026-11-13 KF-152 post-R16 forensic closure / R17 ungranted successor
 
 ```text
-PROJECT_WORKING_CONTEXT_VERSION=6.3
+PROJECT_WORKING_CONTEXT_VERSION=6.4
 
 CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
 CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
@@ -17,30 +17,35 @@ PR_STATE=OPEN_DRAFT_UNMERGED
 LAST_PROVEN_TRANSACTION_PHASE=U4_READY_TO_INSTALL
 LAST_PROVEN_TRANSACTION_SHA256=dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259
 
-R16_AUTHORIZED_HEAD=763559089b7339c0a7c3612bdeaa91cbf29a0a8b
 R16_RESULT=STOP
 R16_AUTHORIZATION_CONSUMED=true
 R16_REPLAY_PERMITTED=false
-R16_TRANSACTION_MUTATION=false
-R16_USB_MUTATION=false
-R16_U5_TRANSITION=false
-R16_U6_PLUS=false
-R16_ROLLBACK_STATUS=STOP
+R16_SOURCE_ROLLBACK_BYTES_RESTORED=true
+R16_RUNTIME_ROLLBACK_COMPLETE=false
 
-KF152_ROOT_CAUSE=SYSTEMD_REVERSE_REQUIRES_LIFECYCLE_REGRESSION
-KNOWN_SAFE_LIFECYCLE_ORDER=STOP_SERVICES__STOP_HOST__MUTATE_OR_RESTORE__START_HOST__START_SERVICES
-LIVE_POST_R16_STATE=UNKNOWN_FRESH
-NEXT_ONE_GATE=KF152_R17_POST_R16_READONLY_FORENSIC
-LIVE_MUTATION_AUTHORIZED=false
-U5_AUTHORIZED=false
-U6_PLUS_AUTHORIZED=false
+POST_R16_FORENSIC=PASS
+LIVE_HOST_DAEMON=active
+LIVE_SERVICES_OWNER=failed
+LIVE_MANAGER=exited_137
+LIVE_HOMEASSISTANT=exited_137
+LIVE_BROKER=running
+LIVE_PREPARE_HOST_SHA256=f8b63b54e0da053a264a6c174a2988dabd75852117a27aec9a383a5d07706172
+LIVE_USB_MOUNT_STATE=UNMOUNTED
+
+R17_SOURCE_CANDIDATE_HEAD=642bb94b621ac5f991f690900602802d08e6bca0
+R17_AUTHORIZATION_STATE=UNGRANTED
+R17_DEPENDENCY_SAFE_LIFECYCLE=true
+R17_ACTIVATED_SOURCE_FILE=tools/n3w_t1_core_updater_ha_prepare_host.py
+R17_INSTALL_INTENT=false
+R17_U5_TRANSITION=false
+R17_U6_PLUS=false
 BOARD_ACCESS=false
 MERGE=false
 ```
 
-R16 reintroduced a systemd lifecycle failure already closed during Stage B R3. The deployed services-owner drop-in requires the OTA host daemon. Stopping the host daemon therefore stops the services owner, which owns Manager and Home Assistant. R16 restarted only the host daemon, so post-validation failed; its rollback restored files before the same service-state check but did not restart the services owner, so rollback validation also STOPped.
+Post-R16 forensic proves that source rollback restored the old prepare_host bytes but runtime rollback was incomplete: the OTA host daemon is healthy while the services owner remains failed and Manager/Home Assistant remain stopped. Broker and the exact U4 transaction remain intact.
 
-The historical Stage B R3 physical closure already proved the dependency-safe ordering: stop services owner, stop host daemon, apply/restore source, start host daemon, start services owner, then validate. R16 is consumed and must not be replayed. Before any R17 live recovery, read-only evidence must establish the exact post-R16 prepare_host hash, service/container states and unchanged U4 transaction/USB state.
+R17 is an ungranted successor bound to that exact failed prestate. It reuses the Stage B R3 physically proven dependency-safe lifecycle, activates only the KF-151 prepare_host repair, starts the services owner after the host daemon, and requires strict healthy owner/container/IPC/U4 postvalidation. Its rollback uses the same service order and restores the predecessor source before restarting both owners. It does not mount USB, submit INSTALL, mutate transaction/USB state, enter U5/U6+, access boards or merge.
 
 ## Stable updater authority — 2026-11-12 KF-147 R12 real-T1 read-only preflight PASS / authorization boundary
 
