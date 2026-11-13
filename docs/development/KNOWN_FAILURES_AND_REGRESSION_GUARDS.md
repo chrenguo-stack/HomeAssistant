@@ -1,63 +1,52 @@
-### 2026-11-13 KF-152 R16 lifecycle regression — post-R16 forensic PASS / R17 CI CLOSED_PASS
+### 2026-11-13 KF-152 R17 dependency-safe source activation — PHYSICAL_CLOSED_PASS
 
 ```text
-R16_RESULT=STOP
-R16_REASON=Stop:services_owner_not_active
-R16_AUTHORIZATION_CONSUMED=true
-R16_REPLAY_PERMITTED=false
-R16_SOURCE_ROLLBACK_BYTES_RESTORED=true
-R16_RUNTIME_ROLLBACK_COMPLETE=false
-R16_TRANSACTION_MUTATION=false
-R16_USB_MUTATION=false
-R16_U5_TRANSITION=false
-R16_U6_PLUS=false
+R17_AUTHORIZED_HEAD=f96f7d85983b6bc3b05de15b48528d6fe9f16fcd
+R17_AUTHORIZED_HEAD_CI=16_OF_16_SUCCESS
+R17_RESULT=KF152_R17_RECOVERY_ACTIVATION_PASS
+R17_AUTHORIZATION_CLAIMED=true
+R17_AUTHORIZATION_CONSUMED=true
+R17_REPLAY_PERMITTED=false
+R17_HOST_SOURCE_MUTATION=true
+R17_HOST_DAEMON_RESTART=true
+R17_SERVICES_OWNER_RESTART=true
+R17_SERVICES_RECOVERED=true
+R17_ROLLBACK_REQUIRED=false
+R17_TRANSACTION_MUTATION=false
+R17_USB_MUTATION=false
+R17_U5_TRANSITION=false
+R17_U6_PLUS=false
 
-POST_R16_FORENSIC=PASS
-LIVE_PREPARE_HOST_SHA256=f8b63b54e0da053a264a6c174a2988dabd75852117a27aec9a383a5d07706172
-LIVE_HOST_DAEMON=active
-LIVE_SERVICES_OWNER=failed
-LIVE_MANAGER=exited_137
-LIVE_HOMEASSISTANT=exited_137
-LIVE_BROKER=running
+LIVE_PREPARE_HOST_SHA256=fd2898cf9d63ae143b9620e56a19e9789306c802440bb9424cfc30064bc53005
+LIVE_HOST_DAEMON=active_running_success_nrestarts0
+LIVE_SERVICES_OWNER=active_running_success_nrestarts0
+LIVE_MANAGER=running_exit0_restart0
+LIVE_HOMEASSISTANT=running_exit0_restart0
+LIVE_BROKER=running_exit0_restart0
+LIVE_BROKER_OWNER=active_running_success_nrestarts0
+LIVE_IPC_PHASE=READY_TO_INSTALL
 LIVE_TRANSACTION_PHASE=U4_READY_TO_INSTALL
 LIVE_TRANSACTION_SHA256=dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259
 LIVE_USB_MOUNT_STATE=UNMOUNTED
-
-R17_SOURCE_CANDIDATE_HEAD=642bb94b621ac5f991f690900602802d08e6bca0
-R17_EXACT_CI_HEAD=c70719af8cb888d574a8cb59cf68510e83cf6211
-R17_FRESH_CI=16_OF_16_SUCCESS
-R17_LIVE_EXECUTION_AUTHORIZED=false
+KF152_STATUS=PHYSICAL_CLOSED_PASS
 ```
 
-Root cause:
-- the deployed services-owner drop-in has `Requires=n3w-t1-ha-ota.service`;
-- R16 stopped only the host daemon, so systemd stopped the services owner and its Manager/Home Assistant Compose lifecycle;
-- R16 restarted the host daemon but omitted the services owner on both success and rollback paths;
-- this is the same lifecycle defect already physically proven and closed in Stage B R3.
-
-Post-R16 forensic:
-- the one-file source rollback itself succeeded: live `prepare_host.py` is exactly the predecessor SHA-256;
-- the R16 staged repaired target and predecessor backup remain exact;
-- OTA host daemon is active/running, services owner is failed, Manager and Home Assistant are exited 137, Broker remains running;
-- U4 transaction SHA/phase and verification flags are unchanged;
-- compatible USB is present and unmounted, matching the pre-R16 state.
-
-R17 repair:
-- requires exactly that failed prestate before claim;
-- validates R16 consumed terminal residue and exact staged/backup hashes;
-- stops services owner first, then host daemon;
-- activates only repaired `prepare_host.py`;
-- starts host daemon first, then services owner;
-- requires strict host/services/Broker owner health, exact container image identities, Manager-side IPC READY_TO_INSTALL and unchanged U4 transaction;
-- rollback uses the same dependency-safe ordering and restores predecessor source before service recovery;
-- no mount/unmount, transaction/USB mutation, INSTALL, U5/U6+, board access or merge.
-- exact closure head `c70719af8cb888d574a8cb59cf68510e83cf6211` completed 16/16 fresh CI SUCCESS; the next gate is the real-T1 read-only R17 preflight, not live recovery execution.
+Closure:
+- the exact authorized R17 head completed 16/16 fresh CI before execution;
+- the executor revalidated the exact failed post-R16 prestate before claim;
+- the one-shot authorization was durably claimed and consumed and is permanently non-replayable;
+- R17 stopped the services owner before the OTA host daemon, activated only repaired `prepare_host.py`, then started the host daemon before the services owner;
+- postvalidation proved host/services/Broker owners healthy with zero restarts, Manager/Home Assistant/Broker containers running on the frozen image identities, and Manager IPC back at `READY_TO_INSTALL`;
+- repaired `prepare_host.py` is now live at SHA-256 `fd2898cf...`;
+- exact U4 transaction SHA/phase and compatible unmounted `N3W-UPDATE` media were preserved;
+- no transaction/USB mutation, INSTALL intent, U5/U6+, board access or merge occurred;
+- rollback was not required.
 
 Regression guard:
 - any executor that stops a systemd unit required by a production owner must model reverse dependency propagation on both execute and rollback paths;
-- “restart only the required unit” is not safe when another active production owner `Requires=` it;
-- success postvalidation must require owner `active/running/success`, not only `ActiveState=active`.
-
+- success postvalidation must require owner `active/running/success` plus restart-count stability, not only `ActiveState=active`;
+- a claimed/consumed one-shot remains terminal even on PASS and must never be replayed;
+- the next INSTALL/U5 attempt must be a new separately bound successor, not a replay of R15 or R17.
 
 ### 2026-11-13 KF-151 R15 INSTALL media resolver false-negative — PHYSICAL_PROVEN / source repair CLOSED_PASS
 

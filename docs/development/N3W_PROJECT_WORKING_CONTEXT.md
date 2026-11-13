@@ -1,56 +1,52 @@
-## Stable updater authority — 2026-11-13 R17 exact-head CI CLOSED_PASS / read-only preflight next
+## Stable updater authority — 2026-11-13 R17 real-T1 recovery PHYSICAL_CLOSED_PASS / R18 successor preparation
 
 ```text
-PROJECT_WORKING_CONTEXT_VERSION=6.5
+PROJECT_WORKING_CONTEXT_VERSION=6.6
 
 CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
 CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
 CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
 CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
 CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
-HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
-HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
-LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
-
 PR=807
 PR_STATE=OPEN_DRAFT_UNMERGED
+
 LAST_PROVEN_TRANSACTION_PHASE=U4_READY_TO_INSTALL
 LAST_PROVEN_TRANSACTION_SHA256=dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259
+LAST_PROVEN_IPC_PHASE=READY_TO_INSTALL
+LAST_PROVEN_USB_MOUNT_STATE=UNMOUNTED
 
-R16_RESULT=STOP
-R16_AUTHORIZATION_CONSUMED=true
-R16_REPLAY_PERMITTED=false
-R16_SOURCE_ROLLBACK_BYTES_RESTORED=true
-R16_RUNTIME_ROLLBACK_COMPLETE=false
-
-POST_R16_FORENSIC=PASS
-LIVE_HOST_DAEMON=active
-LIVE_SERVICES_OWNER=failed
-LIVE_MANAGER=exited_137
-LIVE_HOMEASSISTANT=exited_137
-LIVE_BROKER=running
-LIVE_PREPARE_HOST_SHA256=f8b63b54e0da053a264a6c174a2988dabd75852117a27aec9a383a5d07706172
-LIVE_USB_MOUNT_STATE=UNMOUNTED
-
-R17_SOURCE_CANDIDATE_HEAD=642bb94b621ac5f991f690900602802d08e6bca0
-R17_EXACT_CI_HEAD=c70719af8cb888d574a8cb59cf68510e83cf6211
-R17_FRESH_CI=16_OF_16_SUCCESS
-R17_AUTHORIZATION_STATE=UNGRANTED
-R17_DEPENDENCY_SAFE_LIFECYCLE=true
-R17_ACTIVATED_SOURCE_FILE=tools/n3w_t1_core_updater_ha_prepare_host.py
-R17_INSTALL_INTENT=false
+R17_AUTHORIZED_HEAD=f96f7d85983b6bc3b05de15b48528d6fe9f16fcd
+R17_AUTHORIZED_HEAD_CI=16_OF_16_SUCCESS
+R17_RESULT=KF152_R17_RECOVERY_ACTIVATION_PASS
+R17_AUTHORIZATION_CONSUMED=true
+R17_REPLAY_PERMITTED=false
+R17_ROLLBACK_REQUIRED=false
+R17_TRANSACTION_MUTATION=false
+R17_USB_MUTATION=false
 R17_U5_TRANSITION=false
 R17_U6_PLUS=false
+
+LIVE_PREPARE_HOST_SHA256=fd2898cf9d63ae143b9620e56a19e9789306c802440bb9424cfc30064bc53005
+LIVE_HOST_DAEMON=active_running_success_nrestarts0
+LIVE_SERVICES_OWNER=active_running_success_nrestarts0
+LIVE_MANAGER=running_exit0_restart0
+LIVE_HOMEASSISTANT=running_exit0_restart0
+LIVE_BROKER=running_exit0_restart0
+KF152_STATUS=PHYSICAL_CLOSED_PASS
+
+NEXT_ONE_GATE=R18_U4_TO_U5_INSTALL_INTENT_SUCCESSOR_SOURCE_PREPARATION
+LIVE_MUTATION_AUTHORIZED=false
+INSTALL_INTENT_AUTHORIZED=false
+U5_AUTHORIZED=false
+U6_PLUS_AUTHORIZED=false
 BOARD_ACCESS=false
 MERGE=false
-NEXT_ONE_GATE=R17_REAL_T1_READONLY_PREFLIGHT
 ```
 
-Post-R16 forensic proves that source rollback restored the old prepare_host bytes but runtime rollback was incomplete: the OTA host daemon is healthy while the services owner remains failed and Manager/Home Assistant remain stopped. Broker and the exact U4 transaction remain intact.
+R17 physically closed KF-152. The dependency-safe service lifecycle restored Manager and Home Assistant while activating only the repaired `prepare_host.py`; Broker remained healthy. Postvalidation proved exact repaired source, healthy owners/containers, Manager IPC `READY_TO_INSTALL`, unchanged U4 transaction, and compatible unmounted USB. The R17 one-shot is consumed and must never be replayed.
 
-R17 is an ungranted successor bound to that exact failed prestate. It reuses the Stage B R3 physically proven dependency-safe lifecycle, activates only the KF-151 prepare_host repair, starts the services owner after the host daemon, and requires strict healthy owner/container/IPC/U4 postvalidation. Its rollback uses the same service order and restores the predecessor source before restarting both owners. It does not mount USB, submit INSTALL, mutate transaction/USB state, enter U5/U6+, access boards or merge.
-
-The exact R17 closure head completed 16/16 fresh CI SUCCESS. The next gate is only the real-T1 read-only preflight. A PASS may be used to request and bind a separate new one-shot live recovery authorization; no live recovery permission exists at this checkpoint.
+The next engineering boundary is repository-only R18 successor preparation for a new U4→U5 INSTALL-intent attempt. It must bind the repaired live source and healthy U4 runtime, inherit the exact transaction/media authorities, and remain ungranted until a separate explicit live authorization.
 
 ## Stable updater authority — 2026-11-12 KF-147 R12 real-T1 read-only preflight PASS / authorization boundary
 

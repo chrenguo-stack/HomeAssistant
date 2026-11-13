@@ -3,11 +3,11 @@
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF152_DEPENDENCY_SAFE_SOURCE_ACTIVATION_R17_20261113_01",
   "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF152_DEPENDENCY_SAFE_SOURCE_ACTIVATION_R17_20261113_01",
   "confirmation": "EXECUTE KF152 DEPENDENCY SAFE SOURCE ACTIVATION R17: YES",
-  "live_execution_authorized": true,
+  "live_execution_authorized": false,
   "authorization_state": {
-    "granted": true,
-    "claimed": false,
-    "consumed": false,
+    "granted": false,
+    "claimed": true,
+    "consumed": true,
     "replay_permitted": false
   },
   "package_source_authority": {
@@ -204,5 +204,34 @@
     "board_access": false,
     "merge": false,
     "automatic_retry": false
+  },
+  "superseded": true,
+  "superseded_reason": "r17_live_claim_consumed_pass_dependency_safe_source_activation_closed",
+  "terminal_live_result": {
+    "status": "KF152_R17_RECOVERY_ACTIVATION_PASS",
+    "authorization_claimed": true,
+    "authorization_consumed": true,
+    "replay_permitted": false,
+    "host_source_mutation": true,
+    "host_daemon_restart": true,
+    "services_owner_restart": true,
+    "services_recovered": true,
+    "source_activated": true,
+    "live_prepare_host_sha256": "fd2898cf9d63ae143b9620e56a19e9789306c802440bb9424cfc30064bc53005",
+    "host_owner_state": "active_running_success_nrestarts0",
+    "services_owner_state": "active_running_success_nrestarts0",
+    "manager_container_state": "running_exit0_restart0",
+    "homeassistant_container_state": "running_exit0_restart0",
+    "broker_container_state": "running_exit0_restart0",
+    "ipc_phase": "READY_TO_INSTALL",
+    "transaction_phase": "U4_READY_TO_INSTALL",
+    "transaction_sha256": "dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259",
+    "usb_mount_state": "UNMOUNTED",
+    "transaction_mutation": false,
+    "usb_mutation": false,
+    "u5_transition": false,
+    "u6_plus": false,
+    "rollback_required": false,
+    "rollback": null
   }
 }

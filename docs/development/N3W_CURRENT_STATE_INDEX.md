@@ -1,18 +1,16 @@
-## 2026-11-13 — R17 exact-head CI CLOSED_PASS / real-T1 read-only preflight next
+## 2026-11-13 — R17 real-T1 dependency-safe recovery PHYSICAL_CLOSED_PASS / R18 install-intent successor next
 
-- Core Stack current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
-- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
-- Current Manager: `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
-- Historical clean reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`; Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
-- Live upgrade accepted; current repository Core Stack authority remains APPLIED_ACCEPTED.
-- Post-R16 real-T1 read-only forensic PASS: `prepare_host.py` is byte-restored to predecessor SHA-256 `f8b63b54...`; OTA host daemon is active; services owner is failed; Manager and Home Assistant containers are exited 137; Broker remains running.
-- Exact U4 transaction remains unchanged at SHA-256 `dc6252c...`, phase `U4_READY_TO_INSTALL`, and USB remains a compatible unmounted N3W-UPDATE ext4 device. No R16 transaction/USB/U5/U6+ mutation occurred.
-- KF-152 is the reintroduction of the already-proven Stage B systemd lifecycle defect: services owner Requires the OTA host daemon. The physically proven safe sequence is stop services → stop host → apply/restore → start host → start services → validate.
-- R17 source candidate `642bb94b621ac5f991f690900602802d08e6bca0` is ungranted. Executor `8538406a546a1c9dc85e1476c5c5d8feff88fb3b`, manifest `f67095c796414077a94b9bbb2ab25fce6f7f661e`, focused test `a313645fb3f68bcece93a73ca3e4b1c213053115`.
-- R17 exact closure head `c70719af8cb888d574a8cb59cf68510e83cf6211` completed fresh CI `16/16 SUCCESS`; Manager A-to-B run `43377682706`, storage/image lifecycle run `43377682423`, and HA target-binding run `43377682585` all closed successfully.
-- R17 binds the exact failed post-R16 prestate, activates only `prepare_host.py`, restarts Manager/HA through their existing services owner, preserves Broker, transaction and USB, and stops before INSTALL/U5.
-- R17 rollback uses the same dependency-safe lifecycle. Live execution is not authorized.
-- Next gate: execute the exact R17 real-T1 read-only preflight only. A PASS establishes eligibility for a separate new one-shot recovery authorization boundary; it does not authorize or execute recovery.
+- Exact R17 authorized head `f96f7d85983b6bc3b05de15b48528d6fe9f16fcd` completed fresh CI `16/16 SUCCESS`.
+- The real-T1 executor revalidated the exact failed post-R16 prestate, then claimed and consumed the one-shot authorization.
+- Dependency-safe lifecycle completed successfully: services owner stopped before OTA host daemon; only repaired `prepare_host.py` was activated; host daemon started before services owner.
+- Live `prepare_host.py` is SHA-256 `fd2898cf9d63ae143b9620e56a19e9789306c802440bb9424cfc30064bc53005`.
+- OTA host daemon, services owner and Broker owner are `active/running/success` with `NRestarts=0`; Manager, Home Assistant and Broker containers are running with restart count 0 on the frozen runtime image identities.
+- Manager IPC is `READY_TO_INSTALL`; exact transaction remains `U4_READY_TO_INSTALL` at SHA-256 `dc6252c...`.
+- Compatible `N3W-UPDATE` ext4 media remains present and unmounted; current `/dev/sda1` is observation only, not durable identity.
+- R17 made no transaction/USB mutation and did not enter INSTALL intent, U5 or U6+; rollback was not required.
+- R17 authorization is terminal consumed/no-replay. Neither R15 nor R17 may be retried.
+- KF-152 is now physically closed.
+- Next bounded work is repository-only preparation of a new R18 U4→U5 INSTALL-intent successor bound to the repaired live source and healthy U4 runtime. Live INSTALL/U5 remains unauthorized until a new explicit one-shot grant.
 
 ## 2026-11-12 — V1.2 source activation AUTHORIZED / new-chat execution boundary
 

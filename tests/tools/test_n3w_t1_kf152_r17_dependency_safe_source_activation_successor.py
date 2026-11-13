@@ -22,44 +22,38 @@ def load_executor():
     return module
 
 
-def test_manifest_authorization_state_and_binds_exact_failed_r16_prestate() -> None:
+def test_manifest_terminal_consumed_no_replay_and_binds_closed_r17_result() -> None:
     d = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert d["gate_id"] == GATE
-    granted = d["live_execution_authorized"] is True
+    assert d["live_execution_authorized"] is False
     assert d["authorization_state"] == {
-        "granted": granted,
-        "claimed": False,
-        "consumed": False,
+        "granted": False,
+        "claimed": True,
+        "consumed": True,
         "replay_permitted": False,
     }
-    if granted:
-        grant = d["authorization_grant"]
-        assert grant["scope"] == "kf152_r17_dependency_safe_single_file_prepare_host_source_activation_only"
-        assert grant["source_ci_head"] == "c70719af8cb888d574a8cb59cf68510e83cf6211"
-        assert grant["source_ci_result"] == "16_OF_16_SUCCESS"
-        assert grant["readonly_preflight_status"] == "PASS"
-        assert grant["readonly_preflight_pr807_comment_id"] == 6846290623
-        assert grant["readonly_preflight_transaction_phase"] == "U4_READY_TO_INSTALL"
-        assert grant["readonly_preflight_transaction_sha256"] == "dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259"
-        assert grant["maximum_phase"] == "U4_READY_TO_INSTALL"
-        assert grant["install_intent_authorized"] is False
-        assert grant["u5_authorized"] is False
-        assert grant["u6_plus_authorized"] is False
-        assert grant["board_access"] is False
-        assert grant["merge"] is False
-        assert grant["automatic_retry"] is False
-    f = d["post_r16_forensic"]
-    assert f["status"] == "PASS"
-    assert f["prepare_host_live_sha256"] == "f8b63b54e0da053a264a6c174a2988dabd75852117a27aec9a383a5d07706172"
-    assert f["services_owner_state"] == "failed"
-    assert f["manager_container_state"] == "exited_137"
-    assert f["homeassistant_container_state"] == "exited_137"
-    assert f["broker_container_state"] == "running"
-    assert f["transaction_phase"] == "U4_READY_TO_INSTALL"
-    assert f["usb_mount_state"] == "UNMOUNTED"
+    assert d["superseded"] is True
+    result = d["terminal_live_result"]
+    assert result["status"] == "KF152_R17_RECOVERY_ACTIVATION_PASS"
+    assert result["authorization_claimed"] is True
+    assert result["authorization_consumed"] is True
+    assert result["replay_permitted"] is False
+    assert result["host_source_mutation"] is True
+    assert result["host_daemon_restart"] is True
+    assert result["services_owner_restart"] is True
+    assert result["services_recovered"] is True
+    assert result["live_prepare_host_sha256"] == "fd2898cf9d63ae143b9620e56a19e9789306c802440bb9424cfc30064bc53005"
+    assert result["ipc_phase"] == "READY_TO_INSTALL"
+    assert result["transaction_phase"] == "U4_READY_TO_INSTALL"
+    assert result["transaction_sha256"] == "dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259"
+    assert result["usb_mount_state"] == "UNMOUNTED"
+    assert result["transaction_mutation"] is False
+    assert result["usb_mutation"] is False
+    assert result["u5_transition"] is False
+    assert result["u6_plus"] is False
+    assert result["rollback_required"] is False
     assert d["predecessor_r16_terminal"]["authorization_consumed"] is True
     assert d["predecessor_r16_terminal"]["replay_permitted"] is False
-
 
 def test_single_file_activation_target_is_frozen() -> None:
     d = json.loads(MANIFEST.read_text(encoding="utf-8"))
