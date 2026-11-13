@@ -9,7 +9,7 @@
     "replay_permitted": false
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/kf153_r23_u5_ipc_source_activation_successor/executor.py": "5c06f6610c7c897552925c21cdc16ae9206a792e",
+    "tools/execution_packages/n3w/r7a/kf153_r23_u5_ipc_source_activation_successor/executor.py": "bdbe57677f4c2bb66beb629afdcb57829f21b0f5",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
     "tools/n3w_t1_core_updater_ha_ipc.py": "ad3978f0b4cea0a611073c189b0d45abd1cf3a0a"
   },
@@ -83,7 +83,9 @@
     "rollback_runtime_readiness_timeout_seconds": 180,
     "unknown_postinvoke_transport_consumes_authorization": true,
     "invalid_execute_result_consumes_authorization": true,
-    "postsuccess_cleanup_failure_reports_stop": true
+    "postsuccess_cleanup_failure_reports_stop": true,
+    "authorization_claim_persistence_unknown_consumes_authorization": true,
+    "postsuccess_remote_cleanup_failure_no_rollback": true
   },
   "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF153_U5_IPC_SOURCE_ACTIVATION_R23_20261113_01",
   "confirmation": "EXECUTE KF153 R23 U5 IPC SOURCE ACTIVATION: YES",
