@@ -1,15 +1,20 @@
-## 2026-11-13 — R13 writable mount PASS / R14 official U5 preflight ready / INSTALL conditionally authorized
+## 2026-11-13 — R14 real-T1 PASS / R15 V1.2 install-intent successor under fresh CI
 
-- PR #807 remains open/draft/unmerged; its base is `fix/kf147-post-destructive-stop-readonly-forensic-20261110` at `ab277001dc9b31dcccb4d36b1507cec5f26d5a1d`, not `main`. `main` was `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d` at alignment.
-- R13 real-T1 writable-mount restoration PASS at executed head `6e1023b9cdfabb3997d2b7b0813f644f0df599e2`; one-shot authorization is claimed+consumed and non-replayable.
-- Real T1 remains at `U4_READY_TO_INSTALL`, transaction SHA-256 `dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259`; exact target `eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973` / 835,309,535 bytes; 8/8 V1.2 source set; IPC READY_TO_INSTALL.
-- Bound N3W-UPDATE ext4 media is currently mounted writable with `rw,nodev,nosuid,noexec`; the observed `/dev/sdX` node is runtime-only evidence and must not become durable identity authority.
-- R14 exact source head `340d5b4641735acd49c822139d4be75fea86aae0`; executor `5fa5233fc3e7c63d0ab21f9ab41df74b270a1ec7`, manifest `830e1e523740d415b569e24963b79e83b64bfc48`, focused test `abe41fd07e642a1a07e343cd624adb1cc38716cc`.
-- R14 first CI failed only because the copied executor retained two stale R7 gate literals. The repair is local and exact; fresh CI on the repaired head is 16/16 SUCCESS. HA target-binding run `43345439735` and Manager A-to-B run `43345439966` are SUCCESS.
-- Next physical gate is R14 real-T1 official U5 read-only preflight. It has no execute path and performs no mount/transaction/INSTALL/U5 mutation.
-- User explicitly authorized continuation: if R14 real-T1 preflight PASS, do not request authorization again before INSTALL. Build/review/test a new exact V1.2-compatible U4->U5 install-intent successor, bind the user's one-shot grant after fresh CI, and execute it.
-- This conditional authorization stops at U5 `U5_INSTALL_REQUESTED_REVALIDATING`; it does not authorize stale R11 replay, U6+, board access or merge.
-- Handoff V1.4: `docs/development/N3W_T1_KF147_R14_OFFICIAL_U5_PREFLIGHT_TO_AUTHORIZED_INSTALL_NEW_CHAT_HANDOFF_V1.0_20261113.md`.
+- Core Stack current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current Manager: `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical clean reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; current repository Core Stack authority remains APPLIED_ACCEPTED.
+- R14 exact real-T1 official U5 read-only preflight PASS at `340d5b4641735acd49c822139d4be75fea86aae0`; RC 0, no transaction/USB/source/service/container mutation, no authorization claim/consume, no U6+.
+- U4 remains authoritative: transaction `dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259`; target `eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973` / 835,309,535 bytes; IPC READY_TO_INSTALL; 8/8 V1.2 source set.
+- Bound USB resolved on this boot as `/dev/sda1`, but durable identity remains filesystem UUID `967cf065-abe5-49ee-8499-7c3f50d2c48f` + public fingerprint `e45fba0ad3e9997be2738c7a8f25d5c342ebba66ddbf822b1f6bf6a016c2ed93`; fixed `/dev/sdX` is forbidden as authority.
+- R15 ungranted successor candidate: `309961bc11fae31fd85185bb373a6e3d173021ca`; executor `cca8fa2516a5bbcc77cafc8029adcc5291139bf3`; manifest `cec46aab8572385b438fab2b0d5cc5c9ae9f7c5f`; focused test `557ea01d10b3bb5801167f78288e49025063f8cf`.
+- R15 requires the local R14 PASS evidence before any T1 transition, revalidates all 8 V1.2 source hashes, resolves containers dynamically by image, and performs only one INSTALL intent before stopping at U5.
+- First R15 CI exposed a docs-only Core Stack authority-anchor omission in the previous handoff top section; source repair is not implicated. This section restores the required authority/source/image/historical anchors.
+- Existing user authorization remains conditional and unbound until exact R15 source review + fresh CI PASS; no second user prompt is required. U6+, board access and merge remain unauthorized.
 
 ## 2026-11-12 — V1.2 source activation AUTHORIZED / new-chat execution boundary
 

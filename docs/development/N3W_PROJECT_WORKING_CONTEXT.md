@@ -1,64 +1,51 @@
-## Stable updater authority — 2026-11-13 KF-147 R13 PASS / R14 official U5 preflight CLOSED_SOURCE / conditional INSTALL authorization
+## Stable updater authority — 2026-11-13 R14 real-T1 CLOSED_PASS / R15 V1.2 U4→U5 successor source candidate
 
 ```text
-PROJECT_WORKING_CONTEXT_VERSION=6.0
+PROJECT_WORKING_CONTEXT_VERSION=6.1
+
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
 
 PR=807
 PR_STATE=OPEN_DRAFT_UNMERGED
-PR_BASE_REF=fix/kf147-post-destructive-stop-readonly-forensic-20261110
-PR_BASE_SHA=ab277001dc9b31dcccb4d36b1507cec5f26d5a1d
-MAIN_HEAD_AT_ALIGNMENT=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
-
-R13_EXECUTED_HEAD=6e1023b9cdfabb3997d2b7b0813f644f0df599e2
-R13_RESULT=POST_REBOOT_U4_MOUNT_RESTORATION_PASS
-R13_AUTHORIZATION_CLAIMED=true
-R13_AUTHORIZATION_CONSUMED=true
-R13_REPLAY_PERMITTED=false
-R13_WRITABLE_MOUNT_RESTORED=true
-R13_TRANSACTION_MUTATION=false
-R13_U5_TRANSITION=false
-
+R14_EXECUTED_HEAD=340d5b4641735acd49c822139d4be75fea86aae0
+R14_RESULT=PASS
+R14_RC=0
+R14_OFFICIAL_U5_PREFLIGHT_PASS=true
 LAST_PROVEN_TRANSACTION_PHASE=U4_READY_TO_INSTALL
 LAST_PROVEN_TRANSACTION_SHA256=dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259
 LAST_PROVEN_TARGET_SHA256=eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973
 LAST_PROVEN_TARGET_SIZE_BYTES=835309535
 LAST_PROVEN_IPC_PHASE=READY_TO_INSTALL
-LAST_PROVEN_USB_MOUNT=rw,nodev,nosuid,noexec
 LAST_PROVEN_SOURCE_SET=8/8_V1_2_TARGET
+LAST_PROVEN_USB_UUID=967cf065-abe5-49ee-8499-7c3f50d2c48f
+LAST_PROVEN_USB_PUBLIC_FINGERPRINT=e45fba0ad3e9997be2738c7a8f25d5c342ebba66ddbf822b1f6bf6a016c2ed93
+LAST_OBSERVED_USB_PARTITION=/dev/sda1
+FIXED_DEV_SDX_AUTHORITY=false
 
-R14_SOURCE_HEAD=340d5b4641735acd49c822139d4be75fea86aae0
-R14_TREE=7fd26a27a76769aab949e235e68d93ea1b4fb333
-R14_EXECUTOR_BLOB=5fa5233fc3e7c63d0ab21f9ab41df74b270a1ec7
-R14_MANIFEST_BLOB=830e1e523740d415b569e24963b79e83b64bfc48
-R14_TEST_BLOB=abe41fd07e642a1a07e343cd624adb1cc38716cc
-R14_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_OFFICIAL_U5_PREFLIGHT_R14_20261113_01
-R14_FRESH_CI=16/16_SUCCESS
-R14_REAL_T1_PREFLIGHT_EXECUTED=false
-R14_MODE=READ_ONLY_ONLY
-
-NEXT_ONE_GATE=R14_REAL_T1_OFFICIAL_U5_READONLY_PREFLIGHT
-NEXT_AFTER_R14_PASS=V1_2_COMPATIBLE_U4_TO_U5_INSTALL_INTENT_SUCCESSOR
-INSTALL_AFTER_R14_PASS_USER_AUTHORIZED=true
+R15_SOURCE_HEAD=309961bc11fae31fd85185bb373a6e3d173021ca
+R15_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_V12_U4_TO_U5_INSTALL_INTENT_R15_20261113_01
+R15_AUTHORIZATION_STATE=UNGRANTED
+R15_FRESH_CI=IN_PROGRESS_REPAIRING_DOC_AUTHORITY_ANCHOR
+INSTALL_AFTER_R15_CI_USER_AUTHORIZED=true
 INSTALL_REAUTH_REQUIRED=false
-INSTALL_AUTHORIZATION_CONDITION=R14_REAL_T1_PREFLIGHT_PASS_PLUS_EXACT_SUCCESSOR_SOURCE_REVIEW_AND_FRESH_CI
 INSTALL_AUTHORIZATION_MAX_PHASE=U5_INSTALL_REQUESTED_REVALIDATING
 U6_PLUS_AUTHORIZED=false
-OLD_R11_REPLAY_ALLOWED=false
 BOARD_ACCESS=false
 MERGE=false
-
-HANDOFF_TEMPLATE_VERSION=1.4
-HANDOFF=docs/development/N3W_T1_KF147_R14_OFFICIAL_U5_PREFLIGHT_TO_AUTHORIZED_INSTALL_NEW_CHAT_HANDOFF_V1.0_20261113.md
 ```
 
-R13 real-T1 writable-mount restoration is CLOSED_PASS and its one-shot authorization is terminal consumed/no-replay. The exact V1.2 eight-file source set, target archive and U4 transaction were revalidated after the writable mount; the USB remains mounted with the product writable options and IPC remains READY_TO_INSTALL.
+R14 is now a real-T1 CLOSED_PASS boundary. Its read-only result proved the exact U4 transaction, target archive, writable UUID/fingerprint-bound USB, eight-file V1.2 source set, healthy OTA service and READY_TO_INSTALL IPC without claiming authorization or mutating T1 state.
 
-R14 is a new read-only-only official U5 preflight successor. The first R14 CI exposed a stale R7 gate literal; the local unambiguous repair replaced both top-level and embedded remote gate constants, rebound the executor blob, and added a regression assertion. Fresh CI is now 16/16 SUCCESS on exact source head `340d5b4641735acd49c822139d4be75fea86aae0`. No R14 real-T1 access has occurred yet.
+R15 reuses only the bounded R11 INSTALL-intent transaction shape. It removes the stale three-file/fixed-container contract, requires the local R14 PASS evidence, verifies all eight installed V1.2 source SHA-256 values, resolves current containers dynamically by expected image/runtime image ID, revalidates U4 and USB metadata before claim, claims a non-replayable one-shot authorization before INSTALL, and stops at U5 INSTALL_REQUESTED_REVALIDATING. No source deployment, service restart, U6+, board access or merge is permitted.
 
-The user explicitly authorized the new conversation to proceed without another authorization prompt after R14 real-T1 preflight PASS. That authorization is conditional and bounded: create/review/test a new V1.2-compatible U4->U5 INSTALL-intent successor, bind the one-shot grant to the exact candidate after fresh CI, then execute the INSTALL request/U5 transition. It does not authorize stale R11 replay, U6+, board access or merge.
-
-Authority:
-`docs/development/N3W_T1_KF147_R14_OFFICIAL_U5_PREFLIGHT_TO_AUTHORIZED_INSTALL_NEW_CHAT_HANDOFF_V1.0_20261113.md`.
+The first R15 CI surfaced a repository-document contract regression from the prior docs-only handoff: the first Current State/Index sections no longer carried the Core Stack current-authority anchors required by the authority checker. The repair restores those anchors and does not alter R15 execution semantics.
 
 ## Stable updater authority — 2026-11-12 KF-147 R12 real-T1 read-only preflight PASS / authorization boundary
 
