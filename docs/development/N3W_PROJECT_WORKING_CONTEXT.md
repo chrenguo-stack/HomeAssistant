@@ -1,7 +1,7 @@
-## Stable updater authority — 2026-11-13 R18 real-T1 preflight PASS / INSTALL-U5 authorization boundary
+## Stable updater authority — 2026-11-13 R18 INSTALL-U5 one-shot GRANTED / authorized-head CI boundary
 
 ```text
-PROJECT_WORKING_CONTEXT_VERSION=6.7
+PROJECT_WORKING_CONTEXT_VERSION=6.8
 
 CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
 CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
@@ -15,32 +15,29 @@ LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
 PR=807
 PR_STATE=OPEN_DRAFT_UNMERGED
 
-R18_EXACT_HEAD=323a64ff24e1c846546140a20bf294aef78b4434
-R18_FRESH_CI=16_OF_16_SUCCESS
+R18_SOURCE_CI_HEAD=323a64ff24e1c846546140a20bf294aef78b4434
+R18_SOURCE_CI=16_OF_16_SUCCESS
+R18_READONLY_PREFLIGHT_CLOSURE_HEAD=ce3e02e289fe90766ec331e096b8306db6ff5bee
 R18_READONLY_PREFLIGHT=PASS
-R18_U5_TRANSITION_ELIGIBLE=true
-R18_AUTHORIZATION_STATE=UNGRANTED
-R18_LIVE_EXECUTION_AUTHORIZED=false
 
-LAST_PROVEN_TRANSACTION_PHASE=U4_READY_TO_INSTALL
-LAST_PROVEN_TRANSACTION_SHA256=dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259
-LAST_PROVEN_IPC_PHASE=READY_TO_INSTALL
-LAST_PROVEN_USB_MOUNT_STATE=UNMOUNTED
-LIVE_PREPARE_HOST_SHA256=fd2898cf9d63ae143b9620e56a19e9789306c802440bb9424cfc30064bc53005
+R18_AUTHORIZATION_GRANTED=true
+R18_AUTHORIZATION_CLAIMED=false
+R18_AUTHORIZATION_CONSUMED=false
+R18_REPLAY_PERMITTED=false
+R18_LIVE_EXECUTION_AUTHORIZED=true
+R18_FRESH_AUTHORIZED_HEAD_CI_REQUIRED=true
 
-R18_PREFLIGHT_MUTATION=false
-NEXT_ONE_GATE=R18_NEW_ONE_SHOT_INSTALL_U5_AUTHORIZATION
-LIVE_MUTATION_AUTHORIZED=false
-INSTALL_INTENT_AUTHORIZED=false
-U5_AUTHORIZED=false
-U6_PLUS_AUTHORIZED=false
+R18_MAXIMUM_PHASE=U5_INSTALL_REQUESTED_REVALIDATING
+R18_U6_PLUS_AUTHORIZED=false
+R18_AUTOMATIC_RETRY=false
+R18_ROLLBACK_PERMITTED=false
 BOARD_ACCESS=false
 MERGE=false
+
+NEXT_ONE_GATE=R18_FRESH_AUTHORIZED_HEAD_CI_THEN_LIVE_EXECUTE
 ```
 
-R18 is now physically proven eligible for the bounded U4→U5 INSTALL-intent transition. The real-T1 preflight bound the repaired source set, healthy runtime, exact U4 transaction, Manager IPC READY_TO_INSTALL and exact compatible unmounted USB without mutation. The product-side `lsblk --tree` media resolver repair is live and the harness no longer requires a stale pre-mounted U4 assumption.
-
-This PASS does not grant INSTALL. R18 remains ungranted and must receive a separate one-shot live authorization before any U5 transition.
+R18 is now explicitly authorized for one bounded live attempt after the exact authorized head completes fresh CI. The authorization permits only the repaired product path to reopen the exact bound removable media, submit INSTALL intent, write the U5 host/USB transaction metadata and stop at U5. It does not authorize U6+, source deployment, service restart, container mutation, board access, merge, automatic retry or rollback.
 
 ## Stable updater authority — 2026-11-12 KF-147 R12 real-T1 read-only preflight PASS / authorization boundary
 

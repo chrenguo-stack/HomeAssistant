@@ -1,4 +1,4 @@
-## 2026-11-13 — R18 real-T1 read-only preflight PASS / new one-shot INSTALL-U5 authorization boundary
+## 2026-11-13 — R18 one-shot INSTALL-U5 authorization GRANTED / fresh authorized-head CI next
 
 - Core Stack current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
 - Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
@@ -8,15 +8,11 @@
 - Historical clean reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
 - Historical clean reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
 - Live upgrade accepted; current repository Core Stack authority remains APPLIED_ACCEPTED.
-- R18 exact head `323a64ff24e1c846546140a20bf294aef78b4434` completed fresh CI `16/16 SUCCESS`.
-- Real-T1 R18 read-only preflight returned `PASS / RC=0` with `u5_transition_eligible=true`.
-- The repaired eight-file source set is exact; live `prepare_host.py` remains SHA-256 `fd2898cf...`.
-- Manager, Home Assistant and Broker are running with restart count 0; OTA service is active/running/success with `NRestarts=0`; Manager IPC is `READY_TO_INSTALL`.
-- Exact transaction remains `U4_READY_TO_INSTALL` at SHA-256 `dc6252c...`.
-- Exact bound USB UUID/public fingerprint is present as compatible ext4 `N3W-UPDATE` and remains unmounted; current `/dev/sda1` is observation only.
-- The preflight caused no host/source/transaction/USB/metadata/service/container mutation and did not enter U5/U6+.
-- R18 remains ungranted/unclaimed/unconsumed. A separate explicit one-shot authorization is required before INSTALL intent may be submitted.
-- Next gate: `R18_NEW_ONE_SHOT_INSTALL_U5_AUTHORIZATION`.
+- R18 source head `323a64ff24e1c846546140a20bf294aef78b4434` completed `16/16 SUCCESS`, and real-T1 read-only preflight closed PASS at `ce3e02e289fe90766ec331e096b8306db6ff5bee`.
+- User explicitly granted the new one-shot R18 INSTALL/U5 boundary.
+- Authorization is granted/unclaimed/unconsumed/no-replay and is limited to product-side media reopen plus U4→U5 INSTALL-intent submission.
+- Maximum allowed phase is `U5_INSTALL_REQUESTED_REVALIDATING`; U6+, source deployment, service restart, Manager/HA/Broker mutation, board access, merge, automatic retry and rollback are forbidden.
+- Fresh CI for the exact authorized head is mandatory before real-T1 execute.
 
 ## 2026-11-12 — V1.2 source activation AUTHORIZED / new-chat execution boundary
 

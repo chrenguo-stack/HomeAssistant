@@ -32,18 +32,44 @@ def load_remote_namespace():
     return namespace
 
 
-def test_manifest_is_ungranted_and_binds_r17_closed_u4() -> None:
+def test_manifest_authorization_state_and_binds_r17_closed_u4() -> None:
     d = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert d["gate_id"] == GATE
     assert d["authorization_id"] == GATE
     assert d["confirmation"] == CONFIRMATION
-    assert d["live_execution_authorized"] is False
+    granted = d["live_execution_authorized"] is True
     assert d["authorization_state"] == {
-        "granted": False,
+        "granted": granted,
         "claimed": False,
         "consumed": False,
         "replay_permitted": False,
     }
+    if granted:
+        grant = d["authorization_grant"]
+        assert grant["boundary"] == "R18_NEW_ONE_SHOT_INSTALL_U5_AUTHORIZATION"
+        assert grant["scope"] == "kf152_r18_u4_to_u5_install_intent_only"
+        assert grant["source_ci_head"] == "323a64ff24e1c846546140a20bf294aef78b4434"
+        assert grant["source_ci_result"] == "16_OF_16_SUCCESS"
+        assert grant["readonly_preflight_closure_head"] == "ce3e02e289fe90766ec331e096b8306db6ff5bee"
+        assert grant["readonly_preflight_status"] == "PASS"
+        assert grant["readonly_preflight_pr807_comment_id"] == 6846820786
+        assert grant["readonly_preflight_transaction_phase"] == "U4_READY_TO_INSTALL"
+        assert grant["readonly_preflight_transaction_sha256"] == "dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259"
+        assert grant["readonly_preflight_usb_mount_state"] == "UNMOUNTED"
+        assert grant["product_media_reopen_on_execute"] is True
+        assert grant["transaction_mutation_authorized"] is True
+        assert grant["usb_mount_and_metadata_mutation_authorized"] is True
+        assert grant["maximum_phase"] == "U5_INSTALL_REQUESTED_REVALIDATING"
+        assert grant["u6_plus_authorized"] is False
+        assert grant["source_deployment_authorized"] is False
+        assert grant["service_restart_authorized"] is False
+        assert grant["manager_mutation_authorized"] is False
+        assert grant["homeassistant_mutation_authorized"] is False
+        assert grant["broker_mutation_authorized"] is False
+        assert grant["board_access"] is False
+        assert grant["merge"] is False
+        assert grant["automatic_retry"] is False
+        assert grant["rollback_permitted"] is False
     r17 = d["r17_predecessor"]
     assert r17["authorized_head"] == "f96f7d85983b6bc3b05de15b48528d6fe9f16fcd"
     assert r17["terminal_closure_head"] == "700dde01555ef252d16b326013b247c9a752778f"

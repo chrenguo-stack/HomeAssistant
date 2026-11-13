@@ -1,9 +1,9 @@
 {
   "schema": "gh.n3w-t1-kf152-r18-u4-u5-install-intent-transition-manifest/1",
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF152_R18_U4_TO_U5_INSTALL_INTENT_20261113_01",
-  "live_execution_authorized": false,
+  "live_execution_authorized": true,
   "authorization_state": {
-    "granted": false,
+    "granted": true,
     "claimed": false,
     "consumed": false,
     "replay_permitted": false
@@ -130,5 +130,33 @@
   "stop_boundary": "STOP_AT_U5_INSTALL_REQUESTED_REVALIDATING_BEFORE_U6_PLUS",
   "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF152_R18_U4_TO_U5_INSTALL_INTENT_20261113_01",
   "confirmation": "EXECUTE KF152 R18 U4 TO U5 INSTALL INTENT: YES",
-  "state_root": "/var/lib/n3w-t1-core-updater/kf152-r18-u4-u5-install-intent-20261113-01"
+  "state_root": "/var/lib/n3w-t1-core-updater/kf152-r18-u4-u5-install-intent-20261113-01",
+  "authorization_grant": {
+    "source": "explicit_user_authorization_in_chat",
+    "date": "2026-11-13",
+    "boundary": "R18_NEW_ONE_SHOT_INSTALL_U5_AUTHORIZATION",
+    "scope": "kf152_r18_u4_to_u5_install_intent_only",
+    "source_ci_head": "323a64ff24e1c846546140a20bf294aef78b4434",
+    "source_ci_result": "16_OF_16_SUCCESS",
+    "readonly_preflight_closure_head": "ce3e02e289fe90766ec331e096b8306db6ff5bee",
+    "readonly_preflight_status": "PASS",
+    "readonly_preflight_pr807_comment_id": 6846820786,
+    "readonly_preflight_transaction_phase": "U4_READY_TO_INSTALL",
+    "readonly_preflight_transaction_sha256": "dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259",
+    "readonly_preflight_usb_mount_state": "UNMOUNTED",
+    "product_media_reopen_on_execute": true,
+    "transaction_mutation_authorized": true,
+    "usb_mount_and_metadata_mutation_authorized": true,
+    "maximum_phase": "U5_INSTALL_REQUESTED_REVALIDATING",
+    "u6_plus_authorized": false,
+    "source_deployment_authorized": false,
+    "service_restart_authorized": false,
+    "manager_mutation_authorized": false,
+    "homeassistant_mutation_authorized": false,
+    "broker_mutation_authorized": false,
+    "board_access": false,
+    "merge": false,
+    "automatic_retry": false,
+    "rollback_permitted": false
+  }
 }
