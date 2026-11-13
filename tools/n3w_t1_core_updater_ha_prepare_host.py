@@ -1268,3 +1268,210 @@ class SubprocessPrepareBackend:
             verified=True,
             fsynced=True,
         )
+
+
+    @staticmethod
+    def _cleanup_stale_predecessor_temporaries(predecessor_dir: Path) -> None:
+        removed = False
+        for item in predecessor_dir.iterdir():
+            if not item.name.startswith(".homeassistant-predecessor."):
+                continue
+            if item.is_symlink() or not item.is_file():
+                raise UpdaterV2Error("ha_predecessor_temporary_invalid")
+            item.unlink()
+            removed = True
+        if removed:
+            SubprocessPrepareBackend._fsync_directory(predecessor_dir)
+
+    @staticmethod
+    def _stream_predecessor_archive(
+        image_ref: str,
+        destination: Path,
+    ) -> None:
+        docker_process: subprocess.Popen[bytes] | None = None
+        gzip_process: subprocess.Popen[bytes] | None = None
+        try:
+            with destination.open("wb") as stream:
+                try:
+                    docker_process = subprocess.Popen(
+                        ("docker", "image", "save", image_ref),
+                        stdin=subprocess.DEVNULL,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.DEVNULL,
+                    )
+                    if docker_process.stdout is None:
+                        raise UpdaterV2Error(
+                            "ha_predecessor_export_pipe_unavailable"
+                        )
+                    gzip_process = subprocess.Popen(
+                        ("gzip", "-n", "-c"),
+                        stdin=docker_process.stdout,
+                        stdout=stream,
+                        stderr=subprocess.DEVNULL,
+                    )
+                    docker_process.stdout.close()
+                    try:
+                        gzip_returncode = gzip_process.wait(timeout=1800)
+                        docker_returncode = docker_process.wait(timeout=60)
+                    except subprocess.TimeoutExpired as error:
+                        raise UpdaterV2Error(
+                            "ha_predecessor_export_timeout"
+                        ) from error
+                except FileNotFoundError as error:
+                    raise UpdaterV2Error(
+                        "ha_predecessor_export_tool_unavailable"
+                    ) from error
+                if docker_returncode != 0 or gzip_returncode != 0:
+                    raise UpdaterV2Error("ha_predecessor_export_failed")
+                stream.flush()
+                os.fsync(stream.fileno())
+        finally:
+            for process in (gzip_process, docker_process):
+                if process is not None and process.poll() is None:
+                    process.kill()
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        pass
+
+    def prepare_predecessor_recovery(
+        self,
+        *,
+        transaction: dict[str, Any],
+        media: PreparedUsbMedia,
+    ) -> ImageRecoveryRecord:
+        media.validate()
+        self._require_bound_media(media)
+        policy = self.policy_provider.load(transaction)
+        image_ref = transaction.get("current_image_ref")
+        if (
+            not isinstance(image_ref, str)
+            or image_ref != policy.expected_predecessor_image_ref
+            or not image_ref.startswith("local/n3w-homeassistant:")
+        ):
+            raise UpdaterV2Error("ha_predecessor_image_ref_invalid")
+
+        mount_path = Path(media.mount_path)
+        if mount_path.is_symlink() or not mount_path.is_dir():
+            raise UpdaterV2Error("usb_mount_path_invalid")
+        update_dir = mount_path / "n3w-update"
+        _require_private_directory(update_dir, create=True)
+        predecessor_dir = update_dir / "predecessor"
+        _require_private_directory(predecessor_dir, create=True)
+        self._cleanup_stale_predecessor_temporaries(predecessor_dir)
+        destination = predecessor_dir / "homeassistant-predecessor.tar.gz"
+        if destination.is_symlink():
+            raise UpdaterV2Error("ha_predecessor_destination_invalid")
+
+        if destination.exists():
+            try:
+                return self.verify_prepared_predecessor(
+                    transaction=transaction,
+                    media=media,
+                )
+            except UpdaterV2Error:
+                if not destination.is_file():
+                    raise UpdaterV2Error(
+                        "ha_predecessor_destination_invalid"
+                    )
+                destination.unlink()
+                self._fsync_directory(predecessor_dir)
+
+        descriptor, raw = tempfile.mkstemp(
+            prefix=".homeassistant-predecessor.",
+            dir=predecessor_dir,
+        )
+        temporary = Path(raw)
+        os.close(descriptor)
+        try:
+            self._stream_predecessor_archive(image_ref, temporary)
+            self._require_bound_media(media)
+            try:
+                identity = portable.parse_image_archive(
+                    temporary,
+                    expected_tag=image_ref,
+                    platform_os="linux",
+                    platform_architecture="arm64",
+                )
+            except portable.PortableImageIdentityError as error:
+                raise UpdaterV2Error(
+                    "ha_predecessor_archive_identity_invalid"
+                ) from error
+            if identity.archive_size_bytes > policy.predecessor_recovery_budget_bytes:
+                raise UpdaterV2Error("ha_predecessor_archive_budget_exceeded")
+            verdict = portable.verify_docker_image(identity, image_ref)
+            if verdict.status != "VERIFIED":
+                raise UpdaterV2Error(
+                    "ha_predecessor_runtime_identity_mismatch"
+                )
+            os.replace(temporary, destination)
+            self._fsync_directory(predecessor_dir)
+            self._require_bound_media(media)
+            return ImageRecoveryRecord(
+                kind="predecessor",
+                image_ref=image_ref,
+                archive_sha256=identity.archive_sha256,
+                archive_size_bytes=identity.archive_size_bytes,
+                portable_identity_sha256=sha256_bytes(
+                    canonical(identity.to_dict())
+                ),
+                platform="linux/arm64",
+                verified=True,
+                fsynced=True,
+            )
+        finally:
+            temporary.unlink(missing_ok=True)
+
+    def verify_prepared_predecessor(
+        self,
+        *,
+        transaction: dict[str, Any],
+        media: PreparedUsbMedia,
+    ) -> ImageRecoveryRecord:
+        media.validate()
+        self._require_bound_media(media)
+        policy = self.policy_provider.load(transaction)
+        image_ref = transaction.get("current_image_ref")
+        if (
+            not isinstance(image_ref, str)
+            or image_ref != policy.expected_predecessor_image_ref
+            or not image_ref.startswith("local/n3w-homeassistant:")
+        ):
+            raise UpdaterV2Error("ha_predecessor_image_ref_invalid")
+        destination = (
+            Path(media.mount_path)
+            / "n3w-update"
+            / "predecessor"
+            / "homeassistant-predecessor.tar.gz"
+        )
+        if destination.is_symlink() or not destination.is_file():
+            raise UpdaterV2Error("ha_predecessor_destination_invalid")
+        try:
+            identity = portable.parse_image_archive(
+                destination,
+                expected_tag=image_ref,
+                platform_os="linux",
+                platform_architecture="arm64",
+            )
+        except portable.PortableImageIdentityError as error:
+            raise UpdaterV2Error(
+                "ha_predecessor_archive_identity_invalid"
+            ) from error
+        if identity.archive_size_bytes > policy.predecessor_recovery_budget_bytes:
+            raise UpdaterV2Error("ha_predecessor_archive_budget_exceeded")
+        verdict = portable.verify_docker_image(identity, image_ref)
+        if verdict.status != "VERIFIED":
+            raise UpdaterV2Error("ha_predecessor_runtime_identity_mismatch")
+        self._require_bound_media(media)
+        return ImageRecoveryRecord(
+            kind="predecessor",
+            image_ref=image_ref,
+            archive_sha256=identity.archive_sha256,
+            archive_size_bytes=identity.archive_size_bytes,
+            portable_identity_sha256=sha256_bytes(
+                canonical(identity.to_dict())
+            ),
+            platform="linux/arm64",
+            verified=True,
+            fsynced=True,
+        )
