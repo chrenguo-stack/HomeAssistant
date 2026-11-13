@@ -4,6 +4,7 @@
 - Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
 - Current Manager: `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
 - Historical clean reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`; Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; current repository Core Stack authority remains APPLIED_ACCEPTED.
 - R16 authorized head `763559089b7339c0a7c3612bdeaa91cbf29a0a8b` completed 16/16 CI SUCCESS, then its one-shot live execution claimed and consumed authorization.
 - R16 STOPped with `services_owner_not_active` after the one-file source mutation and OTA host-daemon restart; transaction/USB state remained unchanged and no U5/U6+ transition occurred.
 - R16 rollback was attempted but also STOPped on `services_owner_not_active`; therefore the final prepare_host source hash and Manager/Home Assistant runtime state are UNKNOWN_FRESH until read-only forensic evidence is collected.
