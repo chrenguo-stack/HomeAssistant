@@ -246,10 +246,20 @@ class ProtectedHaDataBackupProvider:
 
     def _root_key(self) -> bytes:
         path = self.system_root_key
-        if path.is_symlink() or not path.is_file():
+        parent = path.parent
+        if (
+            parent.is_symlink()
+            or not parent.is_dir()
+            or stat.S_IMODE(parent.stat().st_mode) & 0o022
+            or path.is_symlink()
+            or not path.is_file()
+        ):
             raise UpdaterV2Error("ha_data_backup_root_key_invalid")
-        if stat.S_IMODE(path.stat().st_mode) != 0o600:
+        metadata = path.stat()
+        if stat.S_IMODE(metadata.st_mode) != 0o600:
             raise UpdaterV2Error("ha_data_backup_root_key_mode_invalid")
+        if metadata.st_nlink != 1 or metadata.st_size != 32:
+            raise UpdaterV2Error("ha_data_backup_root_key_invalid")
         payload = path.read_bytes()
         if len(payload) != 32:
             raise UpdaterV2Error("ha_data_backup_root_key_invalid")
