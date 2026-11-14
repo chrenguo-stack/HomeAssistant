@@ -565,6 +565,40 @@ class SubprocessPrepareBackend:
             policy=policy.capacity_policy,
         )
 
+    @staticmethod
+    def _reclaimable_backup_bytes(
+        media: PreparedUsbMedia,
+        reclaimable_backup: HaDataBackupRecord | None,
+    ) -> int:
+        media.validate()
+        archive = (
+            Path(media.mount_path)
+            / "n3w-update"
+            / "ha-data"
+            / BACKUP_ARCHIVE_NAME
+        )
+        if not archive.exists() and not archive.is_symlink():
+            return 0
+        if archive.is_symlink() or not archive.is_file():
+            raise UpdaterV2Error("ha_backup_reclaimable_archive_invalid")
+        metadata = archive.stat()
+        if metadata.st_nlink != 1:
+            raise UpdaterV2Error("ha_backup_reclaimable_archive_invalid")
+        if reclaimable_backup is not None:
+            validated = validate_backup_record(reclaimable_backup)
+            if metadata.st_size != validated.archive_size_bytes:
+                raise UpdaterV2Error(
+                    "ha_backup_reclaimable_archive_invalid"
+                )
+        allocated = metadata.st_blocks * 512
+        if (
+            allocated < 0
+            or allocated > capacity.MAX_SAFE_BYTES
+            or metadata.st_size < 0
+        ):
+            raise UpdaterV2Error("ha_backup_reclaimable_archive_invalid")
+        return min(metadata.st_size, allocated)
+
     def backup_capacity_revalidation(
         self,
         transaction: dict[str, Any],
@@ -575,26 +609,10 @@ class SubprocessPrepareBackend:
     ) -> capacity.BackupCapacityRevalidation:
         policy = self.policy_provider.load(transaction)
         measured = measure_ha_data_tree(self.ha_data_root)
-        reclaimable_bytes = 0
-        if reclaimable_backup is not None:
-            validated = validate_backup_record(reclaimable_backup)
-            archive = (
-                Path(media.mount_path)
-                / "n3w-update"
-                / "ha-data"
-                / BACKUP_ARCHIVE_NAME
-            )
-            if archive.exists() or archive.is_symlink():
-                if (
-                    archive.is_symlink()
-                    or not archive.is_file()
-                    or archive.stat().st_size
-                    != validated.archive_size_bytes
-                ):
-                    raise UpdaterV2Error(
-                        "ha_backup_reclaimable_archive_invalid"
-                    )
-                reclaimable_bytes = validated.archive_size_bytes
+        reclaimable_bytes = self._reclaimable_backup_bytes(
+            media,
+            reclaimable_backup,
+        )
         return capacity.compute_backup_revalidation(
             target_artifact_bytes=policy.target_archive_size_bytes,
             predecessor_archive_bytes=predecessor.archive_size_bytes,
