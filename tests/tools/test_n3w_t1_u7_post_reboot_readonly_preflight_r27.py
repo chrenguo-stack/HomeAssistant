@@ -161,6 +161,13 @@ def test_u6_transaction_and_recovery_content_are_exactly_revalidated() -> None:
     assert '"u7_backup_residue_present"' in remote
 
 
+def test_preflight_rejects_cross_filesystem_ha_state() -> None:
+    remote = load_executor().REMOTE_SCRIPT
+    assert "root_device = meta.st_dev" in remote
+    assert '"ha_data_external_filesystem_unsupported"' in remote
+    assert '"external_filesystem_detected": False' in remote
+
+
 def test_preflight_checks_u7_backup_runtime_dependencies_without_reading_key() -> None:
     remote = load_executor().REMOTE_SCRIPT
     assert "/var/lib/n3wfc4-homeassistant" in remote
