@@ -444,10 +444,12 @@ def test_production_owner_quiesce_requires_broker_preserved(
 
     evidence = host.quiesce_homeassistant_for_backup()
 
-    assert evidence.owner_inactive is True
-    assert evidence.homeassistant_stopped is True
-    assert evidence.manager_stopped is True
-    assert evidence.broker_preserved is True
+    assert evidence == {
+        "owner_inactive": True,
+        "homeassistant_stopped": True,
+        "manager_stopped": True,
+        "broker_preserved": True,
+    }
 
 
 class FailingQuiesceRuntime(FakeRuntime):
@@ -476,3 +478,141 @@ def test_quiesce_proof_failure_still_resumes_application_owner(
     assert store.document["phase"] != U7
     assert runtime.quiesce_count == 1
     assert runtime.resume_count == 1
+
+
+@pytest.mark.skipif(shutil.which("openssl") is None, reason="openssl unavailable")
+def test_protected_backup_wrong_system_root_key_rejected(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "ha"
+    source.mkdir(mode=0o700)
+    (source / "configuration.yaml").write_text(
+        "default_config:\n",
+        encoding="utf-8",
+    )
+    root_key = tmp_path / "system-root.key"
+    root_key.write_bytes(os.urandom(32))
+    root_key.chmod(0o600)
+    destination = tmp_path / "backup"
+    destination.mkdir(mode=0o700)
+    provider = ProtectedHaDataBackupProvider(
+        ha_data_root=source,
+        system_root_key=root_key,
+        product_config=source / "configuration.yaml",
+    )
+    transaction_id = "d" * 64
+    record = provider.create_consistent_backup(
+        transaction_id_sha256=transaction_id,
+        destination_root=destination,
+    )
+
+    wrong_key = tmp_path / "wrong-system-root.key"
+    wrong_key.write_bytes(os.urandom(32))
+    wrong_key.chmod(0o600)
+    wrong_provider = ProtectedHaDataBackupProvider(
+        ha_data_root=source,
+        system_root_key=wrong_key,
+        product_config=source / "configuration.yaml",
+    )
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_data_backup_authentication_failed",
+    ):
+        wrong_provider.verify_backup(
+            record,
+            transaction_id_sha256=transaction_id,
+            destination_root=destination,
+        )
+
+
+def test_protected_backup_corrupt_sqlite_fails_closed(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "ha"
+    source.mkdir(mode=0o700)
+    (source / "home-assistant_v2.db").write_bytes(
+        b"not-a-sqlite-database"
+    )
+    root_key = tmp_path / "system-root.key"
+    root_key.write_bytes(os.urandom(32))
+    root_key.chmod(0o600)
+    destination = tmp_path / "backup"
+    destination.mkdir(mode=0o700)
+    provider = ProtectedHaDataBackupProvider(
+        ha_data_root=source,
+        system_root_key=root_key,
+        product_config=source / "configuration.yaml",
+    )
+
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_data_backup_sqlite_check_failed",
+    ):
+        provider.create_consistent_backup(
+            transaction_id_sha256="e" * 64,
+            destination_root=destination,
+        )
+    assert not (destination / BACKUP_ARCHIVE_NAME).exists()
+
+
+def test_u7_provider_restore_is_separately_gated() -> None:
+    provider = ProtectedHaDataBackupProvider()
+    record = HaDataBackupRecord(
+        archive_sha256="9" * 64,
+        archive_size_bytes=1,
+        manifest_sha256="a" * 64,
+        verified=True,
+        fsynced=True,
+        consistent_preupgrade_point=True,
+        complete_production_config=True,
+        storage_integrity_verified=True,
+        ownership_metadata_present=True,
+        confidentiality_protected=True,
+        authenticity_protected=True,
+        unsupported_external_state=False,
+    )
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_data_backup_restore_requires_separate_gate",
+    ):
+        provider.restore_preupgrade_backup(record)
+
+
+@pytest.mark.skipif(shutil.which("openssl") is None, reason="openssl unavailable")
+def test_protected_backup_emits_bounded_progress_phases(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "ha"
+    source.mkdir(mode=0o700)
+    (source / "configuration.yaml").write_text(
+        "default_config:\n",
+        encoding="utf-8",
+    )
+    root_key = tmp_path / "system-root.key"
+    root_key.write_bytes(os.urandom(32))
+    root_key.chmod(0o600)
+    destination = tmp_path / "backup"
+    destination.mkdir(mode=0o700)
+    progress: list[tuple[str, int]] = []
+    provider = ProtectedHaDataBackupProvider(
+        ha_data_root=source,
+        system_root_key=root_key,
+        product_config=source / "configuration.yaml",
+        progress=lambda phase, value: progress.append((phase, value)),
+    )
+    record = provider.create_consistent_backup(
+        transaction_id_sha256="f" * 64,
+        destination_root=destination,
+    )
+
+    phases = [phase for phase, _ in progress]
+    for required in (
+        "source_validation",
+        "archive_encrypt",
+        "source_compare",
+        "verify_ciphertext",
+        "verify_plaintext",
+        "verified",
+    ):
+        assert required in phases
+    assert progress[-1] == ("verified", record.archive_size_bytes)

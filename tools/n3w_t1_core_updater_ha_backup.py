@@ -519,6 +519,9 @@ class ProtectedHaDataBackupProvider:
             tar_args=[
                 "--list",
                 "--verbose",
+                "--full-time",
+                "--utc",
+                "--quoting-style=escape",
                 "--numeric-owner",
                 "--gzip",
                 "--file=-",

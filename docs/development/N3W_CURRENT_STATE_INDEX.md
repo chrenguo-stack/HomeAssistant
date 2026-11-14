@@ -1,3 +1,14 @@
+## 2026-11-14 — U7 source design/review implementation / CI pending / live boundary unchanged
+
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; live upgrade accepted and `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference source remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- R26 remains CLOSED_PASS, claimed + consumed, and permanently no-replay. It is not replayed by U7 source work.
+- Durable lifecycle state remains `U6_PREDECESSOR_RECOVERY_PREPARING`; post-reboot runtime/mount baseline remains `UNKNOWN_FRESH`.
+- U7 source-only architecture and implementation now cover compatible-media rediscovery, exact target/predecessor revalidation before quiesce, production-owner quiesce proof, protected HA_DATA_BACKUP creation/verification, pre-U9 failure recovery, progress callbacks, and a durable U7 stop.
+- U7 backup completion does not enter U8 and does not claim product authorization. No U7 live execution, service stop, USB write, live transaction mutation, U8+, board access or merge is authorized.
+- Current source review found and repaired the quiesce-proof failure recovery path before CI closure. Fresh CI for the final source head is pending.
+
 ## 2026-11-14 — R26 live CLOSED_PASS / durable U6 / stop before U7
 
 - PR #807 remains OPEN / DRAFT / UNMERGED.

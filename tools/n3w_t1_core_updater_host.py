@@ -12,7 +12,6 @@ import time
 from pathlib import Path
 from typing import Any, Sequence
 
-from n3w_t1_core_updater_ha_backup import HaQuiesceEvidence
 from n3w_t1_portable_image_identity import (
     PortableImageIdentityError,
     parse_image_archive,
@@ -1391,24 +1390,26 @@ class LocalHost:
         finally:
             os.close(descriptor)
 
-    def quiesce_homeassistant_for_backup(self) -> HaQuiesceEvidence:
+    def quiesce_homeassistant_for_backup(self) -> dict[str, bool]:
         """Stop the production application owner and prove a quiet HA tree."""
         broker_before = self._container_id("broker")
         self.stop_services()
         owner_state = self._systemctl("is-active", SERVICES_UNIT)
         broker_state = self._systemctl("is-active", BROKER_UNIT)
         broker_after = self._container_id("broker")
-        evidence = HaQuiesceEvidence(
-            owner_inactive=owner_state == "inactive",
-            homeassistant_stopped=self._running_count("homeassistant") == 0,
-            manager_stopped=self._running_count("manager") == 0,
-            broker_preserved=(
+        evidence = {
+            "owner_inactive": owner_state == "inactive",
+            "homeassistant_stopped": self._running_count("homeassistant") == 0,
+            "manager_stopped": self._running_count("manager") == 0,
+            "broker_preserved": (
                 broker_state == "active"
                 and broker_before == broker_after
                 and self._running_count("broker") == 1
             ),
-        )
-        return evidence.validate()
+        }
+        if any(value is not True for value in evidence.values()):
+            raise UpdaterError("ha_backup_quiesce_evidence_invalid")
+        return evidence
 
     def resume_homeassistant_after_backup_failure(self) -> None:
         """Restore predecessor services after a pre-U9 U7 failure."""

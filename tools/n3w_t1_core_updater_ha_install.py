@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Mapping, Protocol
 
 from n3w_t1_core_updater_ha_backup import (
     BackupProgress,
@@ -193,7 +193,9 @@ class HaUsbU6PredecessorController:
 
 
 class U7RuntimeOwner(Protocol):
-    def quiesce_homeassistant_for_backup(self) -> HaQuiesceEvidence:
+    def quiesce_homeassistant_for_backup(
+        self,
+    ) -> HaQuiesceEvidence | Mapping[str, bool]:
         ...
 
     def resume_homeassistant_after_backup_failure(self) -> None:
@@ -249,6 +251,35 @@ class HaUsbU7BackupController:
                 "ha_usb_u7_authorization_state_invalid"
             )
 
+    @staticmethod
+    def _quiesce_evidence(
+        value: HaQuiesceEvidence | Mapping[str, bool],
+    ) -> HaQuiesceEvidence:
+        if isinstance(value, HaQuiesceEvidence):
+            return value.validate()
+        if not isinstance(value, Mapping):
+            raise UpdaterV2Error("ha_backup_quiesce_evidence_invalid")
+        expected = {
+            "owner_inactive",
+            "homeassistant_stopped",
+            "manager_stopped",
+            "broker_preserved",
+        }
+        if set(value) != expected:
+            raise UpdaterV2Error("ha_backup_quiesce_evidence_invalid")
+        try:
+            evidence = HaQuiesceEvidence(
+                owner_inactive=value["owner_inactive"],
+                homeassistant_stopped=value["homeassistant_stopped"],
+                manager_stopped=value["manager_stopped"],
+                broker_preserved=value["broker_preserved"],
+            )
+        except (KeyError, TypeError) as error:
+            raise UpdaterV2Error(
+                "ha_backup_quiesce_evidence_invalid"
+            ) from error
+        return evidence.validate()
+
     def prepare_or_resume(self) -> U7BackupPreparationResult:
         current = self._transaction()
         if current["phase"] not in {U6, U7}:
@@ -291,8 +322,9 @@ class HaUsbU7BackupController:
 
         self._report("u7_quiesce")
         try:
-            evidence = self.runtime_owner.quiesce_homeassistant_for_backup()
-            evidence.validate()
+            evidence = self._quiesce_evidence(
+                self.runtime_owner.quiesce_homeassistant_for_backup()
+            )
             if not resumed:
                 current = record_predecessor_recovery_and_ha_quiesced(
                     current,

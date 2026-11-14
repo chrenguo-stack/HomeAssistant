@@ -1,7 +1,7 @@
 # N3-W T1 U7 Home Assistant quiesce / HA_DATA_BACKUP source design and independent review
 # 2026-11-14
 
-STATUS=SOURCE_DESIGN_REVIEW_IMPLEMENTATION_IN_PROGRESS
+STATUS=SOURCE_DESIGN_REVIEW_IMPLEMENTED_REVIEW_COMPLETE_CI_PENDING
 LIVE_T1_MUTATION=false
 SERVICE_STOP=false
 USB_WRITE=false
@@ -302,3 +302,38 @@ MERGE=false
 
 The next live phase remains separately gated after source review/CI closure
 and a fresh post-reboot read-only baseline.
+
+
+## 13. Post-implementation independent review repairs
+
+The first implementation review found one false-stop recovery defect: the
+quiesce call itself was outside the failure-recovery try block. A production
+owner could therefore already have stopped Manager/Home Assistant and then
+fail Broker-continuity proof without restarting the predecessor application
+owner.
+
+This was repaired before source closure. Quiesce + evidence validation now run
+inside the same pre-U9 recovery envelope as backup creation and verification,
+and a focused regression proves that a quiesce-proof failure triggers
+predecessor-owner resume.
+
+A second compatibility review found that importing the U7 backup module from
+the shared LocalHost module would expand the dependency closure of historical
+P4 read-only execution bundles. The host adapter therefore returns a small
+validated public evidence mapping; the U7 controller converts that mapping to
+the typed U7 evidence contract. Historical read-only bundles do not gain a new
+module dependency.
+
+The HA target-binding workflow now includes the focused U7 backup tests in its
+explicit source test set.
+
+The Current State Index top entry also restates the current Core Stack
+authority bindings required by the existing repository authority checker.
+This is documentation/CI authority alignment only; it does not advance the
+durable U6 transaction or live lifecycle phase.
+
+FINAL_SOURCE_REVIEW=PASS_PENDING_FRESH_CI
+NEW_U7_SOURCE_BLOCKER_COUNT=0
+U7_LIVE_EXECUTION=false
+U8_PLUS=false
+MERGE=false
