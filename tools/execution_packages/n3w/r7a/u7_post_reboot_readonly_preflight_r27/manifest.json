@@ -26,10 +26,12 @@
     "r27d_diagnostic_result": "PASS_DIAGNOSTIC",
     "r27_false_blocker": "PREMATURE_U7_TRANSACTION_FIELD_EXPECTATION",
     "u6_transaction_predecessor_fields": "FALSE_NULL_UNTIL_U7_QUIESCE_TRANSITION",
-    "u6_predecessor_authority": "R26_SUCCESS_POST_PLUS_EXACT_ARCHIVE"
+    "u6_predecessor_authority": "R26_SUCCESS_POST_PLUS_EXACT_ARCHIVE",
+    "r27_retest02_false_blocker": "INVENTED_PRE_U7_HOST_SOURCE_PRESENCE",
+    "pre_u7_host_source_authority": "ABSENT_UNTIL_U7_SOURCE_ACTIVATION"
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/u7_post_reboot_readonly_preflight_r27/executor.py": "49cb4d830eb2932f8a3e44092042fa95545f1686",
+    "tools/execution_packages/n3w/r7a/u7_post_reboot_readonly_preflight_r27/executor.py": "c12a215955bd8719f61ca6436f9f20667b2ac01b",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
     "tools/n3w_t1_core_updater_ha_install.py": "a536d0d2224f58fe6f14c26eb9f6ddf351aa8f7b",
     "tools/n3w_t1_core_updater_ha_backup.py": "bb7a3dfa29b7996f619963298b61d0e92c798cca",
@@ -108,5 +110,5 @@
     "r27_capacity_pass_advisory_only": true
   },
   "stop_boundary": "STOP_AFTER_U7_SOURCE_ACTIVATION_ELIGIBILITY_BEFORE_SOURCE_DEPLOYMENT_OR_HA_QUIESCE",
-  "installed_host_git_blob_sha1": "ee7ec0da27823a7b25408d90d61d03d25d5f1297"
+  "pre_u7_host_source_state": "ABSENT"
 }
