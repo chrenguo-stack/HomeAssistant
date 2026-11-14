@@ -31,7 +31,7 @@ R27 verifies:
 3. host/services-owner/broker-owner health after reboot;
 4. exact Manager/Home Assistant/Broker runtime image binding and restart count;
 5. Manager IPC still reports PREDECESSOR_RECOVERY_PREPARING;
-6. exact installed U6 source set, proving U7 source has not been silently activated;
+6. exact installed U6 source set, including the pre-U7 host.py Git blob identity, proving U7 source has not been partially or silently activated;
 7. one safe ext4 N3W-UPDATE removable medium, excluding the root device;
 8. V1.2 content authority, with no historical device-node, UUID or fingerprint continuity gate;
 9. exact target archive and exact predecessor archive;
@@ -43,7 +43,7 @@ R27 verifies:
 15. current USB free capacity for remaining U7 work: HA backup budget + working budget + reserve.
 
 If the USB is not mounted after reboot, R27 may temporarily mount the one
-eligible partition with ro,noload,nodev,nosuid,noexec, inspect it, then unmount
+eligible partition with ro,noload,nodev,nosuid,noexec (accepting the kernel-reported norecovery alias), inspect it, then unmount
 and remove only the temporary /run directory. This is not USB data mutation.
 
 ## 4. Source activation decision

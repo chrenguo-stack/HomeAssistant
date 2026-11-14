@@ -19,7 +19,7 @@
     "post_reboot_runtime_baseline": "UNKNOWN_FRESH"
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/u7_post_reboot_readonly_preflight_r27/executor.py": "d3e786bb44a10b2b701eb8d43de7042354f7dff6",
+    "tools/execution_packages/n3w/r7a/u7_post_reboot_readonly_preflight_r27/executor.py": "2c92c25ae80f685e6b3d50eeaaa33cd8d31b87db",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
     "tools/n3w_t1_core_updater_ha_install.py": "bc1f997265b4016373647922b835fded84453761",
     "tools/n3w_t1_core_updater_ha_backup.py": "94a0589501f0217b55ca0a0e309f5795bfc59a79",
@@ -90,7 +90,12 @@
     "u7_transition": false,
     "u8_plus": false,
     "board_access": false,
-    "merge": false
+    "merge": false,
+    "readonly_no_journal_replay_aliases": [
+      "noload",
+      "norecovery"
+    ]
   },
-  "stop_boundary": "STOP_AFTER_U7_SOURCE_ACTIVATION_ELIGIBILITY_BEFORE_SOURCE_DEPLOYMENT_OR_HA_QUIESCE"
+  "stop_boundary": "STOP_AFTER_U7_SOURCE_ACTIVATION_ELIGIBILITY_BEFORE_SOURCE_DEPLOYMENT_OR_HA_QUIESCE",
+  "installed_host_git_blob_sha1": "ee7ec0da27823a7b25408d90d61d03d25d5f1297"
 }

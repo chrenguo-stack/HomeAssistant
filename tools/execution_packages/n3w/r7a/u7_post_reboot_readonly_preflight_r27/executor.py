@@ -100,6 +100,15 @@ def sha_file(path):
     return digest.hexdigest()
 
 
+def git_blob_sha(path):
+    path = Path(path)
+    if path.is_symlink() or not path.is_file():
+        raise Stop("required_file_invalid:" + str(path))
+    payload = path.read_bytes()
+    header = ("blob " + str(len(payload)) + "\0").encode("ascii")
+    return hashlib.sha1(header + payload).hexdigest()
+
+
 def read_private_json(path):
     path = Path(path)
     if path.is_symlink() or not path.is_file():
@@ -316,6 +325,9 @@ def verify_installed_u6_sources(plan):
             raise Stop("installed_u6_source_drift:" + Path(path).name)
         observed[path] = digest
     host_path = Path("/opt/HomeAssistant/tools/n3w_t1_core_updater_host.py")
+    host_git_blob = git_blob_sha(host_path)
+    if host_git_blob != plan["installed_host_git_blob_sha1"]:
+        raise Stop("installed_u6_source_drift:n3w_t1_core_updater_host.py")
     observed[str(host_path)] = sha_file(host_path)
     return observed
 
@@ -499,7 +511,13 @@ def inspect_media(plan, transaction):
         if (
             fstype != "ext4"
             or not {"nodev", "nosuid", "noexec"}.issubset(options)
-            or (mounted_by_us and not {"ro", "noload"}.issubset(options))
+            or (
+                mounted_by_us
+                and (
+                    "ro" not in options
+                    or not {"noload", "norecovery"}.intersection(options)
+                )
+            )
         ):
             raise Stop("u7_mount_contract_invalid")
 
