@@ -26,7 +26,7 @@ be prepared.
 
 R27 verifies:
 
-1. current boot observation and R26 durable success ledger;
+1. current boot observation and R26 durable success ledger, requiring R26 success to predate the current boot epoch;
 2. exact durable U6 transaction and no product authorization claim;
 3. host/services-owner/broker-owner health after reboot;
 4. exact Manager/Home Assistant/Broker runtime image binding and restart count;
@@ -107,3 +107,6 @@ U7_FRESH_BACKUP_CAPACITY_GATE=MANDATORY
 R27_CAPACITY_PASS_IS_ADVISORY_ONLY=true
 R27_SQLITE_QUICK_CHECK=DEFERRED_UNTIL_QUIESCE
 LIVE_U7_EXECUTION=false
+
+
+POST_REBOOT_EPOCH_PROOF_REQUIRED=true
