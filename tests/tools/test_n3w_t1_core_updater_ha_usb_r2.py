@@ -843,6 +843,7 @@ def test_r2_power_loss_classification_is_deterministic_u0_through_u11(tmp_path):
     snapshots[U7] = tx
 
     backup = ha.verify_backup(media, ha.create_backup(media))
+    tx = record_ha_data_backup_verified(tx, backup=backup)
     tx = record_recovery_admission(
         tx,
         target=target,

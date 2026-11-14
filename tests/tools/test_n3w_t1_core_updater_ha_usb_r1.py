@@ -18,6 +18,7 @@ from n3w_t1_core_updater_ha_recovery import ImageRecoveryRecord
 from n3w_t1_core_updater_ha_usb import (
     claim_live_authorization,
     destructive_cutover_allowed,
+    record_ha_data_backup_verified,
     record_predecessor_recovery_and_ha_quiesced,
     record_recovery_admission,
     request_install,
@@ -207,8 +208,12 @@ def recovery_capacity(
 
 
 def u8_transaction():
-    return record_recovery_admission(
+    tx = record_ha_data_backup_verified(
         u7_transaction(),
+        backup=backup_record(),
+    )
+    return record_recovery_admission(
+        tx,
         target=target_record(),
         predecessor=predecessor_record(),
         backup=backup_record(),
@@ -334,7 +339,10 @@ def test_install_intent_does_not_claim_or_consume_authorization():
 
 
 def test_u8_requires_exact_content_authority():
-    tx = u7_transaction()
+    tx = record_ha_data_backup_verified(
+        u7_transaction(),
+        backup=backup_record(),
+    )
     with pytest.raises(UpdaterV2Error, match="ha_data_backup_contract_incomplete"):
         record_recovery_admission(
             tx,
