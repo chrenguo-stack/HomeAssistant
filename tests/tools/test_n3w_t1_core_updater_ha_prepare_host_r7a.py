@@ -844,3 +844,56 @@ def test_resolve_transaction_media_ignores_old_uuid_and_fingerprint(
     ]
     assert media.mount_path == str(mount_path)
     assert stat.S_IMODE(mount_path.stat().st_mode) == 0o755
+
+
+def test_u7_reclaimable_orphan_backup_counts_allocated_blocks_only(
+    tmp_path: Path,
+) -> None:
+    mount = tmp_path / "media"
+    archive_dir = mount / "n3w-update" / "ha-data"
+    archive_dir.mkdir(parents=True)
+    archive = archive_dir / host.BACKUP_ARCHIVE_NAME
+    archive.write_bytes(b"x" * 8192)
+    media = PreparedUsbMedia(
+        locator="/dev/sdz",
+        public_fingerprint=FINGERPRINT,
+        filesystem_uuid=UUID,
+        measured_usable_bytes=20 * 1024**3,
+        mount_path=str(mount),
+    ).validate()
+
+    observed = host.SubprocessPrepareBackend._reclaimable_backup_bytes(
+        media,
+        None,
+    )
+
+    allocated = archive.stat().st_blocks * 512
+    assert observed == min(archive.stat().st_size, allocated)
+    assert 0 <= observed <= archive.stat().st_size
+
+
+def test_u7_reclaimable_backup_rejects_hardlink(
+    tmp_path: Path,
+) -> None:
+    mount = tmp_path / "media"
+    archive_dir = mount / "n3w-update" / "ha-data"
+    archive_dir.mkdir(parents=True)
+    archive = archive_dir / host.BACKUP_ARCHIVE_NAME
+    archive.write_bytes(b"x" * 4096)
+    (archive_dir / "other-link").hardlink_to(archive)
+    media = PreparedUsbMedia(
+        locator="/dev/sdz",
+        public_fingerprint=FINGERPRINT,
+        filesystem_uuid=UUID,
+        measured_usable_bytes=20 * 1024**3,
+        mount_path=str(mount),
+    ).validate()
+
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_backup_reclaimable_archive_invalid",
+    ):
+        host.SubprocessPrepareBackend._reclaimable_backup_bytes(
+            media,
+            None,
+        )
