@@ -62,6 +62,9 @@ R26 = Path(
 R29 = Path(
     "/var/lib/n3w-t1-core-updater/u7-r29-source-activation-20261114-01"
 )
+R30S = Path(
+    "/var/lib/n3w-t1-core-updater/u7-r30s-prepare-host-source-activation-20261115-01"
+)
 HOST_UNIT = "n3w-t1-ha-ota.service"
 SERVICES_UNIT = "n3wfc4-services-activation.service"
 BROKER_UNIT = "n3wfc4-broker-activation.service"
@@ -375,6 +378,34 @@ def verify_r29(plan):
     return True
 
 
+def verify_r30s(plan):
+    claim = read_object(R30S / "authorization_claim.json")
+    success = read_object(R30S / "success.json")
+    if (
+        claim.get("authorization_id") != plan["r30s_gate_id"]
+        or claim.get("claimed") is not True
+        or claim.get("consumed") is not True
+        or claim.get("replay_permitted") is not False
+        or success.get("status")
+        != "U7_R30S_PREPARE_HOST_SOURCE_ACTIVATION_PASS"
+        or success.get("authorization_claimed") is not True
+        or success.get("authorization_consumed") is not True
+        or success.get("replay_permitted") is not False
+        or success.get("source_activated") is not True
+        or success.get("activated_source_file_count") != 1
+        or success.get("transaction_sha256")
+        != plan["transaction_sha256"]
+    ):
+        raise Stop("r30s_authority_invalid")
+    stage = Path(
+        "/var/lib/n3w-t1-core-updater/staging/"
+        "u7-r30s-prepare-host-source-activation-20261115-01"
+    )
+    if stage.exists() or stage.is_symlink():
+        raise Stop("r30s_staging_residue")
+    return True
+
+
 def import_product():
     tools = str(TOOLS_ROOT)
     if tools not in sys.path:
@@ -505,6 +536,7 @@ def verify_prestate(plan):
     transaction = verify_transaction(plan)
     verify_r26(plan)
     verify_r29(plan)
+    verify_r30s(plan)
     runtime = verify_running_runtime(plan)
     media = verify_media_and_backup_inputs(plan, transaction)
     return {
@@ -512,6 +544,7 @@ def verify_prestate(plan):
         "source_hash_count": len(source_hashes),
         "r26_consumed_no_replay": True,
         "r29_consumed_no_replay": True,
+        "r30s_consumed_no_replay": True,
         "runtime": runtime,
         "media": media,
     }

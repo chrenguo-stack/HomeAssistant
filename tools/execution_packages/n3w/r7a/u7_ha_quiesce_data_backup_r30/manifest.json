@@ -17,10 +17,12 @@
     "r29_result": "U7_R29_SOURCE_ACTIVATION_PASS",
     "r29_authorization_consumed": true,
     "r29_replay_permitted": false,
-    "u7_source_design": "docs/development/N3W_T1_U7_HA_QUIESCE_DATA_BACKUP_SOURCE_DESIGN_AND_REVIEW_20261114.md"
+    "u7_source_design": "docs/development/N3W_T1_U7_HA_QUIESCE_DATA_BACKUP_SOURCE_DESIGN_AND_REVIEW_20261114.md",
+    "r30s_prepare_host_source_activation_required": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U7_PREPARE_HOST_SOURCE_ACTIVATION_R30S_20261115_01",
+    "r30s_target_prepare_host_blob": "9e3dd9180d88e354f81480458220f1c092b30aa8"
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/u7_ha_quiesce_data_backup_r30/executor.py": "fd97a27cd00b555ef1e7b33f710877883adbfa6a",
+    "tools/execution_packages/n3w/r7a/u7_ha_quiesce_data_backup_r30/executor.py": "1f4419488ef1fcdc3025a71ef1b0b1adb7bcd424",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
     "tools/execution_packages/n3w/r7a/u6_source_activation_r25/executor.py": "f3e3ad25cda278f8ed5888bfee11573ac5fdd29e",
     "tools/n3w_t1_core_updater_ha_backup.py": "bb7a3dfa29b7996f619963298b61d0e92c798cca",
@@ -50,7 +52,7 @@
     "/opt/HomeAssistant/tools/n3w_t1_core_updater_v2_state.py": "26e137bac43c6826e1b923871ef25c842884d9a7a6684d1441b2ffff24edda90",
     "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_ipc.py": "12cb70cdcbebfd7430aef0d5a55a83eaa17e3c3ebd5bed2846fcb047dcac6358",
     "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_prepare.py": "cc69aac8e2eab764a8d9d497b323e3f72816b9dd127d53dd356471a80101d892",
-    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_prepare_host.py": "0d0c96d7ae2f26c2d2ae8388e6ee75ad0616081a6cdcb98727f2131dab31c30e",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_prepare_host.py": "72cdbc94e9e3e4694ac00ad8fb01f5a2877d8f80a4b07e9c0236b546e43874c2",
     "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_recovery.py": "2b8f9917b3eddb016eec6703c7048e2a08ce65e8d547fd00d2b8d86c0c8a4b7a",
     "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_usb_media.py": "8579da19258829231eacb7b961d7ef151f2a2e1c49cb9506f7c7824dccbb31f8",
     "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_usb_state.py": "05a380caca20d95e80771807aa44a3c8a687162a2eac19ab376d85d65ffa10ee",
@@ -85,7 +87,8 @@
         "image": "local/n3w-mosquitto:2.1.2-3184566d",
         "runtime_image_id": "sha256:df265f1e2b2e3dc35d5eb194e698c598e01c5ebca370da307b34332f9bf0a563"
       }
-    }
+    },
+    "r30s_gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U7_PREPARE_HOST_SOURCE_ACTIVATION_R30S_20261115_01"
   },
   "execution_contract": {
     "read_only_preflight": true,
@@ -106,7 +109,8 @@
     "u7_transition_on_success": true,
     "u8_plus": false,
     "board_access": false,
-    "merge": false
+    "merge": false,
+    "requires_r30s_prepare_host_activation": true
   },
   "stop_boundary": "STOP_AFTER_VERIFIED_U7_HA_QUIESCED_DATA_BACKUP_BEFORE_U8_RECOVERY_ADMISSION"
 }

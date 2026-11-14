@@ -24,6 +24,42 @@ R30 is an execution package for the already frozen U6 -> U7 product path. It
 does not introduce a new product lifecycle phase and it does not reuse the
 consumed R29 grant.
 
+## 1.1 Post-source-review dependency repair prerequisite
+
+Independent post-commit review found one post-R29 runtime-source gap before R30 can
+be preflighted:
+
+```text
+INSTALLED_PREPARE_HOST_BLOB=59b06d3aa595a6c4801b96d6b992b174a700ca31
+INSTALLED_PREPARE_HOST_SHA256=0d0c96d7ae2f26c2d2ae8388e6ee75ad0616081a6cdcb98727f2131dab31c30e
+INSTALLED_BACKUP_CAPACITY_REVALIDATION=false
+
+TARGET_PREPARE_HOST_BLOB=9e3dd9180d88e354f81480458220f1c092b30aa8
+TARGET_PREPARE_HOST_SHA256=72cdbc94e9e3e4694ac00ad8fb01f5a2877d8f80a4b07e9c0236b546e43874c2
+TARGET_BACKUP_CAPACITY_REVALIDATION=true
+```
+
+R25 -> R29 source-delta review shows that every other U7 production source file
+changed in that interval was already activated by repaired R29. The missing
+runtime dependency is therefore bounded to `n3w_t1_core_updater_ha_prepare_host.py`.
+
+Before R30 read-only preflight, a separate ungranted one-file source activation
+gate is required:
+
+```text
+PREREQUISITE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U7_PREPARE_HOST_SOURCE_ACTIVATION_R30S_20261115_01
+R30S_LIVE_AUTHORIZATION_GRANTED=false
+R30S_ACTIVATED_SOURCE_FILE_COUNT=1
+R30S_SERVICE_STOP=false
+R30S_TRANSACTION_MUTATION=false
+R30S_USB_MUTATION=false
+R30S_U7_TRANSITION=false
+```
+
+R30 now requires durable R30S claim/success evidence plus the target
+prepare-host SHA-256 before its own preflight can continue. A matching file
+without R30S durable authority is not sufficient.
+
 ## 2. Current source boundary
 
 This source commit is deliberately ungranted:
@@ -158,6 +194,7 @@ BOARD_ACCESS=false
 MERGE=false
 ```
 
-Fresh CI and an independent exact-source review are mandatory before any T1
-read-only preflight. A successful read-only preflight still does not grant live
+Fresh CI and an independent exact-source review are mandatory before the R30S
+T1 read-only preflight. R30 itself remains blocked until R30S live source
+activation is separately authorized, consumed and closed PASS. A successful read-only preflight still does not grant live
 U7 execution.

@@ -58,6 +58,10 @@ def test_manifest_is_ungranted_and_requires_separate_live_authorization() -> Non
     )
     assert document["execution_contract"]["automatic_retry"] is False
     assert document["execution_contract"]["u8_plus"] is False
+    assert (
+        document["execution_contract"]["requires_r30s_prepare_host_activation"]
+        is True
+    )
 
 
 def test_manifest_binds_exact_post_r29_u6_state_and_transitive_sources() -> None:
@@ -72,7 +76,13 @@ def test_manifest_binds_exact_post_r29_u6_state_and_transitive_sources() -> None
     assert document["mount_target"] == (
         "/run/n3w-t1-ota/media/ca89774eb4254d0f"
     )
+    assert entry["r30s_gate_id"].endswith(
+        "U7_PREPARE_HOST_SOURCE_ACTIVATION_R30S_20261115_01"
+    )
     installed = document["installed_source_sha256"]
+    assert installed[
+        "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_prepare_host.py"
+    ] == "72cdbc94e9e3e4694ac00ad8fb01f5a2877d8f80a4b07e9c0236b546e43874c2"
     for required in (
         "n3w_t1_core_updater_ha_backup.py",
         "n3w_t1_core_updater_ha_capacity.py",
@@ -119,6 +129,7 @@ def test_preflight_binds_r26_r29_source_runtime_media_and_backup_inputs() -> Non
         "verify_transaction(plan)",
         "verify_r26(plan)",
         "verify_r29(plan)",
+        "verify_r30s(plan)",
         "verify_running_runtime(plan)",
         "verify_media_and_backup_inputs(plan, transaction)",
     ):
