@@ -63,10 +63,12 @@ class FakeBackend:
         self.items: tuple[HostUsbCandidate, ...] = ()
         self.formatted = 0
         self.prepared = 0
+        self.verified = 0
         self.aborted = 0
         self.reopened = 0
         self.metadata_syncs: list[str] = []
         self.fail_prepare_once = False
+        self.invalid_target_once = False
         self.media_available = True
         self.last_media: PreparedUsbMedia | None = None
         self.measured = 16 * 1024**3
@@ -121,7 +123,7 @@ class FakeBackend:
         )
         return self.last_media
 
-    def reopen_bound_media(self, transaction):
+    def resolve_transaction_media(self, transaction, *, write_required):
         self.reopened += 1
         if not self.media_available:
             return None
@@ -140,6 +142,27 @@ class FakeBackend:
         if self.fail_prepare_once:
             self.fail_prepare_once = False
             raise UpdaterV2Error("synthetic_prepare_interrupted")
+        return ImageRecoveryRecord(
+            kind="target",
+            image_ref=TARGET,
+            archive_sha256=TARGET_SHA,
+            archive_size_bytes=4096,
+            portable_identity_sha256="2" * 64,
+            platform="linux/arm64",
+            verified=True,
+            fsynced=True,
+        )
+
+    def verify_prepared_target(
+        self,
+        *,
+        transaction,
+        media: PreparedUsbMedia,
+    ) -> ImageRecoveryRecord:
+        self.verified += 1
+        if self.invalid_target_once:
+            self.invalid_target_once = False
+            raise UpdaterV2Error("ha_target_existing_identity_invalid")
         return ImageRecoveryRecord(
             kind="target",
             image_ref=TARGET,
@@ -190,34 +213,22 @@ def controller(tmp_path: Path):
     return value, backend, store, document
 
 
-def test_prepare_records_inserted_baseline_and_requires_new_usb(tmp_path: Path) -> None:
+def test_preexisting_single_safe_usb_can_be_selected_for_confirmation(tmp_path: Path) -> None:
     value, backend, _, document = controller(tmp_path)
-    old = candidate("a" * 64, locator="/dev/sdy")
-    backend.items = (old,)
+    backend.items = (candidate("a" * 64, locator="/dev/sdy"),)
 
     value.begin(document)
     status = value.refresh_candidate()
-    assert status["phase"] == "USB_REQUIRED"
+
+    assert status["phase"] == "USB_REQUIRED_CONFIRMATION"
     assert status["progress_percent"] is None
     assert status["error_code"] is None
-    assert status["usb_candidate"] is None
-    assert status["usb_confirmation_required"] is False
-    assert status["usb_required_bytes_or_null"] is not None
-    assert status["usb_recommended_nominal_gb_or_null"] == 32
-    assert status["usb_capacity_check_state"] == "RECOMMENDATION_READY"
-    assert status["user_message_code_or_null"] == "USB_INSERT_RECOMMENDED"
-    assert backend.formatted == 0
-
-    new = candidate("b" * 64)
-    backend.items = (old, new)
-    status = value.refresh_candidate()
-    assert status["phase"] == "USB_REQUIRED_CONFIRMATION"
     assert status["usb_confirmation_required"] is True
     assert status["usb_candidate"] == {
-        "public_fingerprint": "b" * 64,
         "display_model": "Synthetic USB",
         "display_capacity_bytes": 16 * 1024**3,
     }
+    assert "public_fingerprint" not in status["usb_candidate"]
     assert backend.formatted == 0
 
 
@@ -293,6 +304,29 @@ def test_confirmation_success_advances_exactly_to_u4(tmp_path: Path) -> None:
     ]
 
 
+def test_install_intent_revalidates_exact_target_and_stops_at_u5(
+    tmp_path: Path,
+) -> None:
+    value, backend, store, document = controller(tmp_path)
+    value.begin(document)
+    backend.items = (candidate("b" * 64),)
+    value.refresh_candidate()
+    value.confirm_and_prepare()
+
+    result = value.revalidate_and_request_install()
+
+    final = store.read()
+    assert final is not None
+    assert result["phase"] == "U5_INSTALL_REQUESTED_REVALIDATING"
+    assert final["phase"] == "U5_INSTALL_REQUESTED_REVALIDATING"
+    assert final["authorization_claimed"] is False
+    assert final["authorization_consumed"] is False
+    assert backend.reopened == 2
+    assert backend.verified == 1
+    assert backend.metadata_syncs[-1] == "U5_INSTALL_REQUESTED_REVALIDATING"
+    assert value.public_status()["phase"] == "INSTALL_REQUESTED_REVALIDATING"
+
+
 def test_capacity_formula_failure_aborts_media_and_never_enters_u2(
     tmp_path: Path,
 ) -> None:
@@ -313,9 +347,6 @@ def test_capacity_formula_failure_aborts_media_and_never_enters_u2(
     assert backend.formatted == 1
     assert backend.prepared == 0
     assert backend.aborted == 1
-    next_status = value.refresh_candidate()
-    assert next_status["phase"] == "USB_REQUIRED"
-    assert next_status["usb_candidate"] is None
 
 def test_dynamic_requirement_growth_before_confirm_blocks_before_format(
     tmp_path: Path,
@@ -404,11 +435,11 @@ def test_u3_resume_reopens_same_bound_media_without_reformat(
     assert final["phase"] == U4
     assert status["phase"] == "READY_TO_INSTALL"
     assert backend.formatted == 1
-    assert backend.reopened == 1
+    assert backend.reopened == 2
     assert backend.prepared == 2
 
 
-def test_resume_waits_for_same_bound_media_instead_of_formatting_another(
+def test_resume_waits_for_compatible_media_without_auto_formatting_another(
     tmp_path: Path,
 ) -> None:
     value, backend, store, document = controller(tmp_path)
@@ -422,17 +453,20 @@ def test_resume_waits_for_same_bound_media_instead_of_formatting_another(
     backend.media_available = False
     backend.items = (candidate("c" * 64, locator="/dev/sdy"),)
 
-    with pytest.raises(UpdaterV2Error, match="usb_bound_media_unavailable"):
+    with pytest.raises(
+        UpdaterV2Error,
+        match="usb_transaction_media_unavailable",
+    ):
         value.resume_prepare()
 
     interrupted = store.read()
     assert interrupted is not None
     assert interrupted["phase"] == "U3_TARGET_DOWNLOADING_VERIFYING"
     assert backend.formatted == 1
-    assert backend.reopened == 1
+    assert backend.reopened == 2
 
 
-def test_preexisting_mounted_usb_cannot_become_fresh_by_unmount_only(
+def test_preexisting_usb_can_become_candidate_after_safe_unmount(
     tmp_path: Path,
 ) -> None:
     value, backend, _, document = controller(tmp_path)
@@ -453,8 +487,9 @@ def test_preexisting_mounted_usb_cannot_become_fresh_by_unmount_only(
     )
     status = value.refresh_candidate()
 
-    assert status["phase"] == "USB_REQUIRED"
-    assert status["usb_candidate"] is None
+    assert status["phase"] == "USB_REQUIRED_CONFIRMATION"
+    assert status["usb_confirmation_required"] is True
+    assert status["usb_candidate"]["display_model"] == "Synthetic USB"
     assert backend.formatted == 0
 
 
@@ -540,3 +575,52 @@ def test_u2_resume_uses_bound_media_without_reformat(tmp_path: Path) -> None:
         "U4_READY_TO_INSTALL",
     ]
 
+
+
+def test_existing_compatible_product_media_reuses_without_format(tmp_path: Path) -> None:
+    value, backend, store, document = controller(tmp_path)
+    backend.mount.mkdir(exist_ok=True)
+    backend.last_media = PreparedUsbMedia(
+        locator="/dev/sdy",
+        public_fingerprint="a" * 64,
+        filesystem_uuid=UUID,
+        measured_usable_bytes=16 * 1024**3,
+        mount_path=str(backend.mount),
+    )
+    value.begin(document)
+
+    status = value.refresh_candidate()
+
+    final = store.read()
+    assert final is not None
+    assert final["phase"] == U4
+    assert status["phase"] == "READY_TO_INSTALL"
+    assert backend.formatted == 0
+    assert backend.prepared == 1
+
+
+def test_legacy_u4_invalid_target_moves_back_to_u3_for_reprepare(tmp_path: Path) -> None:
+    value, backend, store, document = controller(tmp_path)
+    value.begin(document)
+    backend.items = (candidate("b" * 64),)
+    value.refresh_candidate()
+    value.confirm_and_prepare()
+    backend.invalid_target_once = True
+
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_usb_target_reprepare_required",
+    ):
+        value.revalidate_and_request_install()
+
+    interrupted = store.read()
+    assert interrupted is not None
+    assert interrupted["phase"] == "U3_TARGET_DOWNLOADING_VERIFYING"
+    assert interrupted["target_artifact_verified"] is False
+    assert interrupted["target_artifact_identity"] is None
+
+    status = value.resume_prepare()
+    final = store.read()
+    assert final is not None
+    assert final["phase"] == U4
+    assert status["phase"] == "READY_TO_INSTALL"

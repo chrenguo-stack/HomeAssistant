@@ -1,0 +1,78 @@
+{
+  "schema": "gh.n3w-t1-kf147-removable-media-content-authority-v1-2-readonly-preexecution-manifest/1",
+  "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_READONLY_PREEXECUTION_20261112_01",
+  "live_execution_authorized": false,
+  "authorization_state": {
+    "granted": false,
+    "claimed": false,
+    "consumed": false,
+    "replay_permitted": false
+  },
+  "package_source_authority": {
+    "tools/execution_packages/n3w/r7a/kf147_removable_media_content_authority_v1_2_readonly_preexecution/executor.py": "81f77bd3c38f7feb58f9844708396d8e32499ba0",
+    "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
+    "tools/n3w_t1_core_updater_ha_usb_state.py": "4bd0c268bb8258d05eadf92d52a322a1d3e51f36",
+    "tools/n3w_t1_core_updater_ha_usb.py": "dc8218344061d93f524ca7cc786f7aacfa27e1db",
+    "tools/n3w_t1_core_updater_ha_usb_media.py": "35f83617cccd987a7b001476c539d78974ea5f8b",
+    "tools/n3w_t1_core_updater_ha_backup.py": "212fc5a0c2ce8c7c3375f65f3e8ead165299ab1b",
+    "tools/n3w_t1_core_updater_ha_recovery.py": "7f8545d7502648ae1ae09bef40a40740756dd8dc",
+    "tools/n3w_t1_core_updater_ha_prepare.py": "c4973a9fa9f114b2d068db5f2166894a41ed2217",
+    "tools/n3w_t1_core_updater_ha_prepare_host.py": "c18521e615826ddeec3cecd4d6a4c536f15806e7",
+    "tools/n3w_t1_core_updater_ha_ipc.py": "8986b10218c37e9085124c79ab182c9a37de6c70"
+  },
+  "source_repair_authority_head": "2639538a9c00a3ac1d9655681a49bef1d821ba1c",
+  "expected_live_entry": {
+    "transaction_id_sha256": "ca89774eb4254d0f861cc2aef136eee41e90fd6106559c0fd8d66e3ee00a3738",
+    "transaction_sha256": "dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259",
+    "installed_source_paths": [
+      "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_usb_state.py",
+      "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_usb.py",
+      "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_usb_media.py",
+      "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_backup.py",
+      "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_recovery.py",
+      "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_prepare.py",
+      "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_prepare_host.py",
+      "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_ipc.py"
+    ],
+    "known_installed_source_sha256": {
+      "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_prepare.py": "4dc6226ae493f18b3dab2c8773c1d3687a8f5f1750a6b4d9fa791cebe22db596",
+      "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_prepare_host.py": "d7f1e5468e24446f3ade0e22778cebecc8cda0fed07179a8fccb55b9f7e4ff8a",
+      "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_ipc.py": "a7d335c597771b0297f690d0e97fb3288f5f1c83fd670d8af00d76ca983e56ac"
+    },
+    "containers": {
+      "manager": {
+        "image": "local/greenhouse-manager:fresh-44e7d7472714",
+        "runtime_image_id": "sha256:1471828ab07cf9b71c01a6e78994711a5954f0a178b8be087a28bb65a967c7d2"
+      },
+      "homeassistant": {
+        "image": "local/n3w-homeassistant:2026.10.0-0c73235a",
+        "runtime_image_id": "sha256:c261fa53f30508951833492ba2a19af6cfbb6aa8f2806b531d8f5c6599265306"
+      },
+      "broker": {
+        "image": "local/n3w-mosquitto:2.1.2-3184566d",
+        "runtime_image_id": "sha256:df265f1e2b2e3dc35d5eb194e698c598e01c5ebca370da307b34332f9bf0a563"
+      }
+    }
+  },
+  "execution_contract": {
+    "preflight_read_only": true,
+    "t1_access": true,
+    "remote_staging": false,
+    "source_deployment": false,
+    "service_restart": false,
+    "mount": false,
+    "umount": false,
+    "transaction_mutation": false,
+    "usb_mutation": false,
+    "usb_filesystem_write": false,
+    "homeassistant_mutation": false,
+    "manager_mutation": false,
+    "broker_mutation": false,
+    "u5_transition": false,
+    "u6_plus": false,
+    "board_access": false,
+    "merge": false,
+    "physical_usb_identity_continuity_required": false
+  },
+  "stop_boundary": "STOP_AFTER_V1_2_REAL_T1_READONLY_PREEXECUTION_BEFORE_SOURCE_ACTIVATION_DESIGN"
+}

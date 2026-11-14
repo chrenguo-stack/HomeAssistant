@@ -9,6 +9,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from n3w_t1_core_updater_ha_backup import backup_record_from_document
+from n3w_t1_core_updater_ha_recovery import image_recovery_record_from_document
 from n3w_t1_core_updater_ha_usb_media import (
     USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
     validate_filesystem_uuid,
@@ -69,7 +71,7 @@ _ALLOWED_TRANSITIONS = {
     U1: frozenset({U2}),
     U2: frozenset({U3}),
     U3: frozenset({U4}),
-    U4: frozenset({U5}),
+    U4: frozenset({U3, U5}),
     U5: frozenset({U6}),
     U6: frozenset({U7}),
     U7: frozenset({U8}),
@@ -130,6 +132,40 @@ def _phase_at_or_after(phase: str, threshold: str) -> bool:
     return PHASE_INDEX[phase] >= PHASE_INDEX[threshold]
 
 
+def compute_recovery_content_manifest_sha256(document: dict[str, Any]) -> str:
+    transaction_id = document.get("transaction_id_sha256")
+    manifest = document.get("target_manifest_identity")
+    release_identity = (
+        manifest.get("release_identity")
+        if isinstance(manifest, dict)
+        else None
+    )
+    target = document.get("target_artifact_identity")
+    predecessor = document.get("predecessor_recovery_identity")
+    backup = document.get("ha_data_backup_identity")
+    if (
+        not isinstance(transaction_id, str)
+        or SHA256.fullmatch(transaction_id) is None
+        or not isinstance(release_identity, str)
+        or not release_identity
+        or not isinstance(target, dict)
+        or not isinstance(predecessor, dict)
+        or not isinstance(backup, dict)
+    ):
+        raise UpdaterV2Error("ha_usb_recovery_content_authority_incomplete")
+    return sha256_bytes(
+        canonical(
+            {
+                "transaction_id_sha256": transaction_id,
+                "release_identity": release_identity,
+                "target_artifact_identity": target,
+                "predecessor_recovery_identity": predecessor,
+                "ha_data_backup_identity": backup,
+            }
+        )
+    )
+
+
 def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(document, dict) or document.get("schema") != HA_USB_TX_SCHEMA:
         raise UpdaterV2Error("ha_usb_transaction_schema_invalid")
@@ -172,7 +208,7 @@ def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
     target_sha = document.get("target_archive_sha256")
     if not isinstance(target_sha, str) or SHA256.fullmatch(target_sha) is None:
         raise UpdaterV2Error("ha_usb_target_archive_sha256_invalid")
-    _positive_int(
+    target_size = _positive_int(
         document.get("target_archive_size"),
         "ha_usb_target_archive_size_invalid",
     )
@@ -269,13 +305,53 @@ def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
 
     if _phase_at_or_after(phase, U4) and target_verified is not True:
         raise UpdaterV2Error("ha_usb_target_not_verified")
+
+    target_identity = document.get("target_artifact_identity")
+    if target_identity is not None:
+        target_record = image_recovery_record_from_document(
+            target_identity,
+            expected_kind="target",
+            expected_image_ref=target_ref,
+            expected_archive_sha256=target_sha,
+        )
+        if target_record.archive_size_bytes != target_size:
+            raise UpdaterV2Error("ha_usb_target_archive_size_mismatch")
+    elif _phase_at_or_after(phase, U5):
+        raise UpdaterV2Error("ha_usb_target_identity_missing")
+
     if _phase_at_or_after(phase, U7) and predecessor_verified is not True:
         raise UpdaterV2Error("ha_usb_predecessor_not_verified")
+    predecessor_identity = document.get("predecessor_recovery_identity")
+    if predecessor_identity is not None:
+        image_recovery_record_from_document(
+            predecessor_identity,
+            expected_kind="predecessor",
+            expected_image_ref=current_ref,
+        )
+    elif _phase_at_or_after(phase, U7):
+        raise UpdaterV2Error("ha_usb_predecessor_identity_missing")
+
+    backup_identity = document.get("ha_data_backup_identity")
+    if backup_identity is not None:
+        backup_record_from_document(backup_identity)
+    elif _phase_at_or_after(phase, U8):
+        raise UpdaterV2Error("ha_usb_backup_identity_missing")
+
+    recovery_manifest = document.get("recovery_content_manifest_sha256")
     if _phase_at_or_after(phase, U8):
         if backup_verified is not True:
             raise UpdaterV2Error("ha_usb_backup_not_verified")
         if prestate_verified is not True:
             raise UpdaterV2Error("ha_usb_prestate_not_verified")
+        if (
+            not isinstance(recovery_manifest, str)
+            or SHA256.fullmatch(recovery_manifest) is None
+            or recovery_manifest
+            != compute_recovery_content_manifest_sha256(document)
+        ):
+            raise UpdaterV2Error("ha_usb_recovery_content_manifest_invalid")
+    elif recovery_manifest is not None:
+        raise UpdaterV2Error("ha_usb_recovery_content_manifest_too_early")
 
     auth_sha = document.get("authorization_id_sha256")
     if _phase_at_or_after(phase, U9):
@@ -333,8 +409,12 @@ def new_transaction(
         "usb_mount_authority": None,
         "usb_capacity_verified": False,
         "target_artifact_verified": False,
+        "target_artifact_identity": None,
         "predecessor_recovery_verified": False,
+        "predecessor_recovery_identity": None,
         "ha_data_backup_verified": False,
+        "ha_data_backup_identity": None,
+        "recovery_content_manifest_sha256": None,
         "production_prestate_verified": False,
         "authorization_id_sha256": None,
         "authorization_claimed": False,
@@ -362,6 +442,20 @@ def transition(
 
     result = copy.deepcopy(current)
     result["phase"] = next_phase
+    if current_phase == U4 and next_phase == U3:
+        if (
+            current["authorization_claimed"]
+            or current["authorization_consumed"]
+            or current["predecessor_recovery_verified"]
+            or current["ha_data_backup_verified"]
+        ):
+            raise UpdaterV2Error("ha_usb_target_reprepare_not_allowed")
+        if (
+            not isinstance(updates, dict)
+            or updates.get("target_artifact_verified") is not False
+            or updates.get("target_artifact_identity", "__missing__") is not None
+        ):
+            raise UpdaterV2Error("ha_usb_target_reprepare_contract_invalid")
     if updates:
         for key, value in updates.items():
             if key in {"schema", "transaction_id_sha256", "component", "created_at_unix"}:

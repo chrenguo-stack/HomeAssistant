@@ -1,3 +1,388 @@
+### 2026-11-14 KF-155 R29 pre-claim capacity symbol/version closure failure — PHYSICAL_PROVEN / SOURCE_REPAIR_R2_PENDING_CI
+
+```text
+R29_EXECUTION_ID=U7-R29-LIVE-SOURCE-ACTIVATION-20261114T152222Z
+R29_RESULT=PRECLAIM_STOP
+R29_RC=2
+R29_AUTHORIZATION_CLAIMED=false
+R29_AUTHORIZATION_CONSUMED=false
+R29_HOST_SOURCE_MUTATION=false
+R29_SERVICE_STOP=false
+R29_TRANSACTION_MUTATION=false
+R29_USB_MUTATION=false
+R29_U7_TRANSITION=false
+R29_U8_PLUS=false
+FAILED_MODULE=n3w_t1_core_updater_ha_install
+FAILED_SYMBOL=BackupCapacityRevalidation
+INSTALLED_PROVIDER=n3w_t1_core_updater_ha_capacity
+```
+
+Physical proof:
+- R29 staged the candidate source set and ran its import check before authorization claim.
+- The staged backup and USB modules imported successfully; `ha_install` failed because the exact installed predecessor `ha_capacity.py` does not export `BackupCapacityRevalidation`.
+- canonical R29 state/staging roots were absent after the stop; a bounded diagnostic reproduced the exact exception and cleaned its isolated `/tmp` directory and SSH master.
+- no production source/service/transaction/USB/U7/U8+ mutation occurred, and the authorization remains unclaimed/unconsumed.
+
+Root cause / regression guards:
+- transitive module-name closure is insufficient when an activated target imports symbols from an installed predecessor module; symbol/version compatibility must also be proven or that dependency must be activated as part of the same atomic source set.
+- `ha_capacity.py` is therefore promoted from unchanged dependency to R29 activation/rollback authority.
+- staged import diagnostics must preserve the final exception text; keeping only the traceback prefix creates a diagnostic false-negative.
+- any executable-source repair invalidates the prior exact-source live grant; repaired source returns to ungranted until fresh CI + final exact review + new live authorization.
+- no automatic retry of the stopped live execute is permitted.
+
+### 2026-11-14 KF-155 R28 U7 source activation import-closure failure — PHYSICAL_PROVEN / R29 SOURCE_REPAIR_PENDING_CI
+
+```text
+R28_RESULT=STOP
+R28_FIRST_FAILED_OPERATION=activated_source_import_failed
+R28_AUTHORIZATION_CLAIMED=true
+R28_AUTHORIZATION_CONSUMED=true
+R28_REPLAY_PERMITTED=false
+R28_ROLLBACK_REQUIRED=true
+R28_ROLLBACK_STATUS=PASS
+R28_SERVICE_STOP=false
+R28_SERVICE_RESTART=false
+R28_TRANSACTION_MUTATION=false
+R28_USB_MUTATION=false
+R28_U7_TRANSITION=false
+R28_U8_PLUS=false
+```
+
+Physical proof:
+- R28 activated all four intended U7 source files, then the post-activation Python import probe failed;
+- the one-shot authorization had already been durably claimed and consumed, so R28 is terminal and must never be replayed;
+- the bounded rollback restored the exact pre-U7 backup/USB/install sources and returned `n3w_t1_core_updater_host.py` to absent;
+- the U6 transaction SHA, R26 predecessor authority, owner units, IPC and all three product containers remained exact and healthy after rollback;
+- no production service stop/restart, USB mutation, transaction mutation, U7 transition or U8+ occurred.
+
+Source review / regression guards:
+- a production source-activation package must prove the complete transitive Python import closure, not only the files directly replaced;
+- R28 did not explicitly bind `n3w_t1_core_updater_common.py` or `n3w_t1_core_updater_v2_state.py`, both reachable from the activated U7 modules;
+- post-claim import-only validation is too late for dependency-closure errors;
+- successor activation must stage canonical module filenames and run an import check before claim, with staging first and the exact installed tools directory second on `sys.path`;
+- safe import diagnostics must expose the failing module/error without leaking private paths or secrets;
+- source predecessor states used for rollback must be exact and bounded; unknown source bytes must fail before claim;
+- rollback must restore the exact observed pre-claim source state, including absence;
+- source-only repair and CI may proceed, but any new live successor requires a new authorization domain.
+- local successor wrappers must test the exact helper module they import; helper indirection through another executor is not an interface contract.
+- a read-only preflight that fails before SSH transport creation is classified as local-wrapper STOP: no T1 access, no staging, no claim, no mutation, and no authorization consumption.
+- an embedded remote script must import every module it uses independently; host-wrapper imports do not satisfy the remote interpreter.
+- remote argument/payload decoding must occur inside the remote JSON error boundary so syntax/runtime input failures emit bounded JSON STOP rather than raw traceback / `remote_result_invalid`.
+
+### 2026-11-14 KF-154 R26 post-claim client timeout / delayed durable success — PHYSICAL_PROVEN / R26 CLOSED_PASS
+
+```text
+R26_ATTEMPT03_LOCAL_RESULT=STOP_UNKNOWN
+R26_ATTEMPT03_LOCAL_REASON=command_timeout:ssh
+R26_REMOTE_RESULT=U6_R26_PREDECESSOR_RECOVERY_PASS
+R26_AUTHORIZATION_CLAIMED=true
+R26_AUTHORIZATION_CONSUMED=true
+R26_REPLAY_PERMITTED=false
+LIVE_TRANSACTION_PHASE=U6_PREDECESSOR_RECOVERY_PREPARING
+USB_TRANSACTION_PHASE=U6_PREDECESSOR_RECOVERY_PREPARING
+PREDECESSOR_VERIFIED=true
+U7_PLUS=false
+```
+
+Physical proof:
+- Attempt 03 crossed the one-shot claim and began the U5→U6 predecessor-recovery transaction.
+- the Mac wrapper's remote execute transport timed out at 2400 seconds before receiving the final JSON and therefore correctly classified its local knowledge as `STOP_UNKNOWN`;
+- the remote process continued long enough to complete predecessor export and verification, then durably wrote `success.json`;
+- host and USB transaction state are both U6, the predecessor archive is present/verified/fsynced, IPC reports `PREDECESSOR_RECOVERY_PREPARING`, and all three product containers plus owner units remain healthy;
+- no U7+, HA quiesce, service restart, image deletion or rollback occurred.
+
+Regression guards:
+- a post-claim transport timeout is an uncertainty signal, not proof that the remote mutation failed;
+- consumed one-shot authorization must never be replayed after post-claim timeout;
+- long-running remote mutation wrappers must size transport timeouts above the bounded product operation or provide progress/heartbeat without weakening the one-shot contract;
+- after post-claim transport uncertainty, perform a bounded read-only reconciliation of durable success/failure ledgers and lifecycle state before designing any successor;
+- local default mutation flags from an unobserved remote result are not authoritative when durable remote evidence proves later completion;
+- future R26-class tests must cover remote work that outlives the client transport timeout and verify fail-closed/no-replay adjudication.
+
+### 2026-11-13 KF-153 R20 source-activation lifecycle-readiness races / R21 recovery / R22 successor — PHYSICAL_PROVEN / SOURCE_CI_CLOSED_PASS
+
+```text
+R20_AUTH_HEAD=fcc821ffa298b9927b105f510e826cdecb5b64b7
+R20_RESULT=STOP
+R20_AUTHORIZATION_CLAIMED=true
+R20_AUTHORIZATION_CONSUMED=true
+R20_REPLAY_PERMITTED=false
+R20_FIRST_FAILED_OPERATION=runtime_root_invalid
+R20_ROLLBACK_ERROR=container_drift:homeassistant
+
+R21_RESULT=PASS
+R21_CLASSIFICATION=ROLLBACK_RUNTIME_RECOVERED
+R21_LIVE_RECOVERY_REQUIRED=false
+
+R22_SOURCE_AUTHORITY_HEAD=aa5eb8b8ccb7628aae782d00d4b97fa8fe741239
+R22_FRESH_CI=16_OF_16_SUCCESS
+R22_LIVE_EXECUTION_AUTHORIZED=false
+```
+
+Physical proof:
+- R20 installed the intended target IPC source, restarted the OTA host, then immediately attempted USB remount and stopped because the systemd-owned `/run/n3w-t1-ota` runtime root was not yet ready.
+- automatic rollback restored and verified the predecessor IPC source, restarted the host, remounted USB and restarted services, but performed final runtime verification immediately and stopped while Home Assistant was still converging.
+- R21 later proved predecessor source, unchanged exact U5 transaction, USB mount, systemd owners and all three containers were stable; no persistent T1 corruption remained.
+
+Root cause / regression guard:
+- `systemctl is-active=active` is not a sufficient readiness oracle for a unit-owned `RuntimeDirectory`, socket, mount parent or dependent application containers.
+- after host start, forward and rollback paths must wait for exact runtime-root metadata before USB remount.
+- after services-owner start, rollback acceptance must use a bounded retry window for exact container/runtime convergence rather than a single immediate probe.
+- one-shot authorization consumption is terminal even when the executor later rolls back; R20 must never be replayed.
+- R20 state/staging residue is historical evidence and must not be reused as successor authority.
+- R22 uses a distinct gate/state root/authorization ID, remains ungranted, and must pass a fresh read-only real-T1 preflight before any new live authorization can be considered.
+- future reviews must compare old and new architecture/execution records so retired assumptions are not silently reintroduced.
+
+### 2026-11-13 KF-153 R18 IPC timeout / delayed U5 / BrokenPipe serving-thread death — PHYSICAL_PROVEN
+
+```text
+R18_RESULT=STOP
+R18_REASON=ipc_request_unavailable:1
+R18_AUTHORIZATION_CLAIMED=true
+R18_AUTHORIZATION_CONSUMED=true
+R18_REPLAY_PERMITTED=false
+
+R19_RESULT=PASS
+R19_CLASSIFICATION=DELAYED_U5_TRANSITION_COMPLETE
+R19_TRANSACTION_PHASE=U5_INSTALL_REQUESTED_REVALIDATING
+R19_TRANSACTION_SHA256=adfcf60d958c112edf61e2f4e31d73b16229fd027180ed68b87b8953231f0144
+R19_USB_MOUNT_STATE=MOUNTED
+R19_USB_TRANSACTION_PHASE=U5_INSTALL_REQUESTED_REVALIDATING
+R19_IPC_STATUS_RETURNCODE=1
+R19_IPC_STATUS_ERROR=EAGAIN
+R19_JOURNAL_BROKEN_PIPE_SEEN=true
+R19_JOURNAL_TRACEBACK_SEEN=true
+R19_HOST_UNIT_NRESTARTS=0
+R19_U6_PLUS=false
+
+ROOT_CAUSE_STATUS=PHYSICAL_PROVEN
+SOURCE_REPAIR=RESPONSE_SEND_OSERROR_CONTAINMENT
+```
+
+Physical proof:
+- R18 durable failure residue recorded U4 immediately after the 5-second client-side IPC failure;
+- later R19 found both the host transaction and bound USB transaction metadata durably at U5, with the exact USB still mounted and identity-matched;
+- the host journal records `BrokenPipeError` after the delayed operation completed;
+- the host daemon remained the same active process with `NRestarts=0`, while a later IPC status connect failed with `EAGAIN`;
+- source places `connection.sendall(response)` outside the request-dispatch exception guard.
+
+Root cause:
+- the R18 probe timed out before the synchronous INSTALL revalidation completed;
+- the server later completed U5 successfully;
+- sending the response to the already-disconnected client raised an unhandled OSError/BrokenPipe and terminated only the IPC serving thread.
+
+Repair / guards:
+- R18 is terminal consumed/no-replay and must never resubmit INSTALL;
+- response-write OSError from a disconnected peer must be contained per connection and the serving loop must continue;
+- regression injects a deterministic BrokenPipe on the first response and requires the second request to succeed;
+- live recovery must start from already-achieved U5 and preserve the exact mounted media/transaction; do not roll back to U4 merely to reproduce the request;
+- source repair deployment remains separately unauthorized.
+
+### 2026-11-13 KF-152 R17 dependency-safe source activation — PHYSICAL_CLOSED_PASS
+
+```text
+R17_AUTHORIZED_HEAD=f96f7d85983b6bc3b05de15b48528d6fe9f16fcd
+R17_AUTHORIZED_HEAD_CI=16_OF_16_SUCCESS
+R17_RESULT=KF152_R17_RECOVERY_ACTIVATION_PASS
+R17_AUTHORIZATION_CLAIMED=true
+R17_AUTHORIZATION_CONSUMED=true
+R17_REPLAY_PERMITTED=false
+R17_HOST_SOURCE_MUTATION=true
+R17_HOST_DAEMON_RESTART=true
+R17_SERVICES_OWNER_RESTART=true
+R17_SERVICES_RECOVERED=true
+R17_ROLLBACK_REQUIRED=false
+R17_TRANSACTION_MUTATION=false
+R17_USB_MUTATION=false
+R17_U5_TRANSITION=false
+R17_U6_PLUS=false
+
+LIVE_PREPARE_HOST_SHA256=fd2898cf9d63ae143b9620e56a19e9789306c802440bb9424cfc30064bc53005
+LIVE_HOST_DAEMON=active_running_success_nrestarts0
+LIVE_SERVICES_OWNER=active_running_success_nrestarts0
+LIVE_MANAGER=running_exit0_restart0
+LIVE_HOMEASSISTANT=running_exit0_restart0
+LIVE_BROKER=running_exit0_restart0
+LIVE_BROKER_OWNER=active_running_success_nrestarts0
+LIVE_IPC_PHASE=READY_TO_INSTALL
+LIVE_TRANSACTION_PHASE=U4_READY_TO_INSTALL
+LIVE_TRANSACTION_SHA256=dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259
+LIVE_USB_MOUNT_STATE=UNMOUNTED
+KF152_STATUS=PHYSICAL_CLOSED_PASS
+```
+
+Closure:
+- the exact authorized R17 head completed 16/16 fresh CI before execution;
+- the executor revalidated the exact failed post-R16 prestate before claim;
+- the one-shot authorization was durably claimed and consumed and is permanently non-replayable;
+- R17 stopped the services owner before the OTA host daemon, activated only repaired `prepare_host.py`, then started the host daemon before the services owner;
+- postvalidation proved host/services/Broker owners healthy with zero restarts, Manager/Home Assistant/Broker containers running on the frozen image identities, and Manager IPC back at `READY_TO_INSTALL`;
+- repaired `prepare_host.py` is now live at SHA-256 `fd2898cf...`;
+- exact U4 transaction SHA/phase and compatible unmounted `N3W-UPDATE` media were preserved;
+- no transaction/USB mutation, INSTALL intent, U5/U6+, board access or merge occurred;
+- rollback was not required.
+
+Regression guard:
+- any executor that stops a systemd unit required by a production owner must model reverse dependency propagation on both execute and rollback paths;
+- success postvalidation must require owner `active/running/success` plus restart-count stability, not only `ActiveState=active`;
+- a claimed/consumed one-shot remains terminal even on PASS and must never be replayed;
+- the next INSTALL/U5 attempt must be a new separately bound successor, not a replay of R15 or R17.
+
+### 2026-11-13 KF-151 R15 INSTALL media resolver false-negative — PHYSICAL_PROVEN / source repair CLOSED_PASS
+
+```text
+R15_RESULT=STOP
+R15_REASON=ipc_request_rejected:usb_transaction_media_unavailable
+R15_AUTHORIZATION_CLAIMED=true
+R15_AUTHORIZATION_CONSUMED=true
+R15_REPLAY_PERMITTED=false
+R15_TRANSACTION_MUTATION=false
+R15_USB_MUTATION=false
+R15_U5_TRANSITION=false
+R15_SPLIT_STATE_DETECTED=false
+R15_U6_PLUS=false
+
+KF151_ROOT_CAUSE=PHYSICAL_PROVEN
+KF151_SOURCE_REPAIR_HEAD=5e0db1092e697be79e63c9f213fffe6fd4d7b2cc
+KF151_SOURCE_REPAIR_CI=16_OF_16_SUCCESS
+R16_SOURCE_CANDIDATE_HEAD=5438fe87715b40f96778f65c1d600e522eeb910b
+R16_LIVE_EXECUTION_AUTHORIZED=false
+```
+
+Root cause:
+- R14/R15 outer preflight explicitly used `lsblk --tree` and proved the bound USB/partition.
+- Production `SubprocessPrepareBackend._lsblk()` used JSON `lsblk` with `PATH,TYPE,...` but omitted `--tree` and `NAME`, while `resolve_transaction_media()` requires nested `children`.
+- Real T1 util-linux 2.41.3 read-only proof confirmed the exact failure mechanism: the old product command emitted the USB disk and partition as separate top-level objects and the disk had no `children`; the otherwise identical command with explicit `--tree` nested the partition under the disk.
+- Therefore `_flatten_blocks([disk])` on the old command sees no partition, the eligible-media set is empty, `resolve_transaction_media()` returns `None`, and INSTALL admission reports `usb_transaction_media_unavailable`.
+- At the same time the physical media remained valid ext4 `N3W-UPDATE`, exact bound UUID, and rw,nodev,nosuid,noexec mount; this was not a missing/damaged USB.
+
+Repair:
+- production `_lsblk()` now explicitly requests `--tree`;
+- regression freezes the exact real argv contract so mocks cannot assume hierarchy the subprocess did not request;
+- historical V1.2 activation manifests remain immutable and their tests bind against each frozen source head;
+- exact repair head `5e0db1092e697be79e63c9f213fffe6fd4d7b2cc` completed 16/16 fresh CI SUCCESS.
+
+Recovery successor:
+- R15 is terminal consumed/no-replay and cannot be retried;
+- R16 validates the full eight-file installed V1.2 set but marks only `prepare_host.py` for activation;
+- a future authorized R16 execute may stage/backup/atomically install that one file and restart only the OTA host daemon, with one bounded source rollback;
+- R16 does not restart the services owner, submit INSTALL, mutate transaction/USB state, enter U5/U6+, access boards or merge;
+- R16 is currently UNGRANTED. Source/CI/read-only preparation may continue, but any real-T1 source mutation requires a new explicit authorization.
+
+Regression guards:
+- any resolver consuming nested `children` from `lsblk --json` must explicitly request `--tree` or another documented hierarchy-enabling form and freeze that argv in tests;
+- synthetic fixtures must not silently provide hierarchy that the real command does not request;
+- a claimed/consumed one-shot authorization remains terminal even when the action fails before transaction mutation.
+
+### 2026-11-12 KF-147 R11 post-reboot U4 mount precondition — R12 successor source CLOSED_PASS
+
+```text
+R11_RESULT=STOP
+R11_REASON=usb_mount_missing
+T1_REBOOT_OCCURRED_BEFORE_R11=true
+R11_AUTHORIZATION_CLAIMED=false
+R11_AUTHORIZATION_CONSUMED=false
+TRANSACTION_MUTATION=false
+USB_MUTATION=false
+U5_TRANSITION=false
+U6_PLUS=false
+
+R12_SOURCE_AUTHORITY_HEAD=52b0b8aecbd0641e369227b4c4f636bacf876a6d
+R12_REQUIRED_CI=CLOSED_PASS
+R12_LIVE_EXECUTION_AUTHORIZED=false
+R12_AUTHORIZATION_GRANTED=false
+```
+
+Root cause:
+- the exact U4 USB mount target lives under volatile `/run/n3w-t1-ota/media`; the user confirmed T1 rebooted immediately before the R11 live attempt;
+- the systemd OTA unit recreates its RuntimeDirectory after boot but does not persist/recreate the previous transaction mount;
+- product `SubprocessPrepareBackend.reopen_bound_media()` can reopen the exact UUID/fingerprint-bound USB during INSTALL revalidation, but the R11 harness preclaim oracle requires the mount to exist first and therefore stops at `usb_mount_missing`.
+
+Repair / successor:
+- do not weaken R11 fail-closed admission and do not auto-retry it from the unmounted state;
+- R12 is a dedicated post-reboot U4 mount-restoration successor;
+- R12 read-only preflight requires the exact U4 transaction, exact R10 terminal/source slice, stable runtime and the exact bound USB present but unmounted;
+- R12 live execute remains separately unauthorized and, if later authorized, may only recreate the transaction-derived runtime directories, mount the exact ext4 USB with `rw,nodev,nosuid,noexec`, revalidate the exact 2026.10.4 target and U4 USB metadata, then STOP before U5;
+- post-mount failure permits at most one rollback to the original unmounted prestate.
+
+Regression guards:
+- reboot between U4 readiness and install-intent submission is a first-class recovery state; volatile runtime mounts must never be assumed durable across reboot;
+- R11 authorization is still granted but unclaimed/unconsumed; that does not permit automatic replay while its expected mount prestate is false;
+- R12 preflight must not create runtime directories, mount media, claim authorization or mutate transaction state;
+- R12 live mutation requires a separate explicit authorization;
+- R12 must never submit INSTALL, enter U5/U6+, restart services, deploy source, mutate HA/Manager/Broker, access boards or merge;
+- after R12 PASS, R11 reuse eligibility still requires a fresh exact-state decision; do not infer it solely from the prior unconsumed authorization.
+
+### 2026-11-12 KF-147 R10 IPC status probe framing defect — source repair
+
+```text
+R10_PREFLIGHT_RESULT=STOP
+R10_PREFLIGHT_REASON=Stop:ipc_status_rejected
+REMOTE_STAGING=false
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+HOST_SOURCE_MUTATION=false
+TRANSACTION_MUTATION=false
+USB_MUTATION=false
+U5_TRANSITION=false
+U6_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+```
+
+Root cause:
+- R10's embedded Manager-side status probe used `b"\\\\n"` in the generated remote Python source, which sends the two literal bytes backslash + `n` instead of the newline frame terminator required by the HA OTA Unix-socket protocol.
+- The already-proven R9 probe used `b"\\n"`, and the host IPC frame reader expects an actual newline or a clean EOF-delimited JSON object. The malformed R10 payload is therefore rejected before any source staging or mutation.
+- Exact CI previously compiled the embedded remote script but did not freeze the runtime framing bytes, so syntax coverage alone produced a false-PASS gap.
+
+Repair:
+- change only the R10 status probe frame terminator to a real newline byte;
+- rebind the R10 executor blob in the manifest;
+- add a regression test requiring the generated remote source to contain `b"\\n"` and reject `b"\\\\n"`;
+- no product source, U4 transaction authority, USB authority, target archive, live authorization, service lifecycle, board or merge scope changes.
+
+Regression guards:
+- embedded remote-script compile coverage is necessary but not sufficient for IPC framing;
+- status/submit probes must freeze the exact newline-delimited wire contract, not only Python syntax;
+- a read-only preflight probe rejection with `remote_staging=false` and all mutation fields false is a source/preflight defect until live-state drift is independently proven;
+- do not retry the same defective R10 head against T1;
+- corrected R10 head requires fresh exact CI before another real-T1 `--preflight-only`.
+
+### 2026-11-11 KF-147 R9 install-intent source/deployment authority mismatch — successor R10 source activation prepared
+
+| ID | 范围 | 现场现象 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| KF-147 R9 source/deployment authority mismatch | U4→U5 install-intent live transition | R9 corrected-head read-only preflight PASS 后，一次性 live authorization 被 claim/consume；host IPC 对唯一 `INSTALL` intent 返回 `ha_ota_ipc_action_invalid`。R9 terminal result 同时证明 host transaction 未修改、USB transaction metadata 未修改、无 split state、未进入 U5/U6+。 | R9 正确验证了实机旧 IPC 的 SHA256/运行依赖没有漂移，却把 repository 中后续 U5 source commit 的能力错误当成了实机已部署能力。实际 T1 host IPC 仍是 Stage-B lineage，只允许 `PREPARE / CONFIRM_USB_ERASE`；repository U5 source commit `15b9d50e...` 才同时为 `ipc.py / prepare.py / prepare_host.py` 增加 U5 install-intent 路径，且这组三文件从未部署到当前 T1。 | R9 永久 consumed/no-replay；禁止绕过 IPC 或重放 INSTALL。新增 R10 successor，只允许 exact 三文件 U5 source slice 部署，复用已实机验证的 `stop services-owner -> stop host -> atomic source install -> start host -> start services-owner` 生命周期，要求 Host/USB/target/containers/IPC 全部仍保持 U4，STOP before any new install-intent preflight。 | R9_TERMINAL_STOP_R10_SOURCE_ACTIVATION_PREPARED |
+
+Regression guards:
+- “repository source supports capability”不得替代“live installed source supports capability”；
+- live preflight 必须验证将被调用的**已部署**入口能力，而不只是验证文件未漂移；
+- R9 authorization 已 claimed/consumed，任何结果都不得 replay；
+- R9 terminal successor 必须要求 exact failure `ha_ota_ipc_action_invalid` 且 host/USB transaction 均未变；
+- U5 source activation 必须把 `n3w_t1_core_updater_ha_ipc.py`、`n3w_t1_core_updater_ha_prepare.py`、`n3w_t1_core_updater_ha_prepare_host.py` 作为一个 exact source slice 部署，不能只补 IPC 白名单；
+- source activation 本身不得提交 `INSTALL`，不得修改 transaction/USB metadata/target archive，不得进入 U5/U6+；
+- source activation 使用既有 systemd dependency-safe 顺序，任何生命周期切换或部分 source 写入失败都必须最多执行一次 exact-source rollback；
+- source activation PASS 后必须重新执行新的只读 install-intent eligibility preflight，不能把旧 R9 preflight 复用为 live authority。
+
+### 2026-11-11 KF-147 U3 mounted-root recovery — U4 closed pass, U5 source gate entered
+
+| ID | 范围 | 现场现象 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| KF-147 U3 mounted-root resume | Home Assistant mandatory-USB OTA host recovery | R5 repaired `n3w-update` from `0770` to `0700` and restarted the OTA daemon, but IPC returned `usb_runtime_directory_metadata_invalid`; the target directory remained absent and no HTTPS download began. R6 installed the repaired source and restarted the daemon, then its first post-restart Manager IPC probe returned `docker:1`. | The product root cause was `reopen_bound_media()` applying the pre-mount `0700` contract to an already-mounted ext4 root. The R6 terminal STOP was a separate executor readiness race: systemd active did not yet prove the Manager-visible Unix socket was connectable, and one transient nonzero `docker exec` was treated as terminal. | The mounted-root repair remained active and asynchronously completed the exact 835,309,535-byte target with SHA-256 `eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973`; transaction `dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259` is U4 READY. R6 is consumed/no-replay. The new U5 intent gate must revalidate exact media/target/admission, advance only U4→U5 and leave U9 authorization unclaimed. | U4_CLOSED_PASS_U5_SOURCE_GATE_ENTERED |
+
+Regression guards:
+- bind a successor prestate to the last accepted physical source-deployment authority, not to a later repository source repair that no live package installed;
+- the accepted installed predecessor for this R6 transition is Stage B R3 head `675871a0567aca858c8af34f9eecf0a2e79ba063`, prepare-host blob `933dfb2a348ace88b0a54bf4adbd8851c1348be0`;
+- distinguish a private pre-mount directory from the root directory of an already-mounted filesystem;
+- never chmod the mounted ext4 root merely to satisfy the pre-mount `0700` contract;
+- exact existing mounts must still match the bound partition, transaction-derived target, UUID, public USB fingerprint, filesystem contract and root-device exclusion;
+- R5 authorization is claimed, consumed and permanently non-replayable;
+- an R6 preflight must require the terminal R5 failure, exact old installed source, U3 transaction, IPC error, USB modes/mount and container continuity before eligibility;
+- R6 source activation may resume the intended target download to USB, but it must not wipe, repartition, format, replay destructive confirmation, enter U5+, access a board or merge the PR;
+- Attempt02 read-only preflight passed against exact head `6918bd8632ba0549bf61f7392af8e79944c21046`; R6 later crossed the durable claim boundary, installed the repaired source and restarted the OTA daemon. Its authorization is now claimed, consumed and permanently non-replayable.
+- systemd `active` is not an IPC readiness oracle. A post-restart live poll must distinguish bounded `docker exec`/Unix-socket transport unavailability from a decoded product IPC `phase=ERROR`; the former may be retried within a fixed deadline, while the latter remains an immediate terminal stop.
+- U5 intent admission must revalidate the same bound USB and the already prepared exact target archive, re-resolve the current production admission, then advance only U4→U5. It must not stop Home Assistant, create recovery assets, delete/load images, or claim/consume the U9 live authorization.
+
 ### 2026-11-10 KF-147 Stage B systemd lifecycle contract regression — CLOSED_PASS by R3
 
 | ID | 范围 | 现场现象 | 根因 | 修复 | 状态 |

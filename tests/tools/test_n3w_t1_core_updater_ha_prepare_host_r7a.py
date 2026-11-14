@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import inspect
 import json
+import stat
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
@@ -26,6 +27,31 @@ def completed(stdout: bytes = b"", returncode: int = 0) -> subprocess.CompletedP
         stdout=stdout,
         stderr=b"",
     )
+
+
+def test_lsblk_explicitly_requests_tree_for_partition_hierarchy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, ...]] = []
+
+    def fake_run(argv, **_kwargs):
+        calls.append(tuple(argv))
+        return completed(json.dumps({"blockdevices": []}).encode())
+
+    monkeypatch.setattr(host.subprocess, "run", fake_run)
+
+    assert host.SubprocessPrepareBackend()._lsblk() == []
+    assert calls == [
+        (
+            "lsblk",
+            "--json",
+            "--bytes",
+            "--paths",
+            "--tree",
+            "--output",
+            "PATH,TYPE,RM,RO,SIZE,MODEL,SERIAL,WWN,TRAN,MOUNTPOINTS,MAJ:MIN",
+        )
+    ]
 
 
 def test_policy_v2_computes_dynamic_backup_above_eight_gib() -> None:
@@ -106,7 +132,7 @@ def test_inventory_ignores_irrelevant_internal_disk_without_serial(
     assert candidates[0].public_fingerprint
 
 
-def test_relevant_usb_without_stable_identity_fails_closed(
+def test_relevant_usb_without_serial_or_wwn_is_supported(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     lsblk = {
@@ -135,8 +161,10 @@ def test_relevant_usb_without_stable_identity_fails_closed(
         raise AssertionError(argv)
 
     monkeypatch.setattr(host.subprocess, "run", fake_run)
-    with pytest.raises(UpdaterV2Error, match="usb_stable_identity_unavailable"):
-        host.SubprocessPrepareBackend().inventory()
+    candidates = host.SubprocessPrepareBackend().inventory()
+    assert len(candidates) == 1
+    assert candidates[0].display_model == "Anonymous USB"
+    assert candidates[0].public_fingerprint
 
 
 def test_format_backend_uses_fixed_argv_without_shell(
@@ -184,7 +212,12 @@ def test_format_backend_uses_fixed_argv_without_shell(
     monkeypatch.setattr(
         host.os,
         "statvfs",
-        lambda _path: SimpleNamespace(f_bavail=16 * 1024**3, f_frsize=1),
+        lambda _path: SimpleNamespace(
+            f_blocks=16 * 1024**3,
+            f_bfree=16 * 1024**3,
+            f_bavail=16 * 1024**3,
+            f_frsize=1,
+        ),
     )
 
     media = backend.format_and_mount(
@@ -718,3 +751,149 @@ def test_missing_approved_release_keeps_daemon_publish_path_nonfatal(
         is False
     )
     assert not destination.exists()
+
+
+def test_resolve_transaction_media_ignores_old_uuid_and_fingerprint(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime = tmp_path / "runtime"
+    runtime.mkdir(mode=0o750)
+    media_root = runtime / "media"
+    media_root.mkdir(mode=0o700)
+    transaction_id = "b" * 64
+    mount_path = media_root / transaction_id[:16]
+    mount_path.mkdir(mode=0o755)
+
+    backend = host.SubprocessPrepareBackend(runtime_root=runtime)
+    transaction = {
+        "transaction_id_sha256": transaction_id,
+        "usb_filesystem_uuid": "87654321-4321-8765-4321-876543218765",
+        "usb_device_identity_public_fingerprint": "f" * 64,
+    }
+    disk = {
+        "path": "/dev/sda",
+        "type": "disk",
+        "rm": True,
+        "ro": False,
+        "size": 16 * 1024**3,
+        "model": "Synthetic USB",
+        "serial": None,
+        "wwn": None,
+        "tran": "usb",
+        "mountpoints": [str(mount_path)],
+        "maj:min": "8:0",
+        "children": [
+            {
+                "path": "/dev/sda1",
+                "type": "part",
+                "pkname": "/dev/sda",
+                "mountpoints": [str(mount_path)],
+                "maj:min": "8:1",
+            }
+        ],
+    }
+    monkeypatch.setattr(backend, "_lsblk", lambda: [disk])
+    monkeypatch.setattr(
+        backend,
+        "_require_bound_media",
+        lambda _media: "/dev/sda1",
+    )
+
+    def fake_optional(argv, **_kwargs):
+        if argv[0] == "blkid" and argv[2] == "TYPE":
+            return b"ext4\n"
+        if argv[0] == "blkid" and argv[2] == "LABEL":
+            return b"N3W-UPDATE\n"
+        if argv[0] == "blkid" and argv[2] == "UUID":
+            return (UUID + "\n").encode()
+        if argv[0] == "findmnt":
+            return (str(mount_path) + "\n").encode()
+        raise AssertionError(argv)
+
+    monkeypatch.setattr(host, "_run_optional", fake_optional)
+
+    def fake_run(argv, **_kwargs):
+        if argv[:4] == ("findmnt", "--noheadings", "--output", "MAJ:MIN"):
+            return b"179:1\n"
+        raise AssertionError(argv)
+
+    monkeypatch.setattr(host, "_run", fake_run)
+    monkeypatch.setattr(
+        host.os,
+        "statvfs",
+        lambda _path: SimpleNamespace(
+            f_blocks=16 * 1024**3,
+            f_bfree=15 * 1024**3,
+            f_bavail=15 * 1024**3,
+            f_frsize=1,
+        ),
+    )
+
+    media = backend.resolve_transaction_media(
+        transaction,
+        write_required=True,
+    )
+
+    assert media is not None
+    assert media.locator == "/dev/sda"
+    assert media.filesystem_uuid == UUID
+    assert media.filesystem_uuid != transaction["usb_filesystem_uuid"]
+    assert media.public_fingerprint != transaction[
+        "usb_device_identity_public_fingerprint"
+    ]
+    assert media.mount_path == str(mount_path)
+    assert stat.S_IMODE(mount_path.stat().st_mode) == 0o755
+
+
+def test_u7_reclaimable_orphan_backup_counts_allocated_blocks_only(
+    tmp_path: Path,
+) -> None:
+    mount = tmp_path / "media"
+    archive_dir = mount / "n3w-update" / "ha-data"
+    archive_dir.mkdir(parents=True)
+    archive = archive_dir / host.BACKUP_ARCHIVE_NAME
+    archive.write_bytes(b"x" * 8192)
+    media = PreparedUsbMedia(
+        locator="/dev/sdz",
+        public_fingerprint=FINGERPRINT,
+        filesystem_uuid=UUID,
+        measured_usable_bytes=20 * 1024**3,
+        mount_path=str(mount),
+    ).validate()
+
+    observed = host.SubprocessPrepareBackend._reclaimable_backup_bytes(
+        media,
+        None,
+    )
+
+    allocated = archive.stat().st_blocks * 512
+    assert observed == min(archive.stat().st_size, allocated)
+    assert 0 <= observed <= archive.stat().st_size
+
+
+def test_u7_reclaimable_backup_rejects_hardlink(
+    tmp_path: Path,
+) -> None:
+    mount = tmp_path / "media"
+    archive_dir = mount / "n3w-update" / "ha-data"
+    archive_dir.mkdir(parents=True)
+    archive = archive_dir / host.BACKUP_ARCHIVE_NAME
+    archive.write_bytes(b"x" * 4096)
+    (archive_dir / "other-link").hardlink_to(archive)
+    media = PreparedUsbMedia(
+        locator="/dev/sdz",
+        public_fingerprint=FINGERPRINT,
+        filesystem_uuid=UUID,
+        measured_usable_bytes=20 * 1024**3,
+        mount_path=str(mount),
+    ).validate()
+
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_backup_reclaimable_archive_invalid",
+    ):
+        host.SubprocessPrepareBackend._reclaimable_backup_bytes(
+            media,
+            None,
+        )

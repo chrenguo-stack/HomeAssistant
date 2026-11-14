@@ -1,3 +1,314 @@
+## 2026-11-14 — repaired R29 grant-only successor materialized / fresh CI pending
+
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted and `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference source remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Repaired R29 source is CLOSED_PASS at executable source head `59b7f6d6213f19bd66df32d91710b37b674e9340`; final reviewed CI head `46d709f32215d6e950e27161e02a001a7e6e256c` completed 16/16 SUCCESS with no executable-source drift after repair.
+- User explicitly authorized the repaired R29 source activation with confirmation `EXECUTE REPAIRED U7 R29 SOURCE ACTIVATION: YES`.
+- Grant-only successor is materialized: manifest commit `8ddfd898802c6c45ae227269b20c00ae9e621678`, focused test commit `d942270079c36c8a79a6c8873ed7fd8ab5c7b2e6`.
+- Granted manifest blob is `9b997190026a844f1f07768d2d59e65c61dba850`; authorization state is granted=true / claimed=false / consumed=false / replay=false.
+- R29 still activates exactly seven source modules and remains bounded to source activation at durable U6. No service stop/restart, transaction/USB mutation, U7 transition, U8+, board access or merge is authorized.
+- Fresh CI and final exact review on the granted successor are required before the single live execution.
+
+## 2026-11-14 — R29 live PRECLAIM_STOP / capacity dependency closure repair pending fresh CI
+
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted and `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference source remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- PR #807 remains OPEN / DRAFT / UNMERGED; durable product lifecycle state remains exact U6 `U6_PREDECESSOR_RECOVERY_PREPARING`, transaction SHA-256 `7f406b5b88f7bd5c3161d7527a001ddcb3414a8ec64fb34cdad444c2c3e62ebe`.
+- R29 live execution `U7-R29-LIVE-SOURCE-ACTIVATION-20261114T152222Z` stopped inside the pre-claim staged import with RC=2. Authorization remained unclaimed/unconsumed; production source, services, transaction, USB and U7/U8+ state were unchanged.
+- Bounded diagnostic reproduced the failure on T1 Python 3.14.4: `n3w_t1_core_updater_ha_install` imports `BackupCapacityRevalidation`, but the installed predecessor `n3w_t1_core_updater_ha_capacity.py` does not export that symbol.
+- Root cause: R29's module-name closure test declared `ha_capacity.py` as an unchanged dependency but did not prove symbol/version compatibility between the target `ha_install.py` and the installed predecessor capacity module.
+- Repair executable-source head `59b7f6d6213f19bd66df32d91710b37b674e9340` expands the activation set from six to seven modules by activating exact target `ha_capacity.py`; the observed predecessor SHA-256 `4b9cc960...f128e` is now rollback authority instead of unchanged authority.
+- R29 executor diagnostics now keep the tail of sanitized traceback so the actual exception is preserved.
+- Because executable source changed, the prior live grant does not carry forward. The repaired manifest is ungranted: live_execution_authorized=false, granted=false, claimed=false, consumed=false, replay=false.
+- Fresh CI and final exact review are required before any new live authorization. No R29 re-execution, U7 HA quiesce/data backup, U8+, board access or merge is authorized.
+
+## 2026-11-14 — R29 read-only preflight CLOSED_PASS / grant-only successor materialized
+
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted and `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference source remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- PR #807 remains OPEN / DRAFT / UNMERGED.
+- Exact reviewed R29 source authority is `acad3133d224ac9ae17c2ce45311c22db1e5ebe7`; fresh CI is 16/16 SUCCESS and final source/helper/decoder review PASS.
+- Attempt01 stopped locally before T1 access; Attempt02 established SSH but failed inside the remote decoder before state verification. Neither attempt staged source, claimed authorization or mutated T1.
+- Attempt03 `U7-R29-READONLY-PREFLIGHT03-20261114T135007Z` is CLOSED_PASS with RC=0 / wrapper RC=0.
+- Attempt03 proves the exact durable U6 transaction SHA `7f406b5b88f7bd5c3161d7527a001ddcb3414a8ec64fb34cdad444c2c3e62ebe`, R26 consumed/no-replay predecessor authority, healthy owner units and Manager/HA/Broker restart_count=0.
+- Pre-U7 source state is exact: backup/USB/install predecessor hashes match, host source is absent, common and v2_state are in their bounded allowed predecessor states, and nine unchanged U6 dependencies match.
+- R29 real-T1 read-only preflight therefore proves `source_activation_eligible=true` with zero staging/claim/service/transaction/USB/U7/U8+ mutation.
+- Independent V1.2 review concludes product/state-machine route drift = NO. Current R29 is an implementation source-activation gate and still stops at durable U6. Engineering/verification scaffolding has grown to a moderate-high level and has created new executor defects; convergence is required after the current R29/U7 path, not as a pre-R29 redesign.
+- User explicitly granted the next-chat R29 one-shot source-activation authorization with confirmation `EXECUTE U7 R29 SOURCE ACTIVATION: YES`.
+- Grant-only successor `bfd0c54cbb06410f4bada9a62d8d83ba9885419b` is materialized: the R29 manifest is granted while claimed=false / consumed=false / replay=false. Fresh CI and final exact review remain required before the one-shot live R29 source activation.
+- Any executable-source drift beyond the reviewed R29 source authority invalidates the execution precondition and must stop.
+- R29 success may activate only the six exact source modules and must stop before U7 HA quiesce/data-backup. No service stop/restart, transaction/USB mutation, U7 transition, U8+, board access or merge is authorized by this handoff.
+- Architecture review: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_V1_2_ROUTE_AND_ENGINEERING_BLOAT_REVIEW_20261114.md`.
+
+## 2026-11-14 — U7 source design/review implementation / CI pending / live boundary unchanged
+
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted and `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference source remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- R26 remains CLOSED_PASS, claimed + consumed, and permanently no-replay. It is not replayed by U7 source work.
+- Durable lifecycle state remains `U6_PREDECESSOR_RECOVERY_PREPARING`; post-reboot runtime/mount baseline remains `UNKNOWN_FRESH`.
+- U7 source-only architecture and implementation now cover compatible-media rediscovery, exact target/predecessor revalidation before quiesce, production-owner quiesce proof, protected HA_DATA_BACKUP creation/verification, pre-U9 failure recovery, progress callbacks, and a durable U7 stop.
+- U7 backup completion does not enter U8 and does not claim product authorization. No U7 live execution, service stop, USB write, live transaction mutation, U8+, board access or merge is authorized.
+- Current source review found and repaired the quiesce-proof failure recovery path before CI closure. Fresh CI for the final source head is pending.
+
+## 2026-11-14 — R26 live CLOSED_PASS / durable U6 / stop before U7
+
+- PR #807 remains OPEN / DRAFT / UNMERGED.
+- R26 one-shot authorization is claimed + consumed and permanently no-replay.
+- Attempts 01 and 02 stopped before claim with zero transaction/USB mutation; their local-wrapper defects were repaired with fresh CI.
+- Attempt 03 crossed the claim boundary and the Mac wrapper timed out at its 2400-second SSH limit, producing a local `STOP_UNKNOWN`.
+- Durable T1 evidence later proved remote success: `success.json` records `U6_R26_PREDECESSOR_RECOVERY_PASS`.
+- Host transaction and bound USB transaction metadata are both durably `U6_PREDECESSOR_RECOVERY_PREPARING`; transaction SHA-256 is `7f406b5b88f7bd5c3161d7527a001ddcb3414a8ec64fb34cdad444c2c3e62ebe`.
+- Verified predecessor recovery archive: SHA-256 `34cec37ab021e1081e236502bfd06760894f6bca93bd8d6bf99d8d90bb89848d`, size 743074537 bytes, portable identity SHA-256 `8b4d4376e2ab339347abb4aa554d3a5cc6f93ea20b0ee3c22ca8e29ae14b16c3`, fsynced and verified.
+- Manager IPC reports `PREDECESSOR_RECOVERY_PREPARING`; Manager, Home Assistant and Broker remain running with restart count 0; owner units remain active/running/success with zero restarts.
+- Product U9 authorization fields remain false/null. R26 did not quiesce Home Assistant, restart services, delete images, enter U7+, or require rollback.
+- The local Attempt 03 timeout is a false-negative transport outcome, not a failed U6 transaction. Durable result files are authoritative after post-claim transport uncertainty.
+- R26 must never be replayed.
+- Stop boundary is honored. Next lifecycle phase is U7 `U7_HA_QUIESCED_DATA_BACKUP_PREPARING`, but no U7+ live authorization exists.
+- Next bounded work: define/review the U7 HA-quiesce/data-backup gate; do not execute it automatically.
+
+## 2026-11-14 — R26 source CLOSED_PASS / live one-shot authorization boundary
+
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted and `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference source remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- R25 live source activation remains CLOSED_PASS and consumed/no-replay.
+- Durable transaction remains exact U5 `U5_INSTALL_REQUESTED_REVALIDATING`, SHA-256 `adfcf60d958c112edf61e2f4e31d73b16229fd027180ed68b87b8953231f0144`; INSTALL must not be resubmitted.
+- R26 source authority is frozen at `8e2a8e33d71af46dd1ffc2200e57f0c58e73fe7d`.
+- R26 fresh CI is 16/16 SUCCESS; HA target-binding ran 547 tests successfully; final exact source review PASS; exact blob mismatch count 0; new blocker count 0.
+- R26 success is bounded to U5→U6 durable transaction/USB metadata advancement plus predecessor-recovery export and verification. It stops at `U6_PREDECESSOR_RECOVERY_PREPARING`.
+- R26 does not quiesce Home Assistant, restart services, delete images, enter U7+, or touch product U9 authorization fields.
+- No standalone R26 preflight is required; the execute path performs a mandatory fresh embedded preflight before claim/mutation.
+- R26 is ungranted. Next gate is `R26_LIVE_ONE_SHOT_PREDECESSOR_RECOVERY_EXPLICIT_AUTHORIZATION`.
+- Required confirmation: `EXECUTE U6 R26 PREDECESSOR RECOVERY: YES`.
+- No T1 access, transaction mutation, USB mutation, U6 transition, board access or merge occurred during source closure.
+
+## 2026-11-14 — R25 live source activation CLOSED_PASS / stop at real U6 transaction gate
+
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted and `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference source remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- PR #807 remains OPEN / DRAFT / UNMERGED.
+- R25 granted exact head `01dfb390c379764f0f8a4d0da2e92e474e240a9d` completed live one-shot execution `U6-R25-LIVE-SOURCE-ACTIVATION-20261114T022923Z` with RC=0 and status `U6_R25_SOURCE_ACTIVATION_PASS`.
+- R25 authorization is claimed + consumed; `replay_permitted=false`. It is terminal and must never be executed again.
+- The two-file source activation completed and import validation passed. Live SHA-256 values are `0d0c96d7...31c30e` for `ha_prepare_host.py` and `9391019f...8e530` for `ha_install.py`.
+- Durable transaction remains exact U5 `U5_INSTALL_REQUESTED_REVALIDATING`, SHA-256 `adfcf60d...f0144`; INSTALL must not be resubmitted.
+- Manager, Home Assistant and Broker remained running with restart count 0; host/services/broker owner units remained active/running/success with zero restarts.
+- No service restart, transaction mutation, USB mutation, USB transaction-metadata mutation, U6 transition, U7+, board access or merge occurred.
+- The next lifecycle phase is `U6_PREDECESSOR_RECOVERY_PREPARING`, but no U5→U6 transaction authorization exists.
+- Stop here. Next bounded work is to define/review and explicitly authorize the real U5→U6 transaction gate before any transaction mutation.
+- Public closure: `docs/development/N3W_T1_U6_R25_LIVE_SOURCE_ACTIVATION_CLOSURE_20261114.md`; PR #807 comments `6870134446` and `6870233266`.
+
+## 2026-11-14 — R24 CLOSED_PASS / R25 source CLOSED_PASS / explicit authorization boundary
+
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; live deployment remains `APPLIED_ACCEPTED`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference source remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; repository Core Stack authority remains `APPLIED_ACCEPTED`.
+- PR #807 remains OPEN / DRAFT / UNMERGED.
+- R23 U5 IPC source activation remains CLOSED_PASS; its one-shot authorization is consumed/no-replay.
+- R24 real-T1 read-only preflight is CLOSED_PASS at `70f3ddc435508324ea76ad6b71f6c042f4a0ca63`, run `U6-R24-READONLY-PREFLIGHT-20261114T005555Z`, RC=0. It proved exact U5 transaction/content authority, healthy runtime, exact predecessor runtime and no U6 recovery residue with zero mutation.
+- Durable transaction remains `U5_INSTALL_REQUESTED_REVALIDATING`, SHA-256 `adfcf60d958c112edf61e2f4e31d73b16229fd027180ed68b87b8953231f0144`; INSTALL must not be resubmitted.
+- R25 U6 source-activation successor is source CLOSED_PASS at exact source authority `da65fdd97e96c5b627341afd4eefd98105b858cf`.
+- R25 fresh CI is 16/16 SUCCESS; HA target-binding source job ran 537 tests successfully. Final exact source review PASS; new blocker count 0.
+- R25 is ungranted: live_execution_authorized=false, granted=false, claimed=false, consumed=false, replay=false.
+- R25 activates exactly two files on execute: `tools/n3w_t1_core_updater_ha_prepare_host.py` and `tools/n3w_t1_core_updater_ha_install.py`.
+- R25 does not restart services, reload the current daemon process, touch USB/transaction metadata, or enter U6/U7+.
+- A separate standalone R25 `--preflight-only` run is not required. The R25 execute path itself performs a mandatory fresh embedded remote preflight before staging or authorization claim.
+- Next gate is `R25_LIVE_ONE_SHOT_SOURCE_ACTIVATION_EXPLICIT_AUTHORIZATION`. No live mutation is authorized yet.
+- New chat must not repeat R24 read-only preflight or a standalone R25 preflight. It should start at the R25 explicit authorization boundary, then if authorized materialize a grant-only successor, require fresh CI + exact review, and only then execute.
+- No transaction mutation, USB mutation, service restart, U6 transition, U7+, board access or merge is authorized.
+
+## 2026-11-14 — R23 live closure / U6 source CLOSED_PASS / R24 read-only preflight preparation
+
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; live deployment remains `APPLIED_ACCEPTED`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference source remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; repository Core Stack authority remains `APPLIED_ACCEPTED`.
+- PR #807 remains OPEN / DRAFT / UNMERGED.
+- R23 live U5 IPC source activation is CLOSED_PASS. Its one-shot authorization is claimed + consumed, replay is permanently false, and live IPC source SHA-256 is `12cb70cdcbebfd7430aef0d5a55a83eaa17e3c3ebd5bed2846fcb047dcac6358`.
+- Durable transaction remains exact U5 `U5_INSTALL_REQUESTED_REVALIDATING`, SHA-256 `adfcf60d958c112edf61e2f4e31d73b16229fd027180ed68b87b8953231f0144`. INSTALL must not be resubmitted.
+- U6 predecessor-recovery production source slice is CLOSED_PASS at exact source head `70afdc6a0c9a30c91d047d038eec665bc43d8539`.
+- U6 fresh CI is 16/16 SUCCESS; the final HA target-binding source job ran 517 tests successfully. Final independent source review PASS; new blocker count 0.
+- U6 source binds predecessor authority to the transaction-frozen runtime image ID, active HA container runtime ID/ref, and exported archive portable identity; U5->U6 is made durable before predecessor export.
+- R24 is the next bounded successor: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U6_PREDECESSOR_RECOVERY_READONLY_PREFLIGHT_R24_20261114_01`.
+- R24 is strictly read-only and follows V1.2 content authority. Cross-session USB UUID/fingerprint continuity and fixed `/dev/sdX` are not business authority.
+- R24 checks exact U5 transaction/content, R23 consumed/no-replay terminal evidence, healthy services/containers, transaction-bound HA predecessor runtime, no U6 predecessor-recovery residue, and whether U6 source activation may be prepared.
+- R24 source/test package is prepared but fresh CI + independent review are still required before real-T1 preflight.
+- No source deployment, service restart, transaction/USB mutation, U6 transition, U7+, board access or merge is authorized.
+
+## 2026-11-14 — KF-153 expanded historical guard review / R23 KF-108 repair in progress
+
+- Core Stack current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference source remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; repository authority remains `APPLIED_ACCEPTED` while KF-153 successor work changes only the HA-USB source-activation control path.
+- PR #807 remains OPEN / DRAFT / UNMERGED.
+- R20 remains consumed/no-replay. R21 still proves stable predecessor IPC source and unchanged durable U5 runtime.
+- The prior R22 real-T1 preflight entry is superseded before any new T1 access. Expanded pre-V1.2 guard review found a KF-108-class execution-state propagation gap.
+- R23 is the new ungranted source-only successor. Required KF-108 protections are: durable-claim persistence uncertainty => UNKNOWN/consumed/no-replay; post-invoke transport/result uncertainty => UNKNOWN/consumed/no-replay; post-success cleanup failure => explicit STOP_POSTSUCCESS_CLEANUP without rollback of a proven successful activation.
+- R23 remains source-repair only and is not eligible for real-T1 preflight until fresh CI and a new independent historical-guard review both close.
+- No INSTALL resubmit, T1 mutation, U6+, board access or merge is authorized.
+
+
+## 2026-11-13 — KF-153 physical closure / U5 reached / IPC thread repair source
+
+- Core Stack current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current Manager: `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical clean reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; current repository Core Stack authority remains APPLIED_ACCEPTED.
+- R19 physically proves R18 completed asynchronously after its 5-second client timeout: host transaction and USB metadata are both `U5_INSTALL_REQUESTED_REVALIDATING`.
+- Exact USB identity still matches and remains mounted at the transaction-derived target with `rw,nosuid,nodev,noexec`.
+- The OTA host process stayed active with the same PID and zero restarts, while journal records `BrokenPipeError` in the IPC server and a later status connect returns `EAGAIN`; the serving thread died without restarting the daemon.
+- KF-153 root cause is therefore physically proven: short client timeout preceded synchronous INSTALL completion, then the response write to the disconnected client escaped the dispatch exception guard and killed the IPC serving thread.
+- Minimal source repair catches response-write `OSError` and continues accepting new clients; regression deterministically injects a BrokenPipe on the first response and requires a second request to succeed.
+- U5 is already reached. R18 must never be replayed, and no successor may resubmit INSTALL.
+- Next: fresh source CI, then prepare a U5-safe source-activation successor. Live activation remains separately unauthorized.
+
+## 2026-11-12 — V1.2 source activation AUTHORIZED / new-chat execution boundary
+
+- Core Stack current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current Manager: `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical clean reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; current repository Core Stack authority remains APPLIED_ACCEPTED.
+- Real-T1 V1.2 read-only preexecution is CLOSED_PASS; exact legacy U4 remains authoritative.
+- User explicitly authorized the next chat to execute the exact 8-file V1.2 source activation.
+- Authorized execution candidate: `edc3d2b76c5a7a75382f056c11786f00d32c0fa6`; authorized manifest blob: `68618d76b40dfa169e2b0c61e56240cfcac66c7e`.
+- Authorization state: granted=true, claimed=false, consumed=false, replay=false.
+- New chat must first require fresh CI SUCCESS for the authorized candidate and then rely on the executor's remote preflight before staging/claim.
+- Activation success stops at U4 READY_TO_INSTALL; INSTALL/U5 remains outside this authorization.
+- Handoff V1.4: `docs/development/N3W_T1_HOMEASSISTANT_REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_ACTIVATION_AUTHORIZED_NEW_CHAT_HANDOFF_V1.0_20261112.md`.
+
+## 2026-11-12 — V1.2 real-T1 read-only preexecution CLOSED_PASS / source activation package ungranted
+
+- Core Stack current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current Manager: `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical clean reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; current repository Core Stack authority remains APPLIED_ACCEPTED.
+- Real-T1 V1.2 read-only preexecution PASS: exact legacy U4 preserved; compatible N3W-UPDATE media rediscovered without UUID/fingerprint continuity; OTA service/containers/IPC healthy; zero mutation.
+- Eight real-T1 predecessor source SHA-256 values are now frozen for source activation rollback authority.
+- Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_ACTIVATION_20261112_01`.
+- Source activation package is prepared but explicitly UNGRANTED. A separate user authorization + grant-only successor commit is required before live execution.
+- Read-only closure: `docs/development/N3W_T1_HOMEASSISTANT_REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_READONLY_PREEXECUTION_CLOSURE_20261112.md`.
+- Source activation design: `docs/development/N3W_T1_HOMEASSISTANT_REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_ACTIVATION_DESIGN_20261112.md`.
+
+## 2026-11-12 — removable-media content-authority V1.2 source repair CLOSED_PASS / real-T1 read-only preexecution next
+
+- Core Stack current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current Manager: `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical clean reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; Core Stack authority remains APPLIED_ACCEPTED.
+- V1.2 source repair head `2639538a9c00a3ac1d9655681a49bef1d821ba1c` is CLOSED_PASS.
+- HA target-binding CI run `43244109304` is SUCCESS; all mandatory source-repair checks are closed.
+- Independent source review PASS; new design blocker count 0.
+- R12 live mount restoration remains superseded/not executed; R11 auto-retry remains false.
+- Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_READONLY_PREEXECUTION_20261112_01`.
+- Next gate is real-T1 read-only only: no remote staging, mount/unmount, USB write, source deployment, restart, transaction mutation, U5/U6+, board access or merge.
+- Physical USB UUID/fingerprint continuity is explicitly not part of the preflight authority.
+- Source repair closure: `docs/development/N3W_T1_HOMEASSISTANT_REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_REPAIR_CLOSURE_20261112.md`.
+- Read-only preexecution authority: `docs/development/N3W_T1_HOMEASSISTANT_REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_READONLY_PREEXECUTION_20261112.md`.
+
+## 2026-11-12 — removable-media content-authority V1.2 source design frozen
+
+- Core Stack current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current Manager: `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical clean reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; current repository Core Stack authority remains APPLIED_ACCEPTED.
+
+- Source design PASS; executable repair is now the next gate.
+- Keep current private transaction schema /1 for the first repair and extend it additively, so the live old U4 document remains readable without a separate migration executor.
+- INSTALL revalidation upgrades the live U4 transaction in place by persisting exact target identity before U5.
+- U7 persists exact predecessor recovery identity; U8 persists exact protected HA backup identity and a media-independent recovery-content manifest SHA-256.
+- Cross-session UUID/fingerprint continuity is removed. Same-session UUID/fingerprint/major-minor checks remain valid anti-device-swap protection.
+- Stable USB serial/WWN is no longer required. Newly-inserted-only selection is retired; destructive format safety becomes exactly-one eligible USB + explicit confirmation + immediate pre-wipe re-enumeration.
+- Current U4 may move back to U3 only for a bounded pre-U9 target reprepare, preserving the transaction instead of resetting it.
+- Post-U9 recovery is admitted by exact complete recovery content; blank media is RECOVERY_MEDIA_REQUIRED and never auto-formatted.
+- R12 live restoration remains superseded/not executed; R11 auto-retry remains false.
+- Next gate: REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_REPAIR; source-only.
+- Authority: docs/development/N3W_T1_HOMEASSISTANT_REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_DESIGN_20261112.md.
+
+
+## 2026-11-12 — Home Assistant removable-media content-authority architecture V1.2 frozen
+
+- V1.2 supersedes the V1.1 physical-media identity continuity rules while preserving mandatory USB, rollback, capacity, integrity and privilege safety boundaries.
+- /dev/sdX, filesystem UUID and public fingerprint are no longer business continuity authority.
+- Internal durable transaction + exact target/predecessor/HA-backup identities are the recovery authority.
+- Existing compatible N3W-UPDATE ext4 media is inspected before destructive formatting; formatting is no longer mandatory for every update.
+- Before U9, missing target content may be re-prepared while production HA remains authoritative.
+- After U9, any physical media may be used only if the complete exact recovery set verifies; blank replacement media is RECOVERY_MEDIA_REQUIRED and must not be auto-formatted.
+- Current old-schema U4 transaction must migrate non-destructively through corrected U4->U5 source logic.
+- R12 live mount restoration is superseded/not executed; R12 read-only PASS remains valid evidence; R11 auto-retry remains false.
+- Next gate: REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_DESIGN.
+- Authority: docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_REMOVABLE_MEDIA_CONTENT_AUTHORITY_ARCHITECTURE_V1.2_20261112.md.
+
+
+## 2026-11-12 — Home Assistant removable-media content-authority architecture review CLOSED_PASS
+
+- User approved replacing physical USB identity continuity with safe-media + exact-content authority.
+- Review result: CLOSED_PASS; source repair is required before further live OTA mutation.
+- /dev/sdX is runtime-only; filesystem UUID and public fingerprint are demoted from continuity authority to locator/diagnostic evidence.
+- Internal durable transaction + exact target/predecessor/HA-backup identities become recovery/install authority.
+- Current source cannot simply drop UUID checks because U8 persists predecessor and HA-backup verification only as booleans; V1.2 must persist exact SHA/size/identity fields before U9.
+- Before U9, replacement compatible media may be re-prepared while production HA remains authoritative.
+- After U9, physical identity still does not matter, but the exact complete recovery content set is mandatory; blank replacement remains RECOVERY_MEDIA_REQUIRED and must never be auto-formatted.
+- Current old-schema U4 should migrate without destructive reset through fresh safe-media discovery + target content validation.
+- R12 read-only PASS remains valid evidence; R12 live mount restoration is HOLD/SUPERSEDED and remains ungranted/unclaimed/unconsumed.
+- Next gate: REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_DESIGN; no T1/USB live mutation, board access or merge.
+- Authority: docs/development/N3W_T1_HOMEASSISTANT_REMOVABLE_MEDIA_CONTENT_AUTHORITY_ARCHITECTURE_REVIEW_20261112.md.
+
+## 2026-11-12 — KF-147 R12 real-T1 read-only preflight PASS / live mount-restoration authorization boundary
+
+- Exact R12 source authority remains `52b0b8aecbd0641e369227b4c4f636bacf876a6d`; PR #807 remains open/draft/unmerged.
+- Real-T1 R12 `--preflight-only` returned `PASS` / RC 0 with `read_only=true` and `restoration_eligible=true`.
+- Exact transaction remains `U4_READY_TO_INSTALL`, SHA-256 `dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259`; IPC reports `READY_TO_INSTALL`.
+- Manager, Home Assistant and Broker are running with restart count 0; OTA service is active/running with restart count 0.
+- Exact bound USB is present but unmounted. After reboot it enumerated as `/dev/sda1`; durable binding is filesystem UUID + public fingerprint, not a fixed `/dev/sdX` node.
+- Authorization remains granted=false, claimed=false, consumed=false; no runtime-directory creation, writable mount, Host/source/USB/transaction/product mutation, U5/U6+ transition, board access or merge occurred.
+- Required stop boundary reached. Next gate is `R12_LIVE_MOUNT_RESTORATION_EXPLICIT_AUTHORIZATION`; live mutation requires a separate explicit user decision.
+- R11 remains `AUTO_RETRY=false`.
+- Closure authority: `docs/development/N3W_T1_KF147_R12_READONLY_PREFLIGHT_PASS_TO_LIVE_MOUNT_RESTORATION_AUTHORIZATION_BOUNDARY_20261112.md`.
+
+## 2026-11-12 — KF-147 R11 preclaim STOP after T1 reboot / R12 mount-restoration source gate
+
+- Current core-stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`: repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`, Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean reference remains `24382caae4a1f5d459297f86e8d18f10a848ca64` / `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- PR #807 remains open/draft/unmerged.
+- R11 authorized source `f2e03ea92ff0df26c6b4c644cc6aca09953a2b24` was executed after a T1 reboot and fail-closed at `usb_mount_missing`.
+- R11 authorization remained granted but unclaimed/unconsumed; no Host/USB transaction mutation, no U5/U6+ transition, no product/source/service/board/merge mutation occurred.
+- The reboot detail explains the state: the OTA USB mount lives under `/run/n3w-t1-ota/media` and is not persistent across host reboot.
+- Product `reopen_bound_media()` can remount the exact UUID/fingerprint-bound USB during real INSTALL revalidation; the R11 harness currently requires the mount before its durable claim boundary.
+- R11 must not be automatically retried from the current unmounted state.
+- New R12 gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_POST_REBOOT_U4_MOUNT_RESTORATION_R12_20261112_01`.
+- R12 executor blob `9f238bb71f5aa19c7c705861fceea2e5b7ca9460`; manifest blob `5f0bd8c1290a647fa9bd4bd7fbcad2bd92426e85`; test blob `e58de8d322c053f68576e72af75959eb6bcad494`.
+- R12 remains live=false, granted=false, claimed=false, consumed=false, replay=false.
+- R12 preflight accepts only the exact current U4 transaction plus the exact bound USB present but unmounted.
+- If separately authorized later, R12 only recreates the transaction-derived runtime mount directories, mounts the same ext4 USB `rw,nodev,nosuid,noexec`, revalidates the 2026.10.4 target and U4 USB metadata, and stops before U5.
+- Any post-mount failure permits at most one rollback to the original unmounted prestate; no U5 transition, service restart, product-container mutation, source deployment, board access or merge is allowed.
+- R12 exact source authority is `52b0b8aecbd0641e369227b4c4f636bacf876a6d`; required CI is CLOSED_PASS: Core Stack authority `43225405781`, public safety `43225405752`, fast source/exact `43225405725`, Manager A-to-B `43225405926`, HA 2026.10.4 target binding `43225405440`.
+- Next gate is the real-T1 R12 `--preflight-only`. The user explicitly requested the new chat to begin with this read-only preflight. R12 live mutation remains unauthorized; R11 must not be retried before R12 closes.
+
 ## 2026-11-10 — KF-147 Mandatory USB Confirmation / U2 read-only preexecution CLOSED_PASS
 
 - Current core-stack authority: `infra/n3w-t1/production/t1-core-stack-current.json`.

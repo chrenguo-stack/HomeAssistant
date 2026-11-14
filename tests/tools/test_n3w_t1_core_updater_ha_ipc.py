@@ -21,6 +21,7 @@ from n3w_t1_core_updater_ha_recovery import ImageRecoveryRecord
 from n3w_t1_core_updater_ha_usb import (
     record_media_bound,
     record_target_ready,
+    request_install,
     start_target_preparation,
 )
 from n3w_t1_core_updater_ha_usb_media import (
@@ -66,6 +67,8 @@ class ControllerStub:
         self.public_calls = 0
         self.confirm_calls = 0
         self.resume_calls = 0
+        self.install_calls = 0
+        self.store = None
 
     def begin(self, _document) -> None:
         self.begin_calls += 1
@@ -80,7 +83,6 @@ class ControllerStub:
             "progress_percent": None,
             "error_code": None,
             "usb_candidate": {
-                "public_fingerprint": "c" * 64,
                 "display_model": "Synthetic USB",
                 "display_capacity_bytes": 16 * 1024**3,
             },
@@ -137,6 +139,27 @@ class ControllerStub:
             "user_message_code_or_null": None,
         }
 
+    def revalidate_and_request_install(self):
+        self.install_calls += 1
+        assert self.store is not None
+        current = self.store.read()
+        assert current is not None
+        installed = request_install(
+            current,
+            target=ImageRecoveryRecord(
+                kind="target",
+                image_ref=current["target_image_ref"],
+                archive_sha256=current["target_archive_sha256"],
+                archive_size_bytes=current["target_archive_size"],
+                portable_identity_sha256="d" * 64,
+                platform="linux/arm64",
+                verified=True,
+                fsynced=True,
+            ),
+        )
+        self.store.write(installed)
+        return installed
+
 
 def _executor(tmp_path: Path) -> tuple[HaUsbIpcExecutor, Resolver, HaUsbStateStore]:
     root = tmp_path / "state"
@@ -163,7 +186,7 @@ def test_prepare_creates_only_u1_transaction(tmp_path: Path) -> None:
 
 
 def test_install_requires_exact_existing_u4_admission(tmp_path: Path) -> None:
-    executor, _, store = _executor(tmp_path)
+    executor, resolver, store = _executor(tmp_path)
     executor.submit("PREPARE", RELEASE)
     current = store.read()
     assert current is not None
@@ -205,12 +228,21 @@ def test_install_requires_exact_existing_u4_admission(tmp_path: Path) -> None:
     )
     store.write(current)
 
-    with pytest.raises(UpdaterV2Error, match="ha_ota_ipc_action_invalid"):
-        executor.submit("INSTALL", RELEASE)
+    controller = ControllerStub()
+    controller.store = store
+    executor = HaUsbIpcExecutor(
+        store=store,
+        admission_resolver=resolver,
+        prepare_controller=controller,
+    )
+    status = executor.submit("INSTALL", RELEASE)
     installed = store.read()
     assert installed is not None
-    assert installed["phase"] == "U4_READY_TO_INSTALL"
+    assert status["phase"] == "INSTALL_REQUESTED_REVALIDATING"
+    assert installed["phase"] == "U5_INSTALL_REQUESTED_REVALIDATING"
     assert installed["authorization_claimed"] is False
+    assert installed["authorization_consumed"] is False
+    assert controller.install_calls == 1
 
 
 def test_dispatcher_rejects_path_injection_without_executor_call(tmp_path: Path) -> None:
@@ -288,6 +320,78 @@ def test_unix_server_enforces_peer_uid_and_round_trip(tmp_path: Path) -> None:
         server.stop()
 
 
+
+def test_server_survives_client_disconnect_during_response_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executor, _, _ = _executor(tmp_path)
+    dispatcher = HaUsbIpcDispatcher(executor)
+    path = tmp_path / "ha-ota.sock"
+    server = UnixSocketHaOtaServer(
+        dispatcher=dispatcher,
+        path=path,
+        expected_peer_uid=os.getuid(),
+    )
+
+    payload = (
+        json.dumps(
+            {"schema": REQUEST_SCHEMA, "operation": "status"},
+            separators=(",", ":"),
+        ).encode("utf-8")
+        + b"\n"
+    )
+
+    class FakeConnection:
+        def __init__(self, *, fail_send: bool, stop_after_send: bool = False) -> None:
+            self.fail_send = fail_send
+            self.stop_after_send = stop_after_send
+            self.blocks = [payload, b""]
+            self.sent = b""
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, _type, _value, _traceback):
+            return False
+
+        def settimeout(self, _timeout: float) -> None:
+            return None
+
+        def recv(self, _size: int) -> bytes:
+            return self.blocks.pop(0)
+
+        def sendall(self, value: bytes) -> None:
+            if self.fail_send:
+                raise BrokenPipeError(32, "Broken pipe")
+            self.sent += value
+            if self.stop_after_send:
+                server._stop.set()
+
+    first = FakeConnection(fail_send=True)
+    second = FakeConnection(fail_send=False, stop_after_send=True)
+
+    class FakeListener:
+        def __init__(self) -> None:
+            self.connections = [first, second]
+
+        def accept(self):
+            if not self.connections:
+                raise AssertionError("server stopped accepting too late")
+            return self.connections.pop(0), None
+
+    monkeypatch.setattr(server, "_peer_uid", lambda _connection: os.getuid())
+    server._socket = FakeListener()
+    server._stop.clear()
+
+    server._serve()
+
+    assert second.sent
+    response = json.loads(second.sent.decode("utf-8"))
+    assert response["accepted"] is True
+    assert response["phase"] == "DISCOVERED"
+    assert response["code"] == "status"
+
 def test_server_rejects_existing_socket_path(tmp_path: Path) -> None:
     path = tmp_path / "ha-ota.sock"
     path.write_text("not a socket", encoding="utf-8")
@@ -356,6 +460,7 @@ def test_r7a_executor_emits_v3_capacity_projection_with_prepare_controller(tmp_p
     assert response["phase"] == "USB_REQUIRED_CONFIRMATION"
     assert response["usb_confirmation_required"] is True
     assert response["usb_candidate"]["display_model"] == "Synthetic USB"
+    assert "public_fingerprint" not in response["usb_candidate"]
     assert response["installed_version"] == "2026.10.0"
     assert response["usb_required_bytes_or_null"] == 5 * 1024**3
     assert response["usb_recommended_nominal_gb_or_null"] == 32
@@ -513,3 +618,41 @@ def test_wrong_bound_usb_projects_recoverable_media_wait(tmp_path: Path) -> None
     status = executor.status()
     assert status["phase"] == "RECOVERY_MEDIA_REQUIRED"
     assert status["error_code"] is None
+
+
+def test_discovery_success_does_not_clear_prepare_worker_error(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "preserve-prepare-error"
+    root.mkdir(mode=0o700)
+    resolver = Resolver()
+    store = HaUsbStateStore(root)
+    base = HaUsbIpcExecutor(
+        store=store,
+        admission_resolver=resolver,
+    )
+    base.submit("PREPARE", RELEASE)
+
+    controller = ControllerStub()
+    executor = HaUsbIpcExecutor(
+        store=store,
+        admission_resolver=resolver,
+        prepare_controller=controller,
+    )
+
+    original_refresh = controller.refresh_candidate
+
+    def refresh_once():
+        result = original_refresh()
+        executor._stop_workers.set()
+        return result
+
+    controller.refresh_candidate = refresh_once
+    executor._prepare_error = "ha_target_download_failed"
+
+    executor._discovery_worker()
+
+    assert controller.ensure_calls == 1
+    assert controller.refresh_calls == 1
+    assert executor._discovery_error is None
+    assert executor._prepare_error == "ha_target_download_failed"

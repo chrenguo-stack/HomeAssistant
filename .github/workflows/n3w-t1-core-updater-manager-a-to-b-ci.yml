@@ -16,6 +16,7 @@ on:
       - "infra/n3w-t1/clean-reference/r7a-manager-predecessor-baseline-20261107.json"
       - "tests/tools/test_n3w_t1_core_updater_manager_r7a_successor.py"
       - "tests/tools/test_n3w_t1_core_updater_manager_r7a_repair_successor.py"
+      - "tests/tools/test_n3w_t1_core_updater_manager_a_to_b_ci_contract.py"
       - "tests/tools/test_n3w_t1_core_updater_r7a_repair_pre_u1_simulation.py"
       - "infra/n3w-t1/upgrades/manager-7807271e4c48.json"
       - "infra/n3w-t1/upgrades/manager-7807271e4c48-compatibility.json"
@@ -97,6 +98,7 @@ jobs:
             tests/tools/test_n3w_t1_core_updater_ha_usb_r2.py \
             tests/tools/test_n3w_t1_core_updater_manager_r7a_successor.py \
             tests/tools/test_n3w_t1_core_updater_manager_r7a_repair_successor.py \
+            tests/tools/test_n3w_t1_core_updater_manager_a_to_b_ci_contract.py \
             tests/tools/test_n3w_t1_r7a_manager_a0_executor.py \
             tests/tools/test_n3w_t1_r7a_host_a1_executor.py \
             tests/tools/test_n3w_t1_r7a_repaired_manager_a0r_executor.py \
@@ -305,9 +307,32 @@ jobs:
           compression-level: 0
 
       - name: Re-download and verify Manager-only V2 package
+        id: redownload_primary
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           artifact-ids: ${{ steps.upload.outputs.artifact-id }}
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.run_id }}
+          path: ${{ runner.temp }}/redownload
+          merge-multiple: true
+
+      - name: Prepare bounded Manager-only package re-download retry
+        if: steps.redownload_primary.outcome == 'failure'
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/redownload"
+          sleep 5
+
+      - name: Retry re-download and verify Manager-only V2 package
+        if: steps.redownload_primary.outcome == 'failure'
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ steps.upload.outputs.artifact-id }}
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.run_id }}
           path: ${{ runner.temp }}/redownload
           merge-multiple: true
 
@@ -387,6 +412,9 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           artifact-ids: ${{ env.U1_MANAGER_PACKAGE_ARTIFACT_ID }}
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.run_id }}
           path: ${{ runner.temp }}/u1-package
           merge-multiple: true
 
