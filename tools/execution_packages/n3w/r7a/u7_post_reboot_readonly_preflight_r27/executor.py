@@ -701,13 +701,24 @@ def verify_root_key_metadata():
 
 def tool_capabilities():
     openssl = text(run(["openssl", "version"], timeout=30))
+    help_probe = run(["openssl", "enc", "-help"], timeout=30, check=False)
     openssl_help = (
-        run(["openssl", "enc", "-help"], timeout=30, check=False)
-        .stderr.decode("utf-8", errors="replace")
+        help_probe.stdout.decode("utf-8", errors="replace")
+        + "\n"
+        + help_probe.stderr.decode("utf-8", errors="replace")
     )
-    if not all(
-        value in openssl_help
-        for value in ("-pbkdf2", "-iter", "-md")
+    cipher_probe = run(["openssl", "enc", "-list"], timeout=30, check=False)
+    cipher_list = (
+        cipher_probe.stdout.decode("utf-8", errors="replace")
+        + "\n"
+        + cipher_probe.stderr.decode("utf-8", errors="replace")
+    )
+    if (
+        not all(
+            value in openssl_help
+            for value in ("-pbkdf2", "-iter", "-md")
+        )
+        or "aes-256-ctr" not in cipher_list
     ):
         raise Stop("openssl_backup_capability_missing")
     tar_version = text(run(["tar", "--version"], timeout=30))
@@ -721,6 +732,7 @@ def tool_capabilities():
             "--one-file-system",
             "--quoting-style",
             "--full-time",
+            "--utc",
         )
     ):
         raise Stop("gnu_tar_backup_capability_missing")

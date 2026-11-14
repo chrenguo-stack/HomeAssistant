@@ -144,6 +144,9 @@ def test_preflight_checks_u7_backup_runtime_dependencies_without_reading_key() -
     assert "DEFERRED_BUSY_UNTIL_QUIESCE" in remote
     assert "EXTERNAL_DB_RE" in remote
     assert '"openssl", "enc", "-help"' in remote
+    assert '"openssl", "enc", "-list"' in remote
+    assert '"aes-256-ctr" not in cipher_list' in remote
+    assert '"--utc"' in remote
     assert '"tar", "--version"' in remote
     key_function = remote.split("def verify_root_key_metadata():", 1)[1].split(
         "def tool_capabilities():", 1
