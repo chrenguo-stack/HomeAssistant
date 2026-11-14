@@ -173,8 +173,15 @@ def test_preflight_checks_u7_backup_runtime_dependencies_without_reading_key() -
     assert "/var/lib/n3wfc4-homeassistant" in remote
     assert "/var/lib/greenhouse-manager/identity/system-root.key" in remote
     assert 'meta.st_size != 32' in remote
+    assert 'meta.st_nlink != 1' in remote
     assert 'stat.S_IMODE(meta.st_mode) != 0o600' in remote
+    assert 'stat.S_IMODE(parent.stat().st_mode) != 0o700' in remote
+    assert '"owner_is_business_authority": False' in remote
     assert '"key_bytes_read": False' in remote
+    key_function = remote.split("def verify_root_key_metadata():", 1)[1].split(
+        "def tool_capabilities():", 1
+    )[0]
+    assert "meta.st_uid != 0" not in key_function
     assert "PRAGMA quick_check" not in remote
     assert "sqlite3.connect" not in remote
     assert "DEFERRED_UNTIL_QUIESCE" in remote
@@ -184,9 +191,6 @@ def test_preflight_checks_u7_backup_runtime_dependencies_without_reading_key() -
     assert '"aes-256-ctr" not in cipher_list' in remote
     assert '"--utc"' in remote
     assert '"tar", "--version"' in remote
-    key_function = remote.split("def verify_root_key_metadata():", 1)[1].split(
-        "def tool_capabilities():", 1
-    )[0]
     assert "read_bytes" not in key_function
 
 
