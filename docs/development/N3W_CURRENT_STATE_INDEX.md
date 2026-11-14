@@ -1,3 +1,14 @@
+## 2026-11-14 — R29 live PRECLAIM_STOP / capacity dependency closure repair pending fresh CI
+
+- PR #807 remains OPEN / DRAFT / UNMERGED; durable product lifecycle state remains exact U6 `U6_PREDECESSOR_RECOVERY_PREPARING`, transaction SHA-256 `7f406b5b88f7bd5c3161d7527a001ddcb3414a8ec64fb34cdad444c2c3e62ebe`.
+- R29 live execution `U7-R29-LIVE-SOURCE-ACTIVATION-20261114T152222Z` stopped inside the pre-claim staged import with RC=2. Authorization remained unclaimed/unconsumed; production source, services, transaction, USB and U7/U8+ state were unchanged.
+- Bounded diagnostic reproduced the failure on T1 Python 3.14.4: `n3w_t1_core_updater_ha_install` imports `BackupCapacityRevalidation`, but the installed predecessor `n3w_t1_core_updater_ha_capacity.py` does not export that symbol.
+- Root cause: R29's module-name closure test declared `ha_capacity.py` as an unchanged dependency but did not prove symbol/version compatibility between the target `ha_install.py` and the installed predecessor capacity module.
+- Repair executable-source head `59b7f6d6213f19bd66df32d91710b37b674e9340` expands the activation set from six to seven modules by activating exact target `ha_capacity.py`; the observed predecessor SHA-256 `4b9cc960...f128e` is now rollback authority instead of unchanged authority.
+- R29 executor diagnostics now keep the tail of sanitized traceback so the actual exception is preserved.
+- Because executable source changed, the prior live grant does not carry forward. The repaired manifest is ungranted: live_execution_authorized=false, granted=false, claimed=false, consumed=false, replay=false.
+- Fresh CI and final exact review are required before any new live authorization. No R29 re-execution, U7 HA quiesce/data backup, U8+, board access or merge is authorized.
+
 ## 2026-11-14 — R29 read-only preflight CLOSED_PASS / grant-only successor materialized
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted and `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
