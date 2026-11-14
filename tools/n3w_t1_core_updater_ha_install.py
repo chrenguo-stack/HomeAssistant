@@ -1,8 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol
 
+from n3w_t1_core_updater_ha_backup import (
+    BackupProgress,
+    HaDataBackupProvider,
+    HaDataBackupRecord,
+    HaQuiesceEvidence,
+)
 from n3w_t1_core_updater_ha_capacity import (
     InstallCapacityRevalidation,
     validate_install_revalidation,
@@ -12,10 +19,15 @@ from n3w_t1_core_updater_ha_recovery import (
     ImageRecoveryRecord,
     validate_image_recovery_record,
 )
-from n3w_t1_core_updater_ha_usb import start_predecessor_recovery
+from n3w_t1_core_updater_ha_usb import (
+    record_ha_data_backup_verified,
+    record_predecessor_recovery_and_ha_quiesced,
+    start_predecessor_recovery,
+)
 from n3w_t1_core_updater_ha_usb_state import (
     U5,
     U6,
+    U7,
     HaUsbStateStore,
     validate_transaction_document,
 )
@@ -178,3 +190,159 @@ class HaUsbU6PredecessorController:
             predecessor=verified,
             resumed_from_u6=resumed,
         )
+
+
+class U7RuntimeOwner(Protocol):
+    def quiesce_homeassistant_for_backup(self) -> HaQuiesceEvidence:
+        ...
+
+    def resume_homeassistant_after_backup_failure(self) -> None:
+        ...
+
+
+@dataclass(frozen=True, slots=True)
+class U7BackupPreparationResult:
+    transaction: dict[str, object]
+    backup: HaDataBackupRecord
+    resumed_from_u7: bool
+    services_left_quiesced: bool
+
+
+class HaUsbU7BackupController:
+    """Prepare a protected backup and stop durably in U7."""
+
+    def __init__(
+        self,
+        *,
+        transaction_store: HaUsbStateStore,
+        backend: U6PredecessorBackend,
+        runtime_owner: U7RuntimeOwner,
+        backup_provider: HaDataBackupProvider,
+        progress: BackupProgress | None = None,
+    ) -> None:
+        self.transaction_store = transaction_store
+        self.backend = backend
+        self.runtime_owner = runtime_owner
+        self.backup_provider = backup_provider
+        self.progress = progress
+
+    def _report(self, phase: str, value: int = 0) -> None:
+        if self.progress is not None:
+            self.progress(phase, value)
+
+    def _transaction(self) -> dict[str, object]:
+        document = self.transaction_store.read()
+        if document is None:
+            raise UpdaterV2Error("ha_usb_transaction_missing")
+        return validate_transaction_document(document)
+
+    @staticmethod
+    def _require_pre_u9_authorization_state(
+        transaction: dict[str, object],
+    ) -> None:
+        if (
+            transaction.get("authorization_claimed") is not False
+            or transaction.get("authorization_consumed") is not False
+            or transaction.get("authorization_id_sha256") is not None
+        ):
+            raise UpdaterV2Error(
+                "ha_usb_u7_authorization_state_invalid"
+            )
+
+    def prepare_or_resume(self) -> U7BackupPreparationResult:
+        current = self._transaction()
+        if current["phase"] not in {U6, U7}:
+            raise UpdaterV2Error("ha_usb_u7_prepare_phase_invalid")
+        self._require_pre_u9_authorization_state(current)
+        resumed = current["phase"] == U7
+
+        self._report("u7_media_reopen")
+        media = self.backend.resolve_transaction_media(
+            current,
+            write_required=True,
+        )
+        if media is None:
+            raise UpdaterV2Error("usb_transaction_media_unavailable")
+
+        target = validate_image_recovery_record(
+            self.backend.verify_prepared_target(
+                transaction=current,
+                media=media,
+            ),
+            expected_kind="target",
+            expected_image_ref=current["target_image_ref"],
+            expected_archive_sha256=current["target_archive_sha256"],
+        )
+        if target.public() != current.get("target_artifact_identity"):
+            raise UpdaterV2Error("ha_usb_target_identity_drift")
+
+        predecessor = validate_image_recovery_record(
+            self.backend.verify_prepared_predecessor(
+                transaction=current,
+                media=media,
+            ),
+            expected_kind="predecessor",
+            expected_image_ref=current["current_image_ref"],
+        )
+        if resumed and predecessor.public() != current.get(
+            "predecessor_recovery_identity"
+        ):
+            raise UpdaterV2Error("ha_usb_predecessor_identity_drift")
+
+        self._report("u7_quiesce")
+        evidence = self.runtime_owner.quiesce_homeassistant_for_backup()
+        evidence.validate()
+
+        try:
+            if not resumed:
+                current = record_predecessor_recovery_and_ha_quiesced(
+                    current,
+                    predecessor=predecessor,
+                    ha_quiesced=True,
+                )
+                self.backend.sync_transaction_metadata(current, media)
+                self.transaction_store.write(current)
+            elif current.get("predecessor_recovery_verified") is not True:
+                raise UpdaterV2Error(
+                    "ha_usb_predecessor_not_verified"
+                )
+
+            self._report("u7_backup_create")
+            destination_root = (
+                Path(media.mount_path) / "n3w-update" / "ha-data"
+            )
+            backup = self.backup_provider.create_consistent_backup(
+                transaction_id_sha256=current["transaction_id_sha256"],
+                destination_root=destination_root,
+            )
+            self._report("u7_backup_verify")
+            verified = self.backup_provider.verify_backup(
+                backup,
+                transaction_id_sha256=current["transaction_id_sha256"],
+                destination_root=destination_root,
+            )
+            if verified.public() != backup.public():
+                raise UpdaterV2Error("ha_data_backup_identity_drift")
+
+            current = record_ha_data_backup_verified(
+                current,
+                backup=verified,
+            )
+            self.backend.sync_transaction_metadata(current, media)
+            self.transaction_store.write(current)
+            self._report("u7_stop", verified.archive_size_bytes)
+            return U7BackupPreparationResult(
+                transaction=current,
+                backup=verified,
+                resumed_from_u7=resumed,
+                services_left_quiesced=True,
+            )
+        except Exception as error:
+            self._report("u7_failure_recovery")
+            try:
+                self.runtime_owner.resume_homeassistant_after_backup_failure()
+            except Exception as recovery_error:
+                raise UpdaterV2Error(
+                    "ha_usb_u7_failure_recovery_failed"
+                ) from recovery_error
+            raise error

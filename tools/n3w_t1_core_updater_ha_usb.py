@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import copy
+import time
 from typing import Any
 
 from n3w_t1_core_updater_ha_capacity import (
@@ -454,3 +456,37 @@ def destructive_cutover_allowed(document: dict[str, Any]) -> bool:
         and current["production_prestate_verified"] is True
         and current["usb_capacity_verified"] is True
     )
+
+
+def record_ha_data_backup_verified(
+    document: dict[str, Any],
+    *,
+    backup: HaDataBackupRecord,
+    updated_at_unix: int | None = None,
+) -> dict[str, Any]:
+    """Persist a verified U7 backup without entering U8."""
+    current = validate_transaction_document(document)
+    if current["phase"] != U7:
+        raise UpdaterV2Error("ha_usb_backup_record_phase_invalid")
+    if (
+        current["authorization_claimed"] is not False
+        or current["authorization_consumed"] is not False
+        or current["authorization_id_sha256"] is not None
+    ):
+        raise UpdaterV2Error(
+            "ha_usb_backup_record_authorization_state_invalid"
+        )
+    if (
+        current["target_artifact_verified"] is not True
+        or current["predecessor_recovery_verified"] is not True
+    ):
+        raise UpdaterV2Error(
+            "ha_usb_backup_record_preconditions_invalid"
+        )
+    validated = validate_backup_record(backup)
+    result = copy.deepcopy(current)
+    result["ha_data_backup_verified"] = True
+    result["ha_data_backup_identity"] = validated.public()
+    now = int(time.time()) if updated_at_unix is None else updated_at_unix
+    result["updated_at_unix"] = max(int(result["created_at_unix"]), now)
+    return validate_transaction_document(result)
