@@ -14,7 +14,11 @@ from typing import Any
 
 import n3w_t1_portable_image_identity as portable
 import n3w_t1_core_updater_ha_capacity as capacity
-from n3w_t1_core_updater_ha_backup import HaDataBackupRecord
+from n3w_t1_core_updater_ha_backup import (
+    BACKUP_ARCHIVE_NAME,
+    HaDataBackupRecord,
+    validate_backup_record,
+)
 from n3w_t1_core_updater_ha_prepare import (
     HostUsbCandidate,
     PreparedUsbMedia,
@@ -558,6 +562,45 @@ class SubprocessPrepareBackend:
             ),
             ha_data_measured_bytes=measured,
             observed_usb_free_bytes=self._observed_free_bytes(media),
+            policy=policy.capacity_policy,
+        )
+
+    def backup_capacity_revalidation(
+        self,
+        transaction: dict[str, Any],
+        media: PreparedUsbMedia,
+        *,
+        predecessor: ImageRecoveryRecord,
+        reclaimable_backup: HaDataBackupRecord | None = None,
+    ) -> capacity.BackupCapacityRevalidation:
+        policy = self.policy_provider.load(transaction)
+        measured = measure_ha_data_tree(self.ha_data_root)
+        reclaimable_bytes = 0
+        if reclaimable_backup is not None:
+            validated = validate_backup_record(reclaimable_backup)
+            archive = (
+                Path(media.mount_path)
+                / "n3w-update"
+                / "ha-data"
+                / BACKUP_ARCHIVE_NAME
+            )
+            if archive.exists() or archive.is_symlink():
+                if (
+                    archive.is_symlink()
+                    or not archive.is_file()
+                    or archive.stat().st_size
+                    != validated.archive_size_bytes
+                ):
+                    raise UpdaterV2Error(
+                        "ha_backup_reclaimable_archive_invalid"
+                    )
+                reclaimable_bytes = validated.archive_size_bytes
+        return capacity.compute_backup_revalidation(
+            target_artifact_bytes=policy.target_archive_size_bytes,
+            predecessor_archive_bytes=predecessor.archive_size_bytes,
+            ha_data_measured_bytes=measured,
+            observed_usb_free_bytes=self._observed_free_bytes(media),
+            reclaimable_backup_bytes=reclaimable_bytes,
             policy=policy.capacity_policy,
         )
 
