@@ -301,12 +301,15 @@ def verify_r26_terminal(plan):
         raise Stop("r26_success_invalid")
     uptime = float(Path("/proc/uptime").read_text().split()[0])
     boot_started = time.time() - uptime
+    success_predates_boot = (
+        (R26_ROOT / "success.json").stat().st_mtime < boot_started
+    )
+    if not success_predates_boot:
+        raise Stop("post_reboot_epoch_not_proven")
     return {
         "claim_consumed_no_replay": True,
         "success_status": success.get("status"),
-        "success_predates_current_boot": (
-            (R26_ROOT / "success.json").stat().st_mtime < boot_started
-        ),
+        "success_predates_current_boot": True,
         "current_boot_id_sha256": hashlib.sha256(
             Path("/proc/sys/kernel/random/boot_id")
             .read_text(encoding="utf-8")
