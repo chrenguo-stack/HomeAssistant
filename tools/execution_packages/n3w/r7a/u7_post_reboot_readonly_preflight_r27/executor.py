@@ -611,6 +611,7 @@ def scan_ha_data():
         raise Stop("ha_data_root_invalid")
     resolved_root = root.resolve(strict=True)
     meta = root.stat()
+    root_device = meta.st_dev
     measured = 0
     yaml_paths = []
     file_count = 0
@@ -621,12 +622,22 @@ def scan_ha_data():
             entry = path.lstat()
             if stat.S_ISLNK(entry.st_mode):
                 try:
-                    path.resolve(strict=True).relative_to(resolved_root)
+                    target = path.resolve(strict=True)
+                    target.relative_to(resolved_root)
+                    if target.stat().st_dev != root_device:
+                        raise Stop(
+                            "ha_data_external_filesystem_unsupported"
+                        )
+                except Stop:
+                    raise
                 except (OSError, ValueError) as error:
                     raise Stop("ha_data_external_symlink_unsupported") from error
             elif stat.S_ISDIR(entry.st_mode):
-                pass
+                if entry.st_dev != root_device:
+                    raise Stop("ha_data_external_filesystem_unsupported")
             elif stat.S_ISREG(entry.st_mode):
+                if entry.st_dev != root_device:
+                    raise Stop("ha_data_external_filesystem_unsupported")
                 measured += entry.st_size
                 file_count += 1
                 if path.suffix.lower() in {".yaml", ".yml"}:
@@ -659,6 +670,7 @@ def scan_ha_data():
         "external_recorder_detected": False,
         "special_file_detected": False,
         "external_symlink_detected": False,
+        "external_filesystem_detected": False,
         "sqlite_quick_check": sqlite_result,
     }
 
