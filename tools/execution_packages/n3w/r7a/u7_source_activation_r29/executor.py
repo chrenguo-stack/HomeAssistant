@@ -31,6 +31,7 @@ TARGETS = {
     "backup": ROOT / "tools" / "n3w_t1_core_updater_ha_backup.py",
     "usb": ROOT / "tools" / "n3w_t1_core_updater_ha_usb.py",
     "install": ROOT / "tools" / "n3w_t1_core_updater_ha_install.py",
+    "capacity": ROOT / "tools" / "n3w_t1_core_updater_ha_capacity.py",
     "host": ROOT / "tools" / "n3w_t1_core_updater_host.py",
     "common": ROOT / "tools" / "n3w_t1_core_updater_common.py",
     "v2_state": ROOT / "tools" / "n3w_t1_core_updater_v2_state.py",
@@ -40,6 +41,7 @@ REMOTE_NAMES = {
     "backup": "n3w_t1_core_updater_ha_backup.py",
     "usb": "n3w_t1_core_updater_ha_usb.py",
     "install": "n3w_t1_core_updater_ha_install.py",
+    "capacity": "n3w_t1_core_updater_ha_capacity.py",
     "host": "n3w_t1_core_updater_host.py",
     "common": "n3w_t1_core_updater_common.py",
     "v2_state": "n3w_t1_core_updater_v2_state.py",
@@ -465,7 +467,7 @@ def sanitize_import_error(stage_root, error_text):
     value = value.replace("/opt/HomeAssistant/tools", "<tools>")
     value = value.replace("\n", " ")
     if len(value) > 240:
-        value = value[:240]
+        value = value[-240:]
     return value
 
 
@@ -482,6 +484,7 @@ def staged_import_preflight(plan):
     )
     modules = [
         "n3w_t1_core_updater_ha_backup",
+        "n3w_t1_core_updater_ha_capacity",
         "n3w_t1_core_updater_ha_usb",
         "n3w_t1_core_updater_ha_install",
         "n3w_t1_core_updater_host",
@@ -512,6 +515,7 @@ def installed_import_validation():
         "import sys;"
         "sys.path.insert(0,'/opt/HomeAssistant/tools');"
         "import n3w_t1_core_updater_ha_backup;"
+        "import n3w_t1_core_updater_ha_capacity;"
         "import n3w_t1_core_updater_ha_usb;"
         "import n3w_t1_core_updater_ha_install;"
         "import n3w_t1_core_updater_host;"
