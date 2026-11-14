@@ -33,7 +33,7 @@ R27 verifies:
 3. host/services-owner/broker-owner health after reboot;
 4. exact Manager/Home Assistant/Broker runtime image binding and running state; restart counts are collected as nonnegative diagnostics, not compared to a pre-reboot historical value;
 5. Manager IPC still reports PREDECESSOR_RECOVERY_PREPARING;
-6. exact installed U6 source set, including the pre-U7 host.py Git blob identity, proving U7 source has not been partially or silently activated;
+6. exact installed U6 source set, plus explicit absence of `/opt/HomeAssistant/tools/n3w_t1_core_updater_host.py` before U7 source activation, proving the new U7 host-side source has not been partially or silently activated;
 7. one safe ext4 N3W-UPDATE removable medium, excluding the root device;
 8. V1.2 content authority, with no historical device-node, UUID or fingerprint continuity gate;
 9. exact target archive and exact predecessor archive;
@@ -111,6 +111,29 @@ R27D_RESULT=PASS_DIAGNOSTIC
 R27_FALSE_BLOCKER=PREMATURE_U7_TRANSACTION_FIELD_EXPECTATION
 R26_REPLAY_REQUIRED=false
 LIVE_TRANSACTION_REPAIR_REQUIRED=false
+
+## 7.2 R27 Retest 02-discovered pre-U7 host source baseline correction
+
+R27 Retest 02 stopped fail-closed because
+`/opt/HomeAssistant/tools/n3w_t1_core_updater_host.py` did not exist.
+
+Review of the closed R25/R26 source-activation authority shows this file was
+never part of the installed U6 source set. R25 activated only the required U6
+slice, and R26 froze that installed set without `n3w_t1_core_updater_host.py`.
+
+The R27 requirement for an already-installed pre-U7 host.py Git blob was
+therefore an invented baseline. The real T1 observation of absence is consistent
+with the closed U6 authority.
+
+R27 now treats absence of this path as the expected pre-U7 state. Unexpected
+presence fails closed because it would indicate possible premature/partial U7
+source activation.
+
+R27_RETEST02_RESULT=STOP_FAIL_CLOSED
+R27_RETEST02_FALSE_BLOCKER=INVENTED_PRE_U7_HOST_SOURCE_PRESENCE
+PRE_U7_HOST_SOURCE_STATE=ABSENT
+R26_REPLAY_REQUIRED=false
+LIVE_T1_REPAIR_REQUIRED=false
 
 ## 7. Review-discovered U7 live capacity blocker and repair
 
