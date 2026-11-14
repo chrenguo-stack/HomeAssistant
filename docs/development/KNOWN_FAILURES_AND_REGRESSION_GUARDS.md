@@ -1,3 +1,35 @@
+### 2026-11-14 KF-155 R29 pre-claim capacity symbol/version closure failure — PHYSICAL_PROVEN / SOURCE_REPAIR_R2_PENDING_CI
+
+```text
+R29_EXECUTION_ID=U7-R29-LIVE-SOURCE-ACTIVATION-20261114T152222Z
+R29_RESULT=PRECLAIM_STOP
+R29_RC=2
+R29_AUTHORIZATION_CLAIMED=false
+R29_AUTHORIZATION_CONSUMED=false
+R29_HOST_SOURCE_MUTATION=false
+R29_SERVICE_STOP=false
+R29_TRANSACTION_MUTATION=false
+R29_USB_MUTATION=false
+R29_U7_TRANSITION=false
+R29_U8_PLUS=false
+FAILED_MODULE=n3w_t1_core_updater_ha_install
+FAILED_SYMBOL=BackupCapacityRevalidation
+INSTALLED_PROVIDER=n3w_t1_core_updater_ha_capacity
+```
+
+Physical proof:
+- R29 staged the candidate source set and ran its import check before authorization claim.
+- The staged backup and USB modules imported successfully; `ha_install` failed because the exact installed predecessor `ha_capacity.py` does not export `BackupCapacityRevalidation`.
+- canonical R29 state/staging roots were absent after the stop; a bounded diagnostic reproduced the exact exception and cleaned its isolated `/tmp` directory and SSH master.
+- no production source/service/transaction/USB/U7/U8+ mutation occurred, and the authorization remains unclaimed/unconsumed.
+
+Root cause / regression guards:
+- transitive module-name closure is insufficient when an activated target imports symbols from an installed predecessor module; symbol/version compatibility must also be proven or that dependency must be activated as part of the same atomic source set.
+- `ha_capacity.py` is therefore promoted from unchanged dependency to R29 activation/rollback authority.
+- staged import diagnostics must preserve the final exception text; keeping only the traceback prefix creates a diagnostic false-negative.
+- any executable-source repair invalidates the prior exact-source live grant; repaired source returns to ungranted until fresh CI + final exact review + new live authorization.
+- no automatic retry of the stopped live execute is permitted.
+
 ### 2026-11-14 KF-155 R28 U7 source activation import-closure failure — PHYSICAL_PROVEN / R29 SOURCE_REPAIR_PENDING_CI
 
 ```text
