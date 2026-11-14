@@ -32,6 +32,8 @@ Source review / regression guards:
 - source predecessor states used for rollback must be exact and bounded; unknown source bytes must fail before claim;
 - rollback must restore the exact observed pre-claim source state, including absence;
 - source-only repair and CI may proceed, but any new live successor requires a new authorization domain.
+- local successor wrappers must test the exact helper module they import; helper indirection through another executor is not an interface contract.
+- a read-only preflight that fails before SSH transport creation is classified as local-wrapper STOP: no T1 access, no staging, no claim, no mutation, and no authorization consumption.
 
 ### 2026-11-14 KF-154 R26 post-claim client timeout / delayed durable success — PHYSICAL_PROVEN / R26 CLOSED_PASS
 
