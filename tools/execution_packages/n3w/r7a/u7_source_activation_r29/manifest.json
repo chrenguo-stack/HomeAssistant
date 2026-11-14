@@ -23,7 +23,7 @@
     "repair_reason": "TRANSITIVE_IMPORT_CLOSURE_NOT_FULLY_BOUND_AND_POSTCLAIM_IMPORT_ONLY"
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/u7_source_activation_r29/executor.py": "b686cc50f9f55df77fa85597be0092588824bbf6",
+    "tools/execution_packages/n3w/r7a/u7_source_activation_r29/executor.py": "ede3a41ad4d2085f7bf41ddd02c3f74f32e882bb",
     "tools/execution_packages/n3w/r7a/u7_source_activation_r28/executor.py": "60f46eebc18ff74360dd41b807e2adf76d46616e",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
     "tools/n3w_t1_core_updater_ha_backup.py": "bb7a3dfa29b7996f619963298b61d0e92c798cca",
@@ -31,7 +31,8 @@
     "tools/n3w_t1_core_updater_ha_install.py": "a536d0d2224f58fe6f14c26eb9f6ddf351aa8f7b",
     "tools/n3w_t1_core_updater_host.py": "cfa2d2902d88aac08852d7ed71d611edf3400b64",
     "tools/n3w_t1_core_updater_common.py": "63a0377b7df509fd44194a1752a19c013ce55858",
-    "tools/n3w_t1_core_updater_v2_state.py": "d89d4696409d7c451ec0b37a8be87e29092806b6"
+    "tools/n3w_t1_core_updater_v2_state.py": "d89d4696409d7c451ec0b37a8be87e29092806b6",
+    "tools/execution_packages/n3w/r7a/u6_source_activation_r25/executor.py": "f3e3ad25cda278f8ed5888bfee11573ac5fdd29e"
   },
   "state_root": "/var/lib/n3w-t1-core-updater/u7-r29-source-activation-20261114-01",
   "remote_staging_root": "/var/lib/n3w-t1-core-updater/staging/u7-r29-source-activation-20261114-01",
