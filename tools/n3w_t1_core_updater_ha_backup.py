@@ -284,6 +284,7 @@ class ProtectedHaDataBackupProvider:
             raise UpdaterV2Error("ha_data_backup_source_invalid")
         try:
             resolved_root = root.resolve(strict=True)
+            root_device = root.stat().st_dev
         except OSError as error:
             raise UpdaterV2Error("ha_data_backup_source_invalid") from error
 
@@ -300,7 +301,14 @@ class ProtectedHaDataBackupProvider:
                     raise UpdaterV2Error("ha_data_backup_scan_failed") from error
                 if stat.S_ISLNK(metadata.st_mode):
                     try:
-                        path.resolve(strict=True).relative_to(resolved_root)
+                        target = path.resolve(strict=True)
+                        target.relative_to(resolved_root)
+                        if target.stat().st_dev != root_device:
+                            raise UpdaterV2Error(
+                                "ha_data_backup_external_state_unsupported"
+                            )
+                    except UpdaterV2Error:
+                        raise
                     except (OSError, ValueError) as error:
                         raise UpdaterV2Error(
                             "ha_data_backup_external_state_unsupported"
@@ -311,6 +319,10 @@ class ProtectedHaDataBackupProvider:
                 ):
                     raise UpdaterV2Error(
                         "ha_data_backup_special_file_unsupported"
+                    )
+                elif metadata.st_dev != root_device:
+                    raise UpdaterV2Error(
+                        "ha_data_backup_external_state_unsupported"
                     )
                 if (
                     stat.S_ISREG(metadata.st_mode)
