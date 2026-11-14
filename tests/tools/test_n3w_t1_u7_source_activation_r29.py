@@ -161,6 +161,8 @@ def test_staged_import_runs_before_claim_and_surfaces_safe_error() -> None:
     claim = remote.index('durable_json(state_root / "authorization_claim.json", claim)')
     assert staged < claim
     assert "sanitize_import_error" in remote
+    assert "sys.path.insert(0,'/opt/HomeAssistant/tools')" in remote
+    assert "sys.path.insert(0,sys.argv[1])" in remote
     assert '"staged_import_failed:"' in remote
     assert '"installed_import_failed:"' in remote
 
