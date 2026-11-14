@@ -314,3 +314,59 @@ Any executable-source change beyond the already-reviewed source authority
 precondition and must stop for renewed review/authorization.
 
 R29 success remains bounded before U7 HA quiesce/data-backup execution.
+
+
+## 8. R29 live pre-claim staged-import failure and capacity dependency repair
+
+The first authorized R29 live execution was:
+
+`U7-R29-LIVE-SOURCE-ACTIVATION-20261114T152222Z`
+
+It stopped before authorization claim:
+
+```text
+STATUS=STOP
+RC=2
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+HOST_SOURCE_MUTATION=false
+SERVICE_STOP=false
+SERVICE_RESTART=false
+TRANSACTION_MUTATION=false
+USB_MUTATION=false
+U7_TRANSITION=false
+U8_PLUS=false
+```
+
+The executor cleaned the canonical R29 staging root. A follow-up bounded diagnostic used an isolated `/tmp` staging directory, preserved the exact production tools path as the second import location, and cleaned both the temporary remote directory and SSH master.
+
+Physical diagnostic:
+
+```text
+PYTHON_VERSION=3.14.4
+IMPORT_PASS=n3w_t1_core_updater_ha_backup
+IMPORT_PASS=n3w_t1_core_updater_ha_usb
+IMPORT_FAILED=n3w_t1_core_updater_ha_install
+EXCEPTION=ImportError: cannot import name 'BackupCapacityRevalidation' from 'n3w_t1_core_updater_ha_capacity'
+R29_STATE_ROOT_EXISTS=false
+R29_STAGING_ROOT_EXISTS=false
+REMOTE_CLEANUP=PASS
+SSH_MASTER_CLEANUP=PASS
+```
+
+Root cause is a symbol/version closure defect, not a Python-version incompatibility. Current target `n3w_t1_core_updater_ha_install.py` requires `BackupCapacityRevalidation`, while the exact installed predecessor `n3w_t1_core_updater_ha_capacity.py` does not provide that symbol. The R29 regression checked transitive module-name declaration but incorrectly allowed the capacity module to remain in the unchanged dependency set.
+
+Repair:
+- activate exact target `n3w_t1_core_updater_ha_capacity.py` together with the existing six R29 targets;
+- move the observed predecessor capacity SHA-256 `4b9cc960565f8338dd734bea7369aea562be85ad5ee7f245e4e4039371af128e` from unchanged authority to fixed predecessor/rollback authority;
+- bind target capacity Git blob `b3adca96e0d698d5096c005766564c33a5609bcd`;
+- increase activated source count from six to seven;
+- explicitly import capacity in staged and installed validation;
+- retain the sanitized traceback tail rather than prefix so the actual exception survives bounded diagnostics;
+- add a focused regression proving capacity is activated and is not classified as unchanged.
+
+Executable-source repair head before docs alignment:
+`59b7f6d6213f19bd66df32d91710b37b674e9340`
+
+Because executable source changed after the prior live grant, that grant is not carried forward. The repaired manifest is reset to ungranted and must pass fresh CI plus final exact review before a new live authorization can be requested.
+
