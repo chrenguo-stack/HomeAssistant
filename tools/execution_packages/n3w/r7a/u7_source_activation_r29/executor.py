@@ -60,6 +60,7 @@ def load_base():
 
 
 REMOTE_SCRIPT = r'''
+import base64
 import hashlib
 import json
 import os
@@ -784,9 +785,9 @@ def execute(plan, authorization, confirmation):
 
 
 def main():
-    mode = sys.argv[1]
-    plan = json.loads(base64.b64decode(sys.argv[2]).decode("utf-8"))
     try:
+        mode = sys.argv[1]
+        plan = json.loads(base64.b64decode(sys.argv[2]).decode("utf-8"))
         if plan.get("gate_id") != (
             "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_"
             "U7_SOURCE_ACTIVATION_R29_20261114_01"
