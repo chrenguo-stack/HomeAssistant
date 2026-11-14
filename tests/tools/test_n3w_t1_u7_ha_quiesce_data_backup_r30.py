@@ -207,6 +207,10 @@ def test_timeout_path_reconciles_status_and_never_blindly_reexecutes() -> None:
     assert "def verify_terminal_u7_state" in source
     assert "r30_terminal_transaction_mismatch" in source
     assert "r30_terminal_usb_mirror_mismatch" in source
+    assert "require_existing_rw_mount(plan)" in source
+    assert 'mirror / "manifest.json"' in source
+    assert "usb_device_identity_public_fingerprint" in source
+    assert 'verify_quiesced_runtime(plan, pre["runtime"])' in source
     assert '"status"' in source
     assert "status_reconciliation_attempted" in source
     assert 'status="STOP_UNKNOWN"' in source
@@ -236,6 +240,16 @@ def test_local_evidence_failure_never_leaves_pass_status() -> None:
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert (
         manifest["execution_contract"]["local_evidence_failure_never_reports_pass"]
+        is True
+    )
+
+
+def test_timeout_terminal_success_revalidates_mount_mirror_and_runtime() -> None:
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    assert (
+        manifest["execution_contract"][
+            "timeout_terminal_success_revalidates_mount_usb_mirror_and_runtime"
+        ]
         is True
     )
 

@@ -565,11 +565,23 @@ def verify_terminal_u7_state(plan, success):
     ):
         raise Stop("r30_terminal_transaction_mismatch")
 
+    require_existing_rw_mount(plan)
     mirror = Path(plan["mount_target"]) / "n3w-update" / "transaction"
+    manifest = read_object(mirror / "manifest.json")
     phase = read_object(mirror / "phase.json")
     authority = read_object(mirror / "content-authority.json")
     if (
-        phase.get("transaction_id_sha256")
+        manifest.get("transaction_id_sha256")
+        != plan["transaction_id_sha256"]
+        or manifest.get("usb_filesystem_uuid")
+        != transaction.get("usb_filesystem_uuid")
+        or manifest.get("usb_device_identity_public_fingerprint")
+        != transaction.get("usb_device_identity_public_fingerprint")
+        or manifest.get("target_archive_sha256")
+        != transaction.get("target_archive_sha256")
+        or manifest.get("target_archive_size_bytes")
+        != transaction.get("target_archive_size")
+        or phase.get("transaction_id_sha256")
         != plan["transaction_id_sha256"]
         or phase.get("phase")
         != "U7_HA_QUIESCED_DATA_BACKUP_PREPARING"
@@ -579,10 +591,18 @@ def verify_terminal_u7_state(plan, success):
         != transaction.get("ha_data_backup_identity")
     ):
         raise Stop("r30_terminal_usb_mirror_mismatch")
+
+    pre = success.get("pre")
+    if not isinstance(pre, dict) or not isinstance(pre.get("runtime"), dict):
+        raise Stop("r30_terminal_runtime_baseline_missing")
+    verify_quiesced_runtime(plan, pre["runtime"])
     return {
         "transaction_exact": True,
+        "usb_mount_present": True,
         "usb_mirror_exact": True,
         "backup_identity_exact": True,
+        "runtime_quiesced": True,
+        "broker_continuity": True,
     }
 
 
