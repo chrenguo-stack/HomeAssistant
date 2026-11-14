@@ -39,14 +39,14 @@ def load_executor():
     return module
 
 
-def test_manifest_is_ungranted_two_file_source_activation() -> None:
+def test_manifest_is_granted_two_file_source_activation() -> None:
     document = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert document["gate_id"] == GATE
     assert document["authorization_id"] == GATE
     assert document["confirmation"] == CONFIRM
-    assert document["live_execution_authorized"] is False
+    assert document["live_execution_authorized"] is True
     assert document["authorization_state"] == {
-        "granted": False,
+        "granted": True,
         "claimed": False,
         "consumed": False,
         "replay_permitted": False,
