@@ -210,7 +210,8 @@ def execute(p,aid,confirm):
   if pc["transaction_sha256"]!=before["transaction_sha256"]:raise Stop("postclaim_transaction_drift")
   for n in ("host","services_owner","broker_owner"):
    if pc["units"][n]["MainPID"]!=before["units"][n]["MainPID"]:raise Stop("unit_pid_drift_before_activation:"+n)
-  for k,dst in p["remote_paths"].items():install(stage/(k+".py"),dst);result["activated_source_file_count"]+=1;result["host_source_mutation"]=True
+  result["host_source_mutation"]=True
+  for k,dst in p["remote_paths"].items():install(stage/(k+".py"),dst);result["activated_source_file_count"]+=1
   importable();after=pre(p,True)
   if after["transaction_sha256"]!=before["transaction_sha256"]:raise Stop("u6_transaction_drift_after_activation")
   for n in ("host","services_owner","broker_owner"):
