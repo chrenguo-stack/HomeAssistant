@@ -110,3 +110,14 @@ LIVE_U7_EXECUTION=false
 
 
 POST_REBOOT_EPOCH_PROOF_REQUIRED=true
+
+
+U7_RECLAIMABLE_BACKUP_ACCOUNTING=ALLOCATED_BLOCKS_ONLY
+U7_RECLAIMABLE_BACKUP_HARDLINK_ALLOWED=false
+U7_ORPHAN_FIXED_BACKUP_PATH_RECLAIMABLE=true
+
+A stale fixed-path encrypted backup left by an earlier failed U7 re-entry may
+be treated only as bytes that the provider is about to unlink. Reclaimable
+capacity uses allocated filesystem blocks, not logical file length, and rejects
+multi-link files. This prevents both retry deadlock and sparse/hard-link
+capacity overestimation.
