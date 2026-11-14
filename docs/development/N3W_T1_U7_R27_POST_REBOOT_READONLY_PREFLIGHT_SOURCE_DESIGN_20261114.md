@@ -36,7 +36,7 @@ R27 verifies:
 8. V1.2 content authority, with no historical device-node, UUID or fingerprint continuity gate;
 9. exact target archive and exact predecessor archive;
 10. no HA backup residue before U7;
-11. HA data root presence, metadata, logical measured bytes, no external symlink/special file, and no unsupported db_url;
+11. HA data root presence, metadata, logical measured bytes, no external symlink/special file/cross-filesystem state, and no unsupported db_url;
 12. SQLite file shape is inspected without opening the live database; quick_check is deferred until mandatory quiesce so R27 cannot create/update WAL shared-memory state;
 13. SYSTEM_ROOT_KEY path/owner/mode/length metadata only. Key bytes are never read or emitted by R27;
 14. OpenSSL AES-256-CTR/PBKDF2-related CLI capability and GNU tar feature availability;
@@ -130,3 +130,12 @@ This preserves the repository guard that host reboot/recreate changes lifecycle
 history. R27 still requires exact image/configured-image binding and active
 healthy service/runtime state. A later live gate must prove same-boot
 stability rather than blocking on historical restart-count equality.
+
+
+HA_DATA_CROSS_FILESYSTEM_STATE_SUPPORTED=false
+TAR_ONE_FILE_SYSTEM_SCAN_ALIGNMENT=FAIL_CLOSED
+
+R27, live capacity measurement and the protected backup provider now reject
+persistent entries whose filesystem device differs from the HA data root.
+This prevents --one-file-system from silently omitting nested external state
+while the transaction claims a complete recovery point.
