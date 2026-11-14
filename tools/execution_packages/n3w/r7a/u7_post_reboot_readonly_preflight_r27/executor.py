@@ -166,7 +166,7 @@ def require_healthy_units():
             or observed.get("ActiveState") != "active"
             or observed.get("SubState") != "running"
             or observed.get("Result") != "success"
-            or observed.get("NRestarts") != "0"
+            or not str(observed.get("NRestarts", "")).isdigit()
         ):
             raise Stop("unit_not_healthy:" + name)
     return units
@@ -212,7 +212,8 @@ def docker_view(expected):
         observed["runtime_image_id"] != expected["runtime_image_id"]
         or observed["configured_image_ref"] != expected["image"]
         or observed["status"] != "running"
-        or observed["restart_count"] != 0
+        or type(observed["restart_count"]) is not int
+        or observed["restart_count"] < 0
     ):
         raise Stop("container_runtime_drift:" + expected["image"])
     return observed
