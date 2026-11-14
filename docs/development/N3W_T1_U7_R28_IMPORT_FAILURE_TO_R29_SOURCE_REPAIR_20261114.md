@@ -176,3 +176,50 @@ Repair:
 
 Attempt 01 is not a consumed authorization, not a T1 mutation attempt, and is safe to
 supersede after fresh CI.
+
+
+## 8. R29 read-only preflight Attempt 02 remote JSON stop
+
+Attempt 02:
+`U7-R29-READONLY-PREFLIGHT02-20261114T134022Z`
+
+Observed local result:
+
+```text
+STATUS=STOP
+REASON=Stop:r29_preflight_failed:remote_result_invalid
+T1_ACCESS=true
+REMOTE_STAGING=false
+REMOTE_EXECUTE_INVOKED=false
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+HOST_SOURCE_MUTATION=false
+SERVICE_STOP=false
+SERVICE_RESTART=false
+TRANSACTION_MUTATION=false
+USB_MUTATION=false
+U7_TRANSITION=false
+U8_PLUS=false
+SSH_MASTER_CLEANUP=true
+```
+
+Source-proven root cause:
+- the R29 embedded remote script decoded the base64 plan in `main()`;
+- `base64` was not imported inside `REMOTE_SCRIPT`;
+- plan decoding occurred before the remote `try` block;
+- Python therefore raised `NameError` before any JSON result could be emitted;
+- the local wrapper correctly reduced non-JSON stdout to `remote_result_invalid`.
+
+Impact:
+- SSH transport was established, so `T1_ACCESS=true`;
+- the remote script failed before `verify_prestate()`, before any staging directory,
+  before authorization claim, and before all source/service/USB/transaction mutations;
+- Attempt 02 is read-only and unconsumed and is safe to supersede after source repair.
+
+Repair:
+- import `base64` in the embedded remote script;
+- move mode/plan decoding inside the remote `try` block so malformed payloads also
+  return a bounded JSON STOP instead of a raw traceback;
+- add a regression that runs the embedded remote script with an invalid payload and
+  requires return code 2, JSON STOP on stdout, no stderr traceback, and no
+  authorization claim/consumption.
