@@ -17,7 +17,7 @@ BASE_EXECUTOR = (
     / "execution_packages"
     / "n3w"
     / "r7a"
-    / "u7_source_activation_r28"
+    / "u6_source_activation_r25"
     / "executor.py"
 )
 
