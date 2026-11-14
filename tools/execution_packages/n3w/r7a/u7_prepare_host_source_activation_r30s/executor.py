@@ -460,13 +460,30 @@ def read_status(plan):
         }
     if state_root.is_symlink() or not state_root.is_dir():
         raise Stop("r30s_state_root_invalid")
-    for name in ("success.json", "failure.json"):
-        path = state_root / name
-        if path.exists():
-            value = read_object(path)
-            value["terminal"] = True
-            value["reconciled_from_ledger"] = True
-            return value
+    success_path = state_root / "success.json"
+    failure_path = state_root / "failure.json"
+    if success_path.exists():
+        value = read_object(success_path)
+        stage = Path(plan["remote_staging_root"])
+        if stage.exists() or stage.is_symlink():
+            return {
+                "schema": "gh.n3w-t1-u7-r30s-status/1",
+                "status": "POSTSUCCESS_CLEANUP_UNCERTAIN",
+                "terminal": False,
+                "authorization_claimed": True,
+                "authorization_consumed": True,
+                "replay_permitted": False,
+                "source_activated": True,
+                "staging_residue": True,
+            }
+        value["terminal"] = True
+        value["reconciled_from_ledger"] = True
+        return value
+    if failure_path.exists():
+        value = read_object(failure_path)
+        value["terminal"] = True
+        value["reconciled_from_ledger"] = True
+        return value
     claim_path = state_root / "authorization_claim.json"
     claim = read_object(claim_path) if claim_path.exists() else None
     return {

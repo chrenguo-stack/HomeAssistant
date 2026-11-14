@@ -173,8 +173,10 @@ def test_success_stops_in_u7_with_backup_verified_and_broker_preserved() -> None
 
 def test_postclaim_failure_attempts_predecessor_owner_recovery_without_retry() -> None:
     remote = load_executor().REMOTE_SCRIPT
-    assert "runtime.resume_homeassistant_after_backup_failure()" in remote
-    assert 'result["recovery_attempted"] = runtime.quiesce_invoked' in remote
+    assert "if runtime.resume_invoked:" in remote
+    assert "elif runtime.quiesce_invoked:" in remote
+    assert "self.resume_succeeded = None" in remote
+    assert remote.count("runtime.resume_homeassistant_after_backup_failure()") == 1
     assert 'result["status"] = "STOP_RECOVERED"' in remote
     assert 'result["status"] = "STOP_RECOVERY_FAILED"' in remote
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))

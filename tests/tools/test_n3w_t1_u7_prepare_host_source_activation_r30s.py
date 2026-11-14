@@ -146,6 +146,18 @@ def test_postclaim_failure_has_bounded_single_file_rollback() -> None:
     )
 
 
+def test_status_reconciliation_never_false_passes_with_staging_residue() -> None:
+    remote = load_executor().REMOTE_SCRIPT
+    assert '"POSTSUCCESS_CLEANUP_UNCERTAIN"' in remote
+    assert '"staging_residue": True' in remote
+    assert '"terminal": False' in remote
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    assert (
+        manifest["execution_contract"]["postsuccess_cleanup_must_be_reconciled"]
+        is True
+    )
+
+
 def test_timeout_path_reconciles_status_without_second_execute() -> None:
     source = EXECUTOR.read_text(encoding="utf-8")
     assert "def reconcile_after_invoke" in source

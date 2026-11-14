@@ -675,6 +675,7 @@ def execute(plan, authorization_id, confirmation):
             self.inner = product["LocalHost"]()
             self.quiesce_invoked = False
             self.resume_invoked = False
+            self.resume_succeeded = None
 
         def quiesce_homeassistant_for_backup(self):
             self.quiesce_invoked = True
@@ -682,7 +683,13 @@ def execute(plan, authorization_id, confirmation):
 
         def resume_homeassistant_after_backup_failure(self):
             self.resume_invoked = True
-            return self.inner.resume_homeassistant_after_backup_failure()
+            try:
+                value = self.inner.resume_homeassistant_after_backup_failure()
+            except Exception:
+                self.resume_succeeded = False
+                raise
+            self.resume_succeeded = True
+            return value
 
     runtime = RuntimeTracker()
     try:
@@ -757,8 +764,23 @@ def execute(plan, authorization_id, confirmation):
             pass
         result["service_stop"] = runtime.quiesce_invoked
         result["usb_mutation"] = bool(result["transaction_mutation"])
-        result["recovery_attempted"] = runtime.quiesce_invoked
-        if runtime.quiesce_invoked:
+        if runtime.resume_invoked:
+            result["recovery_attempted"] = True
+            result["service_restart"] = True
+            try:
+                verify_running_runtime(plan)
+                result["recovery_pass"] = True
+                result["status"] = "STOP_RECOVERED"
+            except Exception as recovery_error:
+                result["recovery_pass"] = False
+                result["status"] = "STOP_RECOVERY_FAILED"
+                result["recovery_error"] = (
+                    type(recovery_error).__name__
+                    + ":"
+                    + str(recovery_error)[:180]
+                )
+        elif runtime.quiesce_invoked:
+            result["recovery_attempted"] = True
             try:
                 runtime.resume_homeassistant_after_backup_failure()
                 verify_running_runtime(plan)
@@ -775,6 +797,7 @@ def execute(plan, authorization_id, confirmation):
                     + str(recovery_error)[:180]
                 )
         else:
+            result["recovery_attempted"] = False
             result["recovery_pass"] = None
             result["service_restart"] = False
             result["status"] = "STOP_PREQUIESCE"
