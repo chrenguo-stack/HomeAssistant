@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import importlib.util
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -168,6 +169,27 @@ def test_executor_and_embedded_remote_compile() -> None:
         "common",
         "v2_state",
     }
+
+
+def test_remote_payload_decode_is_self_contained_and_json_fail_closed() -> None:
+    remote = load_executor().REMOTE_SCRIPT
+    assert "import base64" in remote
+    assert remote.index("try:\n        mode = sys.argv[1]") < remote.index(
+        "base64.b64decode(sys.argv[2])"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-B", "-c", remote, "preflight", "%%%"],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    assert completed.returncode == 2
+    result = json.loads(completed.stdout)
+    assert result["status"] == "STOP"
+    assert result["authorization_claimed"] is False
+    assert result["authorization_consumed"] is False
+    assert completed.stderr == ""
 
 
 def test_staged_import_runs_before_claim_and_surfaces_safe_error() -> None:
