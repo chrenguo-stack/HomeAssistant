@@ -1,3 +1,19 @@
+## 2026-11-14 — R26 live CLOSED_PASS / durable U6 / stop before U7
+
+- PR #807 remains OPEN / DRAFT / UNMERGED.
+- R26 one-shot authorization is claimed + consumed and permanently no-replay.
+- Attempts 01 and 02 stopped before claim with zero transaction/USB mutation; their local-wrapper defects were repaired with fresh CI.
+- Attempt 03 crossed the claim boundary and the Mac wrapper timed out at its 2400-second SSH limit, producing a local `STOP_UNKNOWN`.
+- Durable T1 evidence later proved remote success: `success.json` records `U6_R26_PREDECESSOR_RECOVERY_PASS`.
+- Host transaction and bound USB transaction metadata are both durably `U6_PREDECESSOR_RECOVERY_PREPARING`; transaction SHA-256 is `7f406b5b88f7bd5c3161d7527a001ddcb3414a8ec64fb34cdad444c2c3e62ebe`.
+- Verified predecessor recovery archive: SHA-256 `34cec37ab021e1081e236502bfd06760894f6bca93bd8d6bf99d8d90bb89848d`, size 743074537 bytes, portable identity SHA-256 `8b4d4376e2ab339347abb4aa554d3a5cc6f93ea20b0ee3c22ca8e29ae14b16c3`, fsynced and verified.
+- Manager IPC reports `PREDECESSOR_RECOVERY_PREPARING`; Manager, Home Assistant and Broker remain running with restart count 0; owner units remain active/running/success with zero restarts.
+- Product U9 authorization fields remain false/null. R26 did not quiesce Home Assistant, restart services, delete images, enter U7+, or require rollback.
+- The local Attempt 03 timeout is a false-negative transport outcome, not a failed U6 transaction. Durable result files are authoritative after post-claim transport uncertainty.
+- R26 must never be replayed.
+- Stop boundary is honored. Next lifecycle phase is U7 `U7_HA_QUIESCED_DATA_BACKUP_PREPARING`, but no U7+ live authorization exists.
+- Next bounded work: define/review the U7 HA-quiesce/data-backup gate; do not execute it automatically.
+
 ## 2026-11-14 — R26 source CLOSED_PASS / live one-shot authorization boundary
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted and `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.

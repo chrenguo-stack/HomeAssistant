@@ -1,3 +1,33 @@
+### 2026-11-14 KF-154 R26 post-claim client timeout / delayed durable success — PHYSICAL_PROVEN / R26 CLOSED_PASS
+
+```text
+R26_ATTEMPT03_LOCAL_RESULT=STOP_UNKNOWN
+R26_ATTEMPT03_LOCAL_REASON=command_timeout:ssh
+R26_REMOTE_RESULT=U6_R26_PREDECESSOR_RECOVERY_PASS
+R26_AUTHORIZATION_CLAIMED=true
+R26_AUTHORIZATION_CONSUMED=true
+R26_REPLAY_PERMITTED=false
+LIVE_TRANSACTION_PHASE=U6_PREDECESSOR_RECOVERY_PREPARING
+USB_TRANSACTION_PHASE=U6_PREDECESSOR_RECOVERY_PREPARING
+PREDECESSOR_VERIFIED=true
+U7_PLUS=false
+```
+
+Physical proof:
+- Attempt 03 crossed the one-shot claim and began the U5→U6 predecessor-recovery transaction.
+- the Mac wrapper's remote execute transport timed out at 2400 seconds before receiving the final JSON and therefore correctly classified its local knowledge as `STOP_UNKNOWN`;
+- the remote process continued long enough to complete predecessor export and verification, then durably wrote `success.json`;
+- host and USB transaction state are both U6, the predecessor archive is present/verified/fsynced, IPC reports `PREDECESSOR_RECOVERY_PREPARING`, and all three product containers plus owner units remain healthy;
+- no U7+, HA quiesce, service restart, image deletion or rollback occurred.
+
+Regression guards:
+- a post-claim transport timeout is an uncertainty signal, not proof that the remote mutation failed;
+- consumed one-shot authorization must never be replayed after post-claim timeout;
+- long-running remote mutation wrappers must size transport timeouts above the bounded product operation or provide progress/heartbeat without weakening the one-shot contract;
+- after post-claim transport uncertainty, perform a bounded read-only reconciliation of durable success/failure ledgers and lifecycle state before designing any successor;
+- local default mutation flags from an unobserved remote result are not authoritative when durable remote evidence proves later completion;
+- future R26-class tests must cover remote work that outlives the client transport timeout and verify fail-closed/no-replay adjudication.
+
 ### 2026-11-13 KF-153 R20 source-activation lifecycle-readiness races / R21 recovery / R22 successor — PHYSICAL_PROVEN / SOURCE_CI_CLOSED_PASS
 
 ```text

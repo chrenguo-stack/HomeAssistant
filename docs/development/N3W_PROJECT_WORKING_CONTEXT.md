@@ -1,3 +1,49 @@
+## Stable updater authority — 2026-11-14 R26 live CLOSED_PASS / durable U6 / U7 boundary
+
+```text
+PROJECT_WORKING_CONTEXT_VERSION=7.7
+
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+
+R26_EXECUTION_AUTHORITY_HEAD=d95426b15fb718e60683f75ceef36becb8038b61
+R26_RESULT=U6_R26_PREDECESSOR_RECOVERY_PASS
+R26_AUTHORIZATION_CLAIMED=true
+R26_AUTHORIZATION_CONSUMED=true
+R26_REPLAY_PERMITTED=false
+R26_CLIENT_TIMEOUT_FALSE_NEGATIVE=true
+
+LIVE_TRANSACTION_PHASE=U6_PREDECESSOR_RECOVERY_PREPARING
+LIVE_TRANSACTION_SHA256=7f406b5b88f7bd5c3161d7527a001ddcb3414a8ec64fb34cdad444c2c3e62ebe
+USB_TRANSACTION_PHASE=U6_PREDECESSOR_RECOVERY_PREPARING
+PREDECESSOR_ARCHIVE_SHA256=34cec37ab021e1081e236502bfd06760894f6bca93bd8d6bf99d8d90bb89848d
+PREDECESSOR_ARCHIVE_SIZE_BYTES=743074537
+PREDECESSOR_VERIFIED=true
+PREDECESSOR_FSYNCED=true
+
+PRODUCT_U9_AUTHORIZATION_CLAIMED=false
+PRODUCT_U9_AUTHORIZATION_CONSUMED=false
+R26_SERVICE_RESTART=false
+R26_HA_QUIESCE=false
+R26_U7_PLUS=false
+R26_ROLLBACK_REQUIRED=false
+
+NEXT_LIFECYCLE_PHASE=U7_HA_QUIESCED_DATA_BACKUP_PREPARING
+NEXT_ONE_GATE=DEFINE_AND_REVIEW_U7_HA_QUIESCE_DATA_BACKUP_GATE
+U7_PLUS_AUTHORIZED=false
+BOARD_ACCESS=false
+MERGE=false
+```
+
+R26 is terminal CLOSED_PASS and consumed/no-replay. Attempt 03 exceeded the Mac-side 2400-second SSH timeout, but durable T1 `success.json`, the U6 host/USB phases, verified predecessor archive and healthy runtime independently prove completion. Post-claim transport uncertainty must be reconciled from durable remote state before adjudication; it must never trigger replay of the consumed gate. The next lifecycle mutation is U7 HA quiesce/data-backup preparation and remains separately unauthorized.
+
 ## Stable updater authority — 2026-11-14 R26 source CLOSED_PASS / live one-shot authorization boundary
 
 ```text
