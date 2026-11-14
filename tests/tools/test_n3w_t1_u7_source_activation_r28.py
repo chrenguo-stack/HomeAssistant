@@ -125,6 +125,14 @@ def test_rollback_restores_predecessors_and_removes_previously_absent_host() -> 
     assert 'r["post"]=pre(p,False)' in remote
 
 
+
+def test_rollback_is_armed_before_first_atomic_replace() -> None:
+    remote = load_executor().REMOTE_SCRIPT
+    armed = remote.index('result["host_source_mutation"]=True')
+    loop = remote.index('for k,dst in p["remote_paths"].items():install(stage/(k+".py"),dst)')
+    assert armed < loop
+    assert 'result["rollback_required"]=bool(result["host_source_mutation"])' in remote
+
 def test_claim_and_transport_uncertainty_are_consumed_no_replay() -> None:
     source = EXECUTOR.read_text(encoding="utf-8")
     remote = load_executor().REMOTE_SCRIPT
