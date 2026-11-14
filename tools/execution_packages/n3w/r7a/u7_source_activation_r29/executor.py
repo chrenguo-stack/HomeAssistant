@@ -472,6 +472,7 @@ def staged_import_preflight(plan):
     stage = Path(plan["remote_staging_root"])
     script = (
         "import sys;"
+        "sys.path.insert(0,'/opt/HomeAssistant/tools');"
         "sys.path.insert(0,sys.argv[1]);"
         "mods=sys.argv[2:];"
         "import importlib;"
