@@ -154,8 +154,9 @@ def test_preflight_checks_u7_backup_runtime_dependencies_without_reading_key() -
     assert 'meta.st_size != 32' in remote
     assert 'stat.S_IMODE(meta.st_mode) != 0o600' in remote
     assert '"key_bytes_read": False' in remote
-    assert "PRAGMA quick_check" in remote
-    assert "DEFERRED_BUSY_UNTIL_QUIESCE" in remote
+    assert "PRAGMA quick_check" not in remote
+    assert "sqlite3.connect" not in remote
+    assert "DEFERRED_UNTIL_QUIESCE" in remote
     assert "EXTERNAL_DB_RE" in remote
     assert '"openssl", "enc", "-help"' in remote
     assert '"openssl", "enc", "-list"' in remote
