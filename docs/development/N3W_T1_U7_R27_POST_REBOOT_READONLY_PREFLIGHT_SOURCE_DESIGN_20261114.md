@@ -16,6 +16,8 @@ be prepared.
 - durable transaction SHA-256 must remain
   7f406b5b88f7bd5c3161d7527a001ddcb3414a8ec64fb34cdad444c2c3e62ebe.
 - product U9 authorization fields must remain false/false/null.
+- at U6, `predecessor_recovery_verified` must still be false and `predecessor_recovery_identity` must still be null; those transaction fields are intentionally written only on the U6->U7 transition after HA quiesce.
+- exact predecessor recovery authority at U6 is the closed R26 durable success ledger plus exact predecessor archive bytes, not premature U7 transaction fields.
 - exact predecessor recovery content remains:
   - archive SHA-256 34cec37ab021e1081e236502bfd06760894f6bca93bd8d6bf99d8d90bb89848d
   - archive size 743074537 bytes
@@ -84,6 +86,31 @@ STATUS=SOURCE_AND_TEST_PREPARED_FRESH_CI_PENDING
 NEXT_IF_SOURCE_CI_PASS=REAL_T1_R27_READONLY_PREFLIGHT
 NEXT_AFTER_REAL_R27_PASS=DEFINE_U7_SOURCE_ACTIVATION_GATE
 
+
+## 7.1 R27D-discovered U6 predecessor authority correction
+
+The first real R27 run stopped fail-closed at `u7_u6_transaction_invalid`.
+R27D then proved the live transaction SHA-256 was still exactly the frozen
+R26 value, phase/status/transaction ID were exact, U9 authorization remained
+untouched, and the only failed predicate was the premature expectation that
+`predecessor_recovery_verified` and `predecessor_recovery_identity` were
+already populated.
+
+Source review of `HaUsbU6PredecessorController` and
+`record_predecessor_recovery_and_ha_quiesced` shows that this expectation was
+incorrect. U6 durably records the phase before predecessor export, while the
+predecessor fields are intentionally persisted only when U7 is entered after
+HA quiesce.
+
+R27 therefore requires the U6 transaction and USB content-authority predecessor
+fields to remain false/null, while independently binding predecessor recovery
+to R26 `success.json -> post.predecessor`, the exact frozen U6 transaction
+SHA-256, and the exact predecessor archive bytes.
+
+R27D_RESULT=PASS_DIAGNOSTIC
+R27_FALSE_BLOCKER=PREMATURE_U7_TRANSACTION_FIELD_EXPECTATION
+R26_REPLAY_REQUIRED=false
+LIVE_TRANSACTION_REPAIR_REQUIRED=false
 
 ## 7. Review-discovered U7 live capacity blocker and repair
 
