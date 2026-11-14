@@ -60,6 +60,8 @@ def test_manifest_binds_r27_pass_u6_prestate_and_targets() -> None:
     assert e["transaction_sha256"] == "7f406b5b88f7bd5c3161d7527a001ddcb3414a8ec64fb34cdad444c2c3e62ebe"
     assert d["predecessor_sha256"]["/opt/HomeAssistant/tools/n3w_t1_core_updater_host.py"] is None
     assert set(d["remote_paths"]) == {"backup", "usb", "install", "host"}
+    assert len(d["unchanged_source_sha256"]) == 9
+    assert d["package_source_authority"]["tools/n3w_t1_ssh_transport.py"] == "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7"
 
 
 def test_executor_and_embedded_remote_compile() -> None:
@@ -77,6 +79,7 @@ def test_preflight_requires_exact_u6_r26_and_pre_u7_host_absence() -> None:
     assert '"u7_u6_transaction_invalid"' in remote
     assert '"r26_claim_invalid"' in remote
     assert '"pre_u7_source_not_absent:"' in remote
+    assert '"unchanged_u6_source_drift:"' in remote
     assert '"source_activation_eligible":True' in remote
 
 
