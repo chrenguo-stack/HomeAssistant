@@ -152,10 +152,14 @@ def test_r27_requires_r26_success_to_predate_current_boot() -> None:
 def test_u6_transaction_and_recovery_content_are_exactly_revalidated() -> None:
     remote = load_executor().REMOTE_SCRIPT
     assert '"U6_PREDECESSOR_RECOVERY_PREPARING"' in remote
+    assert 'transaction.get("predecessor_recovery_verified") is not False' in remote
+    assert 'transaction.get("predecessor_recovery_identity") is not None' in remote
     assert 'transaction.get("ha_data_backup_verified") is not False' in remote
     assert 'transaction.get("authorization_claimed") is not False' in remote
     assert 'transaction.get("authorization_consumed") is not False' in remote
-    assert 'content.get("predecessor_recovery_identity")' in remote
+    assert 'post.get("predecessor") != plan["predecessor_identity"]' in remote
+    assert 'post.get("transaction_sha256") != plan["transaction_sha256"]' in remote
+    assert 'content.get("predecessor_recovery_identity") is not None' in remote
     assert 'content.get("ha_data_backup_identity") is not None' in remote
     assert '"u7_recovery_asset_drift"' in remote
     assert '"u7_backup_residue_present"' in remote
