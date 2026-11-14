@@ -267,7 +267,8 @@ def verify_transaction(plan):
         != plan["transaction_id_sha256"]
         or sha_file(TX_PATH) != plan["transaction_sha256"]
         or transaction.get("target_artifact_verified") is not True
-        or transaction.get("predecessor_recovery_verified") is not True
+        or transaction.get("predecessor_recovery_verified") is not False
+        or transaction.get("predecessor_recovery_identity") is not None
         or transaction.get("ha_data_backup_verified") is not False
         or transaction.get("ha_data_backup_identity") is not None
         or transaction.get("authorization_claimed") is not False
@@ -275,9 +276,6 @@ def verify_transaction(plan):
         or transaction.get("authorization_id_sha256") is not None
     ):
         raise Stop("u7_u6_transaction_invalid")
-    predecessor = transaction.get("predecessor_recovery_identity")
-    if predecessor != plan["predecessor_identity"]:
-        raise Stop("u7_predecessor_identity_drift")
     return transaction
 
 
@@ -300,6 +298,15 @@ def verify_r26_terminal(plan):
         or success.get("u7_plus") is not False
     ):
         raise Stop("r26_success_invalid")
+    post = success.get("post")
+    if (
+        not isinstance(post, dict)
+        or post.get("transaction_phase")
+        != "U6_PREDECESSOR_RECOVERY_PREPARING"
+        or post.get("transaction_sha256") != plan["transaction_sha256"]
+        or post.get("predecessor") != plan["predecessor_identity"]
+    ):
+        raise Stop("r26_predecessor_authority_invalid")
     uptime = float(Path("/proc/uptime").read_text().split()[0])
     boot_started = time.time() - uptime
     success_predates_boot = (
@@ -310,6 +317,7 @@ def verify_r26_terminal(plan):
     return {
         "claim_consumed_no_replay": True,
         "success_status": success.get("status"),
+        "predecessor_authority_exact": True,
         "success_predates_current_boot": True,
         "current_boot_id_sha256": hashlib.sha256(
             Path("/proc/sys/kernel/random/boot_id")
@@ -541,8 +549,7 @@ def inspect_media(plan, transaction):
             != plan["transaction_id_sha256"]
             or content.get("target_artifact_identity")
             != transaction.get("target_artifact_identity")
-            or content.get("predecessor_recovery_identity")
-            != plan["predecessor_identity"]
+            or content.get("predecessor_recovery_identity") is not None
             or content.get("ha_data_backup_identity") is not None
             or content.get("recovery_content_manifest_sha256") is not None
         ):
