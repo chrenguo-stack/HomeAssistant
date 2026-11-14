@@ -37,7 +37,7 @@ R27 verifies:
 9. exact target archive and exact predecessor archive;
 10. no HA backup residue before U7;
 11. HA data root presence, metadata, logical measured bytes, no external symlink/special file, and no unsupported db_url;
-12. live read-only SQLite quick_check when available; busy/locked may be deferred until the mandatory quiesced check;
+12. SQLite file shape is inspected without opening the live database; quick_check is deferred until mandatory quiesce so R27 cannot create/update WAL shared-memory state;
 13. SYSTEM_ROOT_KEY path/owner/mode/length metadata only. Key bytes are never read or emitted by R27;
 14. OpenSSL AES-256-CTR/PBKDF2-related CLI capability and GNU tar feature availability;
 15. current USB free capacity for remaining U7 work: HA backup budget + working budget + reserve.
@@ -83,3 +83,27 @@ MERGE=false
 STATUS=SOURCE_AND_TEST_PREPARED_FRESH_CI_PENDING
 NEXT_IF_SOURCE_CI_PASS=REAL_T1_R27_READONLY_PREFLIGHT
 NEXT_AFTER_REAL_R27_PASS=DEFINE_U7_SOURCE_ACTIVATION_GATE
+
+
+## 7. Review-discovered U7 live capacity blocker and repair
+
+R27 source review found that a read-only preflight capacity PASS cannot be the
+actual U7 write-safety boundary. HA data and USB free space may change after
+R27.
+
+The U7 controller is therefore repaired so that after production-owner
+quiesce, and before any new HA backup bytes are written, it freshly measures
+the quiesced HA data tree and current USB free space. It requires the current
+HA backup budget plus transaction working budget plus removable-media reserve.
+A capacity failure creates no new backup and resumes the predecessor
+application owner.
+
+For U7 re-entry, a prior verified encrypted backup may be counted only as
+reclaimable space and only when the current on-media regular-file size matches
+its durable backup identity. Missing prior backup bytes simply count as zero
+reclaimable bytes.
+
+U7_FRESH_BACKUP_CAPACITY_GATE=MANDATORY
+R27_CAPACITY_PASS_IS_ADVISORY_ONLY=true
+R27_SQLITE_QUICK_CHECK=DEFERRED_UNTIL_QUIESCE
+LIVE_U7_EXECUTION=false
