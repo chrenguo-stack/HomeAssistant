@@ -218,10 +218,9 @@ def test_source_activation_is_separate_from_live_u7_execution() -> None:
     assert authority["tools/n3w_t1_core_updater_ha_backup.py"]
     assert authority["tools/n3w_t1_core_updater_ha_usb.py"]
     assert authority["tools/n3w_t1_core_updater_host.py"]
-    assert document["installed_host_git_blob_sha1"] == (
-        "ee7ec0da27823a7b25408d90d61d03d25d5f1297"
-    )
-    assert 'git_blob_sha(host_path)' in remote
+    assert document["pre_u7_host_source_state"] == "ABSENT"
+    assert 'raise Stop("pre_u7_host_source_unexpectedly_present")' in remote
+    assert 'observed[str(host_path)] = "ABSENT_PRE_U7"' in remote
 
 
 def test_target_binding_workflow_covers_r27() -> None:
