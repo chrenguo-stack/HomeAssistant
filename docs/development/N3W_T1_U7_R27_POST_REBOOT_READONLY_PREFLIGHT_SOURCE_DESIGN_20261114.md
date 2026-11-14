@@ -38,7 +38,7 @@ R27 verifies:
 10. no HA backup residue before U7;
 11. HA data root presence, metadata, logical measured bytes, no external symlink/special file/cross-filesystem state, and no unsupported db_url;
 12. SQLite file shape is inspected without opening the live database; quick_check is deferred until mandatory quiesce so R27 cannot create/update WAL shared-memory state;
-13. SYSTEM_ROOT_KEY path/owner/mode/length metadata only. Key bytes are never read or emitted by R27;
+13. SYSTEM_ROOT_KEY private-parent/mode/single-link/length metadata only. The key file UID/GID is observed but is not a business gate; key bytes are never read or emitted by R27;
 14. OpenSSL AES-256-CTR/PBKDF2-related CLI capability and GNU tar feature availability;
 15. current USB free capacity for remaining U7 work: HA backup budget + working budget + reserve.
 
@@ -139,3 +139,14 @@ R27, live capacity measurement and the protected backup provider now reject
 persistent entries whose filesystem device differs from the HA data root.
 This prevents --one-file-system from silently omitting nested external state
 while the transaction claims a complete recovery point.
+
+
+SYSTEM_ROOT_KEY_PARENT_AUTHORITY=root:root:0700
+SYSTEM_ROOT_KEY_FILE_MODE=0600
+SYSTEM_ROOT_KEY_FILE_NLINK=1
+SYSTEM_ROOT_KEY_FILE_OWNER_BUSINESS_AUTHORITY=false
+
+This follows the current H0/H1 authority: the identity directory is a
+root-owned private root, while member ownership is not normalized by
+inference. Historical evidence has included UID/GID 999:999 for identity
+members, so R27 must not invent a root-owned child-file requirement.
