@@ -40,14 +40,14 @@ def load_executor():
     return module
 
 
-def test_manifest_is_granted_after_user_authorization() -> None:
+def test_manifest_is_ungranted_after_executable_source_repair() -> None:
     document = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert document["gate_id"] == GATE
     assert document["authorization_id"] == GATE
     assert document["confirmation"] == CONFIRM
-    assert document["live_execution_authorized"] is True
+    assert document["live_execution_authorized"] is False
     assert document["authorization_state"] == {
-        "granted": True,
+        "granted": False,
         "claimed": False,
         "consumed": False,
         "replay_permitted": False,
@@ -61,11 +61,12 @@ def test_manifest_is_granted_after_user_authorization() -> None:
 
 def test_r29_expands_activation_to_dependency_closure_nodes() -> None:
     document = json.loads(MANIFEST.read_text(encoding="utf-8"))
-    assert document["execution_contract"]["activated_source_file_count"] == 6
+    assert document["execution_contract"]["activated_source_file_count"] == 7
     assert set(document["remote_paths"]) == {
         "backup",
         "usb",
         "install",
+        "capacity",
         "host",
         "common",
         "v2_state",
@@ -79,6 +80,32 @@ def test_r29_expands_activation_to_dependency_closure_nodes() -> None:
         "a5260f1097983cad4818f626826accbb185e4a37",
         "d89d4696409d7c451ec0b37a8be87e29092806b6",
     }
+
+
+
+def test_capacity_dependency_is_activated_not_bound_as_unchanged() -> None:
+    document = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    capacity_path = "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_capacity.py"
+    assert document["remote_paths"]["capacity"] == capacity_path
+    assert document["fixed_predecessor_sha256"]["capacity"] == (
+        "4b9cc960565f8338dd734bea7369aea562be85ad5ee7f245e4e4039371af128e"
+    )
+    assert capacity_path not in document["unchanged_source_sha256"]
+    assert (
+        document["package_source_authority"][
+            "tools/n3w_t1_core_updater_ha_capacity.py"
+        ]
+        == "b3adca96e0d698d5096c005766564c33a5609bcd"
+    )
+
+    install_source = (
+        ROOT / "tools" / "n3w_t1_core_updater_ha_install.py"
+    ).read_text(encoding="utf-8")
+    capacity_source = (
+        ROOT / "tools" / "n3w_t1_core_updater_ha_capacity.py"
+    ).read_text(encoding="utf-8")
+    assert "BackupCapacityRevalidation" in install_source
+    assert "class BackupCapacityRevalidation" in capacity_source
 
 
 def _n3w_imports(path: Path) -> set[str]:
@@ -165,6 +192,7 @@ def test_executor_and_embedded_remote_compile() -> None:
         "backup",
         "usb",
         "install",
+        "capacity",
         "host",
         "common",
         "v2_state",
@@ -198,6 +226,8 @@ def test_staged_import_runs_before_claim_and_surfaces_safe_error() -> None:
     claim = remote.index('durable_json(state_root / "authorization_claim.json", claim)')
     assert staged < claim
     assert "sanitize_import_error" in remote
+    assert "value = value[-240:]" in remote
+    assert '"n3w_t1_core_updater_ha_capacity"' in remote
     assert "sys.path.insert(0,'/opt/HomeAssistant/tools')" in remote
     assert "sys.path.insert(0,sys.argv[1])" in remote
     assert '"staged_import_failed:"' in remote
