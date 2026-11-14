@@ -23,12 +23,13 @@
     "r27_public_closure_comment_id": 6877244227
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/u7_source_activation_r28/executor.py": "672935afc3ac02ba12a2e03fdb56143a329c32d4",
+    "tools/execution_packages/n3w/r7a/u7_source_activation_r28/executor.py": "2920c7a3c1323ec492daf6e518adb72a2aa3d98a",
     "tools/execution_packages/n3w/r7a/u6_source_activation_r25/executor.py": "f3e3ad25cda278f8ed5888bfee11573ac5fdd29e",
     "tools/n3w_t1_core_updater_ha_backup.py": "bb7a3dfa29b7996f619963298b61d0e92c798cca",
     "tools/n3w_t1_core_updater_ha_usb.py": "e46517d267c320c114daf383162cc9ad958e1b69",
     "tools/n3w_t1_core_updater_ha_install.py": "a536d0d2224f58fe6f14c26eb9f6ddf351aa8f7b",
-    "tools/n3w_t1_core_updater_host.py": "cfa2d2902d88aac08852d7ed71d611edf3400b64"
+    "tools/n3w_t1_core_updater_host.py": "cfa2d2902d88aac08852d7ed71d611edf3400b64",
+    "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7"
   },
   "state_root": "/var/lib/n3w-t1-core-updater/u7-r28-source-activation-20261114-01",
   "remote_staging_root": "/var/lib/n3w-t1-core-updater/staging/u7-r28-source-activation-20261114-01",
@@ -99,5 +100,16 @@
     "board_access": false,
     "merge": false
   },
-  "stop_boundary": "STOP_AFTER_R28_U7_SOURCE_ACTIVATION_BEFORE_U7_HA_QUIESCE_DATA_BACKUP_LIVE_EXECUTION"
+  "stop_boundary": "STOP_AFTER_R28_U7_SOURCE_ACTIVATION_BEFORE_U7_HA_QUIESCE_DATA_BACKUP_LIVE_EXECUTION",
+  "unchanged_source_sha256": {
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_capacity.py": "4b9cc960565f8338dd734bea7369aea562be85ad5ee7f245e4e4039371af128e",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_ipc.py": "12cb70cdcbebfd7430aef0d5a55a83eaa17e3c3ebd5bed2846fcb047dcac6358",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_prepare.py": "cc69aac8e2eab764a8d9d497b323e3f72816b9dd127d53dd356471a80101d892",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_prepare_host.py": "0d0c96d7ae2f26c2d2ae8388e6ee75ad0616081a6cdcb98727f2131dab31c30e",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_recovery.py": "2b8f9917b3eddb016eec6703c7048e2a08ce65e8d547fd00d2b8d86c0c8a4b7a",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_usb_media.py": "8579da19258829231eacb7b961d7ef151f2a2e1c49cb9506f7c7824dccbb31f8",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_usb_state.py": "05a380caca20d95e80771807aa44a3c8a687162a2eac19ab376d85d65ffa10ee",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_v2_common.py": "57ac8f7451ca1c8cfd27f24753d5ea9bf96608f219983c14234d7e87886a3d14",
+    "/opt/HomeAssistant/tools/n3w_t1_portable_image_identity.py": "8ef59ffb177eae0f3cbfc7afd133211205afac9d6a9e9e53b13f3484073f5f39"
+  }
 }
