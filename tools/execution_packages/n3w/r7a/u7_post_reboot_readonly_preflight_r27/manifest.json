@@ -19,7 +19,7 @@
     "post_reboot_runtime_baseline": "UNKNOWN_FRESH"
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/u7_post_reboot_readonly_preflight_r27/executor.py": "a813a8513e247a8f3e90ec34c8969848fd3c1ea5",
+    "tools/execution_packages/n3w/r7a/u7_post_reboot_readonly_preflight_r27/executor.py": "20e0c80d471f378488ff91f1b8bd318118a47a50",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
     "tools/n3w_t1_core_updater_ha_install.py": "bc1f997265b4016373647922b835fded84453761",
     "tools/n3w_t1_core_updater_ha_backup.py": "94a0589501f0217b55ca0a0e309f5795bfc59a79",

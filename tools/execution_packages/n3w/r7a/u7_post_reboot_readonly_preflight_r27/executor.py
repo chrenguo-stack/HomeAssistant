@@ -34,6 +34,7 @@ import re
 import sqlite3
 import stat
 import subprocess
+import base64
 import sys
 import time
 from pathlib import Path
@@ -783,7 +784,9 @@ def capacity_view(plan, ha_data, media):
 
 def main():
     try:
-        plan = json.loads(sys.argv[1])
+        plan = json.loads(
+            base64.b64decode(sys.argv[1]).decode("utf-8")
+        )
         if plan.get("gate_id") != (
             "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_"
             "U7_POST_REBOOT_READONLY_PREFLIGHT_R27_20261114_01"
@@ -943,29 +946,51 @@ def load_transport():
 
 def main() -> int:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--expected-package-commit", required=True)
+    parser.add_argument("--execution-id", required=True)
+    parser.add_argument("--evidence-root", type=Path, required=True)
+    parser.add_argument("--t1-ssh-target", required=True)
+    parser.add_argument("--known-hosts", type=Path, required=True)
+    parser.add_argument("--expected-host-key-sha256", required=True)
     parser.add_argument("--preflight-only", action="store_true", required=True)
-    parser.add_argument("--expected-commit", required=True)
-    parser.add_argument("--host", required=True)
-    parser.add_argument("--user", default="root")
-    parser.add_argument("--port", type=int, default=22)
-    parser.add_argument("--known-hosts", required=True)
-    parser.add_argument("--evidence-root", required=True)
     args = parser.parse_args()
 
+    result: dict[str, Any] = {
+        "schema": "gh.n3w-t1-u7-r27-post-reboot-readonly-preflight-local/1",
+        "status": "STOP",
+        "read_only_preflight": True,
+        "t1_access": False,
+        "live_execution_authorized": False,
+        "source_deployment": False,
+        "service_stop": False,
+        "service_restart": False,
+        "usb_data_mutation": False,
+        "transaction_mutation": False,
+        "u7_transition": False,
+        "u8_plus": False,
+        "board_access": False,
+        "merge": False,
+    }
+    transport = None
     try:
-        plan = read_manifest(args.expected_commit)
-        evidence = prepare_evidence_root(Path(args.evidence_root))
-        transport = load_transport()(
-            host=args.host,
-            user=args.user,
-            port=args.port,
-            known_hosts=Path(args.known_hosts),
+        plan = read_manifest(args.expected_package_commit)
+        evidence = prepare_evidence_root(args.evidence_root)
+        transport_type = load_transport()
+        transport = transport_type(
+            target=args.t1_ssh_target,
+            known_hosts=args.known_hosts.expanduser(),
+            expected_host_key_sha256=args.expected_host_key_sha256,
         )
-        payload = json.dumps(
-            plan,
-            sort_keys=True,
-            separators=(",", ":"),
-        )
+        transport.start_epoch()
+        result["t1_access"] = True
+
+        payload = base64.b64encode(
+            json.dumps(
+                plan,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).decode("ascii")
         completed = transport.run_remote(
             ["python3", "-B", "-c", REMOTE_SCRIPT, payload],
             timeout=3600,
@@ -975,29 +1000,31 @@ def main() -> int:
         stderr = completed.stderr or ""
         write_private(evidence / "remote_stdout.txt", stdout.encode())
         write_private(evidence / "remote_stderr.txt", stderr.encode())
-        lines = [line.strip() for line in stdout.splitlines() if line.strip()]
-        if not lines:
-            raise Stop("remote_result_missing")
-        result = json.loads(lines[-1])
+
+        try:
+            remote = json.loads(stdout)
+        except json.JSONDecodeError as error:
+            raise Stop("remote_result_json_invalid") from error
         write_private(
             evidence / "result.json",
-            (json.dumps(result, sort_keys=True, indent=2) + "\n").encode(),
+            (json.dumps(remote, sort_keys=True, indent=2) + "\n").encode(),
         )
         summary = {
             "gate_id": GATE_ID,
-            "expected_commit": args.expected_commit,
+            "execution_id": args.execution_id,
+            "expected_package_commit": args.expected_package_commit,
             "transport_returncode": completed.returncode,
             "stdout_sha256": hashlib.sha256(stdout.encode()).hexdigest(),
             "stderr_sha256": hashlib.sha256(stderr.encode()).hexdigest(),
-            "status": result.get("status"),
-            "read_only": result.get("read_only"),
-            "u7_source_activation_required": result.get(
+            "status": remote.get("status"),
+            "read_only": remote.get("read_only"),
+            "u7_source_activation_required": remote.get(
                 "u7_source_activation_required"
             ),
-            "u7_source_activation_eligible": result.get(
+            "u7_source_activation_eligible": remote.get(
                 "u7_source_activation_eligible"
             ),
-            "u7_live_execution_eligible": result.get(
+            "u7_live_execution_eligible": remote.get(
                 "u7_live_execution_eligible"
             ),
         }
@@ -1005,30 +1032,25 @@ def main() -> int:
             evidence / "summary.json",
             (json.dumps(summary, sort_keys=True, indent=2) + "\n").encode(),
         )
-        print(json.dumps(summary, sort_keys=True))
-        return (
-            0
-            if completed.returncode == 0
-            and result.get("status") == "PASS"
-            else 2
-        )
+        if completed.returncode != 0 or remote.get("status") != "PASS":
+            result["reason"] = remote.get("reason", "remote_preflight_stop")
+            return_code = 2
+        else:
+            result.update(remote)
+            result["t1_access"] = True
+            return_code = 0
     except Exception as error:
-        print(
-            json.dumps(
-                {
-                    "status": "STOP",
-                    "reason": type(error).__name__ + ":" + str(error)[:240],
-                    "read_only": True,
-                    "transaction_mutation": False,
-                    "usb_data_mutation": False,
-                    "service_stop": False,
-                    "u7_transition": False,
-                    "u8_plus": False,
-                },
-                sort_keys=True,
-            )
-        )
-        return 2
+        result["reason"] = type(error).__name__ + ":" + str(error)[:240]
+        return_code = 2
+    finally:
+        if transport is not None:
+            try:
+                transport.close_epoch()
+                result["ssh_master_cleanup"] = True
+            except Exception:
+                result["ssh_master_cleanup"] = False
 
+    print(json.dumps(result, sort_keys=True))
+    return return_code
 
 raise SystemExit(main())

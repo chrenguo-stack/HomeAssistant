@@ -85,6 +85,20 @@ def test_manifest_binds_closed_u7_review_and_r26_u6_entry() -> None:
     )
 
 
+def test_local_wrapper_uses_strict_existing_ssh_transport_contract() -> None:
+    source = EXECUTOR.read_text(encoding="utf-8")
+    assert "--t1-ssh-target" in source
+    assert "--known-hosts" in source
+    assert "--expected-host-key-sha256" in source
+    assert "transport.start_epoch()" in source
+    assert "transport.close_epoch()" in source
+    assert "target=args.t1_ssh_target" in source
+    assert "expected_host_key_sha256=args.expected_host_key_sha256" in source
+    assert "base64.b64encode(" in source
+    remote = load_executor().REMOTE_SCRIPT
+    assert "base64.b64decode(sys.argv[1])" in remote
+
+
 def test_executor_and_embedded_remote_script_compile() -> None:
     module = load_executor()
     compile(EXECUTOR.read_text(encoding="utf-8"), str(EXECUTOR), "exec")
