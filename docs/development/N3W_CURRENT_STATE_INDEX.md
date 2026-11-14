@@ -1,3 +1,19 @@
+## 2026-11-14 — R26 source CLOSED_PASS / live one-shot authorization boundary
+
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted and `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference source remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- R25 live source activation remains CLOSED_PASS and consumed/no-replay.
+- Durable transaction remains exact U5 `U5_INSTALL_REQUESTED_REVALIDATING`, SHA-256 `adfcf60d958c112edf61e2f4e31d73b16229fd027180ed68b87b8953231f0144`; INSTALL must not be resubmitted.
+- R26 source authority is frozen at `8e2a8e33d71af46dd1ffc2200e57f0c58e73fe7d`.
+- R26 fresh CI is 16/16 SUCCESS; HA target-binding ran 547 tests successfully; final exact source review PASS; exact blob mismatch count 0; new blocker count 0.
+- R26 success is bounded to U5→U6 durable transaction/USB metadata advancement plus predecessor-recovery export and verification. It stops at `U6_PREDECESSOR_RECOVERY_PREPARING`.
+- R26 does not quiesce Home Assistant, restart services, delete images, enter U7+, or touch product U9 authorization fields.
+- No standalone R26 preflight is required; the execute path performs a mandatory fresh embedded preflight before claim/mutation.
+- R26 is ungranted. Next gate is `R26_LIVE_ONE_SHOT_PREDECESSOR_RECOVERY_EXPLICIT_AUTHORIZATION`.
+- Required confirmation: `EXECUTE U6 R26 PREDECESSOR RECOVERY: YES`.
+- No T1 access, transaction mutation, USB mutation, U6 transition, board access or merge occurred during source closure.
+
 ## 2026-11-14 — R25 live source activation CLOSED_PASS / stop at real U6 transaction gate
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted and `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
