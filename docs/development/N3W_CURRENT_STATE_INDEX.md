@@ -1,6 +1,9 @@
 ## 2026-11-14 — R23 live closure / U6 source CLOSED_PASS / R24 read-only preflight preparation
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; live deployment remains `APPLIED_ACCEPTED`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference source remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; repository Core Stack authority remains `APPLIED_ACCEPTED`.
 - PR #807 remains OPEN / DRAFT / UNMERGED.
 - R23 live U5 IPC source activation is CLOSED_PASS. Its one-shot authorization is claimed + consumed, replay is permanently false, and live IPC source SHA-256 is `12cb70cdcbebfd7430aef0d5a55a83eaa17e3c3ebd5bed2846fcb047dcac6358`.
 - Durable transaction remains exact U5 `U5_INSTALL_REQUESTED_REVALIDATING`, SHA-256 `adfcf60d958c112edf61e2f4e31d73b16229fd027180ed68b87b8953231f0144`. INSTALL must not be resubmitted.
