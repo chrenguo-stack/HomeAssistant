@@ -139,6 +139,21 @@ def test_declared_source_set_covers_transitive_n3w_import_closure() -> None:
                 queue.append(dependency)
 
 
+def test_local_helper_authority_exports_required_interfaces() -> None:
+    module = load_executor()
+    base = module.load_base()
+    for name in (
+        "prepare_evidence_root",
+        "write_remote_evidence",
+        "write_private_json",
+        "load_transport",
+        "git_text",
+        "sha_file",
+    ):
+        assert hasattr(base, name), name
+    assert "u6_source_activation_r25" in str(module.BASE_EXECUTOR)
+
+
 def test_executor_and_embedded_remote_compile() -> None:
     module = load_executor()
     compile(EXECUTOR.read_text(encoding="utf-8"), str(EXECUTOR), "exec")
