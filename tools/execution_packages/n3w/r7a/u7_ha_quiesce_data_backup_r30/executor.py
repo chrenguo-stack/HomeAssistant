@@ -285,6 +285,8 @@ def verify_quiesced_runtime(plan, baseline):
         "services_owner": require_unit(SERVICES_UNIT, active=False),
         "broker_owner": require_unit(BROKER_UNIT, active=True),
     }
+    if units["services_owner"].get("ActiveState") != "inactive":
+        raise Stop("services_owner_not_inactive_post_u7")
     containers = {
         name: docker_snapshot(expected)
         for name, expected in plan["containers"].items()
@@ -550,6 +552,40 @@ def verify_prestate(plan):
     }
 
 
+def verify_terminal_u7_state(plan, success):
+    transaction = read_object(TX)
+    if (
+        success.get("status") != "U7_R30_HA_QUIESCE_DATA_BACKUP_PASS"
+        or transaction.get("phase")
+        != "U7_HA_QUIESCED_DATA_BACKUP_PREPARING"
+        or transaction.get("ha_data_backup_verified") is not True
+        or not isinstance(transaction.get("ha_data_backup_identity"), dict)
+        or success.get("backup") != transaction.get("ha_data_backup_identity")
+        or sha_file(TX) != success.get("transaction_sha256")
+    ):
+        raise Stop("r30_terminal_transaction_mismatch")
+
+    mirror = Path(plan["mount_target"]) / "n3w-update" / "transaction"
+    phase = read_object(mirror / "phase.json")
+    authority = read_object(mirror / "content-authority.json")
+    if (
+        phase.get("transaction_id_sha256")
+        != plan["transaction_id_sha256"]
+        or phase.get("phase")
+        != "U7_HA_QUIESCED_DATA_BACKUP_PREPARING"
+        or authority.get("transaction_id_sha256")
+        != plan["transaction_id_sha256"]
+        or authority.get("ha_data_backup_identity")
+        != transaction.get("ha_data_backup_identity")
+    ):
+        raise Stop("r30_terminal_usb_mirror_mismatch")
+    return {
+        "transaction_exact": True,
+        "usb_mirror_exact": True,
+        "backup_identity_exact": True,
+    }
+
+
 def read_terminal_status(plan):
     state_root = Path(plan["state_root"])
     if not state_root.exists():
@@ -570,6 +606,10 @@ def read_terminal_status(plan):
     claim = read_object(claim_path) if claim_path.exists() else None
     if success_path.exists():
         value = read_object(success_path)
+        value["terminal_reconciliation"] = verify_terminal_u7_state(
+            plan,
+            value,
+        )
         value["terminal"] = True
         value["reconciled_from_ledger"] = True
         return value
@@ -1154,11 +1194,22 @@ def main() -> int:
         try:
             if "evidence" in locals():
                 base.write_private_json(evidence / "result.json", result)
-        except Exception:
+        except Exception as evidence_error:
+            if result.get("status") in {
+                "PASS",
+                "U7_R30_HA_QUIESCE_DATA_BACKUP_PASS",
+            }:
+                result["completed_remote_status"] = result["status"]
+                result["status"] = "STOP_POSTSUCCESS_LOCAL"
             if result.get("remote_execute_invoked"):
                 result["authorization_claimed"] = True
                 result["authorization_consumed"] = True
                 result["replay_permitted"] = False
+            result["local_evidence_error"] = (
+                type(evidence_error).__name__
+                + ":"
+                + str(evidence_error)[:180]
+            )
             return_code = 2
 
     print(json.dumps(result, sort_keys=True))

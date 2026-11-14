@@ -169,6 +169,7 @@ def test_success_stops_in_u7_with_backup_verified_and_broker_preserved() -> None
     assert 'containers["broker"].get("status") != "running"' in remote
     assert 'containers["manager"].get("status") == "running"' in remote
     assert 'containers["homeassistant"].get("status") == "running"' in remote
+    assert "services_owner_not_inactive_post_u7" in remote
 
 
 def test_postclaim_failure_attempts_predecessor_owner_recovery_without_retry() -> None:
@@ -203,6 +204,9 @@ def test_progress_and_terminal_ledgers_are_private_and_durable() -> None:
 def test_timeout_path_reconciles_status_and_never_blindly_reexecutes() -> None:
     source = EXECUTOR.read_text(encoding="utf-8")
     assert "def reconcile_after_invoke" in source
+    assert "def verify_terminal_u7_state" in source
+    assert "r30_terminal_transaction_mismatch" in source
+    assert "r30_terminal_usb_mirror_mismatch" in source
     assert '"status"' in source
     assert "status_reconciliation_attempted" in source
     assert 'status="STOP_UNKNOWN"' in source
@@ -223,6 +227,17 @@ def test_timeout_path_reconciles_status_and_never_blindly_reexecutes() -> None:
         and node.args[1].value == "execute"
     ]
     assert len(execute_calls) == 1
+
+
+def test_local_evidence_failure_never_leaves_pass_status() -> None:
+    source = EXECUTOR.read_text(encoding="utf-8")
+    assert '"STOP_POSTSUCCESS_LOCAL"' in source
+    assert '"completed_remote_status"' in source
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    assert (
+        manifest["execution_contract"]["local_evidence_failure_never_reports_pass"]
+        is True
+    )
 
 
 def test_product_u9_authorization_fields_remain_untouched() -> None:

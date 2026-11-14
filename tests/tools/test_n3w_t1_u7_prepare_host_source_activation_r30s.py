@@ -151,9 +151,24 @@ def test_status_reconciliation_never_false_passes_with_staging_residue() -> None
     assert '"POSTSUCCESS_CLEANUP_UNCERTAIN"' in remote
     assert '"staging_residue": True' in remote
     assert '"terminal": False' in remote
+    assert 'verify_sources(plan, target=True)' in remote
+    assert 'installed_capability("YES")' in remote
+    assert "r30s_terminal_transaction_drift" in remote
+    assert "verify_runtime(plan)" in remote
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert (
         manifest["execution_contract"]["postsuccess_cleanup_must_be_reconciled"]
+        is True
+    )
+
+
+def test_local_evidence_failure_never_leaves_pass_status() -> None:
+    source = EXECUTOR.read_text(encoding="utf-8")
+    assert '"STOP_POSTSUCCESS_LOCAL"' in source
+    assert '"completed_remote_status"' in source
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    assert (
+        manifest["execution_contract"]["local_evidence_failure_never_reports_pass"]
         is True
     )
 

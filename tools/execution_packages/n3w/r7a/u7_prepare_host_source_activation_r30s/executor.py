@@ -476,6 +476,18 @@ def read_status(plan):
                 "source_activated": True,
                 "staging_residue": True,
             }
+        verify_sources(plan, target=True)
+        installed_capability("YES")
+        if sha_file(TX) != plan["transaction_sha256"]:
+            raise Stop("r30s_terminal_transaction_drift")
+        verify_runtime(plan)
+        value["terminal_validation"] = {
+            "source_exact": True,
+            "capability_present": True,
+            "transaction_unchanged": True,
+            "runtime_unchanged": True,
+            "staging_absent": True,
+        }
         value["terminal"] = True
         value["reconciled_from_ledger"] = True
         return value
@@ -982,11 +994,22 @@ def main() -> int:
         try:
             if "evidence" in locals():
                 base.write_private_json(evidence / "result.json", result)
-        except Exception:
+        except Exception as evidence_error:
+            if result.get("status") in {
+                "PASS",
+                "U7_R30S_PREPARE_HOST_SOURCE_ACTIVATION_PASS",
+            }:
+                result["completed_remote_status"] = result["status"]
+                result["status"] = "STOP_POSTSUCCESS_LOCAL"
             if result.get("remote_execute_invoked"):
                 result["authorization_claimed"] = True
                 result["authorization_consumed"] = True
                 result["replay_permitted"] = False
+            result["local_evidence_error"] = (
+                type(evidence_error).__name__
+                + ":"
+                + str(evidence_error)[:180]
+            )
             return_code = 2
 
     print(json.dumps(result, sort_keys=True))

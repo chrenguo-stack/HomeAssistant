@@ -22,7 +22,7 @@
     "r30s_target_prepare_host_blob": "9e3dd9180d88e354f81480458220f1c092b30aa8"
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/u7_ha_quiesce_data_backup_r30/executor.py": "4da7ee1b113d41b708a2f0822a8208eea7fc4076",
+    "tools/execution_packages/n3w/r7a/u7_ha_quiesce_data_backup_r30/executor.py": "6766eee0c0191d491981f293f0d8c0ed78a6897e",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
     "tools/execution_packages/n3w/r7a/u6_source_activation_r25/executor.py": "f3e3ad25cda278f8ed5888bfee11573ac5fdd29e",
     "tools/n3w_t1_core_updater_ha_backup.py": "bb7a3dfa29b7996f619963298b61d0e92c798cca",
@@ -110,7 +110,10 @@
     "u8_plus": false,
     "board_access": false,
     "merge": false,
-    "requires_r30s_prepare_host_activation": true
+    "requires_r30s_prepare_host_activation": true,
+    "timeout_reconciliation_requires_transaction_and_usb_mirror": true,
+    "post_u7_services_owner_must_be_inactive": true,
+    "local_evidence_failure_never_reports_pass": true
   },
   "stop_boundary": "STOP_AFTER_VERIFIED_U7_HA_QUIESCED_DATA_BACKUP_BEFORE_U8_RECOVERY_ADMISSION"
 }

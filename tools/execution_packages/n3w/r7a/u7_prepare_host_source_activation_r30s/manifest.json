@@ -22,7 +22,7 @@
     "target_prepare_host_blob": "9e3dd9180d88e354f81480458220f1c092b30aa8"
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/u7_prepare_host_source_activation_r30s/executor.py": "b9b8c4d9e5948e0bdcdf77e46e477b477deb158e",
+    "tools/execution_packages/n3w/r7a/u7_prepare_host_source_activation_r30s/executor.py": "3c58bf8cd4fa470eca40a8b7763150518dba19f3",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
     "tools/execution_packages/n3w/r7a/u6_source_activation_r25/executor.py": "f3e3ad25cda278f8ed5888bfee11573ac5fdd29e",
     "tools/n3w_t1_core_updater_ha_prepare_host.py": "9e3dd9180d88e354f81480458220f1c092b30aa8",
@@ -97,7 +97,9 @@
     "postclaim_failure_consumes_authorization": true,
     "board_access": false,
     "merge": false,
-    "postsuccess_cleanup_must_be_reconciled": true
+    "postsuccess_cleanup_must_be_reconciled": true,
+    "timeout_terminal_success_revalidates_source_transaction_runtime": true,
+    "local_evidence_failure_never_reports_pass": true
   },
   "stop_boundary": "STOP_AFTER_PREPARE_HOST_SOURCE_ACTIVATION_BEFORE_R30_U7_READONLY_PREFLIGHT"
 }
