@@ -29,7 +29,7 @@ R27 verifies:
 1. current boot observation and R26 durable success ledger, requiring R26 success to predate the current boot epoch;
 2. exact durable U6 transaction and no product authorization claim;
 3. host/services-owner/broker-owner health after reboot;
-4. exact Manager/Home Assistant/Broker runtime image binding and restart count;
+4. exact Manager/Home Assistant/Broker runtime image binding and running state; restart counts are collected as nonnegative diagnostics, not compared to a pre-reboot historical value;
 5. Manager IPC still reports PREDECESSOR_RECOVERY_PREPARING;
 6. exact installed U6 source set, including the pre-U7 host.py Git blob identity, proving U7 source has not been partially or silently activated;
 7. one safe ext4 N3W-UPDATE removable medium, excluding the root device;
@@ -121,3 +121,12 @@ be treated only as bytes that the provider is about to unlink. Reclaimable
 capacity uses allocated filesystem blocks, not logical file length, and rejects
 multi-link files. This prevents both retry deadlock and sparse/hard-link
 capacity overestimation.
+
+
+POST_REBOOT_CONTAINER_RESTART_COUNT_AUTHORITY=DIAGNOSTIC_ONLY
+POST_REBOOT_SYSTEMD_NRESTARTS_AUTHORITY=DIAGNOSTIC_ONLY
+
+This preserves the repository guard that host reboot/recreate changes lifecycle
+history. R27 still requires exact image/configured-image binding and active
+healthy service/runtime state. A later live gate must prove same-boot
+stability rather than blocking on historical restart-count equality.
