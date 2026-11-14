@@ -17,10 +17,11 @@
     "r26_replay_permitted": false,
     "durable_entry_phase": "U6_PREDECESSOR_RECOVERY_PREPARING",
     "post_reboot_runtime_baseline": "UNKNOWN_FRESH",
-    "u7_fresh_backup_capacity_gate": "REPAIRED_PENDING_FRESH_CI"
+    "u7_fresh_backup_capacity_gate": "REPAIRED_PENDING_FRESH_CI",
+    "post_reboot_epoch_proof_required": true
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/u7_post_reboot_readonly_preflight_r27/executor.py": "058bece418ec7c54c43f517e73e96fc093e0c3bf",
+    "tools/execution_packages/n3w/r7a/u7_post_reboot_readonly_preflight_r27/executor.py": "da411d6407d67d86b21ea15ddd0a0b0b80c2b35d",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
     "tools/n3w_t1_core_updater_ha_install.py": "a536d0d2224f58fe6f14c26eb9f6ddf351aa8f7b",
     "tools/n3w_t1_core_updater_ha_backup.py": "94a0589501f0217b55ca0a0e309f5795bfc59a79",
