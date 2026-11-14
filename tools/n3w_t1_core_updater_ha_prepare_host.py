@@ -345,6 +345,7 @@ def measure_ha_data_tree(root: Path) -> int:
         raise UpdaterV2Error("ha_data_root_invalid")
     try:
         resolved_root = root.resolve(strict=True)
+        root_device = root.stat().st_dev
     except OSError as error:
         raise UpdaterV2Error("ha_data_root_invalid") from error
 
@@ -359,7 +360,7 @@ def measure_ha_data_tree(root: Path) -> int:
         for entry in entries:
             path = Path(entry.path)
             try:
-                metadata = entry.stat(follow_symlinks=False)
+                metadata = path.lstat()
             except OSError as error:
                 raise UpdaterV2Error("ha_data_measurement_failed") from error
 
@@ -367,14 +368,28 @@ def measure_ha_data_tree(root: Path) -> int:
                 try:
                     target = path.resolve(strict=True)
                     target.relative_to(resolved_root)
+                    if target.stat().st_dev != root_device:
+                        raise UpdaterV2Error(
+                            "ha_data_external_persistent_state_unsupported"
+                        )
+                except UpdaterV2Error:
+                    raise
                 except (OSError, ValueError) as error:
                     raise UpdaterV2Error(
                         "ha_data_external_persistent_state_unsupported"
                     ) from error
             elif stat.S_ISDIR(metadata.st_mode):
+                if metadata.st_dev != root_device:
+                    raise UpdaterV2Error(
+                        "ha_data_external_persistent_state_unsupported"
+                    )
                 stack.append(path)
             elif not stat.S_ISREG(metadata.st_mode):
                 raise UpdaterV2Error("ha_data_special_file_unsupported")
+            elif metadata.st_dev != root_device:
+                raise UpdaterV2Error(
+                    "ha_data_external_persistent_state_unsupported"
+                )
 
             if metadata.st_size < 0:
                 raise UpdaterV2Error("ha_data_measurement_invalid")
