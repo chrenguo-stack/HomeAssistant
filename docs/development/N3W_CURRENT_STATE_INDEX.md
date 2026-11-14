@@ -1,3 +1,18 @@
+## 2026-11-14 — R23 live closure / U6 source CLOSED_PASS / R24 read-only preflight preparation
+
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; live deployment remains `APPLIED_ACCEPTED`.
+- PR #807 remains OPEN / DRAFT / UNMERGED.
+- R23 live U5 IPC source activation is CLOSED_PASS. Its one-shot authorization is claimed + consumed, replay is permanently false, and live IPC source SHA-256 is `12cb70cdcbebfd7430aef0d5a55a83eaa17e3c3ebd5bed2846fcb047dcac6358`.
+- Durable transaction remains exact U5 `U5_INSTALL_REQUESTED_REVALIDATING`, SHA-256 `adfcf60d958c112edf61e2f4e31d73b16229fd027180ed68b87b8953231f0144`. INSTALL must not be resubmitted.
+- U6 predecessor-recovery production source slice is CLOSED_PASS at exact source head `70afdc6a0c9a30c91d047d038eec665bc43d8539`.
+- U6 fresh CI is 16/16 SUCCESS; the final HA target-binding source job ran 517 tests successfully. Final independent source review PASS; new blocker count 0.
+- U6 source binds predecessor authority to the transaction-frozen runtime image ID, active HA container runtime ID/ref, and exported archive portable identity; U5->U6 is made durable before predecessor export.
+- R24 is the next bounded successor: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U6_PREDECESSOR_RECOVERY_READONLY_PREFLIGHT_R24_20261114_01`.
+- R24 is strictly read-only and follows V1.2 content authority. Cross-session USB UUID/fingerprint continuity and fixed `/dev/sdX` are not business authority.
+- R24 checks exact U5 transaction/content, R23 consumed/no-replay terminal evidence, healthy services/containers, transaction-bound HA predecessor runtime, no U6 predecessor-recovery residue, and whether U6 source activation may be prepared.
+- R24 source/test package is prepared but fresh CI + independent review are still required before real-T1 preflight.
+- No source deployment, service restart, transaction/USB mutation, U6 transition, U7+, board access or merge is authorized.
+
 ## 2026-11-14 — KF-153 expanded historical guard review / R23 KF-108 repair in progress
 
 - Core Stack current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
