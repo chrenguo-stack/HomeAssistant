@@ -1,3 +1,38 @@
+### 2026-11-14 KF-155 R28 U7 source activation import-closure failure — PHYSICAL_PROVEN / R29 SOURCE_REPAIR_PENDING_CI
+
+```text
+R28_RESULT=STOP
+R28_FIRST_FAILED_OPERATION=activated_source_import_failed
+R28_AUTHORIZATION_CLAIMED=true
+R28_AUTHORIZATION_CONSUMED=true
+R28_REPLAY_PERMITTED=false
+R28_ROLLBACK_REQUIRED=true
+R28_ROLLBACK_STATUS=PASS
+R28_SERVICE_STOP=false
+R28_SERVICE_RESTART=false
+R28_TRANSACTION_MUTATION=false
+R28_USB_MUTATION=false
+R28_U7_TRANSITION=false
+R28_U8_PLUS=false
+```
+
+Physical proof:
+- R28 activated all four intended U7 source files, then the post-activation Python import probe failed;
+- the one-shot authorization had already been durably claimed and consumed, so R28 is terminal and must never be replayed;
+- the bounded rollback restored the exact pre-U7 backup/USB/install sources and returned `n3w_t1_core_updater_host.py` to absent;
+- the U6 transaction SHA, R26 predecessor authority, owner units, IPC and all three product containers remained exact and healthy after rollback;
+- no production service stop/restart, USB mutation, transaction mutation, U7 transition or U8+ occurred.
+
+Source review / regression guards:
+- a production source-activation package must prove the complete transitive Python import closure, not only the files directly replaced;
+- R28 did not explicitly bind `n3w_t1_core_updater_common.py` or `n3w_t1_core_updater_v2_state.py`, both reachable from the activated U7 modules;
+- post-claim import-only validation is too late for dependency-closure errors;
+- successor activation must stage canonical module filenames and run an import check before claim, with staging first and the exact installed tools directory second on `sys.path`;
+- safe import diagnostics must expose the failing module/error without leaking private paths or secrets;
+- source predecessor states used for rollback must be exact and bounded; unknown source bytes must fail before claim;
+- rollback must restore the exact observed pre-claim source state, including absence;
+- source-only repair and CI may proceed, but any new live successor requires a new authorization domain.
+
 ### 2026-11-14 KF-154 R26 post-claim client timeout / delayed durable success — PHYSICAL_PROVEN / R26 CLOSED_PASS
 
 ```text
