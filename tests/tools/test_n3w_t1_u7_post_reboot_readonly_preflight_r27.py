@@ -135,6 +135,14 @@ def test_readonly_mount_is_noload_and_restored() -> None:
     assert "usb_public_fingerprint" not in remote
 
 
+def test_post_reboot_restart_counts_are_not_historical_equality_gates() -> None:
+    remote = load_executor().REMOTE_SCRIPT
+    assert 'observed["restart_count"] != 0' not in remote
+    assert 'observed.get("NRestarts") != "0"' not in remote
+    assert 'observed["restart_count"] < 0' in remote
+    assert 'str(observed.get("NRestarts", "")).isdigit()' in remote
+
+
 def test_r27_requires_r26_success_to_predate_current_boot() -> None:
     remote = load_executor().REMOTE_SCRIPT
     assert '"post_reboot_epoch_not_proven"' in remote
