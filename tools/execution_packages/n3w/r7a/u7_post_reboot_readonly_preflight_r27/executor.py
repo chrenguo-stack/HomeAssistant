@@ -677,20 +677,33 @@ def scan_ha_data():
 
 def verify_root_key_metadata():
     path = SYSTEM_ROOT_KEY
-    if path.is_symlink() or not path.is_file():
+    parent = path.parent
+    if (
+        parent.is_symlink()
+        or not parent.is_dir()
+        or parent.stat().st_uid != 0
+        or parent.stat().st_gid != 0
+        or stat.S_IMODE(parent.stat().st_mode) != 0o700
+        or path.is_symlink()
+        or not path.is_file()
+    ):
         raise Stop("system_root_key_invalid")
     meta = path.stat()
     if (
-        meta.st_uid != 0
-        or stat.S_IMODE(meta.st_mode) != 0o600
+        stat.S_IMODE(meta.st_mode) != 0o600
+        or meta.st_nlink != 1
         or meta.st_size != 32
     ):
         raise Stop("system_root_key_metadata_invalid")
     return {
         "present": True,
-        "owner_root": True,
+        "private_parent_root_owned": True,
         "mode_0600": True,
+        "single_link": True,
         "size_bytes": 32,
+        "owner_uid_observed": meta.st_uid,
+        "owner_gid_observed": meta.st_gid,
+        "owner_is_business_authority": False,
         "key_bytes_read": False,
     }
 
