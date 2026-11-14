@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+from types import SimpleNamespace
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -184,3 +185,55 @@ def test_target_binding_workflow_covers_r26() -> None:
     assert workflow.count(package_glob) == 1
     assert workflow.count(executor) == 1
     assert workflow.count(test_path) == 2
+
+
+def test_remote_mode_parses_last_nonempty_json_line() -> None:
+    module = load_executor()
+
+    class FakeTransport:
+        def run_remote(self, argv, *, timeout, check):
+            return SimpleNamespace(
+                returncode=0,
+                stdout=(
+                    "Authorized access only\n"
+                    '{"schema":"test","status":"PASS","read_only":true}\n'
+                ),
+                stderr="",
+            )
+
+    completed, result = module.remote_mode(
+        FakeTransport(),
+        "preflight",
+        {"gate_id": GATE},
+        timeout=30,
+    )
+    assert completed.returncode == 0
+    assert result["status"] == "PASS"
+    assert result["read_only"] is True
+
+
+def test_remote_mode_rejects_missing_json_result() -> None:
+    module = load_executor()
+
+    class FakeTransport:
+        def run_remote(self, argv, *, timeout, check):
+            return SimpleNamespace(
+                returncode=2,
+                stdout="Authorized access only\n",
+                stderr="remote python failed",
+            )
+
+    completed, result = module.remote_mode(
+        FakeTransport(),
+        "preflight",
+        {"gate_id": GATE},
+        timeout=30,
+    )
+    assert completed.returncode == 2
+    assert result == {"status": "STOP", "reason": "remote_result_invalid"}
+
+
+def test_executor_uses_current_ssh_transport_close_epoch_api() -> None:
+    source = EXECUTOR.read_text(encoding="utf-8")
+    assert "transport.close_epoch()" in source
+    assert "transport.cleanup()" not in source

@@ -889,10 +889,20 @@ def remote_mode(transport, mode, plan, *extra, timeout=2400):
         timeout=timeout,
         check=False,
     )
-    try:
-        result = json.loads(completed.stdout)
-    except Exception:
+    lines = [
+        line.strip()
+        for line in (completed.stdout or "").splitlines()
+        if line.strip()
+    ]
+    if not lines:
         result = {"status": "STOP", "reason": "remote_result_invalid"}
+    else:
+        try:
+            result = json.loads(lines[-1])
+        except Exception:
+            result = {"status": "STOP", "reason": "remote_result_invalid"}
+        if not isinstance(result, dict):
+            result = {"status": "STOP", "reason": "remote_result_invalid"}
     return completed, result
 
 
@@ -1073,7 +1083,7 @@ def main() -> int:
     finally:
         if transport is not None:
             try:
-                transport.cleanup()
+                transport.close_epoch()
                 result["ssh_master_cleanup"] = True
             except Exception as error:
                 result["ssh_master_cleanup"] = False

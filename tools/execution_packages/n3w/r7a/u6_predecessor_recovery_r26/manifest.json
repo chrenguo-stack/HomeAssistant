@@ -15,10 +15,20 @@
     "r25_result": "U6_R25_SOURCE_ACTIVATION_PASS",
     "r25_execution_id": "U6-R25-LIVE-SOURCE-ACTIVATION-20261114T022923Z",
     "r25_closure_archive_head": "19ca65dd958a7955040d5d28fe52fff5c58b96ed",
-    "u6_product_source_head": "70afdc6a0c9a30c91d047d038eec665bc43d8539"
+    "u6_product_source_head": "70afdc6a0c9a30c91d047d038eec665bc43d8539",
+    "r26_preclaim_attempt01": {
+      "execution_id": "U6-R26-LIVE-PREDECESSOR-RECOVERY-20261114T030116Z",
+      "result": "STOP_PREFLIGHT_REMOTE_RESULT_INVALID",
+      "authorization_claimed": false,
+      "authorization_consumed": false,
+      "remote_execute_invoked": false,
+      "transaction_mutation": false,
+      "usb_mutation": false,
+      "u6_transition": false
+    }
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/u6_predecessor_recovery_r26/executor.py": "b46800c0d1640a15a208b6e46daa49e63e01e5a9",
+    "tools/execution_packages/n3w/r7a/u6_predecessor_recovery_r26/executor.py": "1fb53f908da41348dee41595dae656b2f7916eef",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
     "tools/n3w_t1_core_updater_ha_install.py": "c1da3f299d7091d2b49455299e7ad77801fc02dd",
     "tools/n3w_t1_core_updater_ha_prepare_host.py": "59b06d3aa595a6c4801b96d6b992b174a700ca31",
