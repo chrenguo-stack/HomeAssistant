@@ -382,6 +382,13 @@ def record_recovery_admission(
         expected_image_ref=current["current_image_ref"],
     )
     validated_backup = validate_backup_record(backup)
+    if current["ha_data_backup_verified"] is not True:
+        raise UpdaterV2Error("ha_usb_backup_not_durably_verified")
+    if (
+        current.get("ha_data_backup_identity")
+        != validated_backup.public()
+    ):
+        raise UpdaterV2Error("ha_usb_backup_identity_drift")
     if validated_target.public() != current["target_artifact_identity"]:
         raise UpdaterV2Error("ha_usb_target_identity_drift")
     if validated_predecessor.public() != current["predecessor_recovery_identity"]:
@@ -456,6 +463,31 @@ def destructive_cutover_allowed(document: dict[str, Any]) -> bool:
         and current["production_prestate_verified"] is True
         and current["usb_capacity_verified"] is True
     )
+
+
+def clear_u7_backup_evidence_for_recreate(
+    document: dict[str, Any],
+    *,
+    updated_at_unix: int | None = None,
+) -> dict[str, Any]:
+    """Invalidate prior U7 backup proof before a fresh backup attempt."""
+    current = validate_transaction_document(document)
+    if current["phase"] != U7:
+        raise UpdaterV2Error("ha_usb_backup_clear_phase_invalid")
+    if (
+        current["authorization_claimed"] is not False
+        or current["authorization_consumed"] is not False
+        or current["authorization_id_sha256"] is not None
+    ):
+        raise UpdaterV2Error(
+            "ha_usb_backup_clear_authorization_state_invalid"
+        )
+    result = copy.deepcopy(current)
+    result["ha_data_backup_verified"] = False
+    result["ha_data_backup_identity"] = None
+    now = int(time.time()) if updated_at_unix is None else updated_at_unix
+    result["updated_at_unix"] = max(int(result["created_at_unix"]), now)
+    return validate_transaction_document(result)
 
 
 def record_ha_data_backup_verified(

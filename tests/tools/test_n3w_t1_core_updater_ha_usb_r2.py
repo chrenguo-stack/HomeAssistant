@@ -30,6 +30,7 @@ from n3w_t1_core_updater_ha_usb import (
     record_commit,
     record_media_bound,
     record_predecessor_capacity_released,
+    record_ha_data_backup_verified,
     record_predecessor_recovery_and_ha_quiesced,
     record_recovery_admission,
     record_rollback_complete,
@@ -444,6 +445,7 @@ def drive_to_u8(tmp_path: Path):
 
     backup = ha.create_backup(media)
     backup = ha.verify_backup(media, backup)
+    tx = record_ha_data_backup_verified(tx, backup=backup)
     tx = record_recovery_admission(
         tx,
         target=target,
@@ -535,6 +537,7 @@ def test_r2_u8_actual_free_space_blocks_before_authorization(tmp_path):
         ha_quiesced=True,
     )
     backup = ha.verify_backup(media, ha.create_backup(media))
+    tx = record_ha_data_backup_verified(tx, backup=backup)
     insufficient = passing_recovery_capacity(
         target,
         predecessor,
@@ -954,3 +957,43 @@ def test_r2_physical_uuid_is_not_recovery_authority(tmp_path):
         recovery_media_present=True,
         exact_recovery_content_verified=True,
     ) == "ROLLBACK_REQUIRED"
+
+
+def test_u8_rejects_backup_that_was_not_durably_recorded_in_u7(
+    tmp_path: Path,
+) -> None:
+    tx, media, docker, ha, target = prepare_to_u4(tmp_path)
+    tx = request_install(tx, target=target)
+    tx = start_predecessor_recovery(
+        tx,
+        install_capacity=passing_install_capacity(),
+    )
+    predecessor = docker.verify_predecessor(
+        media,
+        docker.export_predecessor(media),
+    )
+    ha.quiesce()
+    tx = record_predecessor_recovery_and_ha_quiesced(
+        tx,
+        predecessor=predecessor,
+        ha_quiesced=True,
+    )
+    backup = ha.verify_backup(media, ha.create_backup(media))
+
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_usb_backup_not_durably_verified",
+    ):
+        record_recovery_admission(
+            tx,
+            target=target,
+            predecessor=predecessor,
+            backup=backup,
+            capacity_report=media.report,
+            recovery_capacity=passing_recovery_capacity(
+                target,
+                predecessor,
+                backup,
+            ),
+            production_prestate_exact=True,
+        )

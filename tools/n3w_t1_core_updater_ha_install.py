@@ -20,6 +20,7 @@ from n3w_t1_core_updater_ha_recovery import (
     validate_image_recovery_record,
 )
 from n3w_t1_core_updater_ha_usb import (
+    clear_u7_backup_evidence_for_recreate,
     record_ha_data_backup_verified,
     record_predecessor_recovery_and_ha_quiesced,
     start_predecessor_recovery,
@@ -319,6 +320,15 @@ class HaUsbU7BackupController:
             "predecessor_recovery_identity"
         ):
             raise UpdaterV2Error("ha_usb_predecessor_identity_drift")
+
+        if resumed and (
+            current.get("ha_data_backup_verified") is True
+            or current.get("ha_data_backup_identity") is not None
+        ):
+            self._report("u7_backup_evidence_invalidate")
+            current = clear_u7_backup_evidence_for_recreate(current)
+            self.backend.sync_transaction_metadata(current, media)
+            self.transaction_store.write(current)
 
         self._report("u7_quiesce")
         try:

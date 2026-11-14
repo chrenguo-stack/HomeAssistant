@@ -24,6 +24,8 @@ from n3w_t1_core_updater_ha_prepare import PreparedUsbMedia
 from n3w_t1_core_updater_ha_recovery import ImageRecoveryRecord
 from n3w_t1_core_updater_ha_usb import (
     record_compatible_media,
+    record_ha_data_backup_verified,
+    record_predecessor_recovery_and_ha_quiesced,
     record_target_ready,
     request_install,
     request_prepare,
@@ -616,3 +618,35 @@ def test_protected_backup_emits_bounded_progress_phases(
     ):
         assert required in phases
     assert progress[-1] == ("verified", record.archive_size_bytes)
+
+
+def test_u7_reentry_invalidates_old_backup_before_recreate(
+    tmp_path: Path,
+) -> None:
+    tx = build_u6()
+    tx = record_predecessor_recovery_and_ha_quiesced(
+        tx,
+        predecessor=PREDECESSOR_RECORD,
+        ha_quiesced=True,
+    )
+    old_backup = FakeBackup().record
+    tx = record_ha_data_backup_verified(tx, backup=old_backup)
+    assert tx["ha_data_backup_verified"] is True
+
+    store = MemoryStore(tx)
+    runtime = FakeRuntime()
+    backend = FakeBackend(prepared_media(tmp_path))
+
+    with pytest.raises(UpdaterV2Error, match="synthetic_backup_failure"):
+        HaUsbU7BackupController(
+            transaction_store=store,
+            backend=backend,
+            runtime_owner=runtime,
+            backup_provider=FakeBackup(fail=True),
+        ).prepare_or_resume()
+
+    assert store.document["phase"] == U7
+    assert store.document["ha_data_backup_verified"] is False
+    assert store.document["ha_data_backup_identity"] is None
+    assert backend.synced[0]["ha_data_backup_verified"] is False
+    assert runtime.resume_count == 1

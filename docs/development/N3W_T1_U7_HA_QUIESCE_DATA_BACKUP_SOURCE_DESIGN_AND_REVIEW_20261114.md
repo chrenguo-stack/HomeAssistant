@@ -337,3 +337,54 @@ NEW_U7_SOURCE_BLOCKER_COUNT=0
 U7_LIVE_EXECUTION=false
 U8_PLUS=false
 MERGE=false
+
+
+## 14. Critical-node review after first all-green CI
+
+A fresh independent review after the first all-green U7 CI found two
+source-level false-PASS/recovery gaps before any live U7 execution.
+
+### 14.1 U7 re-entry stale backup proof
+
+A durable U7 transaction may already contain a verified backup identity. U7
+re-entry intentionally recreates the backup because HA may have run again after
+reboot/failure. The previous provider deleted the old archive/metadata before
+the new backup succeeded, while the transaction could still retain
+ha_data_backup_verified=true.
+
+Repair contract:
+
+- before a resumed U7 backup attempt, invalidate the old backup verified flag
+  and identity;
+- persist that invalidation internally and on USB before quiesce/new backup;
+- only a newly created + newly verified backup may restore the verified flag;
+- if recreation fails, services are resumed and durable U7 remains explicitly
+  backup-unverified.
+
+This prevents a power-loss/failed-recreate window from presenting stale backup
+proof as current.
+
+### 14.2 U8 durable-checkpoint bypass
+
+record_recovery_admission() previously accepted a caller-supplied valid backup
+record and could set ha_data_backup_verified=true while transitioning U7->U8,
+even if U7 had never durably recorded that backup.
+
+Repair contract:
+
+- U8 admission requires current durable
+  ha_data_backup_verified=true;
+- current durable ha_data_backup_identity must exactly equal the supplied
+  validated backup identity;
+- record_recovery_admission may not manufacture first-time U7 backup proof.
+
+The synthetic R2 flow is updated to persist the U7 backup checkpoint explicitly
+before U8.
+
+CRITICAL_NODE_REVIEW_INITIAL_RESULT=BLOCKED_REPAIRED_SOURCE_PENDING_CI
+LIVE_U7_EXECUTION=false
+SERVICE_STOP=false
+USB_WRITE=false
+LIVE_TRANSACTION_MUTATION=false
+U8_PLUS=false
+MERGE=false
