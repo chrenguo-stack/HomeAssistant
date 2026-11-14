@@ -223,3 +223,94 @@ Repair:
 - add a regression that runs the embedded remote script with an invalid payload and
   requires return code 2, JSON STOP on stdout, no stderr traceback, and no
   authorization claim/consumption.
+
+
+## 9. R29 read-only preflight Attempt 03 — CLOSED_PASS
+
+Attempt 03:
+`U7-R29-READONLY-PREFLIGHT03-20261114T135007Z`
+
+Exact reviewed source head:
+`acad3133d224ac9ae17c2ce45311c22db1e5ebe7`
+
+Result:
+
+```text
+STATUS=PASS
+READ_ONLY=true
+SOURCE_ACTIVATION_ELIGIBLE=true
+LIVE_EXECUTION_AUTHORIZED=false
+T1_ACCESS=true
+REMOTE_STAGING=false
+REMOTE_EXECUTE_INVOKED=false
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+REPLAY_PERMITTED=false
+HOST_SOURCE_MUTATION=false
+SERVICE_STOP=false
+SERVICE_RESTART=false
+TRANSACTION_MUTATION=false
+USB_MUTATION=false
+U7_TRANSITION=false
+U8_PLUS=false
+SSH_MASTER_CLEANUP=true
+RC=0
+WRAPPER_RC=0
+```
+
+Fresh live evidence proved:
+
+- exact U6 transaction SHA `7f406b5b88f7bd5c3161d7527a001ddcb3414a8ec64fb34cdad444c2c3e62ebe`;
+- R26 consumed/no-replay predecessor authority exact;
+- Manager IPC phase `PREDECESSOR_RECOVERY_PREPARING`, installed version `2026.10.0`;
+- Manager / Home Assistant / Broker exact configured/runtime images, running, restart_count=0;
+- host / services-owner / broker-owner units active/running/success with NRestarts=0;
+- fixed predecessor backup/USB/install source SHA-256 exact;
+- `n3w_t1_core_updater_host.py` absent as required pre-U7;
+- `n3w_t1_core_updater_common.py` exact allowed blob `63a0377b7df509fd44194a1752a19c013ce55858`;
+- `n3w_t1_core_updater_v2_state.py` exact allowed blob `d89d4696409d7c451ec0b37a8be87e29092806b6`;
+- all nine unchanged U6 dependencies exact.
+
+Attempt03 closes the R29 real-T1 read-only preflight.
+
+## 10. V1.2 architecture review and new-chat authorization boundary
+
+Independent V1.2 review:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_V1_2_ROUTE_AND_ENGINEERING_BLOAT_REVIEW_20261114.md`
+
+Verdict:
+
+```text
+ARCHITECTURE_ROUTE_DRIFT=NO
+PRODUCT_STATE_MACHINE_DRIFT=NO
+SAFETY_MODEL_DRIFT=NO
+ENGINEERING_BLOAT=YES_MODERATE_HIGH
+R29_EXECUTION_BLOCKED_BY_REVIEW=false
+POST_R29_CONVERGENCE_REQUIRED=true
+```
+
+The user explicitly authorized the next chat to proceed with:
+
+`N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U7_SOURCE_ACTIVATION_R29_20261114_01`
+
+Confirmation:
+
+`EXECUTE U7 R29 SOURCE ACTIVATION: YES`
+
+This authorization is granted but not yet materialized into the R29 manifest.
+
+```text
+USER_AUTHORIZATION_GRANTED=true
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+REPLAY_PERMITTED=false
+GRANT_ONLY_SUCCESSOR_REQUIRED=true
+FRESH_GRANT_HEAD_CI_REQUIRED=true
+FINAL_EXACT_REVIEW_REQUIRED=true
+```
+
+Any executable-source change beyond the already-reviewed source authority
+`acad3133d224ac9ae17c2ce45311c22db1e5ebe7` invalidates this exact execution
+precondition and must stop for renewed review/authorization.
+
+R29 success remains bounded before U7 HA quiesce/data-backup execution.
