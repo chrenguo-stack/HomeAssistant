@@ -22,10 +22,14 @@
     "u7_reclaimable_backup_accounting": "ALLOCATED_BLOCKS_ONLY_NO_HARDLINK",
     "post_reboot_restart_count_authority": "DIAGNOSTIC_ONLY",
     "ha_data_cross_filesystem_state_supported": false,
-    "system_root_key_file_owner_business_authority": false
+    "system_root_key_file_owner_business_authority": false,
+    "r27d_diagnostic_result": "PASS_DIAGNOSTIC",
+    "r27_false_blocker": "PREMATURE_U7_TRANSACTION_FIELD_EXPECTATION",
+    "u6_transaction_predecessor_fields": "FALSE_NULL_UNTIL_U7_QUIESCE_TRANSITION",
+    "u6_predecessor_authority": "R26_SUCCESS_POST_PLUS_EXACT_ARCHIVE"
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/u7_post_reboot_readonly_preflight_r27/executor.py": "e667a6d793e2a75c40717106fed7c16f1b01aa2e",
+    "tools/execution_packages/n3w/r7a/u7_post_reboot_readonly_preflight_r27/executor.py": "49cb4d830eb2932f8a3e44092042fa95545f1686",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
     "tools/n3w_t1_core_updater_ha_install.py": "a536d0d2224f58fe6f14c26eb9f6ddf351aa8f7b",
     "tools/n3w_t1_core_updater_ha_backup.py": "bb7a3dfa29b7996f619963298b61d0e92c798cca",
