@@ -135,6 +135,12 @@ def test_readonly_mount_is_noload_and_restored() -> None:
     assert "usb_public_fingerprint" not in remote
 
 
+def test_r27_requires_r26_success_to_predate_current_boot() -> None:
+    remote = load_executor().REMOTE_SCRIPT
+    assert '"post_reboot_epoch_not_proven"' in remote
+    assert '"success_predates_current_boot": True' in remote
+
+
 def test_u6_transaction_and_recovery_content_are_exactly_revalidated() -> None:
     remote = load_executor().REMOTE_SCRIPT
     assert '"U6_PREDECESSOR_RECOVERY_PREPARING"' in remote
