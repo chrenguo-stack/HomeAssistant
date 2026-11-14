@@ -375,6 +375,100 @@ def validate_install_revalidation(
 
 
 @dataclass(frozen=True, slots=True)
+class BackupCapacityRevalidation:
+    target_artifact_bytes: int
+    predecessor_archive_bytes: int
+    ha_data_measured_bytes: int
+    ha_data_backup_budget_bytes: int
+    transaction_working_budget_bytes: int
+    removable_reserve_bytes: int
+    required_remaining_bytes: int
+    observed_usb_free_bytes: int
+    reclaimable_backup_bytes: int
+    effective_available_bytes: int
+    capacity_pass: bool
+
+
+def compute_backup_revalidation(
+    *,
+    target_artifact_bytes: int,
+    predecessor_archive_bytes: int,
+    ha_data_measured_bytes: int,
+    observed_usb_free_bytes: int,
+    reclaimable_backup_bytes: int = 0,
+    policy: CapacityPolicy | None = None,
+) -> BackupCapacityRevalidation:
+    policy = policy or CapacityPolicy.frozen()
+    free = _nonnegative_int(
+        observed_usb_free_bytes,
+        "ha_backup_usb_free_invalid",
+    )
+    reclaimable = _nonnegative_int(
+        reclaimable_backup_bytes,
+        "ha_backup_reclaimable_invalid",
+    )
+    breakdown = compute_capacity(
+        target_artifact_bytes=target_artifact_bytes,
+        predecessor_recovery_budget_bytes=predecessor_archive_bytes,
+        ha_data_measured_bytes=ha_data_measured_bytes,
+        policy=policy,
+    )
+    required_remaining = _checked_add(
+        breakdown.ha_data_backup_budget_bytes,
+        breakdown.transaction_working_budget_bytes,
+        breakdown.removable_reserve_bytes,
+    )
+    effective_available = _checked_add(free, reclaimable)
+    return BackupCapacityRevalidation(
+        target_artifact_bytes=breakdown.target_artifact_bytes,
+        predecessor_archive_bytes=predecessor_archive_bytes,
+        ha_data_measured_bytes=breakdown.ha_data_measured_bytes,
+        ha_data_backup_budget_bytes=breakdown.ha_data_backup_budget_bytes,
+        transaction_working_budget_bytes=(
+            breakdown.transaction_working_budget_bytes
+        ),
+        removable_reserve_bytes=breakdown.removable_reserve_bytes,
+        required_remaining_bytes=required_remaining,
+        observed_usb_free_bytes=free,
+        reclaimable_backup_bytes=reclaimable,
+        effective_available_bytes=effective_available,
+        capacity_pass=effective_available >= required_remaining,
+    )
+
+
+def validate_backup_revalidation(
+    evidence: BackupCapacityRevalidation,
+    *,
+    expected_target_artifact_bytes: int,
+    expected_predecessor_archive_bytes: int,
+    policy: CapacityPolicy | None = None,
+) -> BackupCapacityRevalidation:
+    if not isinstance(evidence, BackupCapacityRevalidation):
+        raise UpdaterV2Error("ha_backup_capacity_evidence_invalid")
+    policy = policy or CapacityPolicy.frozen()
+    recomputed = compute_backup_revalidation(
+        target_artifact_bytes=evidence.target_artifact_bytes,
+        predecessor_archive_bytes=evidence.predecessor_archive_bytes,
+        ha_data_measured_bytes=evidence.ha_data_measured_bytes,
+        observed_usb_free_bytes=evidence.observed_usb_free_bytes,
+        reclaimable_backup_bytes=evidence.reclaimable_backup_bytes,
+        policy=policy,
+    )
+    if evidence != recomputed:
+        raise UpdaterV2Error("ha_backup_capacity_evidence_drift")
+    if evidence.target_artifact_bytes != expected_target_artifact_bytes:
+        raise UpdaterV2Error("ha_backup_target_size_drift")
+    if (
+        evidence.predecessor_archive_bytes
+        != expected_predecessor_archive_bytes
+    ):
+        raise UpdaterV2Error("ha_backup_predecessor_size_drift")
+    if evidence.capacity_pass is not True:
+        raise UpdaterV2Error("ha_backup_capacity_not_verified")
+    return evidence
+
+
+@dataclass(frozen=True, slots=True)
 class RecoveryAdmissionCapacity:
     target_archive_bytes: int
     predecessor_archive_bytes: int
