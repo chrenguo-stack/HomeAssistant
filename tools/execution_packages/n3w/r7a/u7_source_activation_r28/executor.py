@@ -133,6 +133,10 @@ def r26(p):
 
 def sources(p,target):
  out={}
+ for path,expected in p["unchanged_source_sha256"].items():
+  d=sha(path)
+  if d!=expected:raise Stop("unchanged_u6_source_drift:"+Path(path).name)
+  out[path]=d
  for k,path in p["remote_paths"].items():
   q=Path(path);old=p["predecessor_sha256"].get(path)
   if target:
@@ -282,7 +286,7 @@ def main() -> int:
     result={"schema":"gh.n3w-t1-u7-r28-source-activation-local-result/1","status":"STOP","read_only_preflight":bool(a.preflight_only),"t1_access":False,"remote_staging":False,"remote_execute_invoked":False,"remote_execute_result_observed":False,"authorization_claimed":False,"authorization_consumed":False,"replay_permitted":False,"host_source_mutation":False,"service_stop":False,"service_restart":False,"transaction_mutation":False,"usb_mutation":False,"u7_transition":False,"u8_plus":False,"board_access":False,"merge":False};transport=None;rc=2
     base=load_base()
     try:
-        m=read_manifest(a.expected_package_commit,execute=bool(a.execute));ev=base.prepare_evidence_root(a.evidence_root);plan=dict(m["expected_live_entry"]);plan.update({"gate_id":GATE_ID,"authorization_id":m["authorization_id"],"confirmation":m["confirmation"],"live_execution_authorized":m["live_execution_authorized"],"authorization_state":m["authorization_state"],"state_root":m["state_root"],"remote_staging_root":m["remote_staging_root"],"remote_paths":m["remote_paths"],"predecessor_sha256":m["predecessor_sha256"],"target_sha256":{k:sha_file(v) for k,v in TARGETS.items()}})
+        m=read_manifest(a.expected_package_commit,execute=bool(a.execute));ev=base.prepare_evidence_root(a.evidence_root);plan=dict(m["expected_live_entry"]);plan.update({"gate_id":GATE_ID,"authorization_id":m["authorization_id"],"confirmation":m["confirmation"],"live_execution_authorized":m["live_execution_authorized"],"authorization_state":m["authorization_state"],"state_root":m["state_root"],"remote_staging_root":m["remote_staging_root"],"remote_paths":m["remote_paths"],"predecessor_sha256":m["predecessor_sha256"],"unchanged_source_sha256":m["unchanged_source_sha256"],"target_sha256":{k:sha_file(v) for k,v in TARGETS.items()}})
         t=base.load_transport();transport=t(target=a.t1_ssh_target,known_hosts=a.known_hosts.expanduser(),expected_host_key_sha256=a.expected_host_key_sha256);transport.start_epoch();result["t1_access"]=True
         ct,preflight=remote_mode(transport,"preflight",plan,timeout=240);base.write_remote_evidence(ev,"preflight_remote",ct);base.write_private_json(ev/"preflight.json",preflight)
         if ct.returncode or preflight.get("status")!="PASS":raise Stop("r28_preflight_failed:"+str(preflight.get("reason")))
