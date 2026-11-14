@@ -1,3 +1,15 @@
+## 2026-11-14 — repaired R29 grant-only successor materialized / fresh CI pending
+
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted and `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference source remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Repaired R29 source is CLOSED_PASS at executable source head `59b7f6d6213f19bd66df32d91710b37b674e9340`; final reviewed CI head `46d709f32215d6e950e27161e02a001a7e6e256c` completed 16/16 SUCCESS with no executable-source drift after repair.
+- User explicitly authorized the repaired R29 source activation with confirmation `EXECUTE REPAIRED U7 R29 SOURCE ACTIVATION: YES`.
+- Grant-only successor is materialized: manifest commit `8ddfd898802c6c45ae227269b20c00ae9e621678`, focused test commit `d942270079c36c8a79a6c8873ed7fd8ab5c7b2e6`.
+- Granted manifest blob is `9b997190026a844f1f07768d2d59e65c61dba850`; authorization state is granted=true / claimed=false / consumed=false / replay=false.
+- R29 still activates exactly seven source modules and remains bounded to source activation at durable U6. No service stop/restart, transaction/USB mutation, U7 transition, U8+, board access or merge is authorized.
+- Fresh CI and final exact review on the granted successor are required before the single live execution.
+
 ## 2026-11-14 — R29 live PRECLAIM_STOP / capacity dependency closure repair pending fresh CI
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted and `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
