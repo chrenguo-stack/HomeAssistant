@@ -25,10 +25,21 @@
       "transaction_mutation": false,
       "usb_mutation": false,
       "u6_transition": false
+    },
+    "r26_preclaim_attempt02": {
+      "execution_id": "U6-R26-LIVE-PREDECESSOR-RECOVERY-ATTEMPT02-20261114T031048Z",
+      "result": "STOP_PREFLIGHT_REMOTE_RESULT_INVALID",
+      "root_cause": "remote_script_missing_base64_import",
+      "authorization_claimed": false,
+      "authorization_consumed": false,
+      "remote_execute_invoked": false,
+      "transaction_mutation": false,
+      "usb_mutation": false,
+      "u6_transition": false
     }
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/u6_predecessor_recovery_r26/executor.py": "1fb53f908da41348dee41595dae656b2f7916eef",
+    "tools/execution_packages/n3w/r7a/u6_predecessor_recovery_r26/executor.py": "5ddf1f5a5b3bcab23ca4aeb59f7eee0b44114cc1",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
     "tools/n3w_t1_core_updater_ha_install.py": "c1da3f299d7091d2b49455299e7ad77801fc02dd",
     "tools/n3w_t1_core_updater_ha_prepare_host.py": "59b06d3aa595a6c4801b96d6b992b174a700ca31",

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import base64
 import importlib.util
 import json
+import subprocess
 import sys
 from types import SimpleNamespace
 from pathlib import Path
@@ -237,3 +239,29 @@ def test_executor_uses_current_ssh_transport_close_epoch_api() -> None:
     source = EXECUTOR.read_text(encoding="utf-8")
     assert "transport.close_epoch()" in source
     assert "transport.cleanup()" not in source
+
+
+def test_remote_script_decodes_plan_and_emits_json_before_live_environment() -> None:
+    module = load_executor()
+    plan = {
+        "gate_id": GATE,
+        "state_root": "/tmp/n3w-r26-test-state-root-that-must-not-exist",
+    }
+    payload = base64.b64encode(
+        json.dumps(plan, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).decode("ascii")
+    completed = subprocess.run(
+        [sys.executable, "-B", "-c", module.REMOTE_SCRIPT, "preflight", payload],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    lines = [line.strip() for line in completed.stdout.splitlines() if line.strip()]
+    assert lines
+    result = json.loads(lines[-1])
+    assert result["status"] == "STOP"
+    assert "required_file_invalid" in result["reason"]
+    assert "NameError" not in completed.stderr
