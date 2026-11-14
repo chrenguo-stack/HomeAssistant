@@ -1,3 +1,16 @@
+## 2026-11-14 — R25 live source activation CLOSED_PASS / stop at real U6 transaction gate
+
+- PR #807 remains OPEN / DRAFT / UNMERGED.
+- R25 granted exact head `01dfb390c379764f0f8a4d0da2e92e474e240a9d` completed live one-shot execution `U6-R25-LIVE-SOURCE-ACTIVATION-20261114T022923Z` with RC=0 and status `U6_R25_SOURCE_ACTIVATION_PASS`.
+- R25 authorization is claimed + consumed; `replay_permitted=false`. It is terminal and must never be executed again.
+- The two-file source activation completed and import validation passed. Live SHA-256 values are `0d0c96d7...31c30e` for `ha_prepare_host.py` and `9391019f...8e530` for `ha_install.py`.
+- Durable transaction remains exact U5 `U5_INSTALL_REQUESTED_REVALIDATING`, SHA-256 `adfcf60d...f0144`; INSTALL must not be resubmitted.
+- Manager, Home Assistant and Broker remained running with restart count 0; host/services/broker owner units remained active/running/success with zero restarts.
+- No service restart, transaction mutation, USB mutation, USB transaction-metadata mutation, U6 transition, U7+, board access or merge occurred.
+- The next lifecycle phase is `U6_PREDECESSOR_RECOVERY_PREPARING`, but no U5→U6 transaction authorization exists.
+- Stop here. Next bounded work is to define/review and explicitly authorize the real U5→U6 transaction gate before any transaction mutation.
+- Public closure: `docs/development/N3W_T1_U6_R25_LIVE_SOURCE_ACTIVATION_CLOSURE_20261114.md`; PR #807 comments `6870134446` and `6870233266`.
+
 ## 2026-11-14 — R24 CLOSED_PASS / R25 source CLOSED_PASS / explicit authorization boundary
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; live deployment remains `APPLIED_ACCEPTED`.
