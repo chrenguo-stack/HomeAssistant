@@ -3,9 +3,9 @@
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U7_SOURCE_ACTIVATION_R29_20261114_01",
   "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U7_SOURCE_ACTIVATION_R29_20261114_01",
   "confirmation": "EXECUTE U7 R29 SOURCE ACTIVATION: YES",
-  "live_execution_authorized": true,
+  "live_execution_authorized": false,
   "authorization_state": {
-    "granted": true,
+    "granted": false,
     "claimed": false,
     "consumed": false,
     "replay_permitted": false
@@ -23,7 +23,7 @@
     "repair_reason": "TRANSITIVE_IMPORT_CLOSURE_NOT_FULLY_BOUND_AND_POSTCLAIM_IMPORT_ONLY"
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/u7_source_activation_r29/executor.py": "f5427493f13b8fbccae55a9623036d41efa929d5",
+    "tools/execution_packages/n3w/r7a/u7_source_activation_r29/executor.py": "fac90b3ed79c0d2feb1e35669fe08ce49465e201",
     "tools/execution_packages/n3w/r7a/u7_source_activation_r28/executor.py": "60f46eebc18ff74360dd41b807e2adf76d46616e",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
     "tools/n3w_t1_core_updater_ha_backup.py": "bb7a3dfa29b7996f619963298b61d0e92c798cca",
@@ -32,7 +32,8 @@
     "tools/n3w_t1_core_updater_host.py": "cfa2d2902d88aac08852d7ed71d611edf3400b64",
     "tools/n3w_t1_core_updater_common.py": "63a0377b7df509fd44194a1752a19c013ce55858",
     "tools/n3w_t1_core_updater_v2_state.py": "d89d4696409d7c451ec0b37a8be87e29092806b6",
-    "tools/execution_packages/n3w/r7a/u6_source_activation_r25/executor.py": "f3e3ad25cda278f8ed5888bfee11573ac5fdd29e"
+    "tools/execution_packages/n3w/r7a/u6_source_activation_r25/executor.py": "f3e3ad25cda278f8ed5888bfee11573ac5fdd29e",
+    "tools/n3w_t1_core_updater_ha_capacity.py": "b3adca96e0d698d5096c005766564c33a5609bcd"
   },
   "state_root": "/var/lib/n3w-t1-core-updater/u7-r29-source-activation-20261114-01",
   "remote_staging_root": "/var/lib/n3w-t1-core-updater/staging/u7-r29-source-activation-20261114-01",
@@ -40,6 +41,7 @@
     "backup": "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_backup.py",
     "usb": "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_usb.py",
     "install": "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_install.py",
+    "capacity": "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_capacity.py",
     "host": "/opt/HomeAssistant/tools/n3w_t1_core_updater_host.py",
     "common": "/opt/HomeAssistant/tools/n3w_t1_core_updater_common.py",
     "v2_state": "/opt/HomeAssistant/tools/n3w_t1_core_updater_v2_state.py"
@@ -48,6 +50,7 @@
     "backup": "88f23297da7ddb12274c8a99005a55386fcf86c4e1183adc2bee5dfd02f9efd1",
     "usb": "2c7ccafc84072bb3d49ea2bf1e35b8c95e99f53748ffcd95741d2e8912edc9fe",
     "install": "9391019fc01004373c16e66a42ac43cd8fc2119c6692448947e6019f1788e530",
+    "capacity": "4b9cc960565f8338dd734bea7369aea562be85ad5ee7f245e4e4039371af128e",
     "host": null
   },
   "dynamic_predecessor_git_blobs": {
@@ -62,7 +65,6 @@
     ]
   },
   "unchanged_source_sha256": {
-    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_capacity.py": "4b9cc960565f8338dd734bea7369aea562be85ad5ee7f245e4e4039371af128e",
     "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_ipc.py": "12cb70cdcbebfd7430aef0d5a55a83eaa17e3c3ebd5bed2846fcb047dcac6358",
     "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_prepare.py": "cc69aac8e2eab764a8d9d497b323e3f72816b9dd127d53dd356471a80101d892",
     "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_prepare_host.py": "0d0c96d7ae2f26c2d2ae8388e6ee75ad0616081a6cdcb98727f2131dab31c30e",
@@ -104,7 +106,7 @@
   "execution_contract": {
     "read_only_preflight": true,
     "source_deployment_on_execute": true,
-    "activated_source_file_count": 6,
+    "activated_source_file_count": 7,
     "staged_import_before_claim": true,
     "safe_import_error_surface": true,
     "dynamic_predecessor_state_bounded": true,
