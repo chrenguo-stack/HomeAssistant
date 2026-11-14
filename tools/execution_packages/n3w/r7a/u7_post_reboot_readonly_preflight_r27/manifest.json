@@ -21,13 +21,14 @@
     "post_reboot_epoch_proof_required": true,
     "u7_reclaimable_backup_accounting": "ALLOCATED_BLOCKS_ONLY_NO_HARDLINK",
     "post_reboot_restart_count_authority": "DIAGNOSTIC_ONLY",
-    "ha_data_cross_filesystem_state_supported": false
+    "ha_data_cross_filesystem_state_supported": false,
+    "system_root_key_file_owner_business_authority": false
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/u7_post_reboot_readonly_preflight_r27/executor.py": "cfaa0e088bcf03e13d75b6b050835ad438fffd2c",
+    "tools/execution_packages/n3w/r7a/u7_post_reboot_readonly_preflight_r27/executor.py": "9a348ec83274d31a302a4a91c3fcc6fbdf83af21",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
     "tools/n3w_t1_core_updater_ha_install.py": "a536d0d2224f58fe6f14c26eb9f6ddf351aa8f7b",
-    "tools/n3w_t1_core_updater_ha_backup.py": "036fbd1412300c1b58e47b5616d130457c21f562",
+    "tools/n3w_t1_core_updater_ha_backup.py": "bb7a3dfa29b7996f619963298b61d0e92c798cca",
     "tools/n3w_t1_core_updater_ha_usb.py": "e46517d267c320c114daf383162cc9ad958e1b69",
     "tools/n3w_t1_core_updater_ha_usb_state.py": "4bd0c268bb8258d05eadf92d52a322a1d3e51f36",
     "tools/n3w_t1_core_updater_ha_prepare_host.py": "9e3dd9180d88e354f81480458220f1c092b30aa8",
