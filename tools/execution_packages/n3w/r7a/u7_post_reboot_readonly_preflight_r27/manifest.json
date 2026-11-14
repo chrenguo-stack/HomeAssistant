@@ -18,7 +18,8 @@
     "durable_entry_phase": "U6_PREDECESSOR_RECOVERY_PREPARING",
     "post_reboot_runtime_baseline": "UNKNOWN_FRESH",
     "u7_fresh_backup_capacity_gate": "REPAIRED_PENDING_FRESH_CI",
-    "post_reboot_epoch_proof_required": true
+    "post_reboot_epoch_proof_required": true,
+    "u7_reclaimable_backup_accounting": "ALLOCATED_BLOCKS_ONLY_NO_HARDLINK"
   },
   "package_source_authority": {
     "tools/execution_packages/n3w/r7a/u7_post_reboot_readonly_preflight_r27/executor.py": "da411d6407d67d86b21ea15ddd0a0b0b80c2b35d",
@@ -27,7 +28,7 @@
     "tools/n3w_t1_core_updater_ha_backup.py": "94a0589501f0217b55ca0a0e309f5795bfc59a79",
     "tools/n3w_t1_core_updater_ha_usb.py": "e46517d267c320c114daf383162cc9ad958e1b69",
     "tools/n3w_t1_core_updater_ha_usb_state.py": "4bd0c268bb8258d05eadf92d52a322a1d3e51f36",
-    "tools/n3w_t1_core_updater_ha_prepare_host.py": "a9f13944daac2dac84c3f4f7b9bc98636e57f7ba",
+    "tools/n3w_t1_core_updater_ha_prepare_host.py": "f41280a9de839c60c66943185e52f5740bd7570c",
     "tools/n3w_t1_core_updater_ha_capacity.py": "b3adca96e0d698d5096c005766564c33a5609bcd",
     "tools/n3w_t1_core_updater_host.py": "cfa2d2902d88aac08852d7ed71d611edf3400b64"
   },
