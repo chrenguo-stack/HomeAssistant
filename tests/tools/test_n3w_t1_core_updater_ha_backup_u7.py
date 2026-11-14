@@ -448,3 +448,31 @@ def test_production_owner_quiesce_requires_broker_preserved(
     assert evidence.homeassistant_stopped is True
     assert evidence.manager_stopped is True
     assert evidence.broker_preserved is True
+
+
+class FailingQuiesceRuntime(FakeRuntime):
+    def quiesce_homeassistant_for_backup(self):
+        self.quiesce_count += 1
+        raise UpdaterV2Error("synthetic_quiesce_proof_failure")
+
+
+def test_quiesce_proof_failure_still_resumes_application_owner(
+    tmp_path: Path,
+) -> None:
+    store = MemoryStore(build_u6())
+    runtime = FailingQuiesceRuntime()
+
+    with pytest.raises(
+        UpdaterV2Error,
+        match="synthetic_quiesce_proof_failure",
+    ):
+        HaUsbU7BackupController(
+            transaction_store=store,
+            backend=FakeBackend(prepared_media(tmp_path)),
+            runtime_owner=runtime,
+            backup_provider=FakeBackup(),
+        ).prepare_or_resume()
+
+    assert store.document["phase"] != U7
+    assert runtime.quiesce_count == 1
+    assert runtime.resume_count == 1

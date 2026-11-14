@@ -290,10 +290,9 @@ class HaUsbU7BackupController:
             raise UpdaterV2Error("ha_usb_predecessor_identity_drift")
 
         self._report("u7_quiesce")
-        evidence = self.runtime_owner.quiesce_homeassistant_for_backup()
-        evidence.validate()
-
         try:
+            evidence = self.runtime_owner.quiesce_homeassistant_for_backup()
+            evidence.validate()
             if not resumed:
                 current = record_predecessor_recovery_and_ha_quiesced(
                     current,
