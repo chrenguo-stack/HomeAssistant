@@ -370,3 +370,34 @@ Executable-source repair head before docs alignment:
 
 Because executable source changed after the prior live grant, that grant is not carried forward. The repaired manifest is reset to ungranted and must pass fresh CI plus final exact review before a new live authorization can be requested.
 
+
+
+## 9. Repaired R29 explicit authorization and grant-only successor
+
+After source repair CLOSED_PASS at executable source head
+`59b7f6d6213f19bd66df32d91710b37b674e9340` and final CI head
+`46d709f32215d6e950e27161e02a001a7e6e256c`, the user explicitly authorized the
+repaired one-shot R29 source activation with:
+
+`EXECUTE REPAIRED U7 R29 SOURCE ACTIVATION: YES`
+
+Grant-only successor materialization:
+- manifest grant commit: `8ddfd898802c6c45ae227269b20c00ae9e621678`;
+- focused grant-state test commit: `d942270079c36c8a79a6c8873ed7fd8ab5c7b2e6`;
+- granted manifest blob: `9b997190026a844f1f07768d2d59e65c61dba850`;
+- grant-state test blob: `fc31a3395008587076bebad628d26744082ad44d`.
+
+Authorization state after grant-only successor:
+```text
+live_execution_authorized=true
+granted=true
+claimed=false
+consumed=false
+replay_permitted=false
+```
+
+The executor confirmation token remains unchanged in source; no executable source or
+target module was modified by the grant-only successor. A fresh CI pass and final
+exact review of the granted successor remain mandatory before the one-shot live
+execution.
+
