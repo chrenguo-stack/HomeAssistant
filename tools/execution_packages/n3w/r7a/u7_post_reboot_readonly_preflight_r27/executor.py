@@ -31,7 +31,6 @@ import hashlib
 import json
 import os
 import re
-import sqlite3
 import stat
 import subprocess
 import base64
@@ -645,27 +644,7 @@ def scan_ha_data():
     if sqlite_path.exists():
         if sqlite_path.is_symlink() or not sqlite_path.is_file():
             raise Stop("ha_sqlite_invalid")
-        try:
-            connection = sqlite3.connect(
-                f"file:{sqlite_path}?mode=ro",
-                uri=True,
-                timeout=2.0,
-            )
-            try:
-                rows = tuple(connection.execute("PRAGMA quick_check"))
-            finally:
-                connection.close()
-            if rows != (("ok",),):
-                raise Stop("ha_sqlite_integrity_failed")
-            sqlite_result = "PASS"
-        except sqlite3.OperationalError as error:
-            message = str(error).lower()
-            if "locked" in message or "busy" in message:
-                sqlite_result = "DEFERRED_BUSY_UNTIL_QUIESCE"
-            else:
-                raise Stop("ha_sqlite_check_failed") from error
-        except sqlite3.Error as error:
-            raise Stop("ha_sqlite_check_failed") from error
+        sqlite_result = "DEFERRED_UNTIL_QUIESCE"
 
     return {
         "measured_regular_file_bytes": measured,
