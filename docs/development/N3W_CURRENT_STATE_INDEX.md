@@ -1,5 +1,8 @@
 ## 2026-11-14 — R29 live PRECLAIM_STOP / capacity dependency closure repair pending fresh CI
 
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted and `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference source remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
 - PR #807 remains OPEN / DRAFT / UNMERGED; durable product lifecycle state remains exact U6 `U6_PREDECESSOR_RECOVERY_PREPARING`, transaction SHA-256 `7f406b5b88f7bd5c3161d7527a001ddcb3414a8ec64fb34cdad444c2c3e62ebe`.
 - R29 live execution `U7-R29-LIVE-SOURCE-ACTIVATION-20261114T152222Z` stopped inside the pre-claim staged import with RC=2. Authorization remained unclaimed/unconsumed; production source, services, transaction, USB and U7/U8+ state were unchanged.
 - Bounded diagnostic reproduced the failure on T1 Python 3.14.4: `n3w_t1_core_updater_ha_install` imports `BackupCapacityRevalidation`, but the installed predecessor `n3w_t1_core_updater_ha_capacity.py` does not export that symbol.
