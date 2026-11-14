@@ -3,9 +3,9 @@
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U7_SOURCE_ACTIVATION_R29_20261114_01",
   "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U7_SOURCE_ACTIVATION_R29_20261114_01",
   "confirmation": "EXECUTE U7 R29 SOURCE ACTIVATION: YES",
-  "live_execution_authorized": false,
+  "live_execution_authorized": true,
   "authorization_state": {
-    "granted": false,
+    "granted": true,
     "claimed": false,
     "consumed": false,
     "replay_permitted": false
