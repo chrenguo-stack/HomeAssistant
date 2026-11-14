@@ -9,9 +9,12 @@ from n3w_t1_core_updater_ha_backup import (
     HaDataBackupProvider,
     HaDataBackupRecord,
     HaQuiesceEvidence,
+    backup_record_from_document,
 )
 from n3w_t1_core_updater_ha_capacity import (
+    BackupCapacityRevalidation,
     InstallCapacityRevalidation,
+    validate_backup_revalidation,
     validate_install_revalidation,
 )
 from n3w_t1_core_updater_ha_prepare import PreparedUsbMedia
@@ -57,6 +60,16 @@ class U6PredecessorBackend(Protocol):
         transaction: dict[str, object],
         media: PreparedUsbMedia,
     ) -> InstallCapacityRevalidation:
+        ...
+
+    def backup_capacity_revalidation(
+        self,
+        transaction: dict[str, object],
+        media: PreparedUsbMedia,
+        *,
+        predecessor: ImageRecoveryRecord,
+        reclaimable_backup: HaDataBackupRecord | None = None,
+    ) -> BackupCapacityRevalidation:
         ...
 
     def sync_transaction_metadata(
@@ -321,6 +334,12 @@ class HaUsbU7BackupController:
         ):
             raise UpdaterV2Error("ha_usb_predecessor_identity_drift")
 
+        prior_backup: HaDataBackupRecord | None = None
+        if resumed and current.get("ha_data_backup_identity") is not None:
+            prior_backup = backup_record_from_document(
+                current["ha_data_backup_identity"]
+            )
+
         if resumed and (
             current.get("ha_data_backup_verified") is True
             or current.get("ha_data_backup_identity") is not None
@@ -347,6 +366,23 @@ class HaUsbU7BackupController:
                 raise UpdaterV2Error(
                     "ha_usb_predecessor_not_verified"
                 )
+
+            self._report("u7_capacity_revalidate")
+            backup_capacity = self.backend.backup_capacity_revalidation(
+                current,
+                media,
+                predecessor=predecessor,
+                reclaimable_backup=prior_backup,
+            )
+            validate_backup_revalidation(
+                backup_capacity,
+                expected_target_artifact_bytes=current[
+                    "target_archive_size"
+                ],
+                expected_predecessor_archive_bytes=(
+                    predecessor.archive_size_bytes
+                ),
+            )
 
             self._report("u7_backup_create")
             destination_root = (
