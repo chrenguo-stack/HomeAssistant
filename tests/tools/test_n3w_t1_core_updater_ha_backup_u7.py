@@ -618,6 +618,35 @@ def test_quiesce_proof_failure_still_resumes_application_owner(
 
 
 @pytest.mark.skipif(shutil.which("openssl") is None, reason="openssl unavailable")
+def test_protected_backup_rejects_hardlinked_system_root_key(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "ha"
+    source.mkdir(mode=0o700)
+    (source / "configuration.yaml").write_text(
+        "default_config:\n",
+        encoding="utf-8",
+    )
+    root_key = tmp_path / "system-root.key"
+    root_key.write_bytes(os.urandom(32))
+    root_key.chmod(0o600)
+    (tmp_path / "system-root-key-link").hardlink_to(root_key)
+    provider = ProtectedHaDataBackupProvider(
+        ha_data_root=source,
+        system_root_key=root_key,
+        product_config=source / "configuration.yaml",
+    )
+
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_data_backup_root_key_invalid",
+    ):
+        provider.create_consistent_backup(
+            transaction_id_sha256="f" * 64,
+            destination_root=tmp_path / "backup",
+        )
+
+
 def test_protected_backup_wrong_system_root_key_rejected(
     tmp_path: Path,
 ) -> None:
