@@ -1,3 +1,23 @@
+## 2026-11-14 — R24 CLOSED_PASS / R25 source CLOSED_PASS / explicit authorization boundary
+
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; live deployment remains `APPLIED_ACCEPTED`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference source remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; repository Core Stack authority remains `APPLIED_ACCEPTED`.
+- PR #807 remains OPEN / DRAFT / UNMERGED.
+- R23 U5 IPC source activation remains CLOSED_PASS; its one-shot authorization is consumed/no-replay.
+- R24 real-T1 read-only preflight is CLOSED_PASS at `70f3ddc435508324ea76ad6b71f6c042f4a0ca63`, run `U6-R24-READONLY-PREFLIGHT-20261114T005555Z`, RC=0. It proved exact U5 transaction/content authority, healthy runtime, exact predecessor runtime and no U6 recovery residue with zero mutation.
+- Durable transaction remains `U5_INSTALL_REQUESTED_REVALIDATING`, SHA-256 `adfcf60d958c112edf61e2f4e31d73b16229fd027180ed68b87b8953231f0144`; INSTALL must not be resubmitted.
+- R25 U6 source-activation successor is source CLOSED_PASS at exact source authority `da65fdd97e96c5b627341afd4eefd98105b858cf`.
+- R25 fresh CI is 16/16 SUCCESS; HA target-binding source job ran 537 tests successfully. Final exact source review PASS; new blocker count 0.
+- R25 is ungranted: live_execution_authorized=false, granted=false, claimed=false, consumed=false, replay=false.
+- R25 activates exactly two files on execute: `tools/n3w_t1_core_updater_ha_prepare_host.py` and `tools/n3w_t1_core_updater_ha_install.py`.
+- R25 does not restart services, reload the current daemon process, touch USB/transaction metadata, or enter U6/U7+.
+- A separate standalone R25 `--preflight-only` run is not required. The R25 execute path itself performs a mandatory fresh embedded remote preflight before staging or authorization claim.
+- Next gate is `R25_LIVE_ONE_SHOT_SOURCE_ACTIVATION_EXPLICIT_AUTHORIZATION`. No live mutation is authorized yet.
+- New chat must not repeat R24 read-only preflight or a standalone R25 preflight. It should start at the R25 explicit authorization boundary, then if authorized materialize a grant-only successor, require fresh CI + exact review, and only then execute.
+- No transaction mutation, USB mutation, service restart, U6 transition, U7+, board access or merge is authorized.
+
 ## 2026-11-14 — R23 live closure / U6 source CLOSED_PASS / R24 read-only preflight preparation
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; live deployment remains `APPLIED_ACCEPTED`.
