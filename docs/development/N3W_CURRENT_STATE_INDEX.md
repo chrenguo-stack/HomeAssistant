@@ -1,3 +1,19 @@
+## 2026-11-14 — R29 read-only preflight CLOSED_PASS / next-chat live source activation authorized
+
+- PR #807 remains OPEN / DRAFT / UNMERGED.
+- Exact reviewed R29 source authority is `acad3133d224ac9ae17c2ce45311c22db1e5ebe7`; fresh CI is 16/16 SUCCESS and final source/helper/decoder review PASS.
+- Attempt01 stopped locally before T1 access; Attempt02 established SSH but failed inside the remote decoder before state verification. Neither attempt staged source, claimed authorization or mutated T1.
+- Attempt03 `U7-R29-READONLY-PREFLIGHT03-20261114T135007Z` is CLOSED_PASS with RC=0 / wrapper RC=0.
+- Attempt03 proves the exact durable U6 transaction SHA `7f406b5b88f7bd5c3161d7527a001ddcb3414a8ec64fb34cdad444c2c3e62ebe`, R26 consumed/no-replay predecessor authority, healthy owner units and Manager/HA/Broker restart_count=0.
+- Pre-U7 source state is exact: backup/USB/install predecessor hashes match, host source is absent, common and v2_state are in their bounded allowed predecessor states, and nine unchanged U6 dependencies match.
+- R29 real-T1 read-only preflight therefore proves `source_activation_eligible=true` with zero staging/claim/service/transaction/USB/U7/U8+ mutation.
+- Independent V1.2 review concludes product/state-machine route drift = NO. Current R29 is an implementation source-activation gate and still stops at durable U6. Engineering/verification scaffolding has grown to a moderate-high level and has created new executor defects; convergence is required after the current R29/U7 path, not as a pre-R29 redesign.
+- User explicitly granted the next-chat R29 one-shot source-activation authorization with confirmation `EXECUTE U7 R29 SOURCE ACTIVATION: YES`.
+- The reviewed source manifest at `acad3133...` remains intentionally ungranted. New chat must first materialize a grant-only successor, require fresh CI + final exact review, and only then execute the one-shot live R29 source activation.
+- Any executable-source drift beyond the reviewed R29 source authority invalidates the execution precondition and must stop.
+- R29 success may activate only the six exact source modules and must stop before U7 HA quiesce/data-backup. No service stop/restart, transaction/USB mutation, U7 transition, U8+, board access or merge is authorized by this handoff.
+- Architecture review: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_V1_2_ROUTE_AND_ENGINEERING_BLOAT_REVIEW_20261114.md`.
+
 ## 2026-11-14 — U7 source design/review implementation / CI pending / live boundary unchanged
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted and `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
