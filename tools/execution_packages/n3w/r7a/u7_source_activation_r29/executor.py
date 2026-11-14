@@ -648,14 +648,25 @@ def execute(plan, authorization, confirmation):
             raise Stop("r29_staged_source_invalid:" + key)
 
     pre = verify_prestate(plan, target_sources=False)
-    staged_import = staged_import_preflight(plan)
-
-    backup_root = stage_root / ".preclaim-backup"
-    source_backup = copy_preclaim_backups(
-        plan,
-        pre,
-        backup_root,
-    )
+    try:
+        staged_import = staged_import_preflight(plan)
+        backup_root = stage_root / ".preclaim-backup"
+        source_backup = copy_preclaim_backups(
+            plan,
+            pre,
+            backup_root,
+        )
+    except Exception as preclaim_error:
+        try:
+            shutil.rmtree(stage_root)
+        except Exception as cleanup_error:
+            raise Stop(
+                "preclaim_failure_cleanup_failed:"
+                + type(preclaim_error).__name__
+                + ":"
+                + str(preclaim_error)[:160]
+            ) from cleanup_error
+        raise
 
     state_root.mkdir(mode=0o700)
     os.chown(state_root, 0, 0)
