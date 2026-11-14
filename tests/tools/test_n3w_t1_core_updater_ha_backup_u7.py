@@ -5,6 +5,7 @@ import shutil
 import sqlite3
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -471,6 +472,45 @@ def test_protected_backup_tamper_fails_hash(
             record,
             transaction_id_sha256="b" * 64,
             destination_root=destination,
+        )
+
+
+def test_protected_backup_cross_filesystem_state_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "ha"
+    source.mkdir(mode=0o700)
+    external = source / "external"
+    external.write_text("state", encoding="utf-8")
+    root_key = tmp_path / "system-root.key"
+    root_key.write_bytes(os.urandom(32))
+    root_key.chmod(0o600)
+    original_lstat = Path.lstat
+
+    def fake_lstat(path: Path):
+        observed = original_lstat(path)
+        if path == external:
+            return SimpleNamespace(
+                st_mode=observed.st_mode,
+                st_dev=source.stat().st_dev + 1,
+            )
+        return observed
+
+    monkeypatch.setattr(Path, "lstat", fake_lstat)
+    provider = ProtectedHaDataBackupProvider(
+        ha_data_root=source,
+        system_root_key=root_key,
+        product_config=source / "configuration.yaml",
+    )
+
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_data_backup_external_state_unsupported",
+    ):
+        provider.create_consistent_backup(
+            transaction_id_sha256="d" * 64,
+            destination_root=tmp_path / "backup",
         )
 
 
