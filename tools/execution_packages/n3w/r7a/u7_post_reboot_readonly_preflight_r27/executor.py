@@ -1061,4 +1061,5 @@ def main() -> int:
     print(json.dumps(result, sort_keys=True))
     return return_code
 
-raise SystemExit(main())
+if __name__ == "__main__":
+    raise SystemExit(main())
