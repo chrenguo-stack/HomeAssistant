@@ -131,3 +131,48 @@ R29 success stops before the separate live U7 HA-quiesce/data-backup gate.
 
 NEXT=focused source review + fresh CI. No live R29 authorization is granted by this
 document.
+
+
+## 7. R29 read-only preflight Attempt 01 local-wrapper stop
+
+After the first R29 source head reached 16/16 fresh CI, the real-T1 read-only
+preflight wrapper was invoked as:
+
+`U7-R29-READONLY-PREFLIGHT-20261114T132435Z`
+
+It stopped locally before SSH transport creation:
+
+```text
+STATUS=STOP
+REASON=AttributeError:module 'n3w_r29_base' has no attribute 'prepare_evidence_root'
+T1_ACCESS=false
+REMOTE_STAGING=false
+REMOTE_EXECUTE_INVOKED=false
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+HOST_SOURCE_MUTATION=false
+SERVICE_STOP=false
+SERVICE_RESTART=false
+TRANSACTION_MUTATION=false
+USB_MUTATION=false
+U7_TRANSITION=false
+U8_PLUS=false
+```
+
+Root cause:
+- R29 loaded the R28 executor as a helper module;
+- R28 itself calls helper functions inherited by loading R25 internally, but does not
+  re-export `prepare_evidence_root`, `write_remote_evidence`,
+  `write_private_json`, or `load_transport`;
+- R29 therefore failed before evidence-root preparation completed and before any SSH
+  connection was established.
+
+Repair:
+- bind R29 local helpers directly to the frozen R25 executor where those interfaces
+  are defined;
+- exact-bind the R25 helper executor in the R29 manifest;
+- add a regression that imports R29, loads its helper authority, and asserts all six
+  required local interfaces are present.
+
+Attempt 01 is not a consumed authorization, not a T1 mutation attempt, and is safe to
+supersede after fresh CI.
