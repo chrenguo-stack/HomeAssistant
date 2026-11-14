@@ -17,7 +17,10 @@ from n3w_t1_core_updater_ha_backup import (
     HaQuiesceEvidence,
     ProtectedHaDataBackupProvider,
 )
-from n3w_t1_core_updater_ha_capacity import compute_install_revalidation
+from n3w_t1_core_updater_ha_capacity import (
+    compute_backup_revalidation,
+    compute_install_revalidation,
+)
 from n3w_t1_core_updater_ha_install import HaUsbU7BackupController
 from n3w_t1_core_updater_host import BROKER_UNIT, SERVICES_UNIT, LocalHost
 from n3w_t1_core_updater_ha_prepare import PreparedUsbMedia
@@ -141,9 +144,17 @@ class MemoryStore:
 
 
 class FakeBackend:
-    def __init__(self, media: PreparedUsbMedia) -> None:
+    def __init__(
+        self,
+        media: PreparedUsbMedia,
+        *,
+        backup_capacity_pass: bool = True,
+    ) -> None:
         self.media = media
+        self.backup_capacity_pass = backup_capacity_pass
         self.synced: list[dict[str, object]] = []
+        self.backup_capacity_calls = 0
+        self.reclaimable_seen: HaDataBackupRecord | None = None
 
     def resolve_transaction_media(self, transaction, *, write_required):
         assert write_required is True
@@ -156,6 +167,32 @@ class FakeBackend:
     def verify_prepared_predecessor(self, *, transaction, media):
         assert media == self.media
         return PREDECESSOR_RECORD
+
+    def backup_capacity_revalidation(
+        self,
+        transaction,
+        media,
+        *,
+        predecessor,
+        reclaimable_backup=None,
+    ):
+        assert media == self.media
+        assert predecessor == PREDECESSOR_RECORD
+        self.backup_capacity_calls += 1
+        self.reclaimable_seen = reclaimable_backup
+        return compute_backup_revalidation(
+            target_artifact_bytes=TARGET_SIZE,
+            predecessor_archive_bytes=PREDECESSOR_RECORD.archive_size_bytes,
+            ha_data_measured_bytes=1024,
+            observed_usb_free_bytes=(
+                18 * 1024**3 if self.backup_capacity_pass else 0
+            ),
+            reclaimable_backup_bytes=(
+                reclaimable_backup.archive_size_bytes
+                if reclaimable_backup is not None
+                else 0
+            ),
+        )
 
     def sync_transaction_metadata(self, transaction, media):
         assert media == self.media
@@ -183,6 +220,7 @@ class FakeRuntime:
 class FakeBackup:
     def __init__(self, *, fail: bool = False) -> None:
         self.fail = fail
+        self.create_count = 0
         self.record = HaDataBackupRecord(
             archive_sha256="7" * 64,
             archive_size_bytes=1234,
@@ -205,6 +243,7 @@ class FakeBackup:
         destination_root: Path,
     ):
         assert len(transaction_id_sha256) == 64
+        self.create_count += 1
         if self.fail:
             raise UpdaterV2Error("synthetic_backup_failure")
         return self.record
@@ -261,6 +300,7 @@ def test_u7_controller_stops_in_u7_without_authorization_or_u8(
     assert result.services_left_quiesced is True
     assert runtime.quiesce_count == 1
     assert runtime.resume_count == 0
+    assert backend.backup_capacity_calls == 1
     assert len(backend.synced) == 2
     assert len(store.writes) == 2
     assert progress[-1] == ("u7_stop", 1234)
@@ -285,6 +325,61 @@ def test_u7_backup_failure_resumes_application_owner(
     assert store.document["ha_data_backup_verified"] is False
     assert runtime.quiesce_count == 1
     assert runtime.resume_count == 1
+
+
+def test_u7_fresh_capacity_failure_resumes_before_backup_write(
+    tmp_path: Path,
+) -> None:
+    store = MemoryStore(build_u6())
+    backend = FakeBackend(
+        prepared_media(tmp_path),
+        backup_capacity_pass=False,
+    )
+    runtime = FakeRuntime()
+    backup = FakeBackup()
+
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_backup_capacity_not_verified",
+    ):
+        HaUsbU7BackupController(
+            transaction_store=store,
+            backend=backend,
+            runtime_owner=runtime,
+            backup_provider=backup,
+        ).prepare_or_resume()
+
+    assert store.document["phase"] == U7
+    assert store.document["ha_data_backup_verified"] is False
+    assert backend.backup_capacity_calls == 1
+    assert backup.create_count == 0
+    assert runtime.resume_count == 1
+
+
+def test_u7_reentry_capacity_receives_prior_verified_backup(
+    tmp_path: Path,
+) -> None:
+    tx = build_u6()
+    tx = record_predecessor_recovery_and_ha_quiesced(
+        tx,
+        predecessor=PREDECESSOR_RECORD,
+        ha_quiesced=True,
+    )
+    old_backup = FakeBackup().record
+    tx = record_ha_data_backup_verified(tx, backup=old_backup)
+    store = MemoryStore(tx)
+    backend = FakeBackend(prepared_media(tmp_path))
+
+    result = HaUsbU7BackupController(
+        transaction_store=store,
+        backend=backend,
+        runtime_owner=FakeRuntime(),
+        backup_provider=FakeBackup(),
+    ).prepare_or_resume()
+
+    assert result.transaction["phase"] == U7
+    assert backend.reclaimable_seen == old_backup
+    assert backend.backup_capacity_calls == 1
 
 
 @pytest.mark.skipif(shutil.which("openssl") is None, reason="openssl unavailable")
