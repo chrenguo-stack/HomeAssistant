@@ -167,6 +167,15 @@ def test_staged_import_runs_before_claim_and_surfaces_safe_error() -> None:
     assert '"installed_import_failed:"' in remote
 
 
+def test_preclaim_failure_cleans_staging_without_claim() -> None:
+    remote = load_executor().REMOTE_SCRIPT
+    staged = remote.index("staged_import = staged_import_preflight(plan)")
+    cleanup = remote.index("shutil.rmtree(stage_root)", staged)
+    claim = remote.index('durable_json(state_root / "authorization_claim.json", claim)')
+    assert staged < cleanup < claim
+    assert '"preclaim_failure_cleanup_failed:"' in remote
+
+
 def test_preflight_is_readonly_and_binds_r26_u6_runtime() -> None:
     remote = load_executor().REMOTE_SCRIPT
     assert '"U6_PREDECESSOR_RECOVERY_PREPARING"' in remote
