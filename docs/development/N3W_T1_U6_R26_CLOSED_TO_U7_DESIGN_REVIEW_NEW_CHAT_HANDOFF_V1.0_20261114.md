@@ -36,7 +36,7 @@ MERGE=false
 - 仓库／分支／PR：
   - repository: `chrenguo-stack/HomeAssistant`
   - branch: `fix/kf147-u3-recovery-and-error-visibility-20261110`
-  - PR: `#807` — OPEN / DRAFT / UNMERGED / mergeable
+  - PR: `#807` — OPEN / DRAFT / UNMERGED；本轮写后 fresh mergeability=false，但 `MERGE=false`，mergeability 不作为下一阶段 authority
 - 核对时 main／本任务源码：
   - repository main: `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`
   - R26 live closure/docs alignment head: `562db4178f72f692bd612b76bc8029c0a4366227`
