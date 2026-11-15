@@ -1,3 +1,47 @@
+### 2026-11-15 KF-159 R33 U8 terminal false-STOP on session public fingerprint — ROOT_CAUSE_PROVEN / R34 READONLY SUCCESSOR PREPARED
+
+```text
+R33_EXECUTION_HEAD=d0f7a9813e9f15343df6ab0ed4a84c00adb87214
+R33_RESULT=STOP_POSTCLAIM
+R33_AUTHORIZATION_CLAIMED=true
+R33_AUTHORIZATION_CONSUMED=true
+R33_REPLAY_PERMITTED=false
+R33_FIRST_FAILED_OPERATION=Stop:r33_terminal_usb_mirror_mismatch
+R33_TRANSACTION_MUTATION=true
+R33_USB_MUTATION=true
+R33_TRANSACTION_PHASE=U8_RECOVERY_ADMISSION_COMPLETE
+R33_U8_TRANSITION=true
+R33_U9_PLUS=false
+R33_DESTRUCTIVE_CUTOVER=false
+R33_SERVICE_MUTATION=false
+```
+
+Read-only forensic proof:
+- the host transaction is valid and durably at `U8_RECOVERY_ADMISSION_COMPLETE`;
+- the recovery-content manifest recomputes exactly to `18698bcded28d0497ae3dcd3363ace68f54a3cbc1c42a1fd5710173a24d900f3`;
+- USB mirror target/predecessor/backup identities, transaction id, phase, capacity flag, target checksum/size, and recovery-content manifest all match the host transaction;
+- the bound filesystem UUID matches exactly;
+- the only mismatch is `manifest.public_fingerprint`: transaction `e45fba0a...` versus USB mirror `4014f1fb...`;
+- Broker remains running with zero restarts, Manager/Home Assistant remain quiesced, predecessor internal image remains present, and target image remains absent.
+
+Root cause:
+- `SubprocessPrepareBackend._stable_fingerprint()` explicitly defines the public fingerprint as a session-observation fingerprint and states it must never be used as cross-session recovery authority;
+- the fingerprint includes path and major:minor, so it may legitimately change across sessions while the same bound filesystem UUID and recovery contents remain exact;
+- the frozen U8/U9 architecture requires the same bound USB UUID plus exact recovery content, not equality to an earlier session-observation fingerprint;
+- R33 terminal verification incorrectly compared the USB mirror session fingerprint to the transaction's older session fingerprint, producing a false STOP after the U8 transaction and USB mirror were already durably advanced.
+
+Required guards:
+- never replay consumed R33;
+- cross-session recovery identity must use the bound filesystem UUID and exact durable recovery-content authority;
+- a session public fingerprint must remain syntactically valid but must not be required to equal an earlier session's fingerprint;
+- durable USB mirror fields and file hashes must still match exactly;
+- U9 remains unauthorized until the R34 read-only successor closes U8;
+- no USB repair write is permitted merely to make session fingerprints equal.
+
+Successor:
+- `tools/execution_packages/n3w/r7a/u8_post_r33_readonly_reconciliation_r34/` performs read-only reconciliation only;
+- R34 must prove exact R33 consumed/no-replay ledger, exact U8 transaction, exact durable mirror fields/file hashes, valid-but-session-scoped fingerprint semantics, quiesced runtime, Broker continuity, predecessor image preservation, target absence, and no U9/destructive action.
+
 ### 2026-11-15 KF-158 R30 live U7 false quiesce failure after systemd exit-137 stop — ROOT_CAUSE_PROVEN / SOURCE_REPAIRED / CI_CLOSED_PASS
 
 ```text
