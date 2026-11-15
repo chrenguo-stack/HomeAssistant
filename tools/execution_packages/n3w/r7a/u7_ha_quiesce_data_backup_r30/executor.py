@@ -418,7 +418,7 @@ def import_product():
     from n3w_t1_core_updater_ha_capacity import validate_backup_revalidation
     from n3w_t1_core_updater_ha_install import HaUsbU7BackupController
     from n3w_t1_core_updater_ha_prepare_host import SubprocessPrepareBackend
-    from n3w_t1_core_updater_ha_recovery import validate_image_recovery_record
+    from n3w_t1_core_updater_ha_recovery import image_recovery_record_from_document
     from n3w_t1_core_updater_ha_usb_state import HaUsbStateStore
     from n3w_t1_core_updater_host import LocalHost
 
@@ -427,7 +427,7 @@ def import_product():
         "validate_backup_revalidation": validate_backup_revalidation,
         "HaUsbU7BackupController": HaUsbU7BackupController,
         "SubprocessPrepareBackend": SubprocessPrepareBackend,
-        "validate_image_recovery_record": validate_image_recovery_record,
+        "image_recovery_record_from_document": image_recovery_record_from_document,
         "HaUsbStateStore": HaUsbStateStore,
         "LocalHost": LocalHost,
     }
@@ -468,6 +468,29 @@ def require_existing_rw_mount(plan):
     }
 
 
+def verify_archive_continuity(path, expected_sha256, expected_size):
+    path = Path(path)
+    if path.is_symlink() or not path.is_file():
+        raise Stop("u7_archive_continuity_file_invalid:" + path.name)
+    if (
+        not isinstance(expected_sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", expected_sha256) is None
+        or type(expected_size) is not int
+        or expected_size <= 0
+    ):
+        raise Stop("u7_archive_continuity_authority_invalid:" + path.name)
+    observed_size = path.stat().st_size
+    if observed_size != expected_size:
+        raise Stop("u7_archive_continuity_size_mismatch:" + path.name)
+    observed_sha256 = sha_file(path)
+    if observed_sha256 != expected_sha256:
+        raise Stop("u7_archive_continuity_sha256_mismatch:" + path.name)
+    return {
+        "sha256": observed_sha256,
+        "size_bytes": observed_size,
+    }
+
+
 def verify_media_and_backup_inputs(plan, transaction):
     require_existing_rw_mount(plan)
     product = import_product()
@@ -479,28 +502,41 @@ def verify_media_and_backup_inputs(plan, transaction):
     if media is None or media.mount_path != plan["mount_target"]:
         raise Stop("u7_media_resolution_invalid")
 
-    target = product["validate_image_recovery_record"](
-        backend.verify_prepared_target(
-            transaction=transaction,
-            media=media,
-        ),
+    target = product["image_recovery_record_from_document"](
+        transaction.get("target_artifact_identity"),
         expected_kind="target",
         expected_image_ref=transaction["target_image_ref"],
         expected_archive_sha256=transaction["target_archive_sha256"],
     )
-    if target.public() != transaction.get("target_artifact_identity"):
+    if (
+        target.public() != transaction.get("target_artifact_identity")
+        or target.archive_size_bytes != transaction["target_archive_size"]
+    ):
         raise Stop("u7_target_identity_drift")
 
-    predecessor = product["validate_image_recovery_record"](
-        backend.verify_prepared_predecessor(
-            transaction=transaction,
-            media=media,
-        ),
+    predecessor = product["image_recovery_record_from_document"](
+        plan["predecessor_identity"],
         expected_kind="predecessor",
         expected_image_ref=transaction["current_image_ref"],
+        expected_archive_sha256=plan["predecessor_identity"]["archive_sha256"],
     )
     if predecessor.public() != plan["predecessor_identity"]:
         raise Stop("u7_predecessor_identity_drift")
+
+    mount_path = Path(media.mount_path)
+    target_continuity = verify_archive_continuity(
+        mount_path / "n3w-update" / "target" / "homeassistant-arm64.tar.gz",
+        target.archive_sha256,
+        target.archive_size_bytes,
+    )
+    predecessor_continuity = verify_archive_continuity(
+        mount_path
+        / "n3w-update"
+        / "predecessor"
+        / "homeassistant-predecessor.tar.gz",
+        predecessor.archive_sha256,
+        predecessor.archive_size_bytes,
+    )
 
     capacity = backend.backup_capacity_revalidation(
         transaction,
@@ -527,6 +563,9 @@ def verify_media_and_backup_inputs(plan, transaction):
         "media_mounted": True,
         "target_exact": True,
         "predecessor_exact": True,
+        "target_archive_continuity": target_continuity,
+        "predecessor_archive_continuity": predecessor_continuity,
+        "portable_identity_authority_reused": True,
         "backup_capacity_verified": True,
         "ha_source_supported": True,
         "sqlite_quick_check": True,
@@ -1011,7 +1050,10 @@ def remote_mode(
     except Exception:
         result = {}
     if not isinstance(result, dict) or not result:
-        result = {"status": "STOP", "reason": "remote_result_invalid"}
+        if completed.returncode in {124, 137}:
+            result = {"status": "STOP", "reason": "remote_process_timeout"}
+        else:
+            result = {"status": "STOP", "reason": "remote_result_invalid"}
     return completed, result
 
 
