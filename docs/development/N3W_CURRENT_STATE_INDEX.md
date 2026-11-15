@@ -1,6 +1,8 @@
 ## 2026-11-15 — R34 Attempt01 SAFE_STOP / KF-160 source repair / CI pending after bounded polling
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Live upgrade accepted. Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
 - R34 real-T1 Attempt01 returned `STOP` / RC=2 because the embedded remote script lacked `import base64` while calling `base64.b64decode(...)`.
 - Attempt01 remained strictly read-only and reported no transaction, USB, service, U9+, destructive, board, or merge mutation; SSH master cleanup succeeded.
 - R33 was not replayed and remains claimed/consumed/no-replay.
