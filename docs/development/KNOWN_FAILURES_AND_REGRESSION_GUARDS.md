@@ -13,7 +13,8 @@ R30_RECOVERY_ATTEMPTED=true
 R30_RECOVERY_PASS=true
 R30_BACKUP_VERIFIED=false
 R30_TRANSACTION_MUTATION=false
-R30_USB_MUTATION=false
+R30_USB_MUTATION_REPORTED=false
+R30_USB_MIRROR_PHYSICAL_STATE=UNKNOWN_PENDING_READONLY_FORENSIC
 R30_U7_TRANSITION=false
 R30_U8_PLUS=false
 FIRST_FAILED_OPERATION=UpdaterV2Error:ha_usb_u7_failure_recovery_failed
@@ -25,7 +26,8 @@ Physical facts:
 - the live executor claimed and consumed the one-shot R30 authorization, so this exact authorization is permanently non-replayable;
 - the application services were stopped, the U7 path failed, and recovery was attempted;
 - the executor subsequently verified recovered runtime health and returned the explicit terminal state `STOP_RECOVERED`;
-- no backup was verified, transaction/USB remained unchanged, durable phase stayed at U6, and no U7/U8+ transition occurred.
+- no backup was verified and the local transaction remained unchanged at U6; no U7/U8+ transition occurred;
+- the executor reported `usb_mutation=false`, but its failure path derives that value only from local transaction mutation. Because `sync_transaction_metadata()` writes the USB mirror before the local transaction store, physical USB mirror state is UNKNOWN until read-only forensic compares the mirror with the exact U6 transaction.
 
 Source finding:
 - `HaUsbU7BackupController.prepare_or_resume()` catches the original U7 exception and immediately calls `resume_homeassistant_after_backup_failure()`;
