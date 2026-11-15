@@ -3,9 +3,9 @@
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U7_HA_QUIESCE_DATA_BACKUP_R30_20261115_01",
   "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U7_HA_QUIESCE_DATA_BACKUP_R30_20261115_01",
   "confirmation": "EXECUTE U7 R30 HA QUIESCE DATA BACKUP: YES",
-  "live_execution_authorized": false,
+  "live_execution_authorized": true,
   "authorization_state": {
-    "granted": false,
+    "granted": true,
     "claimed": false,
     "consumed": false,
     "replay_permitted": false
