@@ -380,6 +380,10 @@ def verify_r29(plan):
         or success.get("activated_source_file_count") != 7
         or not isinstance(post, dict)
         or post.get("transaction_sha256") != plan["transaction_sha256"]
+        or not isinstance(post_r30, dict)
+        or post_r30.get("claim_consumed_no_replay") is not True
+        or post_r30.get("stop_recovered") is not True
+        or post_r30.get("transaction_preserved_u6") is not True
     ):
         raise Stop("r29_authority_invalid")
     return True
@@ -418,6 +422,7 @@ def verify_r31(plan):
     claim = read_object(R31 / "authorization_claim.json")
     success = read_object(R31 / "success.json")
     post = success.get("post")
+    post_r30 = post.get("r30") if isinstance(post, dict) else None
     if (
         claim.get("authorization_id") != plan["r31_gate_id"]
         or claim.get("claimed") is not True
