@@ -768,7 +768,6 @@ def validate_transaction(plan):
 
 
 def validate_sources(plan):
-def validate_sources(plan):
     observed = {}
     for path, expected in plan["installed_source_sha256"].items():
         value = sha_file(path)
@@ -855,7 +854,6 @@ def validate_post_writable(plan, baseline):
         "predecessor": predecessor,
     }
 
-def durable_json(path, value):
 def durable_json(path, value):
     payload = (json.dumps(value, sort_keys=True, indent=2) + "\n").encode("utf-8")
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)

@@ -12,7 +12,7 @@
   },
   "state_root": "/var/lib/n3w-t1-core-updater/u7-r30m-writable-mount-restoration-20261115-01",
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/u7_media_writable_mount_restoration_r30m/executor.py": "651e2ae13bd1fa6ba802dc3c4d151582c11abd28",
+    "tools/execution_packages/n3w/r7a/u7_media_writable_mount_restoration_r30m/executor.py": "5718ae2b281877c3faf32b998037c4bf91cde255",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
     "tools/execution_packages/n3w/r7a/u7_ha_quiesce_data_backup_r30/executor.py": "b6b8fbfc1d1e74e008757c6544ab11d8808a9c1e",
     "tools/execution_packages/n3w/r7a/u7_ha_quiesce_data_backup_r30/manifest.json": "8e8490e8c3270362ee3ba59cb266d281ef4dfbe2"
