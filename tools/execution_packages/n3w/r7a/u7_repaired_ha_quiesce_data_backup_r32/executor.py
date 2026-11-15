@@ -380,10 +380,6 @@ def verify_r29(plan):
         or success.get("activated_source_file_count") != 7
         or not isinstance(post, dict)
         or post.get("transaction_sha256") != plan["transaction_sha256"]
-        or not isinstance(post_r30, dict)
-        or post_r30.get("claim_consumed_no_replay") is not True
-        or post_r30.get("stop_recovered") is not True
-        or post_r30.get("transaction_preserved_u6") is not True
     ):
         raise Stop("r29_authority_invalid")
     return True
@@ -445,6 +441,10 @@ def verify_r31(plan):
         or success.get("rollback_required") is not False
         or not isinstance(post, dict)
         or post.get("transaction_sha256") != plan["transaction_sha256"]
+        or not isinstance(post_r30, dict)
+        or post_r30.get("claim_consumed_no_replay") is not True
+        or post_r30.get("stop_recovered") is not True
+        or post_r30.get("transaction_preserved_u6") is not True
     ):
         raise Stop("r31_authority_invalid")
     return True
