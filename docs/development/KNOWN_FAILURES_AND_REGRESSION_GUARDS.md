@@ -1,3 +1,35 @@
+### 2026-11-15 KF-160 R34 remote script missing base64 import — ATTEMPT01 SAFE_STOP / SOURCE REPAIR PREPARED
+
+```text
+R34_ATTEMPT01=STOP
+R34_ATTEMPT01_RC=2
+R34_ATTEMPT01_REASON=NameError:name 'base64' is not defined
+R34_ATTEMPT01_READ_ONLY=true
+R34_ATTEMPT01_T1_ACCESS=true
+R34_ATTEMPT01_TRANSACTION_MUTATION=false
+R34_ATTEMPT01_USB_MUTATION=false
+R34_ATTEMPT01_SERVICE_MUTATION=false
+R34_ATTEMPT01_U9_PLUS=false
+R34_ATTEMPT01_DESTRUCTIVE_CUTOVER=false
+R34_ATTEMPT01_BOARD_ACCESS=false
+R34_ATTEMPT01_MERGE=false
+```
+
+Root cause:
+- the local R34 executor imported `base64`, but the embedded `REMOTE_SCRIPT` did not;
+- the remote script calls `base64.b64decode(sys.argv[1])` before any R33 ledger, transaction, USB mirror, runtime, or image reconciliation;
+- existing focused coverage compiled the remote script but did not assert that runtime dependencies referenced by the script were imported, so syntax-only validation did not catch the missing import.
+
+Safety classification:
+- Attempt01 reached T1 only through the read-only executor and returned STOP/RC=2;
+- the failure happened before reconciliation logic and reported no transaction, USB, service, U9+, destructive, board, or merge mutation;
+- R33 remains consumed/no-replay and was not replayed.
+
+Regression guard:
+- add `import base64` inside the embedded R34 remote script;
+- focused test parses the remote script AST and requires the `base64` import whenever `base64.b64decode` is referenced;
+- source repair does not grant or imply a second real-T1 attempt. Any R34 Attempt02 must be separately authorized because the original user instruction bounded real-T1 R34 execution to one attempt.
+
 ### 2026-11-15 KF-159 R33 U8 terminal false-STOP on session public fingerprint — ROOT_CAUSE_PROVEN / R34 READONLY SUCCESSOR PREPARED
 
 ```text
