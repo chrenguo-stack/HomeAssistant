@@ -108,8 +108,20 @@ def test_executor_and_remote_script_compile() -> None:
 
 def test_real_t1_preflight_timeout_budget_is_not_legacy_420_seconds() -> None:
     source = EXECUTOR.read_text(encoding="utf-8")
+    module = load_executor()
     assert "timeout=420" not in source
     assert "timeout=PREFLIGHT_TIMEOUT_SECONDS" in source
+    assert module.PREFLIGHT_TIMEOUT_SECONDS == 1200
+    assert module.PREFLIGHT_REMOTE_PROCESS_TIMEOUT_SECONDS == 1170
+    assert module.PREFLIGHT_REMOTE_PROCESS_TIMEOUT_SECONDS < module.PREFLIGHT_TIMEOUT_SECONDS
+
+
+def test_readonly_preflight_has_remote_process_lifetime_bound() -> None:
+    source = EXECUTOR.read_text(encoding="utf-8")
+    assert '"timeout"' in source
+    assert '"--signal=TERM"' in source
+    assert '"--kill-after=15s"' in source
+    assert "remote_process_timeout=PREFLIGHT_REMOTE_PROCESS_TIMEOUT_SECONDS" in source
 
 
 def test_readonly_preflight_requires_existing_mount_before_product_resolve() -> None:
