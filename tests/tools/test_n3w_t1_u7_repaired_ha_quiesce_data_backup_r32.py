@@ -103,6 +103,20 @@ def test_executor_and_remote_script_compile() -> None:
     assert module.CONFIRMATION == CONFIRM
     assert module.PREFLIGHT_TIMEOUT_SECONDS == 1200
     assert module.PREFLIGHT_REMOTE_PROCESS_TIMEOUT_SECONDS == 1170
+    assert module.MANIFEST_SCHEMA == "gh.n3w-t1-u7-r32-repaired-ha-quiesce-backup-manifest/1"
+    assert module.LOCAL_RESULT_SCHEMA == "gh.n3w-t1-u7-r32-local-result/1"
+
+
+def test_r32_schema_and_error_labels_are_not_stale_r30() -> None:
+    source = EXECUTOR.read_text(encoding="utf-8")
+    assert 'document.get("schema") != MANIFEST_SCHEMA' in source
+    assert '"schema": LOCAL_RESULT_SCHEMA' in source
+    assert "u7_r30_u6_transaction_invalid" not in source
+    assert "u7_r30_post_transaction_invalid" not in source
+    assert "u7_r30_backup_identity_drift" not in source
+    assert "u7_r32_u6_transaction_invalid" in source
+    assert "u7_r32_post_transaction_invalid" in source
+    assert "u7_r32_backup_identity_drift" in source
 
 
 def test_r30_closure_check_is_scoped_to_r31_verifier() -> None:
