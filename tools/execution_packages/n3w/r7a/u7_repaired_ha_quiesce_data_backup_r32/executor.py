@@ -26,6 +26,8 @@ GATE_ID = (
     "U7_REPAIRED_HA_QUIESCE_DATA_BACKUP_R32_20261115_01"
 )
 CONFIRMATION = "EXECUTE U7 R32 REPAIRED HA QUIESCE DATA BACKUP: YES"
+MANIFEST_SCHEMA = "gh.n3w-t1-u7-r32-repaired-ha-quiesce-backup-manifest/1"
+LOCAL_RESULT_SCHEMA = "gh.n3w-t1-u7-r32-local-result/1"
 PREFLIGHT_TIMEOUT_SECONDS = 1200
 PREFLIGHT_REMOTE_PROCESS_TIMEOUT_SECONDS = 1170
 
@@ -339,7 +341,7 @@ def verify_transaction(plan):
         or transaction.get("authorization_consumed") is not False
         or transaction.get("authorization_id_sha256") is not None
     ):
-        raise Stop("u7_r30_u6_transaction_invalid")
+        raise Stop("u7_r32_u6_transaction_invalid")
     return transaction
 
 
@@ -862,9 +864,9 @@ def execute(plan, authorization_id, confirmation):
             or post.get("authorization_id_sha256") is not None
             or prepared.services_left_quiesced is not True
         ):
-            raise Stop("u7_r30_post_transaction_invalid")
+            raise Stop("u7_r32_post_transaction_invalid")
         if prepared.backup.public() != post["ha_data_backup_identity"]:
-            raise Stop("u7_r30_backup_identity_drift")
+            raise Stop("u7_r32_backup_identity_drift")
 
         post_runtime = verify_quiesced_runtime(plan, pre["runtime"])
         result.update(
@@ -1032,7 +1034,8 @@ def read_manifest(expected_commit: str, *, execute: bool) -> dict[str, Any]:
 
     document = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     if (
-        document.get("gate_id") != GATE_ID
+        document.get("schema") != MANIFEST_SCHEMA
+        or document.get("gate_id") != GATE_ID
         or document.get("authorization_id") != GATE_ID
         or document.get("confirmation") != CONFIRMATION
     ):
@@ -1143,7 +1146,7 @@ def main() -> int:
     args = parser.parse_args()
 
     result: dict[str, Any] = {
-        "schema": "gh.n3w-t1-u7-r30-local-result/1",
+        "schema": LOCAL_RESULT_SCHEMA,
         "status": "STOP",
         "read_only_preflight": bool(args.preflight_only),
         "t1_access": False,
