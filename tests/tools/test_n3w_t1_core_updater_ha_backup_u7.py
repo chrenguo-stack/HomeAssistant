@@ -218,6 +218,12 @@ class FakeRuntime:
         self.resume_count += 1
 
 
+class FailingResumeRuntime(FakeRuntime):
+    def resume_homeassistant_after_backup_failure(self):
+        super().resume_homeassistant_after_backup_failure()
+        raise UpdaterV2Error("synthetic_recovery_failure")
+
+
 class FakeBackup:
     def __init__(self, *, fail: bool = False) -> None:
         self.fail = fail
@@ -324,6 +330,28 @@ def test_u7_backup_failure_resumes_application_owner(
     assert store.document["phase"] == U7
     assert store.document["authorization_claimed"] is False
     assert store.document["ha_data_backup_verified"] is False
+    assert runtime.quiesce_count == 1
+    assert runtime.resume_count == 1
+
+
+def test_u7_failure_recovery_preserves_operation_and_recovery_errors(
+    tmp_path: Path,
+) -> None:
+    store = MemoryStore(build_u6())
+    runtime = FailingResumeRuntime()
+
+    with pytest.raises(UpdaterV2Error) as caught:
+        HaUsbU7BackupController(
+            transaction_store=store,
+            backend=FakeBackend(prepared_media(tmp_path)),
+            runtime_owner=runtime,
+            backup_provider=FakeBackup(fail=True),
+        ).prepare_or_resume()
+
+    message = str(caught.value)
+    assert message.startswith("ha_usb_u7_failure_recovery_failed:")
+    assert "operation=UpdaterV2Error:synthetic_backup_failure" in message
+    assert "recovery=UpdaterV2Error:synthetic_recovery_failure" in message
     assert runtime.quiesce_count == 1
     assert runtime.resume_count == 1
 
