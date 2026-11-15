@@ -1,3 +1,18 @@
+## 2026-11-15 — R33 durable U8 / KF-159 false-STOP proven / R34 read-only reconciliation ready
+
+- PR #807 remains OPEN / DRAFT / UNMERGED.
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- R33 real-T1 execution `r33-live01-20261115T144821Z` consumed its one-shot authorization and returned `STOP_POSTCLAIM`; it must never be replayed.
+- Despite the executor terminal STOP, the durable product transaction advanced to `U8_RECOVERY_ADMISSION_COMPLETE`, SHA-256 `b483236e9439e3e8bc5d6c3cce51bed6649c3feaecdef09cf8fa66a0afab5a3f`, with recovery-content manifest `18698bcded28d0497ae3dcd3363ace68f54a3cbc1c42a1fd5710173a24d900f3`.
+- Read-only forensic proved exactly one terminal mismatch: `manifest.public_fingerprint`. All durable USB mirror fields, target/predecessor/backup identities, target checksum/size, recovery-content manifest and bound filesystem UUID match.
+- KF-159 root cause is proven: the session observation fingerprint was incorrectly treated as cross-session recovery authority. The durable cross-session authority is the bound filesystem UUID plus exact recovery content.
+- Broker owner remains active/running with zero restarts; services owner remains failed/failed with MainPID=0 and zero restarts; predecessor internal image remains present and target internal image remains absent. Manager/Home Assistant container state requires fresh read-only confirmation in R34.
+- R34 read-only successor source head `1de3b11f0dafa717e3199767e868b9f52ba7c2c3` completed 16/16 CI SUCCESS. Executor blob `a26ecf36936da9d8d9f2aed9de6ae9cf8c72a403`; manifest blob `4831e46e7e2cf072c8df684b910974d0bcbf9f00`; focused-test blob `870368d2998340fde96bf5fe2e3aeb17bdadec8b`.
+- R34 is strictly read-only: no transaction/USB/service mutation, no U9+, no destructive cutover, no board access and no merge.
+- Next one gate is exactly one R34 real-T1 read-only reconciliation. On PASS, U8 may be closed as reconciled; stop before U9.
+
 ## 2026-11-15 — R32 repaired U7 live CLOSED_PASS / durable U7 reached / stop before U8
 
 - PR #807 remains OPEN / DRAFT / UNMERGED.
