@@ -1,6 +1,8 @@
 ## 2026-11-15 — KF-158 original U7 root cause physically proven / source repaired / fresh CI pending
 
-- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; live deployment remains accepted.
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference source remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
 - The consumed R30 authorization remains permanently non-replayable; no R30 live command was re-executed.
 - Real-T1 USB forensic proved no persistent R30 partial mirror write: mirror phase remains `U6_PREDECESSOR_RECOVERY_PREPARING`, predecessor/HA-backup identities remain null, and `n3w-update/ha-data` is absent.
 - The pre-existing mirror/local USB fingerprint mismatch remains a separate continuity finding and predates R30.
