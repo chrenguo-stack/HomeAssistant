@@ -27,6 +27,7 @@ GATE_ID = (
 )
 CONFIRMATION = "EXECUTE U7 R30 HA QUIESCE DATA BACKUP: YES"
 PREFLIGHT_TIMEOUT_SECONDS = 1200
+PREFLIGHT_REMOTE_PROCESS_TIMEOUT_SECONDS = 1170
 
 
 class Stop(RuntimeError):
@@ -975,7 +976,14 @@ def read_manifest(expected_commit: str, *, execute: bool) -> dict[str, Any]:
     return document
 
 
-def remote_mode(transport, mode, plan, *extra, timeout=300):
+def remote_mode(
+    transport,
+    mode,
+    plan,
+    *extra,
+    timeout=300,
+    remote_process_timeout=None,
+):
     payload = base64.b64encode(
         json.dumps(
             plan,
@@ -983,8 +991,17 @@ def remote_mode(transport, mode, plan, *extra, timeout=300):
             separators=(",", ":"),
         ).encode("utf-8")
     ).decode("ascii")
+    argv = ["python3", "-B", "-c", REMOTE_SCRIPT, mode, payload, *extra]
+    if remote_process_timeout is not None:
+        argv = [
+            "timeout",
+            "--signal=TERM",
+            "--kill-after=15s",
+            str(remote_process_timeout),
+            *argv,
+        ]
     completed = transport.run_remote(
-        ["python3", "-B", "-c", REMOTE_SCRIPT, mode, payload, *extra],
+        argv,
         timeout=timeout,
         check=False,
     )
@@ -1106,6 +1123,7 @@ def main() -> int:
             "preflight",
             plan,
             timeout=PREFLIGHT_TIMEOUT_SECONDS,
+            remote_process_timeout=PREFLIGHT_REMOTE_PROCESS_TIMEOUT_SECONDS,
         )
         base.write_remote_evidence(
             evidence,
