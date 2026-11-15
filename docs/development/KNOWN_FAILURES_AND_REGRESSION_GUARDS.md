@@ -14,7 +14,14 @@ R30_RECOVERY_PASS=true
 R30_BACKUP_VERIFIED=false
 R30_TRANSACTION_MUTATION=false
 R30_USB_MUTATION_REPORTED=false
-R30_USB_MIRROR_PHYSICAL_STATE=UNKNOWN_PENDING_READONLY_FORENSIC
+R30_USB_MIRROR_R30_MUTATION=NOT_OBSERVED
+R30_USB_MIRROR_PHASE=U6_PREDECESSOR_RECOVERY_PREPARING
+R30_USB_MIRROR_PREDECESSOR_RECOVERY_IDENTITY=null
+R30_USB_MIRROR_HA_DATA_BACKUP_IDENTITY=null
+R30_HA_DATA_BACKUP_DIR_PRESENT=false
+R30_USB_MIRROR_MTIME_PRE_R30=true
+R30_PREEXISTING_USB_MANIFEST_FINGERPRINT_DRIFT=true
+R30_FAILURE_BOUNDARY=BEFORE_FIRST_U7_MIRROR_PERSISTENCE
 R30_U7_TRANSITION=false
 R30_U8_PLUS=false
 FIRST_FAILED_OPERATION=UpdaterV2Error:ha_usb_u7_failure_recovery_failed
@@ -28,6 +35,19 @@ Physical facts:
 - the executor subsequently verified recovered runtime health and returned the explicit terminal state `STOP_RECOVERED`;
 - no backup was verified and the local transaction remained unchanged at U6; no U7/U8+ transition occurred;
 - the executor reported `usb_mutation=false`, but its failure path derives that value only from local transaction mutation. Because `sync_transaction_metadata()` writes the USB mirror before the local transaction store, physical USB mirror state is UNKNOWN until read-only forensic compares the mirror with the exact U6 transaction.
+
+Read-only forensic closure:
+- the USB transaction mirror still reports `U6_PREDECESSOR_RECOVERY_PREPARING`; predecessor-recovery and HA-backup identities remain null;
+- `n3w-update/ha-data` does not exist and no `homeassistant-preupgrade.*` artifact exists;
+- all four USB mirror files retain pre-R30 mtimes from 2026-11-14, while the one-shot R30 claim/failure ledger is from 2026-11-15; therefore R30 did not leave a persistent partial USB mirror write;
+- the USB mirror manifest carries device fingerprint `4014f1fb36f2c2bdff9d1af4f918a8324506c3df4e7d0720977ad9421a9de021`, while the local transaction carries `e45fba0ad3e9997be2738c7a8f25d5c342ebba66ddbf822b1f6bf6a016c2ed93`. The mirror mtime proves this mismatch predates R30 and must not be attributed to the failed live attempt;
+- because the controller only creates the U7 mirror after successful quiesce evidence, and only creates `ha-data` later, the original R30 operation failure is now bounded to the quiesce path or the first U7 metadata persistence before any mirror file replacement.
+
+Source repair follow-up:
+- `LocalHost.stop_services()` already treats both `inactive` and `failed` as a completed stop, but `quiesce_homeassistant_for_backup()` previously accepted only `inactive` for `owner_inactive`;
+- this internal contract mismatch can produce a false quiesce failure after Manager/Home Assistant are fully stopped;
+- source head after the bounded repair + regression test: `f96ca9c7eb9f50796e8c22dcb7cd0a5d3943bccc`;
+- causality for the physical R30 failure remains pending a focused read-only journal window; do not claim the owner-state mismatch as the proven live root cause until that evidence is recovered.
 
 Source finding:
 - `HaUsbU7BackupController.prepare_or_resume()` catches the original U7 exception and immediately calls `resume_homeassistant_after_backup_failure()`;
