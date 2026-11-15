@@ -3,9 +3,9 @@
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U9_LIVE_AUTHORIZATION_R36_20261115_01",
   "authorization_id": "N3W_T1_CORE_UPDATER_HOMEASSISTANT_USB_U9_R36_20261115_01",
   "confirmation": "EXECUTE U9 R36 LIVE AUTHORIZATION CLAIM: YES",
-  "live_execution_authorized": false,
+  "live_execution_authorized": true,
   "authorization_state": {
-    "granted": false,
+    "granted": true,
     "claimed": false,
     "consumed": false,
     "replay_permitted": false
@@ -141,7 +141,7 @@
     "product_authorization_namespace_required": "N3W_T1_CORE_UPDATER_",
     "product_authorization_id_distinct_from_gate_id": true,
     "explicit_r36_user_authorization_required": true,
-    "explicit_r36_user_authorization_granted": false,
+    "explicit_r36_user_authorization_granted": true,
     "embedded_readonly_preclaim_on_execute": true,
     "exact_u8_transaction_required": true,
     "r33_consumed_no_replay_required": true,
@@ -168,5 +168,5 @@
     "board_access": false,
     "merge": false
   },
-  "stop_boundary": "STOP_BEFORE_R36_REAL_T1_AUTHORIZATION_AND_BEFORE_U10"
+  "stop_boundary": "STOP_AFTER_R36_U9_LIVE_AUTHORIZATION_CLAIM_BEFORE_U10"
 }

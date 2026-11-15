@@ -37,11 +37,12 @@ LIVE_TRANSACTION_SHA256=b483236e9439e3e8bc5d6c3cce51bed6649c3feaecdef09cf8fa66a0
 
 R36_GATE_ID=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U9_LIVE_AUTHORIZATION_R36_20261115_01
 R36_PRODUCT_AUTHORIZATION_ID=N3W_T1_CORE_UPDATER_HOMEASSISTANT_USB_U9_R36_20261115_01
-R36_LIVE_EXECUTION_AUTHORIZED=false
+R36_LIVE_EXECUTION_AUTHORIZED=true
 R36_EXECUTOR_BLOB=528fa2c7f6b46cd1fafa046e19db1719b70b7fd4
-R36_MANIFEST_BLOB=20f8bfaaa446fec7fe4b4409032cefbfd068de5b
-R36_FOCUSED_TEST_BLOB=446800d796ca9b9e6e30d7ff5f7fd308975d2eba
-R36_SOURCE_CI=PENDING
+R36_MANIFEST_BLOB=42a4c322f9b1ca84d019a74c1f54d2d7d5ae199e
+R36_FOCUSED_TEST_BLOB=21b6230447a3bdceddb253c63f643c7d0bfe8405
+R36_PREGRANT_SOURCE_CI=16_OF_16_SUCCESS
+R36_GRANT_HEAD_CI=PENDING
 
 R33_REPLAY_PERMITTED=false
 R35_REPLAY_PERMITTED=false
@@ -53,14 +54,16 @@ SERVICE_MUTATION_AUTHORIZED=false
 BOARD_ACCESS=false
 MERGE=false
 
-NEXT_ONE_GATE=R36_SOURCE_CI_THEN_EXPLICIT_REAL_T1_AUTHORIZATION_DECISION
-STOP_BOUNDARY=AFTER_R35_SAFE_STOP_AT_U8_BEFORE_R36_REAL_T1_AND_BEFORE_U10
+NEXT_ONE_GATE=R36_GRANT_HEAD_CI_THEN_ONE_SHOT_REAL_T1_U8_TO_U9_CLAIM
+STOP_BOUNDARY=R36_GRANTED_PENDING_EXACT_CI_BEFORE_REAL_T1_AND_BEFORE_U10
 HANDOFF_TEMPLATE_VERSION=1.4
 ```
 
 R35 consumed its outer one-shot authorization but stopped before the product U9 claim because its gate ID did not satisfy the frozen product authorization namespace. Durable product state remained exact U8; no transaction, USB, service, image or U10 mutation occurred. R35 must never be replayed.
 
-R36 is a fresh successor package, not an R35 retry. It uses a distinct execution gate and a product authorization ID in the required `N3W_T1_CORE_UPDATER_` namespace. Before any future claim it additionally requires the exact R35 consumed SAFE_STOP ledger and unchanged U8 authority. R36 remains source-only and ungranted until a separate explicit user authorization after CI closure.
+R36 is a fresh successor package, not an R35 retry. It uses a distinct execution gate and a product authorization ID in the required `N3W_T1_CORE_UPDATER_` namespace. Before any future claim it additionally requires the exact R35 consumed SAFE_STOP ledger and unchanged U8 authority. R36 is now explicitly granted for exactly one future real-T1 U8→U9 claim, subject to fresh exact grant-head CI closure. U10 remains outside this authorization.
+
+The user conditionally authorized R36 real-T1 execution after CI success. The pre-grant R36 source/descendant CI is now 16/16 SUCCESS, so the condition is satisfied and the R36 manifest is materialized as granted=true / claimed=false / consumed=false / replay=false. A fresh exact grant-head CI is still required before the one-shot real-T1 execution. U10 and all destructive operations remain unauthorized.
 
 ## Latest authority — 2026-11-15 U9 entry authorized / R35 live-authorization source preparation
 

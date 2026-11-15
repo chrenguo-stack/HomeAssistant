@@ -9,7 +9,7 @@
 - Root cause: R35 reused the execution gate ID as the product authorization ID, while the product contract requires `^N3W_T1_CORE_UPDATER_[A-Za-z0-9_-]{1,160}$`.
 - The product transaction remained exact `U8_RECOVERY_ADMISSION_COMPLETE`; transaction/USB/U9/service/destructive/U10 mutation flags all remained false. R35 is permanently no-replay.
 - R36 successor gate is `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U9_LIVE_AUTHORIZATION_R36_20261115_01`; product authorization ID is separately bound as `N3W_T1_CORE_UPDATER_HOMEASSISTANT_USB_U9_R36_20261115_01`.
-- R36 source remains ungranted for live execution until CI closes and the user explicitly authorizes the successor. Exact manifest blob `20f8bfaaa446fec7fe4b4409032cefbfd068de5b`; focused-test blob `446800d796ca9b9e6e30d7ff5f7fd308975d2eba`.
+- R36 pre-grant source/descendant CI is 16/16 SUCCESS. User conditional authorization is therefore active; R36 is now granted for exactly one real-T1 U8→U9 claim after fresh grant-head CI. Granted manifest blob `42a4c322f9b1ca84d019a74c1f54d2d7d5ae199e`; focused-test blob `21b6230447a3bdceddb253c63f643c7d0bfe8405`.
 - U10+, predecessor deletion, target load, service mutation, board access and merge remain unauthorized.
 
 ## 2026-11-15 — U9 entry authorized / R35 one-shot claim source preparation

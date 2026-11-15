@@ -45,15 +45,15 @@ def load_executor():
     return module
 
 
-def test_manifest_is_pre_authorization_successor_only() -> None:
+def test_manifest_is_explicitly_granted_successor_only() -> None:
     document = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert document["gate_id"] == GATE
     assert document["authorization_id"] == PRODUCT_AUTHORIZATION
     assert document["authorization_id"] != document["gate_id"]
     assert AUTHORIZATION_RE.fullmatch(document["authorization_id"])
-    assert document["live_execution_authorized"] is False
+    assert document["live_execution_authorized"] is True
     assert document["authorization_state"] == {
-        "granted": False,
+        "granted": True,
         "claimed": False,
         "consumed": False,
         "replay_permitted": False,
@@ -63,7 +63,10 @@ def test_manifest_is_pre_authorization_successor_only() -> None:
     ] is True
     assert document["execution_contract"][
         "explicit_r36_user_authorization_granted"
-    ] is False
+    ] is True
+    assert document["stop_boundary"] == (
+        "STOP_AFTER_R36_U9_LIVE_AUTHORIZATION_CLAIM_BEFORE_U10"
+    )
 
 
 def test_manifest_binds_consumed_r35_safe_stop() -> None:
