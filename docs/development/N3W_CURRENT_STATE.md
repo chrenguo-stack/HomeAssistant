@@ -1,6 +1,7 @@
 ## Latest authority — 2026-11-15 R34 Attempt01 SAFE_STOP / KF-160 source repair / CI bounded-poll pending
 
 ```text
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
 MAIN=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
 PR=807
 PR_STATE=OPEN_DRAFT_UNMERGED
