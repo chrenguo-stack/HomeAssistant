@@ -406,11 +406,6 @@ def read_terminal_status(plan):
         value["terminal"] = True
         value["reconciled_from_ledger"] = True
         return value
-    if failure_path.exists():
-        value = read_object(failure_path)
-        value["terminal"] = True
-        value["reconciled_from_ledger"] = True
-        return value
     if claim is not None:
         try:
             terminal = verify_terminal_u9_state(plan)
@@ -428,6 +423,11 @@ def read_terminal_status(plan):
             }
         except Exception:
             pass
+    if failure_path.exists():
+        value = read_object(failure_path)
+        value["terminal"] = True
+        value["reconciled_from_ledger"] = True
+        return value
 
     transaction = read_object(TX)
     return {
@@ -544,7 +544,7 @@ def execute(plan, authorization_id, confirmation):
             if (
                 capacity_report.capacity_pass is not True
                 or media.filesystem_uuid != plan["filesystem_uuid"]
-                or recovery_capacity.recovery_capacity_pass is not True
+                or recovery_capacity.capacity_pass is not True
             ):
                 raise Stop("u9_final_revalidation_failed")
 
@@ -602,9 +602,22 @@ def execute(plan, authorization_id, confirmation):
         except Exception:
             pass
         try:
-            _manifest, phase, _authority = mirror_documents(plan)
-            result["usb_mutation"] = (
-                phase.get("phase") == "U9_LIVE_AUTHORIZATION_CLAIMED"
+            mirror_root = (
+                Path(plan["mount_target"])
+                / "n3w-update"
+                / "transaction"
+            )
+            observed_hashes = {
+                "manifest": sha_file(mirror_root / "manifest.json"),
+                "phase": sha_file(mirror_root / "phase.json"),
+                "content_authority": sha_file(
+                    mirror_root / "content-authority.json"
+                ),
+                "checksums": sha_file(mirror_root / "checksums.json"),
+            }
+            result["usb_mutation"] = any(
+                observed_hashes[name] != plan["mirror_sha256"][name]
+                for name in observed_hashes
             )
         except Exception:
             pass
