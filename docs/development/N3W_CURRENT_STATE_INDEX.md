@@ -1,3 +1,19 @@
+## 2026-11-15 — R32 repaired U7 live CLOSED_PASS / durable U7 reached / stop before U8
+
+- PR #807 remains OPEN / DRAFT / UNMERGED.
+- Exact R32 execution authority is `627da8213966ea4e1992c63f8b7c5dcf01265ecf`; grant-head CI completed 16/16 SUCCESS and the R32 executor blob remained `73379e1ff9715770d1bbb58a74c4a0c256a8e22f`.
+- Real-T1 execution `r32-live01-20261115T133826Z` returned RC=0 and terminal status `U7_R32_REPAIRED_HA_QUIESCE_DATA_BACKUP_PASS`.
+- The one-shot R32 authorization is claimed + consumed and permanently no-replay. R32 must never be executed again.
+- Protected Home Assistant data backup is verified and fsynced. Archive SHA-256 is `9473d5d199fd16c185425f5f0a0676d6cfab1888db28617f5ac4c9e4fa9e1c4c`, size 2178281 bytes; manifest SHA-256 is `fd9a2f279a6e9fed99c2af6c2d4502227cafebe4d0ea5d5bb0a467e34415a704`.
+- Backup evidence also proves authenticity protection, confidentiality protection, storage-integrity verification, consistent pre-upgrade point, complete production config, and no unsupported external state.
+- Durable transaction advanced from U6 to `U7_HA_QUIESCED_DATA_BACKUP_PREPARING`; new transaction SHA-256 is `2648201570dbc4c54809f2c6880a039984aa713d54c2719fd736a4fda13e07ea`.
+- Manager and Home Assistant are exited with restart_count=0 on their exact pre-bound identities; Broker remains running with restart_count=0 on its exact pre-bound identity.
+- The services owner is `failed/failed`, Result=`exit-code`, MainPID=0, NRestarts=0. The repaired R32 quiesce contract correctly accepts this state only together with Manager/HA stopped and Broker preserved.
+- This physically validates the KF-158 repair: the old R30 false failure caused by rejecting systemd `failed` after a verified application stop does not recur.
+- No recovery path was needed, no service restart occurred, rollback was not required, and U8+ was not entered.
+- R26/R29/R30S/R31/R32 consumed authorizations remain no-replay.
+- Stop boundary is now before U8. Next bounded work is U8 recovery-admission source/read-only preparation only; U8 live execution is not authorized.
+
 ## 2026-11-15 — R31 live source activation CLOSED_PASS / repaired U7 successor preparation
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted.
