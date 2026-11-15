@@ -1,4 +1,4 @@
-## 2026-11-15 — KF-158 CLOSED_PASS / successor repair source activation preparation
+## 2026-11-15 — R31 read-only preflight CLOSED_PASS / source-activation authorization boundary
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted.
 - Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
@@ -12,7 +12,11 @@
 - Bounded source repair changes the owner predicate to accept `inactive` or `failed` while retaining Manager/HA stopped and Broker continuity requirements. A focused regression test covers the physical `failed` owner case. Repair/test head: `f96ca9c7eb9f50796e8c22dcb7cd0a5d3943bccc`.
 - The old recovery wrapper also masked the precise secondary recovery-call exception. Error-preservation repair is already present; that secondary exception remains separately unclassified and does not reopen the proven original U7 cause.
 - The documentation authority-link/product-source regressions were repaired locally; fresh CI at `88f30bccfa47e899ee41fc68c517611b0acab846` completed 16/16 SUCCESS.
-- KF-158 is now CLOSED_PASS. Next gate is source-only preparation of an exact successor activation for the repaired `n3w_t1_core_updater_host.py` and `n3w_t1_core_updater_ha_install.py`; stop before any new live authorization. No R30 replay, U7 retry, U8+, board access or merge is authorized.
+- KF-158 remains CLOSED_PASS. R31 source-preparation head `214420e4dc1410fb32a044ccfeece2ce039371eb` completed 16/16 fresh CI SUCCESS.
+- Real-T1 R31 read-only preflight CLOSED_PASS. It freshly verified the exact U6 transaction SHA-256 `7f406b5b88f7bd5c3161d7527a001ddcb3414a8ec64fb34cdad444c2c3e62ebe`, exact predecessor source hashes for the two repair targets, the other 13 updater-related source hashes, R26 continuity, and the durable R30 consumed/no-replay + STOP_RECOVERED ledger.
+- Runtime remained healthy: host/services/broker owners active/running with Result=success and NRestarts=0; Manager/Home Assistant/Broker containers remained running with restart_count=0; IPC remained accepted at `PREDECESSOR_RECOVERY_PREPARING` / installed version `2026.10.0`.
+- The R31 preflight was strictly read-only: `live_execution_authorized=false`, no remote staging, no remote execute, no authorization claim/consume, no source/service/transaction/USB mutation, no U7/U8+ transition, no board access and no merge.
+- R31 is now eligible for exactly one future two-file source activation, but no live grant exists yet. Next gate is `N3W_T1_U7_R31_REPAIR_SOURCE_ACTIVATION_EXPLICIT_AUTHORIZATION`. R30 remains permanently consumed and non-replayable.
 
 ## 2026-11-15 — R30 Attempt03 read-only CLOSED_PASS / stopped at live explicit authorization boundary
 
