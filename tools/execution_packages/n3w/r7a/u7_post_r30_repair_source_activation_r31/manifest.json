@@ -1,0 +1,119 @@
+{
+  "schema": "gh.n3w-t1-u7-r31-repair-source-activation-manifest/1",
+  "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U7_POST_R30_REPAIR_SOURCE_ACTIVATION_R31_20261115_01",
+  "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U7_POST_R30_REPAIR_SOURCE_ACTIVATION_R31_20261115_01",
+  "confirmation": "EXECUTE U7 POST-R30 REPAIR SOURCE ACTIVATION R31: YES",
+  "live_execution_authorized": false,
+  "authorization_state": {
+    "granted": false,
+    "claimed": false,
+    "consumed": false,
+    "replay_permitted": false
+  },
+  "source_authority": {
+    "kf158_status": "RESOLVED_CLOSED_PASS",
+    "kf158_root_cause": "INCONSISTENT_SYSTEMD_OWNER_STATE_PREDICATE",
+    "kf158_host_repair_commit": "544efb34e501b93fa2eba7ee5022c3296060619c",
+    "kf158_regression_test_commit": "f96ca9c7eb9f50796e8c22dcb7cd0a5d3943bccc",
+    "kf158_fresh_ci_head": "88f30bccfa47e899ee41fc68c517611b0acab846",
+    "kf158_fresh_ci": "16_OF_16_SUCCESS",
+    "r30_gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U7_HA_QUIESCE_DATA_BACKUP_R30_20261115_01",
+    "r30_result": "STOP_RECOVERED",
+    "r30_authorization_consumed": true,
+    "r30_replay_permitted": false,
+    "r30_manifest_blob": "fb78b9af669fe87b1a834151006f3656e6bea69b",
+    "target_install_blob": "6ef197e0c36010649e3d6b162e184d3fbdb440c3",
+    "target_host_blob": "4dbeef4fda1a0b4efaf4e9de6dfab13cf75d6eae"
+  },
+  "package_source_authority": {
+    "tools/execution_packages/n3w/r7a/u7_post_r30_repair_source_activation_r31/executor.py": "d2ac5c3f51a07bf46b6df95aa96c1f528c894056",
+    "tools/execution_packages/n3w/r7a/u6_source_activation_r25/executor.py": "f3e3ad25cda278f8ed5888bfee11573ac5fdd29e",
+    "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
+    "tools/n3w_t1_core_updater_ha_install.py": "6ef197e0c36010649e3d6b162e184d3fbdb440c3",
+    "tools/n3w_t1_core_updater_host.py": "4dbeef4fda1a0b4efaf4e9de6dfab13cf75d6eae"
+  },
+  "state_root": "/var/lib/n3w-t1-core-updater/u7-r31-post-r30-repair-source-activation-20261115-01",
+  "remote_staging_root": "/var/lib/n3w-t1-core-updater/staging/u7-r31-post-r30-repair-source-activation-20261115-01",
+  "remote_paths": {
+    "install": "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_install.py",
+    "host": "/opt/HomeAssistant/tools/n3w_t1_core_updater_host.py"
+  },
+  "fixed_predecessor_sha256": {
+    "install": "ccf182a939c2bc82a31cb13af31de45611fb4e53e46e964143632750aecfee8e",
+    "host": "29b414fc31d3ef8c58707803be758dfbf954888a444d3f37b5dcc5d10f2930a6"
+  },
+  "dynamic_predecessor_git_blobs": {},
+  "unchanged_source_sha256": {
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_backup.py": "6dc2eef25bc633a3cdd4066b7b25b043cec7fcab7c9623a349785afccd5c50c9",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_capacity.py": "75fcbd9e5bc70521123a52043a7387b4fc9cc5c33106d4150b438ce83eaf9d3d",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_usb.py": "544defbae76f00695a5475a8bc18f5235b63535fbc0b34cd8f89776584696496",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_common.py": "84b735c84bbb3ae5d41bc9acb6d0f23240e98aa7e555d601533611871837fb38",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_v2_state.py": "26e137bac43c6826e1b923871ef25c842884d9a7a6684d1441b2ffff24edda90",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_ipc.py": "12cb70cdcbebfd7430aef0d5a55a83eaa17e3c3ebd5bed2846fcb047dcac6358",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_prepare.py": "cc69aac8e2eab764a8d9d497b323e3f72816b9dd127d53dd356471a80101d892",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_prepare_host.py": "72cdbc94e9e3e4694ac00ad8fb01f5a2877d8f80a4b07e9c0236b546e43874c2",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_recovery.py": "2b8f9917b3eddb016eec6703c7048e2a08ce65e8d547fd00d2b8d86c0c8a4b7a",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_usb_media.py": "8579da19258829231eacb7b961d7ef151f2a2e1c49cb9506f7c7824dccbb31f8",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_usb_state.py": "05a380caca20d95e80771807aa44a3c8a687162a2eac19ab376d85d65ffa10ee",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_v2_common.py": "57ac8f7451ca1c8cfd27f24753d5ea9bf96608f219983c14234d7e87886a3d14",
+    "/opt/HomeAssistant/tools/n3w_t1_portable_image_identity.py": "8ef59ffb177eae0f3cbfc7afd133211205afac9d6a9e9e53b13f3484073f5f39"
+  },
+  "expected_live_entry": {
+    "transaction_id_sha256": "ca89774eb4254d0f861cc2aef136eee41e90fd6106559c0fd8d66e3ee00a3738",
+    "transaction_sha256": "7f406b5b88f7bd5c3161d7527a001ddcb3414a8ec64fb34cdad444c2c3e62ebe",
+    "r26_gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U6_PREDECESSOR_RECOVERY_R26_20261114_01",
+    "r29_gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U7_SOURCE_ACTIVATION_R29_20261114_01",
+    "predecessor_identity": {
+      "kind": "predecessor",
+      "image_ref": "local/n3w-homeassistant:2026.10.0-0c73235a",
+      "archive_sha256": "34cec37ab021e1081e236502bfd06760894f6bca93bd8d6bf99d8d90bb89848d",
+      "archive_size_bytes": 743074537,
+      "portable_identity_sha256": "8b4d4376e2ab339347abb4aa554d3a5cc6f93ea20b0ee3c22ca8e29ae14b16c3",
+      "platform": "linux/arm64",
+      "verified": true,
+      "fsynced": true
+    },
+    "containers": {
+      "manager": {
+        "image": "local/greenhouse-manager:fresh-44e7d7472714",
+        "runtime_image_id": "sha256:1471828ab07cf9b71c01a6e78994711a5954f0a178b8be087a28bb65a967c7d2"
+      },
+      "homeassistant": {
+        "image": "local/n3w-homeassistant:2026.10.0-0c73235a",
+        "runtime_image_id": "sha256:c261fa53f30508951833492ba2a19af6cfbb6aa8f2806b531d8f5c6599265306"
+      },
+      "broker": {
+        "image": "local/n3w-mosquitto:2.1.2-3184566d",
+        "runtime_image_id": "sha256:df265f1e2b2e3dc35d5eb194e698c598e01c5ebca370da307b34332f9bf0a563"
+      }
+    },
+    "r30s_gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U7_PREPARE_HOST_SOURCE_ACTIVATION_R30S_20261115_01",
+    "r30_gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U7_HA_QUIESCE_DATA_BACKUP_R30_20261115_01",
+    "r30_state_root": "/var/lib/n3w-t1-core-updater/u7-r30-ha-quiesce-backup-20261115-01"
+  },
+  "execution_contract": {
+    "read_only_preflight": true,
+    "source_deployment_on_execute": true,
+    "activated_source_file_count": 2,
+    "staged_import_before_claim": true,
+    "installed_import_after_activation": true,
+    "exact_r30_consumed_no_replay_required": true,
+    "current_daemon_process_not_reloaded": true,
+    "service_stop": false,
+    "service_restart": false,
+    "transaction_mutation": false,
+    "usb_mutation": false,
+    "u7_transition": false,
+    "u8_plus": false,
+    "automatic_retry": false,
+    "maximum_rollback_attempts": 1,
+    "postclaim_failure_consumes_authorization": true,
+    "unknown_postinvoke_transport_consumes_authorization": true,
+    "invalid_execute_result_consumes_authorization": true,
+    "authorization_claim_persistence_unknown_consumes_authorization": true,
+    "durable_success_result": true,
+    "board_access": false,
+    "merge": false
+  },
+  "stop_boundary": "STOP_AFTER_R31_REPAIR_SOURCE_ACTIVATION_BEFORE_NEW_U7_LIVE_AUTHORIZATION"
+}
