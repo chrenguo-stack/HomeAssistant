@@ -1,3 +1,44 @@
+### 2026-11-15 KF-158 R30 live U7 failure masked by recovery failure wrapper — STOP_RECOVERED / ROOT_CAUSE_TBD / OPEN
+
+```text
+R30_GRANT_HEAD=0e0725baed93456d068bd87cc8a7d37c36098d60
+R30_LIVE_RESULT=STOP_RECOVERED
+R30_LIVE_RC=2
+R30_AUTHORIZATION_CLAIMED=true
+R30_AUTHORIZATION_CONSUMED=true
+R30_REPLAY_PERMITTED=false
+R30_SERVICE_STOP=true
+R30_SERVICE_RESTART=true
+R30_RECOVERY_ATTEMPTED=true
+R30_RECOVERY_PASS=true
+R30_BACKUP_VERIFIED=false
+R30_TRANSACTION_MUTATION=false
+R30_USB_MUTATION=false
+R30_U7_TRANSITION=false
+R30_U8_PLUS=false
+FIRST_FAILED_OPERATION=UpdaterV2Error:ha_usb_u7_failure_recovery_failed
+TRANSACTION_PHASE=U6_PREDECESSOR_RECOVERY_PREPARING
+STATUS=OPEN_PENDING_READONLY_FORENSIC
+```
+
+Physical facts:
+- the live executor claimed and consumed the one-shot R30 authorization, so this exact authorization is permanently non-replayable;
+- the application services were stopped, the U7 path failed, and recovery was attempted;
+- the executor subsequently verified recovered runtime health and returned the explicit terminal state `STOP_RECOVERED`;
+- no backup was verified, transaction/USB remained unchanged, durable phase stayed at U6, and no U7/U8+ transition occurred.
+
+Source finding:
+- `HaUsbU7BackupController.prepare_or_resume()` catches the original U7 exception and immediately calls `resume_homeassistant_after_backup_failure()`;
+- when that recovery call raises, the controller throws the generic `ha_usb_u7_failure_recovery_failed` wrapper from the recovery error, so the original U7 error is no longer present in the public result;
+- the outer R30 executor later sees `runtime.resume_invoked=true`, verifies the application runtime is healthy, and reports `STOP_RECOVERED`. Therefore the first recovery call may have raised on readiness/return semantics even though the services subsequently converged.
+
+Required guards / next step:
+- never replay the consumed R30 authorization;
+- perform read-only forensic before designing a successor live gate;
+- recover the durable R30 progress/failure ledger plus bounded service/journal evidence to distinguish the original U7 failure from the recovery-call failure;
+- source repair must preserve both original-operation error and recovery error separately rather than replacing the former with `ha_usb_u7_failure_recovery_failed`;
+- no successor live authorization until root cause, source repair, regression tests, fresh CI, and a new explicit one-shot gate are established.
+
 ### 2026-11-15 KF-157 R30 read-only preflight timeout/orphan + repeated portable revalidation — ATTEMPT03_CLOSED_PASS / RESOLVED
 
 ```text
