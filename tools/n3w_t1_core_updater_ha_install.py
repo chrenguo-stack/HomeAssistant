@@ -419,7 +419,21 @@ class HaUsbU7BackupController:
             try:
                 self.runtime_owner.resume_homeassistant_after_backup_failure()
             except Exception as recovery_error:
+                operation = (
+                    type(error).__name__
+                    + ":"
+                    + str(error)[:72]
+                )
+                recovery = (
+                    type(recovery_error).__name__
+                    + ":"
+                    + str(recovery_error)[:72]
+                )
                 raise UpdaterV2Error(
-                    "ha_usb_u7_failure_recovery_failed"
+                    "ha_usb_u7_failure_recovery_failed:"
+                    + "operation="
+                    + operation
+                    + ";recovery="
+                    + recovery
                 ) from recovery_error
-            raise error
+            raise
