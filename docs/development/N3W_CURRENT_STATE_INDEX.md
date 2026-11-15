@@ -9,6 +9,7 @@
 - Final source repair authority is `4cb3c0dd44ad0251a63e594b4cb8db3c0e20671a`; exact blobs: executor `3f9a9dad5b7da51bbdc33d7f82bd27e8866cc006`, manifest `d7e0e5d1e257eb94303f9b2c36e76cdc02987251`, focused test `6065a7684256230f4893d52a41cfade17ec005ed`.
 - Repair preserves bound-media resolution and all transaction/R26/R29/R30S/runtime/capacity/HA source/SQLite/root-key/tool checks, but replaces repeated portable-image reconstruction with frozen identity validation plus one full SHA-256 + size continuity pass for each target/predecessor archive.
 - GNU timeout exit is now classified explicitly as `remote_process_timeout`.
+- KF-157 records the two physical preflight failure modes and the accepted source guards; it remains OPEN pending real-T1 Attempt03.
 - Final fresh exact-head CI is 16/16 SUCCESS, including HA target-binding and Manager A-to-B.
 - Current durable transaction remains exact U6 `U6_PREDECESSOR_RECOVERY_PREPARING`, SHA-256 `7f406b5b88f7bd5c3161d7527a001ddcb3414a8ec64fb34cdad444c2c3e62ebe`.
 - Fresh post-Attempt02 runtime/media/orphan state has not yet been rechecked; new chat must do that minimal read-only check first.
