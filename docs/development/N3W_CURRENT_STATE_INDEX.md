@@ -1,3 +1,16 @@
+## 2026-11-15 — R35 consumed SAFE_STOP / KF-161 / R36 successor source preparation
+
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- R35 exact source completed 16/16 CI SUCCESS before real-T1 execution.
+- R35 execution `r35-live01-20261115T161150Z` returned `STOP_POSTCLAIM` / RC=2 after consuming its outer one-shot authorization.
+- Exact failure: `UpdaterV2Error:ha_usb_live_authorization_id_invalid`.
+- Root cause: R35 reused the execution gate ID as the product authorization ID, while the product contract requires `^N3W_T1_CORE_UPDATER_[A-Za-z0-9_-]{1,160}$`.
+- The product transaction remained exact `U8_RECOVERY_ADMISSION_COMPLETE`; transaction/USB/U9/service/destructive/U10 mutation flags all remained false. R35 is permanently no-replay.
+- R36 successor gate is `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U9_LIVE_AUTHORIZATION_R36_20261115_01`; product authorization ID is separately bound as `N3W_T1_CORE_UPDATER_HOMEASSISTANT_USB_U9_R36_20261115_01`.
+- R36 source remains ungranted for live execution until CI closes and the user explicitly authorizes the successor.
+- U10+, predecessor deletion, target load, service mutation, board access and merge remain unauthorized.
+
 ## 2026-11-15 — U9 entry authorized / R35 one-shot claim source preparation
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted.

@@ -1,3 +1,38 @@
+### 2026-11-15 KF-161 R35 U9 product authorization namespace mismatch — OPEN / SOURCE SUCCESSOR PREPARED
+
+```text
+R35_EXECUTION_ID=r35-live01-20261115T161150Z
+R35_RESULT=STOP_POSTCLAIM
+R35_RC=2
+R35_FAILURE_OPERATION=UpdaterV2Error:ha_usb_live_authorization_id_invalid
+R35_AUTHORIZATION_CLAIMED=true
+R35_AUTHORIZATION_CONSUMED=true
+R35_REPLAY_PERMITTED=false
+R35_TRANSACTION_MUTATION=false
+R35_USB_MUTATION=false
+R35_U9_TRANSITION=false
+R35_TRANSACTION_PHASE=U8_RECOVERY_ADMISSION_COMPLETE
+R35_U10_PLUS=false
+R35_DESTRUCTIVE_CUTOVER=false
+```
+
+Root cause:
+- the product-level `claim_live_authorization()` validates authorization IDs against `^N3W_T1_CORE_UPDATER_[A-Za-z0-9_-]{1,160}$`;
+- R35 incorrectly reused its execution gate ID `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U9_LIVE_AUTHORIZATION_R35_20261115_01` as the product authorization ID;
+- the outer R35 ledger had already claimed/consumed before product validation, so R35 is no-replay even though the product transaction remained U8.
+
+Required guards:
+- execution gate ID and product authorization ID are separate authorities;
+- all product U9 authorization IDs must satisfy the frozen `N3W_T1_CORE_UPDATER_` namespace before any real-T1 package is granted;
+- a consumed post-claim executor failure may never be repaired by replaying the same gate;
+- a successor must prove the exact R35 consumed failure ledger plus unchanged U8 transaction/mirror/recovery authority;
+- U10/destructive operations remain outside the successor U9 claim gate.
+
+R36 source successor:
+- gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U9_LIVE_AUTHORIZATION_R36_20261115_01`;
+- product authorization ID: `N3W_T1_CORE_UPDATER_HOMEASSISTANT_USB_U9_R36_20261115_01`;
+- live execution remains ungranted pending source CI and separate explicit authorization.
+
 ### 2026-11-15 KF-160 R34 remote script missing base64 import — CLOSED_PASS / REPAIR PHYSICALLY VALIDATED
 
 ```text
