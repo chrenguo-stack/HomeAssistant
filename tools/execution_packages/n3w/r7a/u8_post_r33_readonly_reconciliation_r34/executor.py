@@ -46,6 +46,7 @@ def load_base():
 
 
 REMOTE_SCRIPT = r'''
+import base64
 import hashlib
 import json
 import re
