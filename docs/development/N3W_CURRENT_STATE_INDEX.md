@@ -1,3 +1,19 @@
+## 2026-11-15 — R30 Attempt03 read-only CLOSED_PASS / stopped at live explicit authorization boundary
+
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; live upgrade accepted and `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference source remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- PR #807 remains OPEN / DRAFT / UNMERGED. Repository main remains `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`.
+- Exact R30 repair source/test authority remains `4cb3c0dd44ad0251a63e594b4cb8db3c0e20671a`; source authority CI remains 16/16 SUCCESS.
+- Fresh real-T1 minimal baseline PASS: no R30 orphan preflight, R30 state root absent, durable transaction exact at `U6_PREDECESSOR_RECOVERY_PREPARING` / SHA-256 `7f406b5b88f7bd5c3161d7527a001ddcb3414a8ec64fb34cdad444c2c3e62ebe`, exact bound ext4 media mounted rw, and Manager/Home Assistant/Broker plus owner units healthy with restart_count=0.
+- R30 read-only preflight Attempt03 CLOSED_PASS with RC=0. It reused frozen portable identity authority and completed one full SHA-256 + size continuity pass for both archives.
+- Target archive continuity: SHA-256 `eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973`, size 835309535 bytes. Predecessor archive continuity: SHA-256 `34cec37ab021e1081e236502bfd06760894f6bca93bd8d6bf99d8d90bb89848d`, size 743074537 bytes.
+- Attempt03 also proved backup capacity, HA source support, SQLite quick-check, root-key availability, crypto tools, and R26/R29/R30S consumed/no-replay continuity.
+- Attempt03 remained strictly read-only: remote execute was not invoked; R30 authorization was not granted/claimed/consumed; no service stop/restart, HA quiesce, transaction/USB mutation, U7 transition, U8+, board access or merge occurred.
+- `u7_live_eligible=true` is eligibility only; it is not live authorization. R30 live execution remains false.
+- KF-157 is RESOLVED for the R30 preflight timeout/orphan + repeated portable revalidation failure mode because the repaired path is now physically proven on real T1.
+- Stop boundary reached: `R30_HA_QUIESCE_DATA_BACKUP_EXPLICIT_AUTHORIZATION`. Do not materialize a grant or execute R30 live mutation without a new explicit user authorization.
+
 ## 2026-11-15 — R30 Attempt02 SAFE_STOP / exact archive continuity repair CLOSED_PASS / Attempt03 next
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; live upgrade accepted and `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
