@@ -4,7 +4,7 @@
 - The operator supplied the exact confirmation and executed the one-shot R30 live gate.
 - Remote execution returned `STOP_RECOVERED` / RC=2 with `authorization_claimed=true`, `authorization_consumed=true`, `replay_permitted=false`.
 - The application owner was stopped and recovery was attempted; the executor subsequently proved recovery PASS and service restart PASS.
-- The protected HA backup did not verify; transaction and USB remained unmodified, durable phase remained `U6_PREDECESSOR_RECOVERY_PREPARING`, and no U7/U8+ transition occurred.
+- The protected HA backup did not verify; the local transaction remained unchanged at `U6_PREDECESSOR_RECOVERY_PREPARING` and no U7/U8+ transition occurred. The executor reported `usb_mutation=false`, but source review proves this field is derived from transaction mutation and does not independently prove the USB transaction mirror stayed unchanged; USB mirror state is therefore UNKNOWN pending read-only forensic.
 - Current visible failure is `UpdaterV2Error:ha_usb_u7_failure_recovery_failed`. Source review shows this is a wrapper emitted when the controller's first recovery call itself raises; it can mask the original U7 operation error.
 - The outer R30 executor then observed the runtime recovered healthy, so this is not a current runtime-down or unknown-state condition.
 - The consumed R30 authorization is permanently non-replayable. Do not rerun R30 live.
