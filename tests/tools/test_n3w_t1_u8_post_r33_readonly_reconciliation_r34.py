@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import importlib.util
 import json
 import sys
@@ -88,6 +89,19 @@ def test_executor_and_remote_script_compile() -> None:
     assert module.LOCAL_RESULT_SCHEMA == (
         "gh.n3w-t1-u8-r34-local-result/1"
     )
+
+
+def test_remote_script_imports_runtime_dependencies() -> None:
+    remote = load_executor().REMOTE_SCRIPT
+    tree = ast.parse(remote)
+    imported = {
+        alias.name
+        for node in tree.body
+        if isinstance(node, ast.Import)
+        for alias in node.names
+    }
+    assert "base64" in imported
+    assert "base64.b64decode" in remote
 
 
 def test_remote_reconciliation_contains_no_mutation_calls() -> None:
