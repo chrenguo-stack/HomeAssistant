@@ -1,3 +1,52 @@
+## Latest authority — 2026-11-15 U9 entry authorized / R35 live-authorization source preparation
+
+```text
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+MAIN=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+U8_STATUS=CLOSED_PASS_RECONCILED
+U8_CLOSURE_ARCHIVE_HEAD=d1d024cba9250bab93344049aadcc69b58b87a32
+R34_RESULT=U8_R34_POST_R33_READONLY_RECONCILIATION_PASS
+LIVE_TRANSACTION_PHASE=U8_RECOVERY_ADMISSION_COMPLETE
+LIVE_TRANSACTION_SHA256=b483236e9439e3e8bc5d6c3cce51bed6649c3feaecdef09cf8fa66a0afab5a3f
+
+U9_ENTRY_AUTHORIZED=true
+U9_AUTHORIZATION_SCOPE=U8_TO_U9_LIVE_AUTHORIZATION_CLAIM_ONLY
+R35_GATE_ID=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U9_LIVE_AUTHORIZATION_R35_20261115_01
+R35_EXECUTOR_BLOB=3665d69adfe40b84acb3d1938714091bb8f91680
+R35_MANIFEST_BLOB=8c72990560da4d3e79b09ac4fb282500027271f5
+R35_FOCUSED_TEST_BLOB=4d61fb709253b4f27258795ae72d0e454f1c22e7
+R35_SOURCE_CI=PENDING
+R35_LIVE_EXECUTION_PENDING_SOURCE_CI=true
+
+R33_REPLAY_PERMITTED=false
+U10_PLUS_AUTHORIZED=false
+DESTRUCTIVE_CUTOVER_AUTHORIZED=false
+PREDECESSOR_IMAGE_DELETE_AUTHORIZED=false
+TARGET_IMAGE_LOAD_AUTHORIZED=false
+SERVICE_MUTATION_AUTHORIZED=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U9_LIVE_AUTHORIZATION_R35_20261115_01
+NEXT_GATE_MODE=ONE_SHOT_REAL_T1_U8_TO_U9_CLAIM_AFTER_SOURCE_CI
+STOP_BOUNDARY=AFTER_U9_CLAIM_BEFORE_U10_DESTRUCTIVE_CUTOVER
+HANDOFF_TEMPLATE_VERSION=1.4
+```
+
+The user explicitly authorized entering U9. Under the frozen architecture, U9 is only the fresh one-shot live-authorization claim; predecessor deletion and target loading begin at U10 and remain outside this authorization.
+
+R35 embeds a full read-only preclaim revalidation of the exact U8 transaction, R33 consumed/no-replay ledger, same bound USB UUID, exact U8 mirror, exact target/predecessor archive continuity, protected HA data backup, fresh recovery capacity, quiesced Manager/Home Assistant, Broker continuity, predecessor image preservation and target absence. Only after all checks pass may it persist the U9 claim to USB metadata and the host transaction. It stops immediately after terminal U9 verification.
+
 ## Latest authority — 2026-11-15 R34 Attempt02 real-T1 read-only CLOSED_PASS / U8 CLOSED_PASS_RECONCILED
 
 ```text

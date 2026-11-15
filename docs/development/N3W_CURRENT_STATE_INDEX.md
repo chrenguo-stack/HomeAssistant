@@ -1,3 +1,16 @@
+## 2026-11-15 — U9 entry authorized / R35 one-shot claim source preparation
+
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- U8 is `CLOSED_PASS_RECONCILED`; exact transaction remains `U8_RECOVERY_ADMISSION_COMPLETE` with SHA-256 `b483236e9439e3e8bc5d6c3cce51bed6649c3feaecdef09cf8fa66a0afab5a3f`.
+- User explicitly authorized entry into U9. Frozen U9 semantics are limited to `LIVE_AUTHORIZATION_CLAIMED`; U10 destructive cutover is not included.
+- R35 gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U9_LIVE_AUTHORIZATION_R35_20261115_01`.
+- R35 executor blob `3665d69adfe40b84acb3d1938714091bb8f91680`; manifest blob `8c72990560da4d3e79b09ac4fb282500027271f5`; focused-test blob `4d61fb709253b4f27258795ae72d0e454f1c22e7`.
+- R35 performs full embedded read-only preclaim validation, then one U8→U9 durable claim, USB metadata sync followed by host transaction sync, and terminal U9 verification.
+- No service mutation, predecessor delete, target load, U10+, board access or merge is authorized.
+- R35 real-T1 execution waits for exact-source CI closure.
+
 ## 2026-11-15 — R34 Attempt02 real-T1 CLOSED_PASS / U8 CLOSED_PASS_RECONCILED
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; live upgrade accepted.
