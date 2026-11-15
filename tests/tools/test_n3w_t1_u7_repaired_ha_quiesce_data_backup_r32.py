@@ -113,6 +113,9 @@ def test_r32_preflight_requires_r31_consumed_no_replay() -> None:
     assert '"U7_R31_REPAIR_SOURCE_ACTIVATION_PASS"' in remote
     assert 'success.get("activated_source_file_count") != 2' in remote
     assert 'success.get("rollback_required") is not False' in remote
+    assert 'post_r30.get("claim_consumed_no_replay") is not True' in remote
+    assert 'post_r30.get("stop_recovered") is not True' in remote
+    assert 'post_r30.get("transaction_preserved_u6") is not True' in remote
 
     start = remote.index("def verify_prestate")
     end = remote.index("def verify_terminal_u7_state", start)
