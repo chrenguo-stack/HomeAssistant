@@ -65,6 +65,15 @@ Required guards / next step:
 - the secondary recovery-call exception may be investigated by read-only/source-only work, but it does not reopen the original U7 root cause;
 - no successor live authorization until source repair CI closes and a new explicit one-shot gate is separately established.
 
+### 2026-11-15 KF-158 physical successor validation — R32 U7 CLOSED_PASS
+
+R32 repaired-U7 live execution physically validates the KF-158 source repair on real T1. The services owner again ended in systemd `failed` / Result=`exit-code` with MainPID=0 and NRestarts=0, while Manager and Home Assistant were both actually stopped and Broker remained running. The repaired quiesce predicate accepted this verified stop state, protected HA backup completed, and the transaction advanced durably to `U7_HA_QUIESCED_DATA_BACKUP_PREPARING`.
+
+Regression authority retained:
+- systemd owner `inactive` or `failed` is acceptable only when Manager and Home Assistant are both stopped and Broker continuity is preserved;
+- R32 authorization is consumed/no-replay and must never be retried;
+- U7 physical closure does not authorize U8.
+
 ### 2026-11-15 KF-157 R30 read-only preflight timeout/orphan + repeated portable revalidation — ATTEMPT03_CLOSED_PASS / RESOLVED
 
 ```text
