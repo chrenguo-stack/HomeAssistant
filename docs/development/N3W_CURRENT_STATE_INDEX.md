@@ -1,3 +1,20 @@
+## 2026-11-15 — R30 Attempt02 SAFE_STOP / exact archive continuity repair CLOSED_PASS / Attempt03 next
+
+- PR #807 remains OPEN / DRAFT / UNMERGED. Repository main remains `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`.
+- R30M writable-mount live execution is CLOSED_PASS; its one-shot authorization is claimed + consumed and no-replay.
+- R30 read-only Attempt01 stopped on the old local SSH timeout. Its remote preflight orphan was proven and explicitly cleaned; R30 state root remained absent and runtime/media stayed healthy.
+- R30 read-only Attempt02 ran under the repaired `1170s` remote / `1200s` local timeout envelope. Forensics proved ~95.7% CPU and continuing reads, so it was not stalled. It safely stopped when full portable-image reconstruction exceeded the bounded remote budget.
+- Attempt02 claimed/consumed no R30 authorization, stopped no services, mutated no transaction/USB state and did not enter U7/U8+.
+- Root cause: preflight rebuilt portable image identity for both large archives, causing repeated archive/layer hashing and decompression far beyond the physical archive size.
+- Final source repair authority is `4cb3c0dd44ad0251a63e594b4cb8db3c0e20671a`; exact blobs: executor `3f9a9dad5b7da51bbdc33d7f82bd27e8866cc006`, manifest `d7e0e5d1e257eb94303f9b2c36e76cdc02987251`, focused test `6065a7684256230f4893d52a41cfade17ec005ed`.
+- Repair preserves bound-media resolution and all transaction/R26/R29/R30S/runtime/capacity/HA source/SQLite/root-key/tool checks, but replaces repeated portable-image reconstruction with frozen identity validation plus one full SHA-256 + size continuity pass for each target/predecessor archive.
+- GNU timeout exit is now classified explicitly as `remote_process_timeout`.
+- Final fresh exact-head CI is 16/16 SUCCESS, including HA target-binding and Manager A-to-B.
+- Current durable transaction remains exact U6 `U6_PREDECESSOR_RECOVERY_PREPARING`, SHA-256 `7f406b5b88f7bd5c3161d7527a001ddcb3414a8ec64fb34cdad444c2c3e62ebe`.
+- Fresh post-Attempt02 runtime/media/orphan state has not yet been rechecked; new chat must do that minimal read-only check first.
+- Next gate is `N3W_T1_U7_R30_READONLY_PREFLIGHT_ATTEMPT03`. R30 live remains separately unauthorized; stop after Attempt03 before any live authorization/materialization/execution.
+- Handoff: `docs/development/N3W_T1_R30_ATTEMPT02_SAFE_STOP_TO_ATTEMPT03_READONLY_PREFLIGHT_NEW_CHAT_HANDOFF_V1.0_20261115.md`.
+
 ## 2026-11-15 — R30M read-only PASS / writable-mount grant-only successor materialized
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted and `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
