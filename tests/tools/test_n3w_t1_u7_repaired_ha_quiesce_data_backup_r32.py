@@ -105,6 +105,21 @@ def test_executor_and_remote_script_compile() -> None:
     assert module.PREFLIGHT_REMOTE_PROCESS_TIMEOUT_SECONDS == 1170
 
 
+def test_r30_closure_check_is_scoped_to_r31_verifier() -> None:
+    remote = load_executor().REMOTE_SCRIPT
+    r29_start = remote.index("def verify_r29(plan):")
+    r30s_start = remote.index("def verify_r30s(plan):", r29_start)
+    r31_start = remote.index("def verify_r31(plan):", r30s_start)
+    import_start = remote.index("def import_product():", r31_start)
+    r29_block = remote[r29_start:r30s_start]
+    r31_block = remote[r31_start:import_start]
+    assert "post_r30" not in r29_block
+    assert 'post_r30 = post.get("r30")' in r31_block
+    assert 'post_r30.get("claim_consumed_no_replay") is not True' in r31_block
+    assert 'post_r30.get("stop_recovered") is not True' in r31_block
+    assert 'post_r30.get("transaction_preserved_u6") is not True' in r31_block
+
+
 def test_r32_preflight_requires_r31_consumed_no_replay() -> None:
     remote = load_executor().REMOTE_SCRIPT
     assert "def verify_r31(plan):" in remote
