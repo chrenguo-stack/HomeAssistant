@@ -1398,7 +1398,7 @@ class LocalHost:
         broker_state = self._systemctl("is-active", BROKER_UNIT)
         broker_after = self._container_id("broker")
         evidence = {
-            "owner_inactive": owner_state == "inactive",
+            "owner_inactive": owner_state in {"inactive", "failed"},
             "homeassistant_stopped": self._running_count("homeassistant") == 0,
             "manager_stopped": self._running_count("manager") == 0,
             "broker_preserved": (
