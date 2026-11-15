@@ -1,16 +1,16 @@
-## 2026-11-15 — R30M source CLOSED_PASS / real-T1 read-only preflight next
+## 2026-11-15 — R30M read-only PASS / writable-mount grant-only successor materialized
 
-- PR #807 remains OPEN / DRAFT / UNMERGED. Exact R30M executable-source authority is `f814f604666273c2d8259a394a1bda44bae4b81f`.
-- Fresh CI on the exact source authority is 16/16 SUCCESS. HA target-binding source job reports 651 passed; its exact-binding job is SUCCESS; Manager A-to-B is SUCCESS.
-- R30S single-file prepare-host activation is CLOSED_PASS, claimed + consumed, and permanently no-replay.
-- R30 Attempt01 is a safe read-only STOP at `u7_media_not_already_mounted`; it did not claim authorization, stop services, quiesce HA, mutate transaction/USB, or enter U7/U8+.
-- Post-reboot read-only evidence proved the exact transaction-bound removable media was present, ext4 / N3W-UPDATE / clean and unmounted; the transaction remained exact U6. That physical state is now historical evidence and must be refreshed before a new live action.
-- Manager, Home Assistant and Broker recovered running after the controlled reboot. Current fresh runtime/media state is `UNKNOWN_FRESH`.
-- R30M is the bounded successor for restoring only the transaction-bound runtime mount. It has no fixed `/dev/sdX` authority and requires the media to be clean and unmounted at preflight.
-- R30M remains ungranted/unclaimed/unconsumed/non-replayable. A future live execute, if separately authorized, is limited to creating the bounded runtime directories and mounting the exact bound ext4 media `rw,nodev,nosuid,noexec`, with at most one rollback to unmounted prestate.
-- No R30 live execution, writable mount, U7 transition, U8+, board access or merge is authorized.
-- KF-156 records intermittent T1 eth0 Link Down/Up associated with SSH banner/preauth failures. Link flap is physically proven; cable/switch/PHY/driver/power root cause remains unproven.
-- Next gate: `R30M_REAL_T1_READONLY_PREFLIGHT`. PASS must stop at a separate explicit writable-mount authorization boundary.
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; live deployment remains `APPLIED_ACCEPTED`.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference source remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- PR #807 remains OPEN / DRAFT / UNMERGED.
+- R30M real-T1 read-only preflight Attempt02 is CLOSED_PASS with RC=0. It freshly proved the exact U6 transaction, all 15 installed updater source hashes, healthy Manager/Home Assistant/Broker and owner units, and the exact bound clean ext4 media present and unmounted.
+- Read-only preflight performed no runtime-directory creation, writable mount, authorization claim/consume, transaction/USB/product mutation, U7/U8+ transition, board access or merge.
+- User explicitly authorized the R30M writable-mount boundary. Grant-only successor head is `da4f4412a28e17825f1f30df183b79e0cd08cabc`; granted manifest blob `58e9c6916825ec52da7c19b84b7dc78a47dd7c01`; focused test blob `a3a380a98c5d5a01ca48d1a4b38de79e5d2a4501`.
+- Authorization is now live_execution_authorized=true / granted=true / claimed=false / consumed=false / replay=false.
+- The grant changes no executor logic. The bounded live operation remains limited to creating the transaction-derived runtime directories and mounting the exact bound media `rw,nodev,nosuid,noexec`, followed by exact postvalidation; at most one rollback to the unmounted prestate on failure.
+- Fresh exact-head CI is required before live execution. R30 live HA quiesce/data-backup remains separately unauthorized.
+- Next gate after CI closure: exactly one R30M writable-mount live execution, then stop before R30.
 
 ## 2026-11-14 — repaired R29 grant-only successor materialized / fresh CI pending
 
