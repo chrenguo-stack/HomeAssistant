@@ -1,3 +1,15 @@
+## 2026-11-15 — R30 live STOP_RECOVERED / one-shot authorization consumed / forensic next
+
+- PR #807 exact live grant head was `0e0725baed93456d068bd87cc8a7d37c36098d60` with 16/16 fresh CI SUCCESS.
+- The operator supplied the exact confirmation and executed the one-shot R30 live gate.
+- Remote execution returned `STOP_RECOVERED` / RC=2 with `authorization_claimed=true`, `authorization_consumed=true`, `replay_permitted=false`.
+- The application owner was stopped and recovery was attempted; the executor subsequently proved recovery PASS and service restart PASS.
+- The protected HA backup did not verify; transaction and USB remained unmodified, durable phase remained `U6_PREDECESSOR_RECOVERY_PREPARING`, and no U7/U8+ transition occurred.
+- Current visible failure is `UpdaterV2Error:ha_usb_u7_failure_recovery_failed`. Source review shows this is a wrapper emitted when the controller's first recovery call itself raises; it can mask the original U7 operation error.
+- The outer R30 executor then observed the runtime recovered healthy, so this is not a current runtime-down or unknown-state condition.
+- The consumed R30 authorization is permanently non-replayable. Do not rerun R30 live.
+- KF-158 is OPEN. Next gate is read-only forensic only: recover the durable progress/failure ledger and bounded service/journal evidence needed to identify the original U7 failure plus the recovery exception before any source repair or successor live authorization.
+
 ## 2026-11-15 — R30 Attempt03 read-only CLOSED_PASS / stopped at live explicit authorization boundary
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted and `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
