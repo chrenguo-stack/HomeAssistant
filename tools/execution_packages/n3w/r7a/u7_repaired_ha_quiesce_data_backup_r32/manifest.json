@@ -3,9 +3,9 @@
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U7_REPAIRED_HA_QUIESCE_DATA_BACKUP_R32_20261115_01",
   "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U7_REPAIRED_HA_QUIESCE_DATA_BACKUP_R32_20261115_01",
   "confirmation": "EXECUTE U7 R32 REPAIRED HA QUIESCE DATA BACKUP: YES",
-  "live_execution_authorized": false,
+  "live_execution_authorized": true,
   "authorization_state": {
-    "granted": false,
+    "granted": true,
     "claimed": false,
     "consumed": false,
     "replay_permitted": false
@@ -120,5 +120,5 @@
     "local_evidence_failure_never_reports_pass": true,
     "timeout_terminal_success_revalidates_mount_usb_mirror_and_runtime": true
   },
-  "stop_boundary": "STOP_AFTER_R32_READONLY_PREFLIGHT_BEFORE_REPAIRED_U7_LIVE_AUTHORIZATION"
+  "stop_boundary": "STOP_AFTER_VERIFIED_R32_U7_HA_QUIESCED_DATA_BACKUP_BEFORE_U8_RECOVERY_ADMISSION"
 }
