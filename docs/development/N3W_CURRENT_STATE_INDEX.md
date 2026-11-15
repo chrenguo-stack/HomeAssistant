@@ -1,4 +1,4 @@
-## 2026-11-15 — R31 read-only preflight CLOSED_PASS / source-activation authorization boundary
+## 2026-11-15 — R31 live source activation CLOSED_PASS / repaired U7 successor preparation
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted.
 - Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
@@ -16,7 +16,11 @@
 - Real-T1 R31 read-only preflight CLOSED_PASS. It freshly verified the exact U6 transaction SHA-256 `7f406b5b88f7bd5c3161d7527a001ddcb3414a8ec64fb34cdad444c2c3e62ebe`, exact predecessor source hashes for the two repair targets, the other 13 updater-related source hashes, R26 continuity, and the durable R30 consumed/no-replay + STOP_RECOVERED ledger.
 - Runtime remained healthy: host/services/broker owners active/running with Result=success and NRestarts=0; Manager/Home Assistant/Broker containers remained running with restart_count=0; IPC remained accepted at `PREDECESSOR_RECOVERY_PREPARING` / installed version `2026.10.0`.
 - The R31 preflight was strictly read-only: `live_execution_authorized=false`, no remote staging, no remote execute, no authorization claim/consume, no source/service/transaction/USB mutation, no U7/U8+ transition, no board access and no merge.
-- R31 is now eligible for exactly one future two-file source activation, but no live grant exists yet. Next gate is `N3W_T1_U7_R31_REPAIR_SOURCE_ACTIVATION_EXPLICIT_AUTHORIZATION`. R30 remains permanently consumed and non-replayable.
+- R31 live source activation CLOSED_PASS with remote return code 0. Authorization is claimed + consumed + no-replay; R31 must never be replayed.
+- Exactly two files were activated: `n3w_t1_core_updater_ha_install.py` now SHA-256 `726f58d3bae8fa9544bc1d42a72dc8e163fc2f59e61fbc9dca32a1de0ba18b62`, and `n3w_t1_core_updater_host.py` now SHA-256 `0992f45b4093957382cc6e5864721e34c9479db403a78b95d2194f08ebe1344e`. Installed and staged import validation both passed.
+- Postvalidation preserved the exact U6 transaction SHA-256 `7f406b5b88f7bd5c3161d7527a001ddcb3414a8ec64fb34cdad444c2c3e62ebe`; R26 and R30 durable authorities remain exact and consumed/no-replay.
+- No service stop/restart occurred during R31. Host/services/broker owner PIDs remained unchanged, all three containers remained running with restart_count=0, IPC stayed accepted at `PREDECESSOR_RECOVERY_PREPARING`, and no transaction/USB/U7/U8+ mutation occurred.
+- R31 rollback was not required. Next gate is source/read-only preparation for a fresh repaired-U7 successor; no R31 replay and no repaired-U7 live execution is authorized yet.
 
 ## 2026-11-15 — R30 Attempt03 read-only CLOSED_PASS / stopped at live explicit authorization boundary
 
