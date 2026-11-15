@@ -6,7 +6,7 @@
 - U8 is `CLOSED_PASS_RECONCILED`; exact transaction remains `U8_RECOVERY_ADMISSION_COMPLETE` with SHA-256 `b483236e9439e3e8bc5d6c3cce51bed6649c3feaecdef09cf8fa66a0afab5a3f`.
 - User explicitly authorized entry into U9. Frozen U9 semantics are limited to `LIVE_AUTHORIZATION_CLAIMED`; U10 destructive cutover is not included.
 - R35 gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U9_LIVE_AUTHORIZATION_R35_20261115_01`.
-- R35 executor blob `d193d40a4d9fe287492afa291bf145904784d4d4`; manifest blob `a01e829173f7c6fa2ab89f130bdec7f246bb53d8`; focused-test blob `c75ed223aaf74438fff356b25010fde438a9bcab`.
+- R35 executor blob `d193d40a4d9fe287492afa291bf145904784d4d4`; manifest blob `a01e829173f7c6fa2ab89f130bdec7f246bb53d8`; focused-test blob `6da89e49e8e6b3751e52a1e5a2d80955f3c9eacd`.
 - R35 performs full embedded read-only preclaim validation, then one U8→U9 durable claim, USB metadata sync followed by host transaction sync, and terminal U9 verification.
 - No service mutation, predecessor delete, target load, U10+, board access or merge is authorized.
 - R35 real-T1 execution waits for exact-source CI closure.

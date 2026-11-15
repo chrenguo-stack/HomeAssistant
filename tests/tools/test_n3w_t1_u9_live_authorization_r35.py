@@ -207,7 +207,7 @@ def test_execute_contains_no_u10_cutover_or_service_mutation() -> None:
 
 def test_status_reconciliation_prefers_durable_u9_over_failure_ledger() -> None:
     remote = load_executor().REMOTE_SCRIPT
-    start = remote.index("def read_terminal_status")
+    start = remote.rindex("def read_terminal_status")
     end = remote.rindex("def execute(")
     block = remote[start:end]
     success = block.index("if success_path.exists():")
