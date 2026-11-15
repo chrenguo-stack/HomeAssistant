@@ -1,5 +1,8 @@
 ## 2026-11-15 — R30 Attempt02 SAFE_STOP / exact archive continuity repair CLOSED_PASS / Attempt03 next
 
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; live upgrade accepted and `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference source remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
 - PR #807 remains OPEN / DRAFT / UNMERGED. Repository main remains `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`.
 - R30M writable-mount live execution is CLOSED_PASS; its one-shot authorization is claimed + consumed and no-replay.
 - R30 read-only Attempt01 stopped on the old local SSH timeout. Its remote preflight orphan was proven and explicitly cleaned; R30 state root remained absent and runtime/media stayed healthy.
