@@ -1,4 +1,4 @@
-### 2026-11-15 KF-158 R30 live U7 failure masked by recovery failure wrapper — STOP_RECOVERED / ROOT_CAUSE_TBD / OPEN
+### 2026-11-15 KF-158 R30 live U7 false quiesce failure after systemd exit-137 stop — ROOT_CAUSE_PROVEN / SOURCE_REPAIRED / CI_PENDING
 
 ```text
 R30_GRANT_HEAD=0e0725baed93456d068bd87cc8a7d37c36098d60
@@ -26,7 +26,7 @@ R30_U7_TRANSITION=false
 R30_U8_PLUS=false
 FIRST_FAILED_OPERATION=UpdaterV2Error:ha_usb_u7_failure_recovery_failed
 TRANSACTION_PHASE=U6_PREDECESSOR_RECOVERY_PREPARING
-STATUS=OPEN_PENDING_READONLY_FORENSIC
+STATUS=ROOT_CAUSE_PROVEN_SOURCE_REPAIRED_CI_PENDING
 ```
 
 Physical facts:
@@ -34,7 +34,7 @@ Physical facts:
 - the application services were stopped, the U7 path failed, and recovery was attempted;
 - the executor subsequently verified recovered runtime health and returned the explicit terminal state `STOP_RECOVERED`;
 - no backup was verified and the local transaction remained unchanged at U6; no U7/U8+ transition occurred;
-- the executor reported `usb_mutation=false`, but its failure path derives that value only from local transaction mutation. Because `sync_transaction_metadata()` writes the USB mirror before the local transaction store, physical USB mirror state is UNKNOWN until read-only forensic compares the mirror with the exact U6 transaction.
+- the executor reported `usb_mutation=false`, but its failure path derives that value only from local transaction mutation. Subsequent read-only forensic independently proved that R30 left no persistent partial USB mirror write.
 
 Read-only forensic closure:
 - the USB transaction mirror still reports `U6_PREDECESSOR_RECOVERY_PREPARING`; predecessor-recovery and HA-backup identities remain null;
@@ -47,7 +47,10 @@ Source repair follow-up:
 - `LocalHost.stop_services()` already treats both `inactive` and `failed` as a completed stop, but `quiesce_homeassistant_for_backup()` previously accepted only `inactive` for `owner_inactive`;
 - this internal contract mismatch can produce a false quiesce failure after Manager/Home Assistant are fully stopped;
 - source head after the bounded repair + regression test: `f96ca9c7eb9f50796e8c22dcb7cd0a5d3943bccc`;
-- causality for the physical R30 failure remains pending a focused read-only journal window; do not claim the owner-state mismatch as the proven live root cause until that evidence is recovered.
+- focused real-T1 journal forensic physically closes the original U7 cause: at 16:09:19 systemd began stopping the services owner; Manager and Home Assistant were both stopped by 16:09:30.954; the services owner main process then exited 137 and systemd recorded `Failed with result 'exit-code'` at 16:09:30.999 before the stop completed at 16:09:31.004;
+- the recovery restart began immediately at 16:09:31.714, only ~0.71 s after the failed-state stop completed. Combined with the unchanged U6 transaction/USB mirror, this is the exact expected control flow when `stop_services()` accepts the verified `failed` stop but the old `quiesce_homeassistant_for_backup()` rejects the same owner state;
+- therefore the original R30 U7 operation root cause is PROVEN as the inconsistent systemd owner-state predicate, not USB persistence or backup creation;
+- the later recovery-call exception remains a separate secondary observability/recovery-path issue because the old wrapper discarded its precise cause; do not conflate that secondary exception with the now-proven original U7 failure.
 
 Source finding:
 - `HaUsbU7BackupController.prepare_or_resume()` catches the original U7 exception and immediately calls `resume_homeassistant_after_backup_failure()`;
@@ -56,10 +59,11 @@ Source finding:
 
 Required guards / next step:
 - never replay the consumed R30 authorization;
-- perform read-only forensic before designing a successor live gate;
-- recover the durable R30 progress/failure ledger plus bounded service/journal evidence to distinguish the original U7 failure from the recovery-call failure;
-- source repair must preserve both original-operation error and recovery error separately rather than replacing the former with `ha_usb_u7_failure_recovery_failed`;
-- no successor live authorization until root cause, source repair, regression tests, fresh CI, and a new explicit one-shot gate are established.
+- root cause forensic for the original U7 failure is closed;
+- source repair preserves both original-operation error and recovery error separately and aligns the quiesce owner predicate with the existing stop contract;
+- fresh CI must pass before this repair is treated as source-closed;
+- the secondary recovery-call exception may be investigated by read-only/source-only work, but it does not reopen the original U7 root cause;
+- no successor live authorization until source repair CI closes and a new explicit one-shot gate is separately established.
 
 ### 2026-11-15 KF-157 R30 read-only preflight timeout/orphan + repeated portable revalidation — ATTEMPT03_CLOSED_PASS / RESOLVED
 
