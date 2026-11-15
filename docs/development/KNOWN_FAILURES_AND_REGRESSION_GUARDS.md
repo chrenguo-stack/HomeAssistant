@@ -1,4 +1,4 @@
-### 2026-11-15 KF-157 R30 read-only preflight timeout/orphan + repeated portable revalidation — PHYSICAL_PROVEN / SOURCE_REPAIR_CLOSED_PASS / ATTEMPT03_PENDING
+### 2026-11-15 KF-157 R30 read-only preflight timeout/orphan + repeated portable revalidation — ATTEMPT03_CLOSED_PASS / RESOLVED
 
 ```text
 R30_ATTEMPT01=SAFE_STOP
@@ -8,33 +8,41 @@ R30_ATTEMPT02=SAFE_STOP
 R30_ATTEMPT02_REMOTE_TIMEOUT_GUARD=WORKED
 R30_ATTEMPT02_PROGRESS=CPU_AND_IO_ACTIVE_NOT_STALLED
 R30_ATTEMPT02_BOUND_SECONDS=1170
+SOURCE_REPAIR_HEAD=4cb3c0dd44ad0251a63e594b4cb8db3c0e20671a
+SOURCE_REPAIR_CI=16_OF_16_SUCCESS
+R30_ATTEMPT03_MINIMAL_BASELINE=PASS
+R30_ATTEMPT03=PASS
+R30_ATTEMPT03_RC=0
+R30_ATTEMPT03_READ_ONLY=true
+R30_ATTEMPT03_U7_LIVE_ELIGIBLE=true
+R30_LIVE_AUTHORIZATION_GRANTED=false
 R30_LIVE_AUTHORIZATION_CLAIMED=false
 R30_LIVE_AUTHORIZATION_CONSUMED=false
+R30_SERVICE_STOP=false
+R30_SERVICE_RESTART=false
 R30_TRANSACTION_MUTATION=false
 R30_USB_MUTATION=false
 R30_U7_TRANSITION=false
-SOURCE_REPAIR_HEAD=4cb3c0dd44ad0251a63e594b4cb8db3c0e20671a
-SOURCE_REPAIR_CI=16_OF_16_SUCCESS
-STATUS=OPEN_PENDING_REAL_T1_ATTEMPT03
+R30_U8_PLUS=false
+STATUS=RESOLVED
 ```
 
-Physical proof:
-- Attempt01 authenticated and launched the remote read-only preflight, but the local SSH timeout expired first and left the remote Python process alive; the orphan was later proven by PID inspection, explicitly terminated, and the R30 state root remained absent.
-- Attempt02 used a bounded remote GNU `timeout` wrapper. Forensic sampling showed the real preflight Python at about 95.7% CPU with continuing read I/O, proving active work rather than deadlock; it stopped when the 1170-second remote lifetime bound expired.
-- both attempts remained preflight-only: no R30 authorization claim/consume, service stop/restart, transaction/USB mutation, U7/U8+ transition, board access or merge occurred.
+Physical closure proof:
+- fresh pre-Attempt03 real-T1 baseline found no orphan R30 preflight process and no R30 state root;
+- durable transaction remained exact at `U6_PREDECESSOR_RECOVERY_PREPARING`, SHA-256 `7f406b5b88f7bd5c3161d7527a001ddcb3414a8ec64fb34cdad444c2c3e62ebe`;
+- exact bound ext4 media was already mounted rw with the required nodev/nosuid/noexec restrictions, while Manager/Home Assistant/Broker and all owner units were healthy with zero restarts;
+- repaired Attempt03 returned PASS / RC=0 and reused frozen portable identity authority instead of rebuilding portable image identity;
+- target archive continuity passed at SHA-256 `eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973`, size 835309535 bytes;
+- predecessor archive continuity passed at SHA-256 `34cec37ab021e1081e236502bfd06760894f6bca93bd8d6bf99d8d90bb89848d`, size 743074537 bytes;
+- backup capacity, HA source support, SQLite quick-check, root-key availability, crypto tools, and R26/R29/R30S consumed/no-replay checks all passed;
+- Attempt03 remained read-only: remote execute was not invoked, no R30 authorization was granted/claimed/consumed, and no service, transaction, USB, U7/U8+, board or merge mutation occurred.
 
-Root cause:
-- local SSH timeout alone does not guarantee remote-process termination, so a read-only remote worker can become orphaned;
-- R30 preflight unnecessarily rebuilt full portable image identity for both already-frozen target and predecessor archives. That path re-read, hashed and decompressed image members/layers far beyond one physical pass over the archives and exceeded the bounded real-T1 preflight budget.
-
-Regression / execution guards:
-- every long remote read-only worker must have a remote-side lifetime bound shorter than the client transport timeout;
-- GNU timeout exits 124/137 must be classified explicitly as `remote_process_timeout`, never collapsed into `remote_result_invalid`;
-- R30 preflight must preserve exact media binding and validate frozen recovery identity documents, then perform one full archive SHA-256 + size continuity pass for target and predecessor; it must not call full `verify_prepared_target()` / `verify_prepared_predecessor()` portable reconstruction again;
+Regression / execution guards retained:
+- every long remote read-only worker must keep a remote-side lifetime bound shorter than the client transport timeout;
+- GNU timeout exits 124/137 remain classified as `remote_process_timeout`;
+- R30 preflight continues to use exact media binding, frozen recovery identity authority, and one full archive SHA-256 + size continuity pass per target/predecessor archive instead of full portable reconstruction;
 - transaction, R26/R29/R30S, runtime, capacity, HA source-tree, SQLite, root-key and required-tool checks remain mandatory;
-- source repair is CLOSED_PASS at exact head `4cb3c0dd44ad0251a63e594b4cb8db3c0e20671a` with 16/16 CI SUCCESS, but KF-157 stays OPEN until real-T1 Attempt03 proves the repaired preflight path;
-- before Attempt03, freshly confirm no orphan R30 preflight process, R30 state root absent, exact rw media binding and healthy runtime;
-- R30 live authorization remains a separate later boundary and must not be inferred from Attempt03.
+- `u7_live_eligible=true` is not authorization. R30 HA quiesce/data-backup live execution remains behind a separate explicit authorization boundary.
 
 ### 2026-11-15 KF-156 T1 eth0 intermittent link flap / SSH banner-preauth timeout — PHYSICAL_PROVEN_LINK_FLAP / ROOT_CAUSE_UNPROVEN / OPEN
 
