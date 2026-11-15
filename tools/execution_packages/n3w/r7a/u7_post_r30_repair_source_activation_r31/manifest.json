@@ -3,9 +3,9 @@
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U7_POST_R30_REPAIR_SOURCE_ACTIVATION_R31_20261115_01",
   "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U7_POST_R30_REPAIR_SOURCE_ACTIVATION_R31_20261115_01",
   "confirmation": "EXECUTE U7 POST-R30 REPAIR SOURCE ACTIVATION R31: YES",
-  "live_execution_authorized": false,
+  "live_execution_authorized": true,
   "authorization_state": {
-    "granted": false,
+    "granted": true,
     "claimed": false,
     "consumed": false,
     "replay_permitted": false
@@ -23,7 +23,11 @@
     "r30_replay_permitted": false,
     "r30_manifest_blob": "fb78b9af669fe87b1a834151006f3656e6bea69b",
     "target_install_blob": "6ef197e0c36010649e3d6b162e184d3fbdb440c3",
-    "target_host_blob": "4dbeef4fda1a0b4efaf4e9de6dfab13cf75d6eae"
+    "target_host_blob": "4dbeef4fda1a0b4efaf4e9de6dfab13cf75d6eae",
+    "r31_readonly_preflight_head": "214420e4dc1410fb32a044ccfeece2ce039371eb",
+    "r31_readonly_preflight_result": "CLOSED_PASS",
+    "r31_readonly_preflight_execution_id": "N3W_T1_U7_R31_READONLY_PREFLIGHT_20261115_01",
+    "r31_user_authorization": "AUTHORIZE R31 TWO-FILE SOURCE ACTIVATION: YES"
   },
   "package_source_authority": {
     "tools/execution_packages/n3w/r7a/u7_post_r30_repair_source_activation_r31/executor.py": "d2ac5c3f51a07bf46b6df95aa96c1f528c894056",
