@@ -1,3 +1,54 @@
+## Latest authority — 2026-11-15 R34 Attempt01 SAFE_STOP / KF-160 source repair / CI bounded-poll pending
+
+```text
+MAIN=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+
+R34_ATTEMPT01=STOP
+R34_ATTEMPT01_RC=2
+R34_ATTEMPT01_REASON=NameError:name 'base64' is not defined
+R34_ATTEMPT01_READ_ONLY=true
+R34_ATTEMPT01_T1_ACCESS=true
+R34_ATTEMPT01_TRANSACTION_MUTATION=false
+R34_ATTEMPT01_USB_MUTATION=false
+R34_ATTEMPT01_SERVICE_MUTATION=false
+R34_ATTEMPT01_U9_PLUS=false
+R34_ATTEMPT01_DESTRUCTIVE_CUTOVER=false
+R34_ATTEMPT01_BOARD_ACCESS=false
+R34_ATTEMPT01_MERGE=false
+R34_ATTEMPT01_SSH_MASTER_CLEANUP=true
+
+KF160_STATUS=SOURCE_REPAIRED_CI_IN_PROGRESS
+R34_REPAIR_SOURCE_HEAD=bb169bb17a6a9b3299d291106dfa50a4627d0bd4
+R34_REPAIRED_EXECUTOR_BLOB=01a0ac59195fb523cc9eeff84cba7347812a5c38
+R34_REPAIRED_MANIFEST_BLOB=0d4a546b37e261bf08c9d75060a65a908747fadb
+R34_REPAIRED_FOCUSED_TEST_BLOB=b81f45ab409cb82921238c6bf39ab80c17a0dbff
+R34_REPAIR_CI_LAST_OBSERVED_SUCCESS=14
+R34_REPAIR_CI_LAST_OBSERVED_IN_PROGRESS=2
+R34_REPAIR_CI_FAILURE=0
+R34_REPAIR_CI_POLL_COUNT=3
+R34_REPAIR_CI_POLLING_STOPPED=true
+
+R33_CONSUMED_NO_REPLAY=true
+R33_REPLAY_PERMITTED=false
+R34_ATTEMPT02_AUTHORIZED=false
+U9_AUTHORIZED=false
+DESTRUCTIVE_CUTOVER_AUTHORIZED=false
+SERVICE_MUTATION_AUTHORIZED=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=R34_REPAIR_CI_FINAL_STATE_THEN_ATTEMPT02_EXPLICIT_USER_DECISION
+STOP_BOUNDARY=BEFORE_R34_ATTEMPT02_AND_BEFORE_U9
+```
+
+Attempt01 reached the real T1 only through the strictly read-only R34 executor and stopped before any reconciliation check because the embedded remote script referenced `base64.b64decode` without importing `base64`. The reported boundary is clean: no transaction, USB, service, U9+, destructive, board, or merge mutation occurred. R33 was not replayed and remains permanently consumed/no-replay.
+
+KF-160 source repair is narrow: add the missing remote `base64` import, rebind the manifest to the repaired executor blob, and add an AST-level focused regression guard. Three CI observations on exact repair head `bb169bb...` reached the project polling limit; 14/16 were SUCCESS and the two remaining heavy checks were still in progress with zero failures. Do not actively poll this same CI round again unless the user explicitly asks or a new source head is produced.
+
+The original instruction bounded real-T1 R34 execution to one attempt. Therefore the repaired source does not authorize Attempt02. Stop before any second T1 R34 execution and before U9.
+
 ## Latest authority — 2026-11-15 R33 durable U8 / KF-159 false-STOP proven / R34 read-only reconciliation source CLOSED_PASS
 
 CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
