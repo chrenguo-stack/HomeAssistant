@@ -1,4 +1,4 @@
-### 2026-11-15 KF-158 R30 live U7 false quiesce failure after systemd exit-137 stop — ROOT_CAUSE_PROVEN / SOURCE_REPAIRED / CI_PENDING
+### 2026-11-15 KF-158 R30 live U7 false quiesce failure after systemd exit-137 stop — ROOT_CAUSE_PROVEN / SOURCE_REPAIRED / CI_CLOSED_PASS
 
 ```text
 R30_GRANT_HEAD=0e0725baed93456d068bd87cc8a7d37c36098d60
@@ -26,7 +26,7 @@ R30_U7_TRANSITION=false
 R30_U8_PLUS=false
 FIRST_FAILED_OPERATION=UpdaterV2Error:ha_usb_u7_failure_recovery_failed
 TRANSACTION_PHASE=U6_PREDECESSOR_RECOVERY_PREPARING
-STATUS=ROOT_CAUSE_PROVEN_SOURCE_REPAIRED_CI_PENDING
+STATUS=RESOLVED_CLOSED_PASS
 ```
 
 Physical facts:
@@ -61,7 +61,7 @@ Required guards / next step:
 - never replay the consumed R30 authorization;
 - root cause forensic for the original U7 failure is closed;
 - source repair preserves both original-operation error and recovery error separately and aligns the quiesce owner predicate with the existing stop contract;
-- fresh CI must pass before this repair is treated as source-closed;
+- fresh CI at `88f30bccfa47e899ee41fc68c517611b0acab846` completed 16/16 SUCCESS, so the repair is source-closed;
 - the secondary recovery-call exception may be investigated by read-only/source-only work, but it does not reopen the original U7 root cause;
 - no successor live authorization until source repair CI closes and a new explicit one-shot gate is separately established.
 
