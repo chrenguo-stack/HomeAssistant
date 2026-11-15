@@ -1,4 +1,4 @@
-## 2026-11-15 — KF-158 original U7 root cause physically proven / source repaired / fresh CI pending
+## 2026-11-15 — KF-158 CLOSED_PASS / successor repair source activation preparation
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted.
 - Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
@@ -11,8 +11,8 @@
 - The original R30 U7 failure root cause is therefore PROVEN: inconsistent systemd owner-state semantics in the quiesce predicate.
 - Bounded source repair changes the owner predicate to accept `inactive` or `failed` while retaining Manager/HA stopped and Broker continuity requirements. A focused regression test covers the physical `failed` owner case. Repair/test head: `f96ca9c7eb9f50796e8c22dcb7cd0a5d3943bccc`.
 - The old recovery wrapper also masked the precise secondary recovery-call exception. Error-preservation repair is already present; that secondary exception remains separately unclassified and does not reopen the proven original U7 cause.
-- Fresh CI on the first archival head exposed only a documentation authority-link regression (`index_authority_link_missing`); this is a local docs-only issue and is being repaired without widening product scope.
-- Next gate: `N3W_T1_KF158_SOURCE_REPAIR_FRESH_CI_CLOSURE`. No R30 replay, new live authorization, U7 retry, U8+, board access or merge is authorized.
+- The documentation authority-link/product-source regressions were repaired locally; fresh CI at `88f30bccfa47e899ee41fc68c517611b0acab846` completed 16/16 SUCCESS.
+- KF-158 is now CLOSED_PASS. Next gate is source-only preparation of an exact successor activation for the repaired `n3w_t1_core_updater_host.py` and `n3w_t1_core_updater_ha_install.py`; stop before any new live authorization. No R30 replay, U7 retry, U8+, board access or merge is authorized.
 
 ## 2026-11-15 — R30 Attempt03 read-only CLOSED_PASS / stopped at live explicit authorization boundary
 
