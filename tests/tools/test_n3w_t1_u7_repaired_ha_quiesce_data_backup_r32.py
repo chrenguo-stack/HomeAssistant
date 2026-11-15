@@ -39,21 +39,21 @@ def load_executor():
     return module
 
 
-def test_manifest_is_ungranted_after_r31_closure() -> None:
+def test_manifest_is_granted_after_explicit_r32_live_authorization() -> None:
     document = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert document["gate_id"] == GATE
     assert document["authorization_id"] == GATE
     assert document["confirmation"] == CONFIRM
-    assert document["live_execution_authorized"] is False
+    assert document["live_execution_authorized"] is True
     assert document["authorization_state"] == {
-        "granted": False,
+        "granted": True,
         "claimed": False,
         "consumed": False,
         "replay_permitted": False,
     }
     assert document["stop_boundary"] == (
-        "STOP_AFTER_R32_READONLY_PREFLIGHT_"
-        "BEFORE_REPAIRED_U7_LIVE_AUTHORIZATION"
+        "STOP_AFTER_VERIFIED_R32_U7_HA_QUIESCED_DATA_BACKUP_"
+        "BEFORE_U8_RECOVERY_ADMISSION"
     )
 
 
@@ -79,7 +79,7 @@ def test_manifest_binds_r31_live_pass_and_exact_repaired_sources() -> None:
     assert len(installed) == 15
 
 
-def test_manifest_keeps_r32_live_ungranted_and_u8_blocked() -> None:
+def test_manifest_keeps_r32_one_shot_grant_and_u8_blocked() -> None:
     document = json.loads(MANIFEST.read_text(encoding="utf-8"))
     contract = document["execution_contract"]
     assert contract["separate_single_use_live_grant_required"] is True
