@@ -1,5 +1,5 @@
 {
-  "schema": "gh.n3w-t1-u9-r36-live-authorization-successor-manifest/1",
+  "schema": "gh.n3w-t1-u9-r36-live-authorization-manifest/1",
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U9_LIVE_AUTHORIZATION_R36_20261115_01",
   "authorization_id": "N3W_T1_CORE_UPDATER_HOMEASSISTANT_USB_U9_R36_20261115_01",
   "confirmation": "EXECUTE U9 R36 LIVE AUTHORIZATION CLAIM: YES",

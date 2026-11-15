@@ -101,6 +101,11 @@ def test_executor_and_remote_compile() -> None:
     assert module.GATE_ID == GATE
     assert module.PRODUCT_AUTHORIZATION_ID == PRODUCT_AUTHORIZATION
     assert module.GATE_ID != module.PRODUCT_AUTHORIZATION_ID
+    assert module.MANIFEST_SCHEMA == (
+        "gh.n3w-t1-u9-r36-live-authorization-manifest/1"
+    )
+    document = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    assert document["schema"] == module.MANIFEST_SCHEMA
 
 
 def test_read_manifest_requires_product_authorization_not_gate_id() -> None:
