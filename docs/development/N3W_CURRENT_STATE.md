@@ -1,3 +1,97 @@
+## Latest authority — 2026-11-15 R34 Attempt02 real-T1 read-only CLOSED_PASS / U8 CLOSED_PASS_RECONCILED
+
+```text
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+MAIN=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+R34_ATTEMPT02_EXECUTION_HEAD=bc9f955a4dc1945373acc681ba4d4a30e5547460
+R34_REPAIR_SOURCE_AUTHORITY=bb169bb17a6a9b3299d291106dfa50a4627d0bd4
+R34_REPAIR_CI=16_OF_16_SUCCESS
+R34_EXECUTOR_BLOB=01a0ac59195fb523cc9eeff84cba7347812a5c38
+R34_MANIFEST_BLOB=0d4a546b37e261bf08c9d75060a65a908747fadb
+R34_FOCUSED_TEST_BLOB=b81f45ab409cb82921238c6bf39ab80c17a0dbff
+
+R34_ATTEMPT02_RESULT=U8_R34_POST_R33_READONLY_RECONCILIATION_PASS
+R34_ATTEMPT02_RC=0
+R34_ATTEMPT02_READ_ONLY=true
+R34_ATTEMPT02_T1_ACCESS=true
+R34_ATTEMPT02_SSH_MASTER_CLEANUP=true
+R34_R33_FALSE_STOP_CONFIRMED=true
+R34_U8_DURABLE=true
+R34_USB_DURABLE_MIRROR_EXACT=true
+R34_SAME_BOUND_USB_FILESYSTEM_UUID=true
+R34_SESSION_PUBLIC_FINGERPRINT_NON_AUTHORITATIVE=true
+R34_SESSION_PUBLIC_FINGERPRINT_DIFFERS_FROM_TRANSACTION=true
+
+LIVE_TRANSACTION_PHASE=U8_RECOVERY_ADMISSION_COMPLETE
+LIVE_TRANSACTION_SHA256=b483236e9439e3e8bc5d6c3cce51bed6649c3feaecdef09cf8fa66a0afab5a3f
+LIVE_RECOVERY_CONTENT_MANIFEST_SHA256=18698bcded28d0497ae3dcd3363ace68f54a3cbc1c42a1fd5710173a24d900f3
+
+R33_AUTHORIZATION_CLAIMED=true
+R33_AUTHORIZATION_CONSUMED=true
+R33_REPLAY_PERMITTED=false
+R33_LEDGER_STATUS=STOP_POSTCLAIM
+R33_LEDGER_FAILURE_OPERATION=r33_terminal_usb_mirror_mismatch
+
+R34_POST_BROKER_RUNNING=true
+R34_POST_BROKER_RESTART_COUNT=0
+R34_POST_MANAGER_EXITED=true
+R34_POST_MANAGER_RESTART_COUNT=0
+R34_POST_HOMEASSISTANT_EXITED=true
+R34_POST_HOMEASSISTANT_RESTART_COUNT=0
+R34_POST_HOST_OWNER_ACTIVE_RUNNING=true
+R34_POST_BROKER_OWNER_ACTIVE_RUNNING=true
+R34_POST_SERVICES_OWNER_FAILED_QUIESCED=true
+R34_POST_PREDECESSOR_INTERNAL_IMAGE_PRESENT=true
+R34_POST_TARGET_INTERNAL_IMAGE_PRESENT=false
+
+R34_TRANSACTION_MUTATION=false
+R34_USB_MUTATION=false
+R34_SERVICE_MUTATION=false
+R34_TARGET_IMAGE_LOAD=false
+R34_PREDECESSOR_IMAGE_DELETE=false
+R34_DESTRUCTIVE_CUTOVER=false
+R34_U9_PLUS=false
+R34_BOARD_ACCESS=false
+R34_MERGE=false
+PRODUCT_U9_AUTHORIZATION_CLAIMED=false
+PRODUCT_U9_AUTHORIZATION_CONSUMED=false
+
+U8_STATUS=CLOSED_PASS_RECONCILED
+KF159_STATUS=CLOSED_PASS_R34_RECONCILED
+KF160_STATUS=CLOSED_PASS_REPAIR_PHYSICALLY_VALIDATED
+PRIVATE_RAW_EVIDENCE_PRESENT=true
+PRIVATE_RAW_EVIDENCE_PUBLICLY_EXPOSED=false
+
+U9_AUTHORIZED=false
+DESTRUCTIVE_CUTOVER_AUTHORIZED=false
+SERVICE_MUTATION_AUTHORIZED=false
+BOARD_ACCESS=false
+MERGE=false
+NEXT_ONE_GATE=UNSET_PENDING_U9_DESIGN_AND_EXPLICIT_AUTHORIZATION
+STOP_BOUNDARY=AFTER_R34_U8_CLOSED_PASS_BEFORE_U9
+HANDOFF_TEMPLATE_VERSION=1.4
+```
+
+R34 Attempt02 completed on the real T1 with RC=0 and terminal status `U8_R34_POST_R33_READONLY_RECONCILIATION_PASS`. The read-only successor independently revalidated the consumed/no-replay R33 ledger, exact durable U8 transaction, exact recovery-content manifest, exact USB mirror file hashes and durable fields, same bound filesystem UUID, runtime quiescence, Broker continuity, predecessor preservation and target absence.
+
+This physically closes KF-159: the R33 terminal result was a false STOP caused by treating a session-observation public fingerprint as cross-session authority. R34 proved the session fingerprint may differ while the authoritative filesystem UUID and recovery content remain exact.
+
+KF-160 is also physically closed: the repaired embedded remote script executed successfully after adding the missing `base64` import, and the focused regression guard remains bound to the repaired source authority.
+
+The `authorization_claimed=true / authorization_consumed=true / replay_permitted=false` fields in the R34 result are inherited R33 ledger facts, not a new R34 mutation authorization. R34 itself performed no transaction, USB, service, image, U9+, destructive, board or merge mutation.
+
+Private raw evidence remains local/private and is not uploaded to GitHub. U8 is now `CLOSED_PASS_RECONCILED`. Stop before U9; no U9 authorization has been granted.
+
 ## Latest authority — 2026-11-15 R34 Attempt01 SAFE_STOP / KF-160 source repair / CI bounded-poll pending
 
 ```text

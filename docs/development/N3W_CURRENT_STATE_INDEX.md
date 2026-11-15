@@ -1,3 +1,20 @@
+## 2026-11-15 — R34 Attempt02 real-T1 CLOSED_PASS / U8 CLOSED_PASS_RECONCILED
+
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; live upgrade accepted.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- R34 repaired source authority is `bb169bb17a6a9b3299d291106dfa50a4627d0bd4`; execution head `bc9f955a4dc1945373acc681ba4d4a30e5547460` completed 16/16 CI SUCCESS before Attempt02.
+- Real-T1 R34 Attempt02 returned RC=0 and `U8_R34_POST_R33_READONLY_RECONCILIATION_PASS`.
+- R33 remains claimed + consumed + no-replay. The R34 result confirms R33 was a false STOP caused by using session public fingerprint as cross-session authority.
+- Durable U8 transaction remains exact at `U8_RECOVERY_ADMISSION_COMPLETE`, SHA-256 `b483236e9439e3e8bc5d6c3cce51bed6649c3feaecdef09cf8fa66a0afab5a3f`; recovery-content manifest remains `18698bcded28d0497ae3dcd3363ace68f54a3cbc1c42a1fd5710173a24d900f3`.
+- USB durable mirror is exact; the same bound filesystem UUID is proven; the differing session public fingerprint is valid but non-authoritative across sessions.
+- Broker is running with restart_count=0; Manager and Home Assistant remain exited with restart_count=0; host/Broker owners are active/running; services owner remains failed/quiesced with MainPID=0 and zero restarts.
+- Predecessor internal image remains present and exact; target internal image remains absent.
+- Attempt02 was strictly read-only: no transaction/USB/service mutation, no target load, no predecessor delete, no destructive cutover, no U9+, no board access and no merge.
+- KF-159 is CLOSED_PASS via R34 reconciliation. KF-160 is CLOSED_PASS with the repaired remote-script path physically validated.
+- Private raw evidence remains private/local and is not uploaded to GitHub.
+- U8 status is now `CLOSED_PASS_RECONCILED`. Stop before U9; U9 remains unauthorized.
+
 ## 2026-11-15 — R34 Attempt01 SAFE_STOP / KF-160 source repair / CI pending after bounded polling
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.

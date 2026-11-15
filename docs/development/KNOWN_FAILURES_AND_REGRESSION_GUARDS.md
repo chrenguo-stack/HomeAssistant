@@ -1,3 +1,52 @@
+### 2026-11-15 KF-160 R34 remote script missing base64 import — CLOSED_PASS / REPAIR PHYSICALLY VALIDATED
+
+```text
+R34_REPAIR_SOURCE_AUTHORITY=bb169bb17a6a9b3299d291106dfa50a4627d0bd4
+R34_ATTEMPT02_EXECUTION_HEAD=bc9f955a4dc1945373acc681ba4d4a30e5547460
+R34_REPAIR_CI=16_OF_16_SUCCESS
+R34_ATTEMPT02_RESULT=U8_R34_POST_R33_READONLY_RECONCILIATION_PASS
+R34_ATTEMPT02_RC=0
+R34_ATTEMPT02_READ_ONLY=true
+R34_TRANSACTION_MUTATION=false
+R34_USB_MUTATION=false
+R34_SERVICE_MUTATION=false
+R34_U9_PLUS=false
+STATUS=RESOLVED_CLOSED_PASS
+```
+
+Closure:
+- the repaired embedded R34 remote script imported `base64` and completed successfully on the real T1;
+- the AST-level focused regression guard remains bound to the repaired source authority;
+- Attempt02 independently completed the full R34 reconciliation contract without any product mutation;
+- the earlier Attempt01 NameError is therefore physically closed, not merely source/CI closed.
+
+### 2026-11-15 KF-159 R33 U8 terminal false-STOP on session public fingerprint — CLOSED_PASS / R34 RECONCILIATION PHYSICALLY PROVEN
+
+```text
+R33_STATUS=STOP_POSTCLAIM
+R33_AUTHORIZATION_CLAIMED=true
+R33_AUTHORIZATION_CONSUMED=true
+R33_REPLAY_PERMITTED=false
+R34_ATTEMPT02_RESULT=U8_R34_POST_R33_READONLY_RECONCILIATION_PASS
+R34_ATTEMPT02_RC=0
+U8_STATUS=CLOSED_PASS_RECONCILED
+STATUS=RESOLVED_CLOSED_PASS
+```
+
+Physical closure:
+- R34 revalidated the exact R33 consumed/no-replay ledger and exact U8 transaction;
+- the recovery-content manifest recomputed exactly and all durable USB mirror fields/file hashes matched;
+- the same bound filesystem UUID is authoritative across sessions;
+- the session public fingerprint is valid and differs from the transaction's older observation, but is explicitly non-authoritative across sessions;
+- Broker continuity, Manager/Home Assistant quiescence, predecessor preservation and target absence all passed;
+- no transaction, USB, service, image, U9+, destructive, board or merge mutation occurred during R34.
+
+Guard remains:
+- never replay consumed R33;
+- never rewrite USB solely to make session fingerprints equal;
+- cross-session recovery identity remains bound filesystem UUID + exact recovery content;
+- U9 requires a separate design/authorization decision.
+
 ### 2026-11-15 KF-160 R34 remote script missing base64 import — ATTEMPT01 SAFE_STOP / SOURCE REPAIR PREPARED
 
 ```text
