@@ -39,14 +39,14 @@ def load_executor():
     return module
 
 
-def test_manifest_is_ungranted_and_stops_before_new_live_authorization() -> None:
+def test_manifest_is_granted_for_exactly_one_two_file_source_activation() -> None:
     document = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert document["gate_id"] == GATE
     assert document["authorization_id"] == GATE
     assert document["confirmation"] == CONFIRM
-    assert document["live_execution_authorized"] is False
+    assert document["live_execution_authorized"] is True
     assert document["authorization_state"] == {
-        "granted": False,
+        "granted": True,
         "claimed": False,
         "consumed": False,
         "replay_permitted": False,
@@ -54,6 +54,17 @@ def test_manifest_is_ungranted_and_stops_before_new_live_authorization() -> None
     assert document["stop_boundary"] == (
         "STOP_AFTER_R31_REPAIR_SOURCE_ACTIVATION_"
         "BEFORE_NEW_U7_LIVE_AUTHORIZATION"
+    )
+    authority = document["source_authority"]
+    assert authority["r31_readonly_preflight_head"] == (
+        "214420e4dc1410fb32a044ccfeece2ce039371eb"
+    )
+    assert authority["r31_readonly_preflight_result"] == "CLOSED_PASS"
+    assert authority["r31_readonly_preflight_execution_id"] == (
+        "N3W_T1_U7_R31_READONLY_PREFLIGHT_20261115_01"
+    )
+    assert authority["r31_user_authorization"] == (
+        "AUTHORIZE R31 TWO-FILE SOURCE ACTIVATION: YES"
     )
 
 
