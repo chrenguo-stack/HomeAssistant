@@ -74,6 +74,7 @@ on:
       - "tools/execution_packages/n3w/r7a/u7_source_activation_r29/**"
       - "tools/execution_packages/n3w/r7a/u7_ha_quiesce_data_backup_r30/**"
       - "tools/execution_packages/n3w/r7a/u7_prepare_host_source_activation_r30s/**"
+      - "tools/execution_packages/n3w/r7a/u7_post_r30_repair_source_activation_r31/**"
       - "tools/execution_packages/n3w/r7a/u7_media_writable_mount_restoration_r30m/**"
       - "tests/tools/test_n3w_t1_u7_media_writable_mount_restoration_r30m.py"
       - "tools/execution_packages/n3w/r7a/u7_post_reboot_transaction_diagnostic_r27d/**"
@@ -83,6 +84,7 @@ on:
       - "tests/tools/test_n3w_t1_u7_source_activation_r29.py"
       - "tests/tools/test_n3w_t1_u7_ha_quiesce_data_backup_r30.py"
       - "tests/tools/test_n3w_t1_u7_prepare_host_source_activation_r30s.py"
+      - "tests/tools/test_n3w_t1_u7_post_r30_repair_source_activation_r31.py"
       - "tests/tools/test_n3w_t1_kf147_official_u5_preflight_successor.py"
       - "tests/tools/test_n3w_t1_kf147_v12_u4_to_u5_install_intent_successor.py"
       - "tests/tools/test_n3w_t1_kf151_usb_media_resolver_source_activation_successor.py"
@@ -202,6 +204,7 @@ jobs:
             tools/execution_packages/n3w/r7a/u7_source_activation_r29/executor.py \
             tools/execution_packages/n3w/r7a/u7_ha_quiesce_data_backup_r30/executor.py \
             tools/execution_packages/n3w/r7a/u7_prepare_host_source_activation_r30s/executor.py \
+            tools/execution_packages/n3w/r7a/u7_post_r30_repair_source_activation_r31/executor.py \
             tools/execution_packages/n3w/r7a/u7_media_writable_mount_restoration_r30m/executor.py \
             tools/execution_packages/n3w/r7a/u7_post_reboot_transaction_diagnostic_r27d/executor.py \
             tools/execution_packages/n3w/r7a/kf147_removable_media_content_authority_v1_2_readonly_preexecution/executor.py \
@@ -259,6 +262,7 @@ jobs:
             tests/tools/test_n3w_t1_u7_source_activation_r29.py \
             tests/tools/test_n3w_t1_u7_ha_quiesce_data_backup_r30.py \
             tests/tools/test_n3w_t1_u7_prepare_host_source_activation_r30s.py \
+            tests/tools/test_n3w_t1_u7_post_r30_repair_source_activation_r31.py \
             tests/tools/test_n3w_t1_u7_media_writable_mount_restoration_r30m.py \
             tests/tools/test_n3w_t1_u7_post_reboot_transaction_diagnostic_r27d.py \
             tests/tools/test_n3w_t1_kf147_removable_media_content_authority_v1_2_readonly_preexecution.py \
