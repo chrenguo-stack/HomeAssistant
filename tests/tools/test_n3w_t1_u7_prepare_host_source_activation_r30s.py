@@ -40,18 +40,25 @@ def load_executor():
     return module
 
 
-def test_manifest_is_ungranted_single_file_source_activation() -> None:
+def test_manifest_is_granted_single_file_source_activation_after_closed_preflight() -> None:
     document = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert document["gate_id"] == GATE
     assert document["authorization_id"] == GATE
     assert document["confirmation"] == CONFIRM
-    assert document["live_execution_authorized"] is False
+    assert document["live_execution_authorized"] is True
     assert document["authorization_state"] == {
-        "granted": False,
+        "granted": True,
         "claimed": False,
         "consumed": False,
         "replay_permitted": False,
     }
+    authority = document["source_authority"]
+    assert authority["r30s_readonly_preflight_source_head"] == (
+        "24a16d6d9d437985efb891b75e002b2651422d7d"
+    )
+    assert authority["r30s_readonly_preflight_result"] == "CLOSED_PASS"
+    assert authority["r30s_readonly_preflight_comment_id"] == 6887020023
+    assert authority["r30s_readonly_preflight_rc"] == 0
     contract = document["execution_contract"]
     assert contract["activated_source_file_count"] == 1
     assert contract["service_stop"] is False

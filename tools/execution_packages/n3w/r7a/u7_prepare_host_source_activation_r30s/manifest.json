@@ -3,9 +3,9 @@
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U7_PREPARE_HOST_SOURCE_ACTIVATION_R30S_20261115_01",
   "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U7_PREPARE_HOST_SOURCE_ACTIVATION_R30S_20261115_01",
   "confirmation": "EXECUTE U7 R30S PREPARE HOST SOURCE ACTIVATION: YES",
-  "live_execution_authorized": false,
+  "live_execution_authorized": true,
   "authorization_state": {
-    "granted": false,
+    "granted": true,
     "claimed": false,
     "consumed": false,
     "replay_permitted": false
@@ -16,6 +16,10 @@
     "r29_result": "U7_R29_SOURCE_ACTIVATION_PASS",
     "r29_authorization_consumed": true,
     "r29_replay_permitted": false,
+    "r30s_readonly_preflight_source_head": "24a16d6d9d437985efb891b75e002b2651422d7d",
+    "r30s_readonly_preflight_result": "CLOSED_PASS",
+    "r30s_readonly_preflight_comment_id": 6887020023,
+    "r30s_readonly_preflight_rc": 0,
     "r30_executor_source_head": "049da813e647efa99ab5c5f4f5fe226f5ea18117",
     "blocker": "INSTALLED_PREPARE_HOST_LACKS_BACKUP_CAPACITY_REVALIDATION",
     "predecessor_prepare_host_blob": "59b06d3aa595a6c4801b96d6b992b174a700ca31",
