@@ -1,3 +1,17 @@
+## 2026-11-15 — R30M source CLOSED_PASS / real-T1 read-only preflight next
+
+- PR #807 remains OPEN / DRAFT / UNMERGED. Exact R30M executable-source authority is `f814f604666273c2d8259a394a1bda44bae4b81f`.
+- Fresh CI on the exact source authority is 16/16 SUCCESS. HA target-binding source job reports 651 passed; its exact-binding job is SUCCESS; Manager A-to-B is SUCCESS.
+- R30S single-file prepare-host activation is CLOSED_PASS, claimed + consumed, and permanently no-replay.
+- R30 Attempt01 is a safe read-only STOP at `u7_media_not_already_mounted`; it did not claim authorization, stop services, quiesce HA, mutate transaction/USB, or enter U7/U8+.
+- Post-reboot read-only evidence proved the exact transaction-bound removable media was present, ext4 / N3W-UPDATE / clean and unmounted; the transaction remained exact U6. That physical state is now historical evidence and must be refreshed before a new live action.
+- Manager, Home Assistant and Broker recovered running after the controlled reboot. Current fresh runtime/media state is `UNKNOWN_FRESH`.
+- R30M is the bounded successor for restoring only the transaction-bound runtime mount. It has no fixed `/dev/sdX` authority and requires the media to be clean and unmounted at preflight.
+- R30M remains ungranted/unclaimed/unconsumed/non-replayable. A future live execute, if separately authorized, is limited to creating the bounded runtime directories and mounting the exact bound ext4 media `rw,nodev,nosuid,noexec`, with at most one rollback to unmounted prestate.
+- No R30 live execution, writable mount, U7 transition, U8+, board access or merge is authorized.
+- KF-156 records intermittent T1 eth0 Link Down/Up associated with SSH banner/preauth failures. Link flap is physically proven; cable/switch/PHY/driver/power root cause remains unproven.
+- Next gate: `R30M_REAL_T1_READONLY_PREFLIGHT`. PASS must stop at a separate explicit writable-mount authorization boundary.
+
 ## 2026-11-14 — repaired R29 grant-only successor materialized / fresh CI pending
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted and `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.

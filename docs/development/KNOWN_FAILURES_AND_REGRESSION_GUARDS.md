@@ -1,3 +1,34 @@
+### 2026-11-15 KF-156 T1 eth0 intermittent link flap / SSH banner-preauth timeout — PHYSICAL_PROVEN_LINK_FLAP / ROOT_CAUSE_UNPROVEN / OPEN
+
+```text
+SSH_SYMPTOMS=BANNER_EXCHANGE_TIMEOUT_PREAUTH_TIMEOUT_REMOTE_CLOSE
+SSHD_SERVICE_HEALTH=PASS_AT_DIAGNOSTIC
+ROOT_PASSWORD_LOGIN=EVENTUALLY_PASS
+ETH0_LINK_DOWN_UP=PHYSICAL_PROVEN
+ETH0_CURRENT_ERROR_COUNTERS=ZERO_AT_CLEAN_SNAPSHOT
+AUTONEG=100MBPS_FULL
+EEE=NOT_SUPPORTED
+ROOT_CAUSE=UNPROVEN
+STATUS=OPEN
+```
+
+Physical evidence:
+- repeated SSH attempts showed banner-exchange timeout, pre-authentication timeout/close, and later successful password login without changing credentials;
+- kernel journals independently recorded multiple `eth0 Link is Down` -> `Link is Up` events, including after a controlled reboot;
+- sshd was active/running with no restart loop and port 22 listening when inspected;
+- memory, disk and MaxStartups pressure were not supported by the diagnostic snapshot;
+- interface CRC/error/drop/carrier counters were zero at the clean snapshot, and a bounded gateway ping window later had 0% loss;
+- therefore SSH is treated as a transport victim of intermittent link instability, not as a proven sshd/password fault.
+
+Root cause remains unresolved. Current candidates include cable/connector, switch/router port, T1 PHY/driver, and power integrity. Do not claim any one of them without isolated evidence.
+
+Regression / execution guards:
+- when SSH stalls before a live gate, classify the gate state first and do not infer that the remote mutation failed;
+- never replay a consumed one-shot authorization because transport failed or became uncertain;
+- before a new mutation gate, use a bounded read-only network/SSH check when link instability is observed;
+- change one physical variable at a time (cable or upstream port) before driver/network tuning;
+- do not treat a clean instantaneous interface-counter snapshot as proof that historical link flaps did not occur.
+
 ### 2026-11-14 KF-155 R29 pre-claim capacity symbol/version closure failure — PHYSICAL_PROVEN / SOURCE_REPAIR_R2_PENDING_CI
 
 ```text
