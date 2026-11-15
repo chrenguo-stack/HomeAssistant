@@ -1,6 +1,9 @@
 ## 2026-11-15 — R32 repaired U7 live CLOSED_PASS / durable U7 reached / stop before U8
 
 - PR #807 remains OPEN / DRAFT / UNMERGED.
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
 - Exact R32 execution authority is `627da8213966ea4e1992c63f8b7c5dcf01265ecf`; grant-head CI completed 16/16 SUCCESS and the R32 executor blob remained `73379e1ff9715770d1bbb58a74c4a0c256a8e22f`.
 - Real-T1 execution `r32-live01-20261115T133826Z` returned RC=0 and terminal status `U7_R32_REPAIRED_HA_QUIESCE_DATA_BACKUP_PASS`.
 - The one-shot R32 authorization is claimed + consumed and permanently no-replay. R32 must never be executed again.
