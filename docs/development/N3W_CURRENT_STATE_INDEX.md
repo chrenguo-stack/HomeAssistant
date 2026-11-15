@@ -1,3 +1,16 @@
+## 2026-11-15 — R34 Attempt01 SAFE_STOP / KF-160 source repair / CI pending after bounded polling
+
+- R34 real-T1 Attempt01 returned `STOP` / RC=2 because the embedded remote script lacked `import base64` while calling `base64.b64decode(...)`.
+- Attempt01 remained strictly read-only and reported no transaction, USB, service, U9+, destructive, board, or merge mutation; SSH master cleanup succeeded.
+- R33 was not replayed and remains claimed/consumed/no-replay.
+- KF-160 source repair head is `bb169bb17a6a9b3299d291106dfa50a4627d0bd4`.
+- Repaired executor blob: `01a0ac59195fb523cc9eeff84cba7347812a5c38`; manifest blob: `0d4a546b37e261bf08c9d75060a65a908747fadb`; focused-test blob: `b81f45ab409cb82921238c6bf39ab80c17a0dbff`.
+- Regression coverage now parses the remote script AST and requires the `base64` runtime import.
+- Three CI checks were performed on the repair head. Last observation: 14 SUCCESS, 2 IN_PROGRESS, 0 FAILURE. Active polling stops per project policy.
+- The two still-running checks are Home Assistant target-binding run 43729939227 and Manager A-to-B run 43729939293.
+- A second R34 real-T1 attempt is **not authorized** by the source repair. The original user instruction allowed one attempt only.
+- Stop before R34 Attempt02 and before U9/destructive cutover/service mutation/board access/merge.
+
 ## 2026-11-15 — R33 durable U8 / KF-159 false-STOP proven / R34 read-only reconciliation ready
 
 - PR #807 remains OPEN / DRAFT / UNMERGED.
