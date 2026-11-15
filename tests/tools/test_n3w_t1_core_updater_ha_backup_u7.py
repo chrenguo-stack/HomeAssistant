@@ -617,6 +617,48 @@ def test_production_owner_quiesce_requires_broker_preserved(
     }
 
 
+def test_production_owner_quiesce_accepts_failed_owner_after_verified_stop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    host = LocalHost()
+    monkeypatch.setattr(host, "stop_services", lambda: None)
+    broker_ids = iter(("broker-1", "broker-1"))
+    monkeypatch.setattr(
+        host,
+        "_container_id",
+        lambda service: (
+            next(broker_ids)
+            if service == "broker"
+            else "unexpected"
+        ),
+    )
+    monkeypatch.setattr(
+        host,
+        "_systemctl",
+        lambda action, unit: (
+            "failed"
+            if action == "is-active" and unit == SERVICES_UNIT
+            else "active"
+            if action == "is-active" and unit == BROKER_UNIT
+            else "unexpected"
+        ),
+    )
+    monkeypatch.setattr(
+        host,
+        "_running_count",
+        lambda service: 1 if service == "broker" else 0,
+    )
+
+    evidence = host.quiesce_homeassistant_for_backup()
+
+    assert evidence == {
+        "owner_inactive": True,
+        "homeassistant_stopped": True,
+        "manager_stopped": True,
+        "broker_preserved": True,
+    }
+
+
 class FailingQuiesceRuntime(FakeRuntime):
     def quiesce_homeassistant_for_backup(self):
         self.quiesce_count += 1
