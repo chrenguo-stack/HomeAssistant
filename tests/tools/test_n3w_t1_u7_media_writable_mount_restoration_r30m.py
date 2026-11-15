@@ -32,14 +32,14 @@ def load_remote_namespace():
     return namespace
 
 
-def test_manifest_is_ungranted_and_binds_current_u6_state() -> None:
+def test_manifest_is_granted_after_explicit_writable_mount_authorization() -> None:
     d = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert d["gate_id"] == GATE
     assert d["authorization_id"] == GATE
     assert d["confirmation"] == CONFIRMATION
-    assert d["live_execution_authorized"] is False
+    assert d["live_execution_authorized"] is True
     assert d["authorization_state"] == {
-        "granted": False,
+        "granted": True,
         "claimed": False,
         "consumed": False,
         "replay_permitted": False,
