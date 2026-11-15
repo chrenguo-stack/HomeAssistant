@@ -26,6 +26,7 @@ GATE_ID = (
     "U7_HA_QUIESCE_DATA_BACKUP_R30_20261115_01"
 )
 CONFIRMATION = "EXECUTE U7 R30 HA QUIESCE DATA BACKUP: YES"
+PREFLIGHT_TIMEOUT_SECONDS = 1200
 
 
 class Stop(RuntimeError):
@@ -1104,7 +1105,7 @@ def main() -> int:
             transport,
             "preflight",
             plan,
-            timeout=420,
+            timeout=PREFLIGHT_TIMEOUT_SECONDS,
         )
         base.write_remote_evidence(
             evidence,
