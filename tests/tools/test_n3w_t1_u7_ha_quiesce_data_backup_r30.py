@@ -103,6 +103,13 @@ def test_executor_and_remote_script_compile() -> None:
     compile(module.REMOTE_SCRIPT, "<u7-r30>", "exec")
     assert module.GATE_ID == GATE
     assert module.CONFIRMATION == CONFIRM
+    assert module.PREFLIGHT_TIMEOUT_SECONDS == 1200
+
+
+def test_real_t1_preflight_timeout_budget_is_not_legacy_420_seconds() -> None:
+    source = EXECUTOR.read_text(encoding="utf-8")
+    assert "timeout=420" not in source
+    assert "timeout=PREFLIGHT_TIMEOUT_SECONDS" in source
 
 
 def test_readonly_preflight_requires_existing_mount_before_product_resolve() -> None:
