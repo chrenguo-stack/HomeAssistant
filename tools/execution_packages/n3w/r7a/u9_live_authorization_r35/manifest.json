@@ -40,7 +40,7 @@
     "tools/n3w_t1_core_updater_ha_usb_state.py": "4bd0c268bb8258d05eadf92d52a322a1d3e51f36",
     "tools/n3w_t1_core_updater_v2_common.py": "b9c6561a1a8e33bdf586e6a4bd04d025f3c5d7e6",
     "tools/n3w_t1_portable_image_identity.py": "4877f4801dd7a4364feb0cda4f9a3f79072e8214",
-    "tools/execution_packages/n3w/r7a/u9_live_authorization_r35/executor.py": "3665d69adfe40b84acb3d1938714091bb8f91680",
+    "tools/execution_packages/n3w/r7a/u9_live_authorization_r35/executor.py": "d193d40a4d9fe287492afa291bf145904784d4d4",
     "tools/execution_packages/n3w/r7a/u8_recovery_admission_r33/executor.py": "cc721209002f588d00da35785a38dee7313d4d42"
   },
   "state_root": "/var/lib/n3w-t1-core-updater/u9-r35-live-authorization-20261115-01",

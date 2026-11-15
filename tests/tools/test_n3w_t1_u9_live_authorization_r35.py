@@ -143,6 +143,7 @@ def test_product_u9_claim_is_durable_before_any_u10_successor() -> None:
     assert '"U9_LIVE_AUTHORIZATION_CLAIMED"' in remote
     assert '"u10_plus": False' in block
     assert '"destructive_cutover": False' in block
+    assert "recovery_capacity.capacity_pass is not True" in block
 
 
 def test_u9_preclaim_requires_unclaimed_product_authorization() -> None:
@@ -202,6 +203,28 @@ def test_execute_contains_no_u10_cutover_or_service_mutation() -> None:
     assert '"u10_plus": False' in block
     assert '"destructive_cutover": False' in block
     assert '"service_mutation": False' in block
+
+
+def test_status_reconciliation_prefers_durable_u9_over_failure_ledger() -> None:
+    remote = load_executor().REMOTE_SCRIPT
+    start = remote.index("def read_terminal_status")
+    end = remote.rindex("def execute(")
+    block = remote[start:end]
+    success = block.index("if success_path.exists():")
+    durable = block.index("if claim is not None:")
+    failure = block.index("if failure_path.exists():")
+    assert success < durable < failure
+    assert "verify_terminal_u9_state(plan)" in block
+
+
+def test_partial_usb_metadata_change_is_observed_as_mutation() -> None:
+    remote = load_executor().REMOTE_SCRIPT
+    start = remote.rindex("def execute(")
+    end = remote.rindex("def main()")
+    block = remote[start:end]
+    assert "observed_hashes" in block
+    assert 'plan["mirror_sha256"][name]' in block
+    assert "any(" in block
 
 
 def test_postclaim_path_is_no_replay() -> None:
