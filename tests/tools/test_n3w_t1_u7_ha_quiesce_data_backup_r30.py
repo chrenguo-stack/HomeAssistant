@@ -124,6 +124,12 @@ def test_readonly_preflight_has_remote_process_lifetime_bound() -> None:
     assert "remote_process_timeout=PREFLIGHT_REMOTE_PROCESS_TIMEOUT_SECONDS" in source
 
 
+def test_remote_process_timeout_is_reported_explicitly() -> None:
+    source = EXECUTOR.read_text(encoding="utf-8")
+    assert "completed.returncode in {124, 137}" in source
+    assert '"reason": "remote_process_timeout"' in source
+
+
 def test_readonly_preflight_requires_existing_mount_before_product_resolve() -> None:
     remote = load_executor().REMOTE_SCRIPT
     preflight_start = remote.index("def verify_media_and_backup_inputs")
@@ -136,6 +142,20 @@ def test_readonly_preflight_requires_existing_mount_before_product_resolve() -> 
     assert '["systemctl", "stop"' not in block
     assert '["mount"' not in block
     assert '["umount"' not in block
+
+
+def test_preflight_uses_exact_archive_continuity_not_full_portable_reconstruction() -> None:
+    remote = load_executor().REMOTE_SCRIPT
+    start = remote.index("def verify_media_and_backup_inputs")
+    end = remote.index("def verify_prestate", start)
+    block = remote[start:end]
+    assert 'product["image_recovery_record_from_document"]' in block
+    assert block.count("verify_archive_continuity(") == 2
+    assert "target_archive_continuity" in block
+    assert "predecessor_archive_continuity" in block
+    assert "portable_identity_authority_reused" in block
+    assert "backend.verify_prepared_target(" not in block
+    assert "backend.verify_prepared_predecessor(" not in block
 
 
 def test_preflight_binds_r26_r29_source_runtime_media_and_backup_inputs() -> None:
