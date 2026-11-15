@@ -385,7 +385,6 @@ def require_unit(unit):
 
 
 def container_view(image):
-def container_view(image):
     ids = [
         line.strip()
         for line in run(
