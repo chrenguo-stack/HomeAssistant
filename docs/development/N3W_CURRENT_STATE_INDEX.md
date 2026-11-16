@@ -1,7 +1,8 @@
 ## 2026-11-16 — U10 R38 real-T1 predecessor-capacity release CLOSED_PASS
 
-- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; live upgrade remains accepted.
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted.
 - Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant repository target `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
 - R38 exact authorized head `b38a43b11beecb1dc73680aed933ad05db084c9b` completed 16/16 CI SUCCESS before real-T1 execution.
 - Executor blob remained the reviewed `8dce8f6ee0c777ae6266d83f980f1972f97600e1`; granted manifest blob `443ab5960aa7ce4cb26ed0fa45e0a0b4b96aebb1`.
 - Real-T1 execution `u10-r38-live01-20261116T034011Z` returned RC=0 and `U10_R38_PREDECESSOR_CAPACITY_RELEASE_PASS`; no reconciliation was needed and SSH cleanup succeeded.
