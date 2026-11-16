@@ -1,3 +1,77 @@
+## Latest authority — 2026-11-16 U11 R39 real-T1 read-only preflight CLOSED_PASS
+
+```text
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+R39_SOURCE_HEAD=d81c6de0a25fd9d4ae662f55e8cffc5c4a7036c4
+R39_SOURCE_CI=16_OF_16_SUCCESS
+R39_EXECUTOR_BLOB=273ccfc6c7ba3d12da9f47af507e13543f29716a
+R39_MANIFEST_BLOB=db02bf46fd96a3bd360c9b50d2e1771d9e9027ed
+R39_TEST_BLOB=eaf23890a810a0914a9c38d85b58d6d01cbbf4fa
+R39_EXECUTION_ID=u11-r39-readonly-20261116T042337Z
+R39_RESULT=U11_R39_READONLY_PREFLIGHT_PASS
+R39_RC=0
+R39_READ_ONLY=true
+R39_SSH_MASTER_CLEANUP=true
+
+LIVE_TRANSACTION_PHASE=U10_INTERNAL_PREDECESSOR_CAPACITY_RELEASED
+LIVE_TRANSACTION_SHA256=c0dc58ebcfcd2876aec5bfcf556723ae779106803e19df5541b1847fc494bba3
+R38_REPLAY_PERMITTED=false
+R39_USB_MIRROR_EXACT=true
+R39_BOUND_FILESYSTEM_UUID=967cf065-abe5-49ee-8499-7c3f50d2c48f
+R39_BACKUP_VERIFIED=true
+R39_RECOVERY_CAPACITY_PASS=true
+R39_OBSERVED_USB_FREE_BYTES=28132077568
+R39_REQUIRED_FREE_AFTER_RECOVERY_ASSETS_BYTES=1610612736
+
+R39_BROKER_RUNNING=true
+R39_MANAGER_QUIESCED=true
+R39_HOMEASSISTANT_CONTAINER_ABSENT=true
+R39_PREDECESSOR_IMAGE_ABSENT=true
+R39_TARGET_IMAGE_ABSENT=true
+R39_HOMEASSISTANT_COMPOSE_BINDING=local/n3w-homeassistant:2026.10.0-0c73235a
+R39_SERVICES_OWNER_STATE=failed
+
+R39_DOCKER_ROOT=/var/lib/docker
+R39_OBSERVED_INTERNAL_FREE_BYTES=10887344128
+R39_REQUIRED_INTERNAL_FREE_BYTES=4950401057
+R39_INTERNAL_TARGET_IMPORT_CAPACITY_PASS=true
+
+U11_READONLY_ELIGIBLE=true
+U11_LIVE_EXECUTION_AUTHORIZED=false
+TARGET_IMAGE_LOAD=false
+COMPOSE_BINDING_MUTATION=false
+SERVICE_MUTATION=false
+TRANSACTION_MUTATION=false
+USB_MUTATION=false
+U11_TRANSITION=false
+U12_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+
+R39_STATUS=CLOSED_PASS
+NEXT_ONE_GATE=U11_PRODUCTION_CONTROLLER_SOURCE_DESIGN_AND_SIMULATION
+STOP_BOUNDARY=FRESH_EXPLICIT_AUTHORIZATION_REQUIRED_BEFORE_REAL_T1_TARGET_IMAGE_LOAD_BINDING_MUTATION_HOMEASSISTANT_START_OR_U10_TO_U11_TRANSITION
+HANDOFF_TEMPLATE_VERSION=1.4
+```
+
+R39 physically proved the exact U10 durable transaction, consumed/no-replay R38 ledger, exact U10 USB mirror, intact target/predecessor recovery archives and protected Home Assistant backup. The real T1 has the intended U11 starting state: predecessor runtime/container and predecessor internal image are absent; target image is still absent; Broker remains running; Manager remains quiesced; Home Assistant Compose still points at the predecessor reference.
+
+The internal Docker filesystem currently has 10887344128 free bytes against the frozen U11 import requirement of 4950401057 bytes, so target-import capacity passes.
+
+R39 was strictly read-only and did not load the target image, mutate Compose, start services, change the transaction/USB mirror, enter U11, or enter U12+. Repository-only U11 controller development may continue, but any real U11 mutation requires a fresh explicit authorization.
+
+Authority: `docs/development/N3W_T1_U11_R39_READONLY_PREFLIGHT_CLOSURE_20261116.md`.
+
 ## Latest authority — 2026-11-16 U10 R38 real-T1 predecessor-capacity release CLOSED_PASS
 
 ```text
