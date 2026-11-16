@@ -1,6 +1,7 @@
 ## 2026-11-17 — U11 R42 CLOSED_PASS / new-chat handoff STOP / U12 read-only + performance-design boundary
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`, repository Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, repository Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`; Live upgrade accepted; deployment state remains `APPLIED_ACCEPTED`.
+- Historical clean reference remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
 - R42 execution `u11-r42-live02-20261116T152940Z` is durably `U11_R42_POST_R40_SUCCESSOR_RECOVERY_PASS`; authorization is claimed + consumed + no-replay.
 - Host and USB are both `U11_TARGET_INSTALLED_STARTED`; host transaction SHA-256 `33350ba47e0af43b4f0e11fac990e24924f22057da60d980b26453b4e80e0471`.
 - Last proven live runtime: Manager `local/greenhouse-manager:fresh-44e7d7472714`, Broker `local/n3w-mosquitto:2.1.2-3184566d`, Home Assistant `local/n3w-homeassistant:2026.10.4-5881590f` with target runtime ID `sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365`; services owner and production /config binding are healthy.
