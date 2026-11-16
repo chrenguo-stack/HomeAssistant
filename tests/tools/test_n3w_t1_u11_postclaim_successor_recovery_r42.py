@@ -216,3 +216,16 @@ def test_r42_status_reconciles_durable_u11_before_failure_ledger():
     assert '"success_ledger_present": False' in status
     assert '"failure_ledger_present": failure_path.exists()' in status
     assert '"recovery_required": False' in status
+
+
+def test_r42_uses_r41_exact_source_payload_keys_end_to_end():
+    source = EXECUTOR.read_text(encoding="utf-8")
+    remote = load_executor().REMOTE_SCRIPT
+
+    assert '("exact_u11", U11_SOURCE)' in source
+    assert '("repaired_u11_host", U11_HOST_SOURCE)' in source
+    assert 'prefixes = ("repaired_host", "exact_u11", "repaired_u11_host")' in remote
+
+    assert '("u11", U11_SOURCE)' not in source
+    assert '("u11_host", U11_HOST_SOURCE)' not in source
+    assert 'prefixes = ("repaired_host", "u11", "u11_host")' not in remote

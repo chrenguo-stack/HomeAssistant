@@ -151,7 +151,7 @@ def load_exact_u11_modules(plan):
         "n3w_t1_core_updater_ha_u11",
         "n3w_t1_core_updater_ha_u11_host",
     )
-    prefixes = ("repaired_host", "u11", "u11_host")
+    prefixes = ("repaired_host", "exact_u11", "repaired_u11_host")
     previous = {name: sys.modules.get(name) for name in names}
     try:
         modules = {}
@@ -931,8 +931,8 @@ def main() -> int:
         )
         for prefix, source in (
             ("repaired_host", REPAIRED_HOST_SOURCE),
-            ("u11", U11_SOURCE),
-            ("u11_host", U11_HOST_SOURCE),
+            ("exact_u11", U11_SOURCE),
+            ("repaired_u11_host", U11_HOST_SOURCE),
         ):
             raw = source.read_bytes()
             plan[prefix + "_source_sha256"] = hashlib.sha256(raw).hexdigest()
