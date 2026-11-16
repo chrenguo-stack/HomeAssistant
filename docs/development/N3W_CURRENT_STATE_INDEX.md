@@ -1,3 +1,16 @@
+## 2026-11-16 — U11 R42 successor live recovery PREAUTHORIZATION_CLOSED / explicit live authorization boundary
+
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`, Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`; Live upgrade accepted; live deployment remains `APPLIED_ACCEPTED`.
+- Historical clean reference remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- R42 reviewed source head is `a05cf3b9dd36e239f5e873b2b6978466ce38ac3b`; independent source review PASS; new source blocker count 0.
+- Exact-head CI is 16/16 SUCCESS. HA target-binding run `43888052480` passed source and exact-binding; R42 focused suite reports 805 passed. Manager A-to-B run `43888052505` passed source, exact-manager-slice and pre-U1 simulation.
+- R42 remains a successor recovery, not R40 replay. It forbids target image reload and Compose binding rewrite, uses the repaired production supervision path, persists USB U11 metadata before the host transaction, and has no U12/U13 path.
+- Postclaim failure evidence is conservative; all four USB mirror files participate in mutation detection; durable verified U11 terminal truth overrides a missing/failing terminal ledger during reconciliation.
+- `R42_LIVE_RECOVERY_AUTHORIZED=false`, `AUTHORIZATION_GRANTED=false`, `R40_REPLAY_PERMITTED=false`; no R42 T1 access, claim or live mutation has occurred.
+- Exact durable live state remains host/USB `U10_INTERNAL_PREDECESSOR_CAPACITY_RELEASED` with transaction SHA-256 `c0dc58ebcfcd2876aec5bfcf556723ae779106803e19df5541b1847fc494bba3`.
+- Next gate is `R42_EXPLICIT_SUCCESSOR_LIVE_RECOVERY_AUTHORIZATION`. Any grant must be a grant-only manifest change followed by fresh exact-head CI and final review before real-T1 execution.
+- Public-safe closure: `docs/development/N3W_T1_U11_R42_SUCCESSOR_LIVE_RECOVERY_PREAUTHORIZATION_CLOSURE_20261116.md`.
+
 ## 2026-11-16 — U11 R41 real-T1 Attempt 04 CLOSED_PASS / successor live recovery authorization boundary
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`, Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`; Live upgrade accepted; live deployment remains `APPLIED_ACCEPTED`.

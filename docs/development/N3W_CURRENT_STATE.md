@@ -1,3 +1,48 @@
+## Latest authority — 2026-11-16 U11 R42 successor live recovery PREAUTHORIZATION_CLOSED / explicit live authorization boundary
+
+```text
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+R42_REVIEWED_SOURCE_HEAD=a05cf3b9dd36e239f5e873b2b6978466ce38ac3b
+R42_SOURCE_REVIEW=PASS
+R42_NEW_SOURCE_BLOCKER_COUNT=0
+R42_SOURCE_CI=16_OF_16_SUCCESS
+R42_HA_TARGET_BINDING_RUN=43888052480
+R42_MANAGER_A_TO_B_RUN=43888052505
+R42_FOCUSED_TESTS=805_PASSED
+
+R42_LIVE_RECOVERY_AUTHORIZED=false
+R42_AUTHORIZATION_GRANTED=false
+R42_AUTHORIZATION_CLAIMED=false
+R42_AUTHORIZATION_CONSUMED=false
+R42_REPLAY_PERMITTED=false
+R40_REPLAY_PERMITTED=false
+
+LIVE_TRANSACTION_PHASE=U10_INTERNAL_PREDECESSOR_CAPACITY_RELEASED
+LIVE_TRANSACTION_SHA256=c0dc58ebcfcd2876aec5bfcf556723ae779106803e19df5541b1847fc494bba3
+USB_TRANSACTION_PHASE=U10_INTERNAL_PREDECESSOR_CAPACITY_RELEASED
+R42_T1_ACCESS=false
+R42_LIVE_MUTATION=false
+```
+
+R42 successor recovery source design and independent review are closed for preauthorization. Exact source head `a05cf3b9dd36e239f5e873b2b6978466ce38ac3b` has all 16 workflows SUCCESS. HA target-binding run `43888052480` passed source and exact-binding; focused source suite reports 805 passed. Manager A-to-B run `43888052505` passed source, exact-manager-slice and pre-U1 simulation.
+
+The R42 manifest is still unauthorized and no real-T1 R42 claim or mutation has occurred. R40 remains consumed/no-replay.
+
+NEXT_ONE_GATE=`R42_EXPLICIT_SUCCESSOR_LIVE_RECOVERY_AUTHORIZATION`.
+
+Public-safe closure: `docs/development/N3W_T1_U11_R42_SUCCESSOR_LIVE_RECOVERY_PREAUTHORIZATION_CLOSURE_20261116.md`.
+
 ## Latest authority — 2026-11-16 U11 R41 real-T1 Attempt 04 CLOSED_PASS / successor live recovery authorization boundary
 
 ```text
