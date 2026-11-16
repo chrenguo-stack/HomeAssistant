@@ -20,7 +20,8 @@
     "r37_rc": 0,
     "r37_closure_doc": "docs/development/N3W_T1_U10_R37_READONLY_PREFLIGHT_CLOSURE_20261116.md",
     "r38_executor_source_head": "dffd806fdf7ede2a2df42f5348c9ed6e46249742",
-    "u10_fail_closed_ha_usb_blob": "01ced6d4b643cc9a0881d48efc9b7601dc5fb4f6"
+    "u10_fail_closed_ha_usb_blob": "01ced6d4b643cc9a0881d48efc9b7601dc5fb4f6",
+    "r38_preclaim_gate_binding_repair_head": "271bd2387b75e27ce6bde37e2c77674df6cc4fe9"
   },
   "package_source_authority": {
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
@@ -28,7 +29,7 @@
     "tools/execution_packages/n3w/r7a/u10_predecessor_capacity_release_readonly_preflight_r37/executor.py": "392564926eeba6e5d38cbca9c8a43e5a0ae5f51a",
     "tools/execution_packages/n3w/r7a/u10_predecessor_capacity_release_readonly_preflight_r37/manifest.json": "a0799ed0f652eae64b5de315eb539447ff551bd8",
     "tools/n3w_t1_core_updater_ha_usb.py": "01ced6d4b643cc9a0881d48efc9b7601dc5fb4f6",
-    "tools/execution_packages/n3w/r7a/u10_predecessor_capacity_release_r38/executor.py": "247a071499bfb6ae234b81d7857aa3ef3a0d864b"
+    "tools/execution_packages/n3w/r7a/u10_predecessor_capacity_release_r38/executor.py": "8dce8f6ee0c777ae6266d83f980f1972f97600e1"
   },
   "transition_source_delivery": "EXACT_PACKAGE_BOUND_IN_MEMORY_NO_LIVE_SOURCE_MUTATION",
   "state_root": "/var/lib/n3w-t1-core-updater/u10-r38-predecessor-capacity-release-20261116-01",
