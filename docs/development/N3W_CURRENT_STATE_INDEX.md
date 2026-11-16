@@ -1,3 +1,21 @@
+## 2026-11-16 — U10 R38 real-T1 predecessor-capacity release CLOSED_PASS
+
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; live upgrade remains accepted.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant repository target `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- R38 exact authorized head `b38a43b11beecb1dc73680aed933ad05db084c9b` completed 16/16 CI SUCCESS before real-T1 execution.
+- Executor blob remained the reviewed `8dce8f6ee0c777ae6266d83f980f1972f97600e1`; granted manifest blob `443ab5960aa7ce4cb26ed0fa45e0a0b4b96aebb1`.
+- Real-T1 execution `u10-r38-live01-20261116T034011Z` returned RC=0 and `U10_R38_PREDECESSOR_CAPACITY_RELEASE_PASS`; no reconciliation was needed and SSH cleanup succeeded.
+- Embedded R37 preclaim passed against exact U9 transaction SHA-256 `69f5a8c2190dac0a12df3aac1bdc9c9f3b02050e9541e7a202907204d280f7c3`, with exact bound USB/recovery/backup/capacity continuity.
+- R38 authorization is claimed + consumed + permanently no-replay.
+- Exact stopped Home Assistant predecessor container `26b095e1ba8aa3a009f02a2460234eae45764debf61d878b965761ce75212676` was released, then exact predecessor image `sha256:c261fa53f30508951833492ba2a19af6cfbb6aa8f2806b531d8f5c6599265306` was released.
+- Manager/Broker were explicitly protected; Broker remains running and Manager remains quiesced.
+- Durable transaction is now `U10_INTERNAL_PREDECESSOR_CAPACITY_RELEASED`, SHA-256 `c0dc58ebcfcd2876aec5bfcf556723ae779106803e19df5541b1847fc494bba3`.
+- USB U10 mirror is exact; post phase hash `005285eb177803b2fd387725730abf8e28b30f4727f422672e88cc998c14b589`; manifest/content-authority/checksums hashes remain exact.
+- Target internal image remains absent. R38 performed no target load, service start/restart, U11+, board access or merge.
+- The post-command shell-session-save warning occurred after RC=0 and successful SSH cleanup and does not alter the PASS result.
+- Closure authority: `docs/development/N3W_T1_U10_R38_PREDECESSOR_CAPACITY_RELEASE_CLOSURE_20261116.md`.
+- U10 is now CLOSED_PASS. Next safe gate is repository-only U11 target-install source/read-only-preflight preparation. Real target image load, Home Assistant start and U10→U11 transition require a fresh explicit authorization.
+
 ## 2026-11-16 — U10 R37 real-T1 read-only preflight CLOSED_PASS
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted.
