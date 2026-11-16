@@ -1,6 +1,8 @@
 ## 2026-11-16 — U11 R40 STOP_POSTCLAIM / supervision false-drift root cause PROVEN / source repair CI CLOSED_PASS
 
 - PR #807 remains OPEN/DRAFT/unmerged; main remains `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`.
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`, Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`; live deployment remains `APPLIED_ACCEPTED`.
+- Historical clean reference remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
 - R40 grant head `7649743b27f125c37ce360dafe5a3455ef10bbdc`; real execution `u11-r40-live02-20261116T063426Z` returned RC=2 / `STOP_POSTCLAIM`.
 - R40 authorization is claimed + consumed + permanently no-replay. Recovery is required before any further live mutation.
 - Target Home Assistant image `local/n3w-homeassistant:2026.10.4-5881590f` is loaded; runtime image ID observed `sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365`.
