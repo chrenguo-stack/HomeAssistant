@@ -341,7 +341,7 @@ def test_r41_remote_transport_streams_large_program_over_stdin(monkeypatch):
             argv,
             0,
             stdout=(
-                '{"status":"U11_R41_POST_R40_READONLY_PREFLIGHT_PASS"}\\n'
+                '{"status":"U11_R41_POST_R40_READONLY_PREFLIGHT_PASS"}\n'
             ),
             stderr="",
         )
