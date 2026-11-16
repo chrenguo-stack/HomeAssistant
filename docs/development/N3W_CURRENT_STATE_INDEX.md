@@ -1,3 +1,23 @@
+## 2026-11-16 — U11 R40 STOP_POSTCLAIM / supervision false-drift root cause PROVEN / source repair CI CLOSED_PASS
+
+- PR #807 remains OPEN/DRAFT/unmerged; main remains `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`.
+- R40 grant head `7649743b27f125c37ce360dafe5a3455ef10bbdc`; real execution `u11-r40-live02-20261116T063426Z` returned RC=2 / `STOP_POSTCLAIM`.
+- R40 authorization is claimed + consumed + permanently no-replay. Recovery is required before any further live mutation.
+- Target Home Assistant image `local/n3w-homeassistant:2026.10.4-5881590f` is loaded; runtime image ID observed `sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365`.
+- Production Home Assistant binding now points to the target. No service mutation, USB U11 persistence, host U11 transaction, U11 transition, or U12+ occurred.
+- Durable host transaction and USB phase remain exact `U10_INTERNAL_PREDECESSOR_CAPACITY_RELEASED`; transaction SHA-256 remains `c0dc58ebcfcd2876aec5bfcf556723ae779106803e19df5541b1847fc494bba3`.
+- Broker remains running; Manager and Home Assistant remain stopped; services owner remains failed/quiesced.
+- Root cause proven: repository-owned `95-n3w-ha-ota.conf` uses systemd reset/replace semantics for `ExecStart` / `ExecStop`; old `LocalHost._service_unit()` misparsed all `systemctl cat` directives as simultaneous and raised a false `services_supervision_contract_drift` before the new service start.
+- No R40-window service-start journal or Docker container event exists; historical Manager exit 137 is not the R40 cause and was `OOMKilled=false`.
+- R39 false-PASS gap proven: R39 checked owner quiescence and runtime state but did not validate the effective HA-OTA supervision contract before R40 claim.
+- Bounded U11 repair head `155f9a7b62d6b758fb87c109b3ffbf54aa5614c7` resolves effective systemd reset semantics and requires the exact HA-OTA overlay; focused regression covers the real drop-in shape.
+- Source repair CI is 16/16 SUCCESS. Key runs: HA target binding `43825253517`; Manager A-to-B `43825253528`.
+- The historical R39 executor was not repaired. The new successor recovery gate must add a fresh read-only effective-supervision check before any successor claim.
+- KF-162 is OPEN with root cause proven and source repair CI closed; physical recovery/U11 completion remains pending.
+- R40 must never be replayed. No manual service start, U12/U13, board work, merge, or live recovery mutation is authorized.
+- Closure authority: `docs/development/N3W_T1_U11_R40_POSTCLAIM_SUPERVISION_FALSE_STOP_SOURCE_REPAIR_CLOSURE_20261116.md`.
+- Next gate: successor recovery gate design + read-only preflight only.
+
 ## 2026-11-16 — U11 R40 preauthorization source CLOSED_PASS / live authorization boundary
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted.

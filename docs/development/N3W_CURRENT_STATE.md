@@ -1,3 +1,72 @@
+## Latest authority — 2026-11-16 U11 R40 STOP_POSTCLAIM root cause PROVEN / U11 supervision source repair CI CLOSED_PASS / successor recovery boundary
+
+```text
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+
+R40_GRANT_HEAD=7649743b27f125c37ce360dafe5a3455ef10bbdc
+R40_EXECUTION_ID=u11-r40-live02-20261116T063426Z
+R40_RESULT=STOP_POSTCLAIM
+R40_RC=2
+R40_AUTHORIZATION_CLAIMED=true
+R40_AUTHORIZATION_CONSUMED=true
+R40_REPLAY_PERMITTED=false
+R40_RECOVERY_REQUIRED=true
+
+LIVE_TRANSACTION_PHASE=U10_INTERNAL_PREDECESSOR_CAPACITY_RELEASED
+LIVE_TRANSACTION_SHA256=c0dc58ebcfcd2876aec5bfcf556723ae779106803e19df5541b1847fc494bba3
+USB_TRANSACTION_PHASE=U10_INTERNAL_PREDECESSOR_CAPACITY_RELEASED
+
+R40_TARGET_IMAGE_LOAD=true
+R40_COMPOSE_BINDING_MUTATION=true
+R40_OBSERVED_HOMEASSISTANT_BINDING=local/n3w-homeassistant:2026.10.4-5881590f
+R40_TARGET_RUNTIME_IMAGE_ID=sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365
+R40_SERVICE_MUTATION=false
+R40_TRANSACTION_MUTATION=false
+R40_USB_MUTATION=false
+R40_U11_TRANSITION=false
+R40_U12_PLUS=false
+
+POST_R40_SERVICES_OWNER=failed
+POST_R40_MANAGER_RUNNING=false
+POST_R40_HOMEASSISTANT_RUNNING=false
+POST_R40_BROKER_RUNNING=true
+
+KF162_ROOT_CAUSE=PROVEN
+KF162_ROOT_CAUSE_CLASS=SYSTEMD_EFFECTIVE_EXECSTART_EXECSTOP_CONTRACT_FALSE_DRIFT
+R39_PRECLAIM_COVERAGE_GAP=true
+
+U11_SUPERVISION_SOURCE_REPAIR_HEAD=155f9a7b62d6b758fb87c109b3ffbf54aa5614c7
+U11_SUPERVISION_SOURCE_REPAIR_CI=16_OF_16_SUCCESS
+HA_TARGET_BINDING_RUN=43825253517
+MANAGER_A_TO_B_RUN=43825253528
+SOURCE_REPAIR_SCOPE=U11_EFFECTIVE_SYSTEMD_DROPIN_CONTRACT_AND_REGRESSION_TESTS
+R39_EXECUTOR_REPAIRED=false
+
+NEXT_ONE_GATE=U11_POST_R40_SUCCESSOR_RECOVERY_GATE_DESIGN_AND_READONLY_PREFLIGHT
+NEXT_GATE_LIVE_MUTATION_AUTHORIZED=false
+R40_REPLAY_FORBIDDEN=true
+U12_AUTHORIZED=false
+U13_AUTHORIZED=false
+BOARD_ACCESS=false
+MERGE=false
+HANDOFF_TEMPLATE_VERSION=1.4
+```
+
+R40 Attempt 01 stopped locally before any T1 access because the local wrapper created its output file inside the required-empty evidence root. That attempt did not claim or consume authorization. Corrected Attempt 02 reached the real T1, passed the embedded R39 preclaim, durably claimed and consumed the one-shot R40 authorization, loaded the exact Home Assistant 2026.10.4 target image and published the target Compose binding, then stopped before service start / U11 persistence with `STOP_POSTCLAIM`.
+
+Read-only forensic proved the R40 failure occurred before a new `systemctl start n3wfc4-services-activation.service` execution. The deployed production unit has the repository-owned `95-n3w-ha-ota.conf` drop-in, which resets and replaces `ExecStart` / `ExecStop` with the HA-OTA Compose overlay. The old `LocalHost._service_unit()` incorrectly treated every line returned by `systemctl cat` as simultaneously active and therefore raised `services_supervision_contract_drift`. There were no new systemd service-start journal entries and no Docker container events in the R40 failure window; the previous Manager exit 137 was historical and `OOMKilled=false`.
+
+The bounded U11 source repair at `155f9a7b62d6b758fb87c109b3ffbf54aa5614c7` now resolves the effective systemd directive after reset semantics and makes the U11 adapter require the exact production HA-OTA overlay command. Its regression tests cover the real drop-in shape. All 16 workflows are SUCCESS, including Home Assistant target-binding run `43825253517` and Manager A-to-B run `43825253528`.
+
+The prior R39 read-only executor remains historical and was not modified by that source repair. Its preclaim omitted the effective HA-OTA supervision-contract check, so the false-PASS coverage gap remains an explicit requirement for the new successor recovery design: any future recovery claim must be preceded by a fresh read-only check of the exact effective systemd supervision contract and the current partial U10 state.
+
+R40 is permanently consumed/no-replay. No manual service start, Compose rewrite, R40 replay, U12, U13, board work, merge, or live recovery mutation is authorized at this handoff.
+
+Authority: `docs/development/N3W_T1_U11_R40_POSTCLAIM_SUPERVISION_FALSE_STOP_SOURCE_REPAIR_CLOSURE_20261116.md`.
+
 ## Latest authority — 2026-11-16 U11 R40 preauthorization source CLOSED_PASS / live authorization boundary
 
 ```text
