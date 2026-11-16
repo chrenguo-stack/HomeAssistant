@@ -130,7 +130,7 @@ def test_r38_uses_exact_package_transition_source_without_live_source_write():
 def test_r38_requires_r37_preclaim_before_remote_execute():
     source = EXECUTOR.read_text(encoding="utf-8")
     assert 'r37_plan["gate_id"] = r37.GATE_ID' in source
-    preclaim = source.index("r37.remote_preflight(transport, plan)")
+    preclaim = source.index(\n        "pre_transport, pre = r37.remote_preflight(\\n"\n        "            transport,\\n"\n        "            r37_plan,\\n"\n        "        )"\n    )
     execute = source.index('remote_mode(\n                    transport,\n                    "execute"')
     assert preclaim < execute
     assert "r38_live_execution_not_authorized" in source
