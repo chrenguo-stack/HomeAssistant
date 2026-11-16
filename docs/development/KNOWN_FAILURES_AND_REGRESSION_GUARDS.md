@@ -1,3 +1,42 @@
+### 2026-11-16 KF-161 R35 U9 product authorization namespace mismatch — CLOSED_PASS / R36 PHYSICALLY VALIDATED
+
+```text
+R35_RESULT=STOP_POSTCLAIM
+R35_REPLAY_PERMITTED=false
+R36_GRANT_HEAD=f78dc7da7998ce2d3d275dc05e09d173d84f200b
+R36_GRANT_HEAD_CI=16_OF_16_SUCCESS
+R36_EXECUTION_ID=r36-live01-20261116T003710Z
+R36_RESULT=U9_R36_LIVE_AUTHORIZATION_CLAIM_PASS
+R36_RC=0
+R36_AUTHORIZATION_CLAIMED=true
+R36_AUTHORIZATION_CONSUMED=true
+R36_REPLAY_PERMITTED=false
+PRODUCT_U9_AUTHORIZATION_CLAIMED=true
+PRODUCT_U9_AUTHORIZATION_CONSUMED=true
+LIVE_TRANSACTION_PHASE=U9_LIVE_AUTHORIZATION_CLAIMED
+R36_TRANSACTION_MUTATION=true
+R36_USB_MUTATION=true
+R36_U9_TRANSITION=true
+R36_U10_PLUS=false
+R36_DESTRUCTIVE_CUTOVER=false
+R36_SERVICE_MUTATION=false
+STATUS=RESOLVED_CLOSED_PASS
+```
+
+Physical closure:
+- R36 used a distinct product authorization ID in the required `N3W_T1_CORE_UPDATER_` namespace;
+- R36 revalidated the exact consumed R35 SAFE_STOP ledger and unchanged U8 durable authority before claim;
+- product authorization claim succeeded and the transaction plus USB metadata reached exact `U9_LIVE_AUTHORIZATION_CLAIMED`;
+- predecessor image remained present, target image remained absent, Manager/Home Assistant remained quiesced and Broker continuity remained intact;
+- no U10/destructive/service operation occurred.
+
+Guards remain:
+- never replay R35 or R36;
+- execution gate ID and product authorization ID remain separate authorities;
+- every future product authorization ID must be validated against the frozen product namespace before grant;
+- U10 eligibility is not U10 authorization;
+- predecessor deletion, target load and service mutation require a separate U10 design/gate and explicit authorization.
+
 ### 2026-11-15 KF-161 R35 U9 product authorization namespace mismatch — OPEN / SOURCE SUCCESSOR PREPARED
 
 ```text

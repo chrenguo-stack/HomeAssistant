@@ -1,3 +1,20 @@
+## 2026-11-16 — R36 real-T1 CLOSED_PASS / U9 LIVE_AUTHORIZATION_CLAIMED
+
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- R36 exact grant head `f78dc7da7998ce2d3d275dc05e09d173d84f200b` completed 16/16 CI SUCCESS before real-T1 execution.
+- Execution `r36-live01-20261116T003710Z` returned RC=0 and `U9_R36_LIVE_AUTHORIZATION_CLAIM_PASS`.
+- Product U9 authorization is claimed + consumed + no-replay. Durable transaction is exact `U9_LIVE_AUTHORIZATION_CLAIMED`, SHA-256 `69f5a8c2190dac0a12df3aac1bdc9c9f3b02050e9541e7a202907204d280f7c3`.
+- Recovery-content manifest remains `18698bcded28d0497ae3dcd3363ace68f54a3cbc1c42a1fd5710173a24d900f3`; U9 USB mirror is exact and the same bound filesystem UUID is preserved.
+- Broker remains running with restart_count=0; Manager and Home Assistant remain exited with restart_count=0; host/Broker owner units remain active/running; services owner remains failed/quiesced.
+- Predecessor internal image remains present; target internal image remains absent.
+- R36 performed only the U8→U9 authorization transition and USB/host metadata persistence. No predecessor delete, target load, service mutation, destructive cutover, U10+, board access or merge occurred.
+- KF-161 is CLOSED_PASS via physical R36 validation. R35 and R36 are permanently no-replay.
+- U10 destructive successor eligibility is now true, but this is eligibility only. U10 remains separately unauthorized.
+- Private raw evidence remains private/local and is not uploaded to GitHub.
+- Stop boundary: after U9 CLOSED_PASS and before U10.
+
 ## 2026-11-15 — R35 consumed SAFE_STOP / KF-161 / R36 successor source preparation
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted.
