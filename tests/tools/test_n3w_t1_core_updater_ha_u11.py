@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -434,6 +435,21 @@ def test_u11_rejects_wrong_phase_and_unconsumed_authorization(
 
 def test_u11_source_does_not_advance_u12():
     source = Path(u11.__file__).read_text(encoding="utf-8")
-    assert "record_target_accepted" not in source
-    assert "record_commit" not in source
-    assert "U12" not in source
+    tree = ast.parse(source)
+    imported = {
+        alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom)
+        for alias in node.names
+    }
+    called = {
+        node.func.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+    }
+    assert "U12" not in imported
+    assert "record_target_accepted" not in imported
+    assert "record_commit" not in imported
+    assert "record_target_accepted" not in called
+    assert "record_commit" not in called
