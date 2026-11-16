@@ -3,9 +3,9 @@
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U10_PREDECESSOR_CAPACITY_RELEASE_R38_20261116_01",
   "authorization_id": "N3W_T1_CORE_UPDATER_HOMEASSISTANT_USB_U10_R38_20261116_01",
   "confirmation": "EXECUTE U10 R38 PREDECESSOR CAPACITY RELEASE: YES",
-  "live_execution_authorized": false,
+  "live_execution_authorized": true,
   "authorization_state": {
-    "granted": false,
+    "granted": true,
     "claimed": false,
     "consumed": false,
     "replay_permitted": false
@@ -21,7 +21,10 @@
     "r37_closure_doc": "docs/development/N3W_T1_U10_R37_READONLY_PREFLIGHT_CLOSURE_20261116.md",
     "r38_executor_source_head": "dffd806fdf7ede2a2df42f5348c9ed6e46249742",
     "u10_fail_closed_ha_usb_blob": "01ced6d4b643cc9a0881d48efc9b7601dc5fb4f6",
-    "r38_preclaim_gate_binding_repair_head": "271bd2387b75e27ce6bde37e2c77674df6cc4fe9"
+    "r38_preclaim_gate_binding_repair_head": "271bd2387b75e27ce6bde37e2c77674df6cc4fe9",
+    "r38_pre_authorization_review_head": "16c3682ce28d7a19258c1230fc664b3cb200a510",
+    "r38_pre_authorization_ci": "16_OF_16_SUCCESS",
+    "r38_pre_authorization_review": "PASS"
   },
   "package_source_authority": {
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
@@ -146,8 +149,10 @@
     "postclaim_replay_forbidden": true,
     "transport_ambiguity_requires_reconciliation": true,
     "board_access": false,
-    "merge": false
+    "merge": false,
+    "explicit_r38_user_authorization_required": true,
+    "explicit_r38_user_authorization_granted": true
   },
-  "next_boundary": "FRESH_EXPLICIT_AUTHORIZATION_REQUIRED_BEFORE_REAL_T1_U10_PREDECESSOR_CAPACITY_RELEASE",
-  "stop_boundary": "STOP_BEFORE_REAL_T1_U10_DESTRUCTIVE_MUTATION"
+  "next_boundary": "EXECUTE_REAL_T1_U10_PREDECESSOR_CAPACITY_RELEASE_ONCE",
+  "stop_boundary": "STOP_AFTER_REAL_T1_U10_BEFORE_U11_TARGET_INSTALL"
 }
