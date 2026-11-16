@@ -88,6 +88,8 @@ on:
       - "tools/execution_packages/n3w/r7a/u11_target_install_r40/**"
       - "tools/execution_packages/n3w/r7a/u11_postclaim_recovery_readonly_preflight/**"
       - "tools/execution_packages/n3w/r7a/u11_postclaim_successor_recovery_r42/**"
+      - "tools/execution_packages/n3w/r7a/u12_target_acceptance_readonly_preflight/**"
+      - "tests/tools/test_n3w_t1_u12_target_acceptance_readonly_preflight.py"
       - "tools/execution_packages/n3w/r7a/u7_media_writable_mount_restoration_r30m/**"
       - "tests/tools/test_n3w_t1_u7_media_writable_mount_restoration_r30m.py"
       - "tools/execution_packages/n3w/r7a/u7_post_reboot_transaction_diagnostic_r27d/**"
@@ -242,6 +244,7 @@ jobs:
             tools/execution_packages/n3w/r7a/u11_target_install_r40/executor.py \
             tools/execution_packages/n3w/r7a/u11_postclaim_recovery_readonly_preflight/executor.py \
             tools/execution_packages/n3w/r7a/u11_postclaim_successor_recovery_r42/executor.py \
+            tools/execution_packages/n3w/r7a/u12_target_acceptance_readonly_preflight/executor.py \
             tools/execution_packages/n3w/r7a/u7_media_writable_mount_restoration_r30m/executor.py \
             tools/execution_packages/n3w/r7a/u7_post_reboot_transaction_diagnostic_r27d/executor.py \
             tools/execution_packages/n3w/r7a/kf147_removable_media_content_authority_v1_2_readonly_preexecution/executor.py \
@@ -313,6 +316,7 @@ jobs:
             tests/tools/test_n3w_t1_u11_target_install_r40.py \
             tests/tools/test_n3w_t1_u11_postclaim_recovery_readonly_preflight.py \
             tests/tools/test_n3w_t1_u11_postclaim_successor_recovery_r42.py \
+            tests/tools/test_n3w_t1_u12_target_acceptance_readonly_preflight.py \
             tests/tools/test_n3w_t1_u7_media_writable_mount_restoration_r30m.py \
             tests/tools/test_n3w_t1_u7_post_reboot_transaction_diagnostic_r27d.py \
             tests/tools/test_n3w_t1_kf147_removable_media_content_authority_v1_2_readonly_preexecution.py \
