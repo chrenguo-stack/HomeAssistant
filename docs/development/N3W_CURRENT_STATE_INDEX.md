@@ -1,3 +1,17 @@
+## 2026-11-16 — U11 R41 real-T1 Attempt 04 CLOSED_PASS / successor live recovery authorization boundary
+
+- R41 Attempt 04 execution `u11-r41-readonly04-20261116T140219Z` returned `RC=0` and `U11_R41_POST_R40_READONLY_PREFLIGHT_PASS`.
+- The real-T1 run remained strictly read-only. Transaction, USB, target-image load, Compose binding, service, U11, U12/U13, board and merge mutation flags are all false; SSH master cleanup passed.
+- Exact durable state remains host/USB `U10_INTERNAL_PREDECESSOR_CAPACITY_RELEASED` with transaction SHA-256 `c0dc58ebcfcd2876aec5bfcf556723ae779106803e19df5541b1847fc494bba3`.
+- R38 and R40 remain claimed/consumed/no-replay. R40 durable result remains `STOP_POSTCLAIM`; replay is permanently forbidden.
+- Bound USB mirror is exact; backup/recovery assets and USB capacity pass.
+- Target HA image `local/n3w-homeassistant:2026.10.4-5881590f` is present with runtime image ID `sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365`; target Compose binding is preserved; no HA container exists; predecessor image is absent.
+- Broker is running, Manager is quiesced, services owner remains failed as expected, and the repaired effective supervision contract resolves to `EXACT_HA_OTA_OVERLAY`.
+- Internal Docker free space is 5,665,595,392 bytes versus the frozen post-load reserve requirement 1,610,612,736 bytes: PASS.
+- `SUCCESSOR_LIVE_RECOVERY_ELIGIBLE=true`, but `SUCCESSOR_LIVE_RECOVERY_AUTHORIZED=false`.
+- Stop boundary is now before any successor live recovery claim. A separate design/review and explicit authorization is required before service start/restart or U11 persistence/transition.
+- Public-safe closure: `docs/development/N3W_T1_U11_R41_REAL_T1_READONLY_ATTEMPT04_CLOSURE_20261116.md`. Raw evidence remains in the approved private evidence root and is not uploaded.
+
 ## 2026-11-16 — U11 R41 Attempt 03 dependency repair CI CLOSED_PASS / real-T1 Attempt 04 read-only boundary
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`, Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`; Live upgrade accepted; live deployment remains `APPLIED_ACCEPTED`.
