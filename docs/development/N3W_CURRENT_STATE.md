@@ -1,3 +1,61 @@
+## Latest authority — 2026-11-16 U11 R41 real-T1 Attempt 04 CLOSED_PASS / successor live recovery authorization boundary
+
+```text
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+
+R41_EXACT_SOURCE=d42776f768a0cab1ebf054e393fa64721d155dcb
+R41_SOURCE_CI=16_OF_16_SUCCESS
+R41_ATTEMPT04_EXECUTION_ID=u11-r41-readonly04-20261116T140219Z
+R41_ATTEMPT04_RC=0
+R41_ATTEMPT04_STATUS=U11_R41_POST_R40_READONLY_PREFLIGHT_PASS
+R41_ATTEMPT04_READ_ONLY=true
+R41_ATTEMPT04_SSH_MASTER_CLEANUP=true
+
+LIVE_TRANSACTION_PHASE=U10_INTERNAL_PREDECESSOR_CAPACITY_RELEASED
+LIVE_TRANSACTION_SHA256=c0dc58ebcfcd2876aec5bfcf556723ae779106803e19df5541b1847fc494bba3
+USB_TRANSACTION_PHASE=U10_INTERNAL_PREDECESSOR_CAPACITY_RELEASED
+R41_USB_MIRROR_EXACT=true
+R41_TARGET_IMAGE_PRESENT=true
+R41_TARGET_BINDING=local/n3w-homeassistant:2026.10.4-5881590f
+R41_TARGET_RUNTIME_IMAGE_ID=sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365
+R41_SERVICES_OWNER_STATE=failed
+R41_BROKER_RUNNING=true
+R41_MANAGER_QUIESCED=true
+R41_HOMEASSISTANT_CONTAINER_ABSENT=true
+R41_PREDECESSOR_IMAGE_ABSENT=true
+R41_EFFECTIVE_SUPERVISION_CONTRACT=EXACT_HA_OTA_OVERLAY
+R41_INTERNAL_RESERVE_PASS=true
+R41_INTERNAL_FREE_BYTES=5665595392
+R41_REQUIRED_RESERVE_BYTES=1610612736
+
+SUCCESSOR_LIVE_RECOVERY_ELIGIBLE=true
+SUCCESSOR_LIVE_RECOVERY_AUTHORIZED=false
+R40_REPLAY_FORBIDDEN=true
+
+TRANSACTION_MUTATION=false
+USB_MUTATION=false
+TARGET_IMAGE_LOAD=false
+COMPOSE_BINDING_MUTATION=false
+SERVICE_MUTATION=false
+U11_TRANSITION=false
+U12_AUTHORIZED=false
+U13_AUTHORIZED=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=SUCCESSOR_LIVE_RECOVERY_SEPARATE_DESIGN_REVIEW_AND_EXPLICIT_AUTHORIZATION
+STOP_AFTER_R41_READONLY_BEFORE_ANY_SUCCESSOR_LIVE_CLAIM=true
+```
+
+R41 Attempt 04 completed successfully on the real T1. It freshly re-proved the exact partial-U10 durable state after R40, the consumed/no-replay ledgers, exact USB mirror and recovery assets, target image/binding continuity, Broker/Manager/Home Assistant quiescence, the repaired effective HA-OTA supervision contract, and the required post-target-load internal reserve. Every product mutation flag remained false.
+
+This PASS establishes successor live recovery eligibility only. No successor live authorization exists. R40 remains permanently no-replay, and no service start/restart, U11 persistence/transition, U12/U13, board access or merge may occur until a separate successor live recovery design/review is completed and explicit authorization is granted.
+
+Authority: `docs/development/N3W_T1_U11_R41_REAL_T1_READONLY_ATTEMPT04_CLOSURE_20261116.md`.
+
 ## Latest authority — 2026-11-16 U11 R41 Attempt 03 dependency repair CI CLOSED_PASS / real-T1 read-only Attempt 04 boundary
 
 ```text
