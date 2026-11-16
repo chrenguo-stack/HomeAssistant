@@ -93,6 +93,8 @@ def test_r37_local_entry_has_no_execute_switch_and_requires_separate_readonly_gr
     assert 'parser.add_argument("--execute"' not in source
     assert "r37_real_t1_readonly_execution_not_authorized" in source
     assert "real_t1_readonly_execution_authorized" in source
+    assert "readonly_authorized" in source
+    assert '"granted": readonly_authorized' in source
     assert '"u10_transition": False' in source
     assert '"u11_plus": False' in source
 

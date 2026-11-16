@@ -26,7 +26,7 @@
     "tools/execution_packages/n3w/r7a/u9_live_authorization_r36_successor/executor.py": "528fa2c7f6b46cd1fafa046e19db1719b70b7fd4",
     "tools/execution_packages/n3w/r7a/u9_live_authorization_r36_successor/manifest.json": "42a4c322f9b1ca84d019a74c1f54d2d7d5ae199e",
     "tools/n3w_t1_core_updater_ha_usb.py": "01ced6d4b643cc9a0881d48efc9b7601dc5fb4f6",
-    "tools/execution_packages/n3w/r7a/u10_predecessor_capacity_release_readonly_preflight_r37/executor.py": "52e62bf94d170ae56bfd8c22baf0439acf77d526"
+    "tools/execution_packages/n3w/r7a/u10_predecessor_capacity_release_readonly_preflight_r37/executor.py": "392564926eeba6e5d38cbca9c8a43e5a0ae5f51a"
   },
   "r35_state_root": "/var/lib/n3w-t1-core-updater/u9-r35-live-authorization-20261115-01",
   "r36_state_root": "/var/lib/n3w-t1-core-updater/u9-r36-live-authorization-successor-20261115-01",

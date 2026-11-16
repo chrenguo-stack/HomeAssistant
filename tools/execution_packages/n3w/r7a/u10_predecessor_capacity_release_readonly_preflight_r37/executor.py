@@ -569,14 +569,22 @@ def read_manifest(expected_commit: str) -> dict[str, Any]:
     if git_text("status", "--porcelain", "--untracked-files=no"):
         raise Stop("tracked_worktree_dirty")
     document = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    readonly_authorized = document.get(
+        "real_t1_readonly_execution_authorized"
+    )
     if (
         document.get("schema") != MANIFEST_SCHEMA
         or document.get("gate_id") != GATE_ID
         or document.get("read_only_preflight") is not True
-        or document.get("real_t1_readonly_execution_authorized") is not False
+        or type(readonly_authorized) is not bool
         or document.get("live_execution_authorized") is not False
         or document.get("authorization_state")
-        != {"granted": False, "claimed": False, "consumed": False, "replay_permitted": False}
+        != {
+            "granted": readonly_authorized,
+            "claimed": False,
+            "consumed": False,
+            "replay_permitted": False,
+        }
     ):
         raise Stop("manifest_gate_invalid")
     for relative, blob in document["package_source_authority"].items():
