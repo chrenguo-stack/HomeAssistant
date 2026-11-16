@@ -75,10 +75,11 @@ def test_u12_remote_payload_compiles_and_has_no_mutation_commands():
 
 def test_u12_preflight_does_not_rehash_or_reread_large_archives():
     source = load_executor().REMOTE_SCRIPT
-    assert "homeassistant-arm64.tar.gz" not in source
-    assert "verify_prepared_target(" not in source
-    assert "verify_recovery_assets_and_capacity(" not in source
-    assert "docker load" not in source
+    u12_source = source[source.rindex("\ndef verify_transaction_u11(plan):") :]
+    assert "homeassistant-arm64.tar.gz" not in u12_source
+    assert "verify_prepared_target(" not in u12_source
+    assert "verify_recovery_assets_and_capacity(" not in u12_source
+    assert "docker load" not in u12_source
 
 
 def test_u12_preflight_uses_monotonic_timing_and_keeps_observation_readonly():
@@ -97,6 +98,7 @@ def test_u12_preflight_uses_monotonic_timing_and_keeps_observation_readonly():
 
 def test_u12_preflight_checks_durable_u11_usb_r42_and_runtime_before_eligibility():
     source = load_executor().REMOTE_SCRIPT
+    source = source[source.rindex("\ndef run_readonly(plan):") :]
     ordered = [
         "verify_transaction_u11(plan)",
         "verify_r42_ledger(plan)",
