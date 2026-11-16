@@ -104,7 +104,7 @@ def test_r42_embedded_r41_preclaim_precedes_claim_and_recovery():
 
 def test_r42_recovery_never_reloads_target_or_republishes_binding():
     source = load_executor().REMOTE_SCRIPT
-    execute = source[source.index("def execute("):source.index("\ndef main():")]
+    start = source.index("def execute(plan, authorization_id, confirmation):")\n    execute = source[start:source.index("\\ndef main():", start)]
     assert ".load_target_archive(" not in execute
     assert ".publish_homeassistant_target_binding(" not in execute
     assert "u11_r42_preloaded_target_missing" in execute
@@ -113,7 +113,7 @@ def test_r42_recovery_never_reloads_target_or_republishes_binding():
 
 def test_r42_success_persists_usb_before_host_and_stops_before_u12():
     source = load_executor().REMOTE_SCRIPT
-    execute = source[source.index("def execute("):source.index("\ndef main():")]
+    start = source.index("def execute(plan, authorization_id, confirmation):")\n    execute = source[start:source.index("\\ndef main():", start)]
     usb = execute.index("backend.sync_transaction_metadata(")
     host = execute.index("store.write(next_transaction)")
     assert usb < host
@@ -144,7 +144,7 @@ def test_r42_uses_stdin_streaming_not_large_remote_argv():
 
 def test_r42_postclaim_failure_is_no_replay_and_requires_recovery():
     source = load_executor().REMOTE_SCRIPT
-    execute = source[source.index("def execute("):source.index("\ndef main():")]
+    start = source.index("def execute(plan, authorization_id, confirmation):")\n    execute = source[start:source.index("\\ndef main():", start)]
     assert 'result["status"] = "STOP_POSTCLAIM"' in execute
     assert 'result["recovery_required"] = True' in execute
     assert 'result["replay_permitted"] = False' in execute
