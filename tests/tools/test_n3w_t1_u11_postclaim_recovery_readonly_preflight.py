@@ -113,7 +113,7 @@ def test_r41_binds_repaired_source_authority_and_exact_blobs():
     assert bound[
         "tools/execution_packages/n3w/r7a/"
         "u11_postclaim_recovery_readonly_preflight/executor.py"
-    ] == "edb5a1517a1320fb9b7ff5abe771ce23b55c53a7"
+    ] == "6380bc9b8a53a2b361b6548c7082eaa6ae9b9347"
     assert value["exact_source_delivery"] == (
         "TEMPORARY_IN_MEMORY_REPAIRED_SUPERVISION_SOURCE_"
         "NO_LIVE_SOURCE_MUTATION"
