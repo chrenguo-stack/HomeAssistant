@@ -14,6 +14,8 @@ PR=807
 PR_STATE=OPEN_DRAFT_UNMERGED
 R36_GRANT_HEAD=f78dc7da7998ce2d3d275dc05e09d173d84f200b
 R36_GRANT_HEAD_CI=16_OF_16_SUCCESS
+R36_CLOSURE_ARCHIVE_HEAD=e841ede79abe9ca4b014adc9d2729c61a9cfbda1
+R36_CLOSURE_ARCHIVE_CI=16_OF_16_SUCCESS
 R36_EXECUTOR_BLOB=528fa2c7f6b46cd1fafa046e19db1719b70b7fd4
 R36_GRANTED_MANIFEST_BLOB=42a4c322f9b1ca84d019a74c1f54d2d7d5ae199e
 R36_FOCUSED_TEST_BLOB=21b6230447a3bdceddb253c63f643c7d0bfe8405
@@ -70,8 +72,8 @@ MERGE=false
 
 PRIVATE_RAW_EVIDENCE_PRESENT=true
 PRIVATE_RAW_EVIDENCE_PUBLICLY_EXPOSED=false
-NEXT_ONE_GATE=UNSET_PENDING_U10_DESIGN_AND_EXPLICIT_AUTHORIZATION
-STOP_BOUNDARY=AFTER_U9_CLOSED_PASS_BEFORE_U10
+NEXT_ONE_GATE=U10_SOURCE_DESIGN_AND_READONLY_PREFLIGHT_PREPARATION
+STOP_BOUNDARY=BEFORE_U10_REAL_T1_DESTRUCTIVE_MUTATION
 HANDOFF_TEMPLATE_VERSION=1.4
 ```
 
@@ -82,6 +84,8 @@ The product authorization is now durably claimed and consumed. Host transaction 
 KF-161 is physically closed by R36 using a separate product authorization ID in the required `N3W_T1_CORE_UPDATER_` namespace. R35 and R36 are both permanently no-replay.
 
 Private raw evidence remains local/private and is not uploaded to GitHub. Stop before U10.
+
+The U9 closure archive head `e841ede79abe9ca4b014adc9d2729c61a9cfbda1` subsequently completed 16/16 CI SUCCESS. The next chat may enter the U10 stage for frozen-design review, source preparation, simulation/tests and read-only preflight preparation. This stage entry is not authorization for the real-T1 U10 destructive predecessor-capacity release.
 
 ## Latest authority — 2026-11-15 R35 consumed SAFE_STOP / KF-161 / R36 successor source preparation
 

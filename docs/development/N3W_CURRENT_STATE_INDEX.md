@@ -14,6 +14,8 @@
 - U10 destructive successor eligibility is now true, but this is eligibility only. U10 remains separately unauthorized.
 - Private raw evidence remains private/local and is not uploaded to GitHub.
 - Stop boundary: after U9 CLOSED_PASS and before U10.
+- U9 closure archive head `e841ede79abe9ca4b014adc9d2729c61a9cfbda1` completed 16/16 CI SUCCESS.
+- Next chat enters U10 for frozen-design/source/read-only-preflight preparation only; real-T1 U10 predecessor-capacity release remains separately unauthorized.
 
 ## 2026-11-15 — R35 consumed SAFE_STOP / KF-161 / R36 successor source preparation
 
