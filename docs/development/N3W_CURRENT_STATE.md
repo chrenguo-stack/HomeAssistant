@@ -1,3 +1,72 @@
+## Latest authority — 2026-11-16 U10 R38 real-T1 predecessor-capacity release CLOSED_PASS
+
+```text
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+R38_AUTHORIZED_HEAD=b38a43b11beecb1dc73680aed933ad05db084c9b
+R38_AUTHORIZED_HEAD_CI=16_OF_16_SUCCESS
+R38_EXECUTOR_BLOB=8dce8f6ee0c777ae6266d83f980f1972f97600e1
+R38_GRANTED_MANIFEST_BLOB=443ab5960aa7ce4cb26ed0fa45e0a0b4b96aebb1
+R38_EXECUTION_ID=u10-r38-live01-20261116T034011Z
+R38_RESULT=U10_R38_PREDECESSOR_CAPACITY_RELEASE_PASS
+R38_RC=0
+R38_AUTHORIZATION_CLAIMED=true
+R38_AUTHORIZATION_CONSUMED=true
+R38_REPLAY_PERMITTED=false
+R38_SSH_MASTER_CLEANUP=true
+R38_STATUS_RECONCILIATION_ATTEMPTED=false
+
+LIVE_TRANSACTION_PHASE=U10_INTERNAL_PREDECESSOR_CAPACITY_RELEASED
+LIVE_TRANSACTION_SHA256=c0dc58ebcfcd2876aec5bfcf556723ae779106803e19df5541b1847fc494bba3
+R38_USB_MIRROR_EXACT=true
+R38_BOUND_FILESYSTEM_UUID=967cf065-abe5-49ee-8499-7c3f50d2c48f
+R38_POST_USB_MANIFEST_SHA256=3aa5e247636b1bb891aa151a8fb0219294d4803ea22dc7b66d821f6250d9e728
+R38_POST_USB_CONTENT_AUTHORITY_SHA256=3da14eb03447beaf38579a3fa5e4e076d4f3e806f7a787cbc0bba6b2cb1b8727
+R38_POST_USB_CHECKSUMS_SHA256=2a21aa2b8fb362242fa087a49a2ebfb93caf65d1dd8a6f9c6da44edbb9f8c7f2
+R38_POST_USB_PHASE_SHA256=005285eb177803b2fd387725730abf8e28b30f4727f422672e88cc998c14b589
+
+R38_BROKER_RUNNING=true
+R38_MANAGER_QUIESCED=true
+R38_MANAGER_BROKER_RELEASE_FORBIDDEN=true
+R38_PREDECESSOR_RUNTIME_RELEASED=true
+R38_PREDECESSOR_IMAGE_RELEASED=true
+R38_TARGET_INTERNAL_IMAGE_ABSENT=true
+
+PREDECESSOR_RUNTIME_DELETE=true
+PREDECESSOR_IMAGE_DELETE=true
+TRANSACTION_MUTATION=true
+USB_MUTATION=true
+U10_TRANSITION=true
+TARGET_IMAGE_LOAD=false
+SERVICE_MUTATION=false
+U11_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+
+U10_STATUS=CLOSED_PASS
+U11_AUTHORIZED=false
+NEXT_ONE_GATE=U11_TARGET_INSTALL_SOURCE_AND_READONLY_PREFLIGHT_PREPARATION
+STOP_BOUNDARY=BEFORE_ANY_REAL_T1_U11_TARGET_IMAGE_LOAD_SERVICE_START_OR_U11_TRANSITION
+HANDOFF_TEMPLATE_VERSION=1.4
+```
+
+R38 executed exactly once from the authorized head after 16/16 CI SUCCESS. The embedded R37 preclaim passed before destructive action. The exact stopped Home Assistant predecessor container and exact predecessor image were released, while Manager/Broker remained protected. USB U10 metadata was synchronized before the host transaction, and terminal verification proved the exact durable U10 transaction and USB mirror.
+
+The R38 one-shot authorization is now claimed, consumed and permanently no-replay. The target Home Assistant image is still absent; no target image load, service start/restart or U11+ transition occurred. The post-command shell-session-save warning occurred after RC=0 and successful SSH cleanup and does not alter the PASS result.
+
+Private raw execution evidence remains local/private and is not uploaded to GitHub. The next safe repository-only gate is U11 target-install source design/read-only-preflight preparation. Any real T1 target image load, Home Assistant start or U10→U11 transition requires a new explicit authorization.
+
+Authority: `docs/development/N3W_T1_U10_R38_PREDECESSOR_CAPACITY_RELEASE_CLOSURE_20261116.md`.
+
 ## Latest authority — 2026-11-16 U10 R37 real-T1 read-only preflight CLOSED_PASS
 
 ```text
