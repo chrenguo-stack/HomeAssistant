@@ -1,0 +1,6 @@
+R40 post-claim read-only forensic raw output
+
+Paste the complete terminal output below this line.
+Do not include passwords, private keys, tokens, or other secrets.
+
+============================================================
