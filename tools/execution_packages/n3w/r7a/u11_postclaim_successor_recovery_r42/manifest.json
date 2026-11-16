@@ -1,12 +1,12 @@
 {
   "schema": "gh.n3w-t1-u11-r42-post-r40-successor-recovery-manifest/1",
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U11_POST_R40_SUCCESSOR_LIVE_RECOVERY_R42_20261116_01",
-  "live_recovery_authorized": false,
+  "live_recovery_authorized": true,
   "r40_replay_permitted": false,
   "authorization_id": "N3W_T1_CORE_UPDATER_HOMEASSISTANT_USB_U11_R42_20261116_01",
   "confirmation": "EXECUTE U11 R42 POST-R40 SUCCESSOR RECOVERY: YES",
   "authorization_state": {
-    "granted": false,
+    "granted": true,
     "claimed": false,
     "consumed": false,
     "replay_permitted": false
@@ -166,7 +166,7 @@
   },
   "execution_contract": {
     "explicit_successor_live_authorization_required": true,
-    "explicit_successor_live_authorization_granted": false,
+    "explicit_successor_live_authorization_granted": true,
     "embedded_r41_preclaim_required": true,
     "postclaim_r41_revalidation_required": true,
     "new_one_shot_r42_claim_required": true,
@@ -191,6 +191,6 @@
     "unobservable_postclaim_mutation_is_conservative": true,
     "durable_u11_truth_overrides_missing_or_failure_terminal_ledger": true
   },
-  "next_boundary": "EXPLICIT_SUCCESSOR_LIVE_RECOVERY_AUTHORIZATION",
-  "stop_boundary": "STOP_BEFORE_REAL_T1_R42_LIVE_RECOVERY_CLAIM"
+  "next_boundary": "EXECUTE_REAL_T1_R42_ONCE",
+  "stop_boundary": "STOP_AFTER_REAL_T1_R42_BEFORE_U12_TARGET_ACCEPTANCE"
 }
