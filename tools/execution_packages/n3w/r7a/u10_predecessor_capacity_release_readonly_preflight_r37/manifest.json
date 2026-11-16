@@ -2,10 +2,10 @@
   "schema": "gh.n3w-t1-u10-r37-readonly-preflight-manifest/1",
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U10_READONLY_PREFLIGHT_R37_20261116_01",
   "read_only_preflight": true,
-  "real_t1_readonly_execution_authorized": false,
+  "real_t1_readonly_execution_authorized": true,
   "live_execution_authorized": false,
   "authorization_state": {
-    "granted": false,
+    "granted": true,
     "claimed": false,
     "consumed": false,
     "replay_permitted": false
@@ -18,7 +18,10 @@
     "u10_fail_closed_source_head": "cbc28617c800a1b1c16e18b1d5762ea1b2123155",
     "u10_fail_closed_ha_usb_blob": "01ced6d4b643cc9a0881d48efc9b7601dc5fb4f6",
     "r36_grant_head": "f78dc7da7998ce2d3d275dc05e09d173d84f200b",
-    "r36_closure_ci": "16_OF_16_SUCCESS"
+    "r36_closure_ci": "16_OF_16_SUCCESS",
+    "r37_readonly_source_head": "0224ce2f4db34a5790d52ecb0761b593d60024c3",
+    "r37_readonly_source_ci": "16_OF_16_SUCCESS",
+    "r37_readonly_user_grant": "CONTINUE_AFTER_16_OF_16_SUCCESS_20261116"
   },
   "package_source_authority": {
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
@@ -142,7 +145,12 @@
     "u10_transition": false,
     "u11_plus": false,
     "board_access": false,
-    "merge": false
+    "merge": false,
+    "real_t1_readonly_preflight_authorized": true,
+    "u10_destructive_execution_authorized": false,
+    "predecessor_capacity_release_authorized": false,
+    "target_load_authorized": false,
+    "u11_authorized": false
   },
   "next_boundary": "NEW_EXPLICIT_AUTHORIZATION_REQUIRED_BEFORE_ANY_REAL_U10_DESTRUCTIVE_MUTATION",
   "stop_boundary": "STOP_AFTER_R37_READONLY_PREFLIGHT_BEFORE_U10_PREDECESSOR_CAPACITY_RELEASE"
