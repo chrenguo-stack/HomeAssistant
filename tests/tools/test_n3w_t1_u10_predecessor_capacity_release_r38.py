@@ -28,11 +28,11 @@ def load_executor():
     return module
 
 
-def test_r38_manifest_is_ungranted_and_stops_before_real_u10():
+def test_r38_manifest_is_explicitly_granted_and_stops_before_u11():
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
-    assert manifest["live_execution_authorized"] is False
+    assert manifest["live_execution_authorized"] is True
     assert manifest["authorization_state"] == {
-        "granted": False,
+        "granted": True,
         "claimed": False,
         "consumed": False,
         "replay_permitted": False,
@@ -55,7 +55,7 @@ def test_r38_manifest_is_ungranted_and_stops_before_real_u10():
     assert contract["postclaim_replay_forbidden"] is True
     assert contract["transport_ambiguity_requires_reconciliation"] is True
     assert manifest["stop_boundary"] == (
-        "STOP_BEFORE_REAL_T1_U10_DESTRUCTIVE_MUTATION"
+        "STOP_AFTER_REAL_T1_U10_BEFORE_U11_TARGET_INSTALL"
     )
 
 
