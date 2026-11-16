@@ -1,3 +1,19 @@
+## 2026-11-16 — U11 R41 Attempt 03 dependency repair CI CLOSED_PASS / real-T1 Attempt 04 read-only boundary
+
+- PR #807 remains OPEN/DRAFT/unmerged; main remains `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`.
+- R41 final reviewed source head is `d42776f768a0cab1ebf054e393fa64721d155dcb`; all 16 workflows are SUCCESS.
+- HA target-binding run `43872081096` is SUCCESS for both source and exact-binding; source suite explicitly includes the R41 focused test and reports 790 passed. Manager A-to-B run `43872080921` is SUCCESS.
+- Exact R41 blobs: executor `ec8bafdffd971c1695b0336b89833c86a7879749`, manifest `44c6716b41e06f64214e3231df7f16c11325cf81`, focused test `8cb9c95b2ae9a361910527545a98f967ed463b61`, exact U11 dependency `33bd5e486db17b2476674009a6c23eecf750c12a`.
+- Attempt 01 `u11-r41-readonly-20261116T110710Z`: STOP before remote Python because the SSH remote argv exceeded the shell argument limit; no product mutation. Repaired by stdin streaming with no T1 temporary source file.
+- Attempt 02 `u11-r41-readonly02-20261116T114901Z`: read-only STOP because R41 expected the nested KF-162 message in the R40 durable ledger. R40 actually stores the exact U11 partial-mutation wrapper reason; no T1 state drift. Evidence model repaired without weakening exact ledger/phase/mutation checks.
+- Attempt 03 `u11-r41-readonly03-20261116T124701Z`: read-only STOP because the in-memory U11-host module required `n3w_t1_core_updater_ha_u11`, which was not delivered to the real T1 process. R41 now binds and loads the exact U11 dependency in memory and the focused test removes the ambient module before verification.
+- All three R41 attempts remained read-only: transaction/USB/Compose/service/U11/U12/U13/board mutation flags remained false.
+- Live state remains the post-R40 partial U10 state: transaction/USB phase `U10_INTERNAL_PREDECESSOR_CAPACITY_RELEASED`, transaction SHA-256 `c0dc58ebcfcd2876aec5bfcf556723ae779106803e19df5541b1847fc494bba3`; target image loaded and target binding published; services owner failed/quiesced; Broker running; Manager/Home Assistant stopped.
+- R40 remains claimed + consumed + permanently no-replay. No live recovery mutation is authorized.
+- Next gate: fresh-bind the existing production T1 and execute R41 Attempt 04 read-only only. Target freshness at the new-chat boundary is `UNKNOWN_FRESH` until that preflight rebind is performed.
+- If Attempt 04 PASSes, it may establish successor live recovery eligibility only; a separate explicit authorization is still required before any live recovery claim/service start or U11 transition.
+- Handoff authority: `docs/development/N3W_T1_U11_R41_ATTEMPT03_REPAIR_CI_PASS_TO_REAL_T1_READONLY_ATTEMPT04_NEW_CHAT_HANDOFF_V1.0_20261116.md`.
+
 ## 2026-11-16 — U11 R40 STOP_POSTCLAIM / supervision false-drift root cause PROVEN / source repair CI CLOSED_PASS
 
 - PR #807 remains OPEN/DRAFT/unmerged; main remains `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`.

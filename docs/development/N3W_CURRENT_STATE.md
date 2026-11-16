@@ -1,3 +1,79 @@
+## Latest authority — 2026-11-16 U11 R41 Attempt 03 dependency repair CI CLOSED_PASS / real-T1 read-only Attempt 04 boundary
+
+```text
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+R41_SOURCE_HEAD=d42776f768a0cab1ebf054e393fa64721d155dcb
+R41_SOURCE_CI=16_OF_16_SUCCESS
+R41_HA_TARGET_BINDING_RUN=43872081096
+R41_HA_TARGET_BINDING_SOURCE=SUCCESS
+R41_HA_TARGET_BINDING_EXACT_BINDING=SUCCESS
+R41_HA_TARGET_BINDING_TESTS=790_PASSED
+R41_MANAGER_A_TO_B_RUN=43872080921
+R41_EXECUTOR_BLOB=ec8bafdffd971c1695b0336b89833c86a7879749
+R41_MANIFEST_BLOB=44c6716b41e06f64214e3231df7f16c11325cf81
+R41_FOCUSED_TEST_BLOB=8cb9c95b2ae9a361910527545a98f967ed463b61
+R41_EXACT_U11_SOURCE_BLOB=33bd5e486db17b2476674009a6c23eecf750c12a
+R41_READONLY_EXECUTION_AUTHORIZED=true
+R41_LIVE_RECOVERY_AUTHORIZED=false
+R40_REPLAY_PERMITTED=false
+
+R41_ATTEMPT01_EXECUTION_ID=u11-r41-readonly-20261116T110710Z
+R41_ATTEMPT01_RESULT=STOP_PRE_REMOTE_PYTHON
+R41_ATTEMPT01_REASON=SSH_REMOTE_ARGV_ARGUMENT_LIST_TOO_LONG
+R41_ATTEMPT01_MUTATION=false
+
+R41_ATTEMPT02_EXECUTION_ID=u11-r41-readonly02-20261116T114901Z
+R41_ATTEMPT02_RESULT=STOP_READONLY_LEDGER_MODEL_MISMATCH
+R41_ATTEMPT02_REASON=u11_r41_r40_consumed_failure_ledger_invalid
+R41_ATTEMPT02_MUTATION=false
+
+R41_ATTEMPT03_EXECUTION_ID=u11-r41-readonly03-20261116T124701Z
+R41_ATTEMPT03_RESULT=STOP_READONLY_IN_MEMORY_DEPENDENCY_MISSING
+R41_ATTEMPT03_REASON=ModuleNotFoundError:n3w_t1_core_updater_ha_u11
+R41_ATTEMPT03_MUTATION=false
+
+LIVE_TRANSACTION_PHASE=U10_INTERNAL_PREDECESSOR_CAPACITY_RELEASED
+LIVE_TRANSACTION_SHA256=c0dc58ebcfcd2876aec5bfcf556723ae779106803e19df5541b1847fc494bba3
+USB_TRANSACTION_PHASE=U10_INTERNAL_PREDECESSOR_CAPACITY_RELEASED
+R40_TARGET_IMAGE_LOAD=true
+R40_COMPOSE_BINDING_MUTATION=true
+R40_SERVICE_MUTATION=false
+R40_TRANSACTION_MUTATION=false
+R40_USB_MUTATION=false
+R40_U11_TRANSITION=false
+POST_R40_SERVICES_OWNER=failed
+POST_R40_MANAGER_RUNNING=false
+POST_R40_HOMEASSISTANT_RUNNING=false
+POST_R40_BROKER_RUNNING=true
+
+NEXT_ONE_GATE=R41_REAL_T1_READONLY_ATTEMPT04
+NEXT_T1_TARGET_FRESH_BINDING=UNKNOWN_FRESH
+SUCCESSOR_LIVE_RECOVERY_AUTHORIZED=false
+R40_REPLAY_FORBIDDEN=true
+U12_AUTHORIZED=false
+U13_AUTHORIZED=false
+BOARD_ACCESS=false
+MERGE=false
+HANDOFF_TEMPLATE_VERSION=1.4
+```
+
+R41 real-T1 Attempt 01 reached the bound T1 SSH shell but failed before remote Python started because the inherited remote script plus embedded source payload exceeded the remote shell argument limit. The bounded source repair streams the remote program and plan through the existing authenticated SSH session stdin, keeps the remote command short, writes no temporary source file on T1, and is regression-tested with a payload larger than 600 KiB.
+
+Attempt 02 then reached the R41 predicates and stopped on the R40 durable-ledger model. The T1 state had not drifted: R40 stores the U11 controller's outer durable wrapper reason, `U11PartialMutationError:ha_usb_u11_partial_mutation_requires_recovery:target_owner_start:UpdaterError`, not the nested `services_supervision_contract_drift` text. R41 now binds the exact durable schema/reason and partial-mutation boundary, while KF-162's nested root cause remains proven by the bound source-repair authority and the repaired supervision probe.
+
+Attempt 03 progressed farther and stopped in the in-memory repaired-supervision probe because `n3w_t1_core_updater_ha_u11_host.py` imports `n3w_t1_core_updater_ha_u11`, which R41 had not delivered into the real T1 Python process. The final bounded repair binds the exact U11 source blob and loads the three modules in memory in dependency order: host -> U11 -> U11 host. No source file is installed or written on T1. The focused test explicitly removes the U11 module from `sys.modules` before the probe so CI cannot pass only because the repository checkout makes that dependency importable.
+
+All three R41 attempts remained read-only and reported no transaction, USB, Compose, service, U11, U12/U13 or board mutation. The live product state therefore remains the post-R40 partial U10 state: exact U10 host/USB transaction, target image already loaded and target Compose binding published, services owner failed/quiesced, Broker running, Manager/Home Assistant stopped. R40 remains consumed and permanently no-replay.
+
+The final R41 source head `d42776f768a0cab1ebf054e393fa64721d155dcb` completed all 16 workflows successfully. Home Assistant target-binding run `43872081096` passed both source and exact-binding jobs; the source suite explicitly included the R41 focused test and reported 790 passed. Manager A-to-B run `43872080921` also passed.
+
+The next and only real-T1 gate is a fresh-bound R41 Attempt 04 read-only preflight. A PASS may establish `SUCCESSOR_LIVE_RECOVERY_ELIGIBLE=true` only; it does not authorize a successor live recovery claim, service start, R40 replay, U11 transition, U12/U13, board access or merge.
+
+Authority: `docs/development/N3W_T1_U11_R41_ATTEMPT03_REPAIR_CI_PASS_TO_REAL_T1_READONLY_ATTEMPT04_NEW_CHAT_HANDOFF_V1.0_20261116.md`.
+
 ## Latest authority — 2026-11-16 U11 R40 STOP_POSTCLAIM root cause PROVEN / U11 supervision source repair CI CLOSED_PASS / successor recovery boundary
 
 ```text
