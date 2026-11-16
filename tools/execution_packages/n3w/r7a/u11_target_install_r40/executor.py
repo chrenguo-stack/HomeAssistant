@@ -513,8 +513,8 @@ def execute(plan, authorization_id, confirmation):
             post=post,
             target_runtime_image_id=installed.target_runtime_image_id,
         )
-        durable_json_once(state_root / "success.json", result)
         progress("executor_success")
+        durable_json_once(state_root / "success.json", result)
         return result
     except Exception as error:
         result["reason"] = type(error).__name__ + ":" + str(error)[:300]
@@ -523,17 +523,64 @@ def execute(plan, authorization_id, confirmation):
         result["replay_permitted"] = False
         try:
             transaction = read_object(TX)
-            result["observed_transaction_phase"] = transaction.get("phase")
+            observed_phase = transaction.get("phase")
+            result["observed_transaction_phase"] = observed_phase
             result["transaction_mutation"] = (
                 sha_file(TX) != plan["transaction_sha256"]
+            )
+            result["u11_transition"] = (
+                observed_phase == "U11_TARGET_INSTALLED_STARTED"
             )
         except Exception:
             pass
         try:
-            target_present = not image_absent(plan["target_image"])
-            result["target_image_load"] = target_present
+            result["target_image_load"] = not image_absent(
+                plan["target_image"]
+            )
         except Exception:
-            pass
+            result["target_image_load"] = True
+        try:
+            if "owner" in locals():
+                binding = owner.homeassistant_binding()
+                result["observed_homeassistant_binding"] = binding
+                result["compose_binding_mutation"] = (
+                    binding == plan["target_image"]
+                )
+        except Exception:
+            result["compose_binding_mutation"] = True
+        try:
+            if "owner" in locals():
+                service_state = owner.host._systemctl(
+                    "is-active",
+                    SERVICES_UNIT,
+                )
+                manager_count = owner.host._running_count("manager")
+                ha_count = owner.host._running_count("homeassistant")
+                result["observed_services_owner_state"] = service_state
+                result["observed_manager_running_count"] = manager_count
+                result["observed_homeassistant_running_count"] = ha_count
+                result["service_mutation"] = (
+                    service_state == "active"
+                    or manager_count > 0
+                    or ha_count > 0
+                )
+        except Exception:
+            result["service_mutation"] = True
+        try:
+            phase_path = (
+                Path(plan["mount_target"])
+                / "n3w-update"
+                / "transaction"
+                / "phase.json"
+            )
+            phase_document = read_object(phase_path)
+            observed_usb_phase = phase_document.get("phase")
+            result["observed_usb_phase"] = observed_usb_phase
+            result["usb_mutation"] = (
+                observed_usb_phase == "U11_TARGET_INSTALLED_STARTED"
+            )
+        except Exception:
+            result["usb_mutation"] = True
         try:
             progress("executor_failure")
         except Exception:
