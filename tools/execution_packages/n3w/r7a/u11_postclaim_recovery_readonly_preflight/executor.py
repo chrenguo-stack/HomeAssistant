@@ -470,8 +470,25 @@ def remote_mode(transport, plan, *, timeout=1800):
             separators=(",", ":"),
         ).encode("utf-8")
     ).decode("ascii")
-    completed = transport.run_remote(
-        ["python3", "-B", "-c", REMOTE_SCRIPT, "preflight", payload],
+    program = (
+        "import sys\n"
+        + "sys.argv = ['r41-remote', 'preflight', "
+        + repr(payload)
+        + "]\n"
+        + REMOTE_SCRIPT
+    )
+    command = (
+        "ssh",
+        *transport._child_options(),
+        transport.target,
+        "python3 -B -",
+    )
+    completed = subprocess.run(
+        command,
+        input=program,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         timeout=timeout,
         check=False,
     )

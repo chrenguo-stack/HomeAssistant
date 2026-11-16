@@ -194,3 +194,35 @@ not replay R40. U12/U13 remain separate later gates.
 
 Real-T1 R41 evidence must be archived separately after execution. This source
 document is not physical proof and does not change KF-162 to CLOSED_PASS.
+
+
+## 10. R41 real-T1 Attempt 01 transport failure and bounded repair
+
+Real-T1 Attempt 01 used execution ID
+`u11-r41-readonly-20261116T110710Z` and stopped before remote Python
+execution.
+
+Observed transport evidence:
+
+```text
+REMOTE_RETURNCODE=1
+STDOUT_LENGTH=0
+STDERR=/usr/bin/bash: Argument list too long
+```
+
+No R41 predicate ran and no product mutation occurred. The failure was caused by
+passing the inherited remote program plus the base64-encoded repaired source
+payload through the SSH remote command argv. The combined argv exceeded the
+remote shell argument-size limit.
+
+The bounded repair keeps the same read-only contract and does not stage files
+on T1. R41 now sends a minimal remote command, `python3 -B -`, and streams the
+Python program plus plan through the existing authenticated SSH master on
+standard input. The repaired source remains process-memory-only.
+
+A focused regression uses a synthetic plan containing more than 400 KiB of
+payload and proves that the SSH argv remains below 4 KiB while the large program
+is delivered through stdin.
+
+Attempt 01 does not consume or authorize any live recovery action. A later
+Attempt 02 remains R41 read-only only.

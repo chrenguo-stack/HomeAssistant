@@ -315,3 +315,60 @@ def test_r41_repaired_supervision_probe_executes_exact_in_memory_sources(
     assert result["execstop_sha256"] == common.sha256_text(
         EXPECTED_U11_EXECSTOP
     )
+
+
+def test_r41_remote_transport_streams_large_program_over_stdin(monkeypatch):
+    executor = load_executor()
+    observed = {}
+
+    class FakeTransport:
+        target = "root@192.0.2.1"
+
+        def _child_options(self):
+            return (
+                "-F",
+                "/dev/null",
+                "-o",
+                "ControlPath=/tmp/n3w-r41-test-ctl",
+            )
+
+    def fake_run(argv, **kwargs):
+        observed["argv"] = tuple(argv)
+        observed["input"] = kwargs.get("input")
+        observed["text"] = kwargs.get("text")
+        observed["timeout"] = kwargs.get("timeout")
+        return subprocess.CompletedProcess(
+            argv,
+            0,
+            stdout=(
+                '{"status":"U11_R41_POST_R40_READONLY_PREFLIGHT_PASS"}\\n'
+            ),
+            stderr="",
+        )
+
+    monkeypatch.setattr(executor.subprocess, "run", fake_run)
+    plan = {
+        "gate_id": executor.GATE_ID,
+        "repaired_host_source_b64": "A" * 200000,
+        "repaired_u11_host_source_b64": "B" * 200000,
+    }
+    completed, result = executor.remote_mode(
+        FakeTransport(),
+        plan,
+        timeout=77,
+    )
+
+    assert completed.returncode == 0
+    assert result["status"] == "U11_R41_POST_R40_READONLY_PREFLIGHT_PASS"
+    assert observed["argv"][-1] == "python3 -B -"
+    assert "-n" not in observed["argv"]
+    assert executor.REMOTE_SCRIPT not in observed["argv"]
+    assert "A" * 1000 not in " ".join(observed["argv"])
+    assert len(" ".join(observed["argv"])) < 4096
+    assert observed["text"] is True
+    assert observed["timeout"] == 77
+    assert observed["input"].startswith(
+        "import sys\\nsys.argv = ['r41-remote', 'preflight', "
+    )
+    assert executor.REMOTE_SCRIPT in observed["input"]
+    assert len(observed["input"]) > 400000

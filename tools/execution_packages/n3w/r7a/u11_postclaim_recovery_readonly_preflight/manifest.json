@@ -30,7 +30,7 @@
     "tools/execution_packages/n3w/r7a/u11_target_install_readonly_preflight_r39/executor.py": "273ccfc6c7ba3d12da9f47af507e13543f29716a",
     "tools/n3w_t1_core_updater_host.py": "fe859feef9f8321aa65289c688ee3d2a8d2d4a3b",
     "tools/n3w_t1_core_updater_ha_u11_host.py": "40b05778811091404ea8eef59b8ff51c635be25c",
-    "tools/execution_packages/n3w/r7a/u11_postclaim_recovery_readonly_preflight/executor.py": "edb5a1517a1320fb9b7ff5abe771ce23b55c53a7",
+    "tools/execution_packages/n3w/r7a/u11_postclaim_recovery_readonly_preflight/executor.py": "6380bc9b8a53a2b361b6548c7082eaa6ae9b9347",
     "infra/n3w-t1/upgrades/homeassistant-2026.10.4-storage-policy.json": "01a5cec8877e2837504ed798e91ca552ab6f2a0e"
   },
   "exact_source_delivery": "TEMPORARY_IN_MEMORY_REPAIRED_SUPERVISION_SOURCE_NO_LIVE_SOURCE_MUTATION",
@@ -194,5 +194,15 @@
     "merge": false
   },
   "next_boundary": "REAL_T1_R41_POST_R40_SUCCESSOR_READONLY_PREFLIGHT",
-  "stop_boundary": "STOP_AFTER_R41_READONLY_BEFORE_ANY_SUCCESSOR_LIVE_CLAIM"
+  "stop_boundary": "STOP_AFTER_R41_READONLY_BEFORE_ANY_SUCCESSOR_LIVE_CLAIM",
+  "transport_repair": {
+    "attempt_01_execution_id": "u11-r41-readonly-20261116T110710Z",
+    "attempt_01_result": "STOP_PRE_REMOTE_PYTHON",
+    "attempt_01_remote_returncode": 1,
+    "attempt_01_stderr": "/usr/bin/bash: Argument list too long",
+    "root_cause": "SSH_REMOTE_ARGV_EXCEEDED_REMOTE_SHELL_ARGUMENT_LIMIT",
+    "repair": "STREAM_REMOTE_PROGRAM_AND_PLAN_OVER_SSH_STDIN",
+    "remote_temporary_file_write": false,
+    "live_mutation": false
+  }
 }
