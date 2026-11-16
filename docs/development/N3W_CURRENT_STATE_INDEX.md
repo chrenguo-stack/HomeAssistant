@@ -1,5 +1,8 @@
 ## 2026-11-16 — U11 R40 preauthorization source CLOSED_PASS / live authorization boundary
 
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant repository target `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
 - R40 exact source head `a187e70f4c3aef4657be3d47983a404d61ea07e3` completed 16/16 CI SUCCESS.
 - HA target-binding run `43812175507` was SUCCESS and explicitly ran `tests/tools/test_n3w_t1_u11_target_install_r40.py`; source job reported `777 passed in 8.22s`.
 - R40 exact blobs: executor `f3b42958bbffeeb1b49afc2ad6be9ad8e59c4425`, manifest `53348743072e6a868b98fa6abd85cf5870e464b0`, focused test `3c72c533b1715aa50a2c0f2035614c6ca66a5e01`, U11 controller `33bd5e486db17b2476674009a6c23eecf750c12a`, host adapter `1ec5adaf63fe9ae5024be05922536cfe4f2168ba`.
