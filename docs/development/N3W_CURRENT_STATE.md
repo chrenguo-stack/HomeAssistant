@@ -1,3 +1,57 @@
+## Latest authority — 2026-11-16 U11 R42 Attempt 02 TIMEOUT_RECONCILED_CLOSED_PASS / U12 separate-gate boundary
+
+```text
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+R42_REPAIR_HEAD=cc38a8405927814b650ee41ef2d65372f502af8b
+R42_EXECUTION_ID=u11-r42-live02-20261116T152940Z
+R42_LOCAL_RESULT=STOP_UNKNOWN_TIMEOUT
+R42_AUTHORIZATION_CLAIMED=true
+R42_AUTHORIZATION_CONSUMED=true
+R42_REPLAY_PERMITTED=false
+R40_REPLAY_PERMITTED=false
+R42_DURABLE_SUCCESS_LEDGER=true
+R42_DURABLE_FAILURE_LEDGER=false
+R42_DURABLE_RESULT=U11_R42_POST_R40_SUCCESSOR_RECOVERY_PASS
+
+LIVE_TRANSACTION_PHASE=U11_TARGET_INSTALLED_STARTED
+LIVE_TRANSACTION_SHA256=33350ba47e0af43b4f0e11fac990e24924f22057da60d980b26453b4e80e0471
+USB_TRANSACTION_PHASE=U11_TARGET_INSTALLED_STARTED
+USB_PHASE_SHA256=8f2ba37e93577452ffd2b6dfc1cc5febbf717d1bf8c3ed2de8ec57ccf69e6921
+USB_MIRROR_EXACT=true
+LIVE_HOMEASSISTANT=local/n3w-homeassistant:2026.10.4-5881590f
+LIVE_HOMEASSISTANT_RUNTIME_IMAGE_ID=sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365
+LIVE_HOMEASSISTANT_RUNNING=true
+LIVE_MANAGER_RUNNING=true
+LIVE_BROKER_RUNNING=true
+LIVE_SERVICES_OWNER_ACTIVE=true
+LIVE_PRODUCTION_CONFIG_MOUNTED=true
+
+U11_PHYSICAL_COMPLETE=true
+U12_ACCEPTANCE=false
+U13_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+```
+
+R42 Attempt 02 locally returned `STOP_UNKNOWN` because the 2400-second SSH execute wait expired before the remote operation returned. Strictly read-only follow-up evidence proves the remote operation later completed and durably wrote `success.json` with `U11_R42_POST_R40_SUCCESSOR_RECOVERY_PASS`. Host and USB are both at exact U11, target Home Assistant is running with the production config bind, Manager/Broker are running, and the services owner is active.
+
+The runtime start evidence is roughly 47 minutes after the execution-id timestamp, exceeding the 40-minute local execute timeout. This is a transport/wait-window false-negative, not a failed U11 transition.
+
+R42 is consumed and permanently no-replay. U12 has not been entered or accepted. The next boundary is a separate U12 target-acceptance gate beginning with fresh read-only preflight/design review.
+
+Authority: `docs/development/N3W_T1_U11_R42_ATTEMPT02_TIMEOUT_RECONCILED_CLOSED_PASS_20261116.md`.
+
 ## Latest authority — 2026-11-16 U11 R42 successor live recovery PREAUTHORIZATION_CLOSED / explicit live authorization boundary
 
 ```text

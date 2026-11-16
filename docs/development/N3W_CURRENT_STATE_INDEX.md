@@ -1,3 +1,16 @@
+## 2026-11-16 — U11 R42 Attempt 02 TIMEOUT_RECONCILED_CLOSED_PASS / U12 separate-gate boundary
+
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`, Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant repository authority `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`; Live upgrade accepted; live deployment remains `APPLIED_ACCEPTED`.
+- R42 repair/execution authority is `cc38a8405927814b650ee41ef2d65372f502af8b`; execution `u11-r42-live02-20261116T152940Z` locally returned RC=2 / `STOP_UNKNOWN` after the 2400-second SSH execute timeout.
+- Read-only follow-up proves durable remote PASS: R42 `success.json` exists, no failure ledger exists, authorization is claimed + consumed + no-replay, and durable result is `U11_R42_POST_R40_SUCCESSOR_RECOVERY_PASS`.
+- Host transaction and USB mirror phase are both `U11_TARGET_INSTALLED_STARTED`; host transaction SHA-256 is `33350ba47e0af43b4f0e11fac990e24924f22057da60d980b26453b4e80e0471`; USB phase SHA-256 is `8f2ba37e93577452ffd2b6dfc1cc5febbf717d1bf8c3ed2de8ec57ccf69e6921`.
+- Target Home Assistant `local/n3w-homeassistant:2026.10.4-5881590f` is running with runtime ID `sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365` and the production `/config` RW bind. Manager, Broker and services owner are running/active.
+- The observed Manager/Home Assistant start time is roughly 47 minutes after the execution-id timestamp, which explains why the 40-minute local wait returned a false-negative before the remote operation completed.
+- USB public fingerprint is session-scoped by design and contains device path/major:minor; device-node renumbering is not cross-session recovery authority. Filesystem UUID `967cf065-abe5-49ee-8499-7c3f50d2c48f` remains the durable media binding.
+- `U11_PHYSICAL_COMPLETE=true`; `U12_ACCEPTANCE=false`; U13+, board access and merge remain false.
+- R42 is permanently consumed and must not be replayed. Next work is a separate U12 target-acceptance gate starting with fresh read-only preflight/design review.
+- Public-safe closure: `docs/development/N3W_T1_U11_R42_ATTEMPT02_TIMEOUT_RECONCILED_CLOSED_PASS_20261116.md`. Raw T1 evidence remains private.
+
 ## 2026-11-16 — U11 R42 successor live recovery PREAUTHORIZATION_CLOSED / explicit live authorization boundary
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`, Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`; Live upgrade accepted; live deployment remains `APPLIED_ACCEPTED`.
