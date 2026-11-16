@@ -86,6 +86,11 @@ def test_r41_binds_exact_partial_u10_and_r40_consumed_failure():
         "authorization_claimed": True,
         "authorization_consumed": True,
         "replay_permitted": False,
+        "durable_reason": (
+            "U11PartialMutationError:"
+            "ha_usb_u11_partial_mutation_requires_recovery:"
+            "target_owner_start:UpdaterError"
+        ),
     }
     partial = value["expected_partial_u10_state"]
     assert partial["host_transaction_phase"] == (
@@ -113,7 +118,7 @@ def test_r41_binds_repaired_source_authority_and_exact_blobs():
     assert bound[
         "tools/execution_packages/n3w/r7a/"
         "u11_postclaim_recovery_readonly_preflight/executor.py"
-    ] == "6380bc9b8a53a2b361b6548c7082eaa6ae9b9347"
+    ] == "cdcb1af3896d1861b6e31c5a293a3a2790eed38d"
     assert value["exact_source_delivery"] == (
         "TEMPORARY_IN_MEMORY_REPAIRED_SUPERVISION_SOURCE_"
         "NO_LIVE_SOURCE_MUTATION"
@@ -160,6 +165,22 @@ def test_r41_checks_consumed_r40_before_successor_eligibility():
     assert 'failure.get("transaction_mutation") is not False' in source
     assert 'failure.get("usb_mutation") is not False' in source
     assert 'failure.get("u11_transition") is not False' in source
+    assert (
+        'failure.get("reason") != plan["r40_durable_reason"]'
+        in source
+    )
+    assert (
+        'failure.get("schema")'
+        in source
+        and '"gh.n3w-t1-u11-r40-target-install/1"' in source
+    )
+    assert (
+        '"UpdaterError:services_supervision_contract_drift"'
+        not in source[
+            source.index("def verify_r40_consumed_failure(plan):"):
+            source.index("def verify_partial_u10_runtime(plan, transaction):")
+        ]
+    )
 
 
 def test_r41_proves_exact_loaded_target_and_published_binding():

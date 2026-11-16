@@ -75,8 +75,9 @@ def verify_r40_consumed_failure(plan):
         or failure.get("authorization_consumed") is not True
         or failure.get("replay_permitted") is not False
         or failure.get("recovery_required") is not True
-        or failure.get("reason")
-        != "UpdaterError:services_supervision_contract_drift"
+        or failure.get("schema")
+        != "gh.n3w-t1-u11-r40-target-install/1"
+        or failure.get("reason") != plan["r40_durable_reason"]
         or failure.get("target_image_load") is not True
         or failure.get("compose_binding_mutation") is not True
         or failure.get("service_mutation") is not False
@@ -99,7 +100,9 @@ def verify_r40_consumed_failure(plan):
         "consumed": True,
         "replay_permitted": False,
         "status": "STOP_POSTCLAIM",
-        "reason": "services_supervision_contract_drift",
+        "durable_reason": failure["reason"],
+        "failure_stage": "target_owner_start",
+        "root_cause_from_durable_ledger": False,
     }
 
 
@@ -555,6 +558,7 @@ def main() -> int:
                 "r40_gate_id": manifest["r40"]["gate_id"],
                 "r40_authorization_id": manifest["r40"]["authorization_id"],
                 "r40_execution_id": manifest["r40"]["execution_id"],
+                "r40_durable_reason": manifest["r40"]["durable_reason"],
                 "mount_target": manifest["mount_target"],
                 "installed_source_sha256": manifest["installed_source_sha256"],
                 "derived_post_peak_reserve_bytes": manifest[

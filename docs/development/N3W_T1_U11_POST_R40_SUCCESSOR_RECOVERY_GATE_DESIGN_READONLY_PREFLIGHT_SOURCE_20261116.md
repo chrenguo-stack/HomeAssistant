@@ -62,7 +62,9 @@ It requires the exact partial state left by R40:
 2. USB phase and all four U10 mirror hashes remain exact;
 3. R38 success ledger is consumed/no-replay;
 4. R40 claim/failure ledger is exact, consumed/no-replay and reports
-   `STOP_POSTCLAIM` caused by `services_supervision_contract_drift`;
+   `STOP_POSTCLAIM` with the durable wrapper reason
+   `U11PartialMutationError:ha_usb_u11_partial_mutation_requires_recovery:target_owner_start:UpdaterError`;
+   this ledger proves the exact failed stage and underlying exception type, not the nested KF-162 message;
 5. R40's observed mutation boundary is exact:
    target image load and target binding publication happened, while service,
    host transaction, USB and U11 phase mutations did not;
@@ -226,3 +228,43 @@ is delivered through stdin.
 
 Attempt 01 does not consume or authorize any live recovery action. A later
 Attempt 02 remains R41 read-only only.
+
+
+## 11. R41 real-T1 Attempt 02 ledger-model mismatch and bounded repair
+
+Real-T1 Attempt 02 used execution ID
+`u11-r41-readonly02-20261116T114901Z` and returned a read-only STOP:
+
+```text
+STATUS=STOP
+REASON=Stop:u11_r41_r40_consumed_failure_ledger_invalid
+REMOTE_RETURNCODE=2
+MUTATION=false
+```
+
+The T1 state did not drift. The R41 predicate was wrong.
+
+R40 executes the U11 controller. Once mutation has begun, the controller catches
+the underlying exception and deliberately raises
+`U11PartialMutationError`, preserving the failed stage
+(`target_owner_start`) and the underlying exception type (`UpdaterError`) but
+not the nested exception message. R40 therefore durably stored:
+
+```text
+U11PartialMutationError:ha_usb_u11_partial_mutation_requires_recovery:target_owner_start:UpdaterError
+```
+
+R41 had incorrectly required the durable ledger's top-level `reason` to equal
+`UpdaterError:services_supervision_contract_drift`. That nested message cannot
+exist in the R40 failure ledger by construction.
+
+The repair keeps fail-closed exactness. R41 now verifies the exact R40 remote
+schema, exact durable wrapper reason, exact consumed/no-replay claim, exact
+partial-mutation boundary, phases, binding, and quiesced service state. KF-162's
+specific `services_supervision_contract_drift` root cause remains established
+by the bound source-repair authority and is independently tested by the R41
+in-memory repaired supervision probe. The durable ledger is no longer asked to
+prove information that it does not encode.
+
+Attempt 02 authorizes no live action and consumes no successor recovery
+authorization.

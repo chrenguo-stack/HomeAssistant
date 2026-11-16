@@ -30,7 +30,7 @@
     "tools/execution_packages/n3w/r7a/u11_target_install_readonly_preflight_r39/executor.py": "273ccfc6c7ba3d12da9f47af507e13543f29716a",
     "tools/n3w_t1_core_updater_host.py": "fe859feef9f8321aa65289c688ee3d2a8d2d4a3b",
     "tools/n3w_t1_core_updater_ha_u11_host.py": "40b05778811091404ea8eef59b8ff51c635be25c",
-    "tools/execution_packages/n3w/r7a/u11_postclaim_recovery_readonly_preflight/executor.py": "6380bc9b8a53a2b361b6548c7082eaa6ae9b9347",
+    "tools/execution_packages/n3w/r7a/u11_postclaim_recovery_readonly_preflight/executor.py": "cdcb1af3896d1861b6e31c5a293a3a2790eed38d",
     "infra/n3w-t1/upgrades/homeassistant-2026.10.4-storage-policy.json": "01a5cec8877e2837504ed798e91ca552ab6f2a0e"
   },
   "exact_source_delivery": "TEMPORARY_IN_MEMORY_REPAIRED_SUPERVISION_SOURCE_NO_LIVE_SOURCE_MUTATION",
@@ -135,7 +135,8 @@
     "rc": 2,
     "authorization_claimed": true,
     "authorization_consumed": true,
-    "replay_permitted": false
+    "replay_permitted": false,
+    "durable_reason": "U11PartialMutationError:ha_usb_u11_partial_mutation_requires_recovery:target_owner_start:UpdaterError"
   },
   "expected_partial_u10_state": {
     "host_transaction_phase": "U10_INTERNAL_PREDECESSOR_CAPACITY_RELEASED",
@@ -204,5 +205,22 @@
     "repair": "STREAM_REMOTE_PROGRAM_AND_PLAN_OVER_SSH_STDIN",
     "remote_temporary_file_write": false,
     "live_mutation": false
+  },
+  "r41_attempt_02": {
+    "execution_id": "u11-r41-readonly02-20261116T114901Z",
+    "result": "STOP_READONLY_LEDGER_MODEL_MISMATCH",
+    "rc": 2,
+    "reason": "Stop:u11_r41_r40_consumed_failure_ledger_invalid",
+    "t1_access": true,
+    "remote_preflight_invoked": true,
+    "mutation": false,
+    "diagnosis": "R41_EXPECTED_INNER_KF162_REASON_BUT_R40_DURABLE_LEDGER_STORES_U11_PARTIAL_MUTATION_WRAPPER_REASON"
+  },
+  "r40_ledger_evidence_model": {
+    "durable_reason": "U11PartialMutationError:ha_usb_u11_partial_mutation_requires_recovery:target_owner_start:UpdaterError",
+    "durable_reason_semantics": "U11_CONTROLLER_WRAPPER_AT_TARGET_OWNER_START_WITH_UNDERLYING_UPDATER_ERROR_TYPE",
+    "exact_kf162_root_cause_from_durable_reason": false,
+    "kf162_root_cause_authority": "155f9a7b62d6b758fb87c109b3ffbf54aa5614c7",
+    "repaired_supervision_probe_required": true
   }
 }
