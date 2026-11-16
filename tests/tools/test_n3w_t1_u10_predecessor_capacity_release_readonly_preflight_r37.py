@@ -25,13 +25,13 @@ def load_executor():
     return module
 
 
-def test_r37_manifest_is_ungranted_readonly_and_stops_before_u10():
+def test_r37_manifest_grants_readonly_only_and_stops_before_u10():
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert manifest["read_only_preflight"] is True
-    assert manifest["real_t1_readonly_execution_authorized"] is False
+    assert manifest["real_t1_readonly_execution_authorized"] is True
     assert manifest["live_execution_authorized"] is False
     assert manifest["authorization_state"] == {
-        "granted": False,
+        "granted": True,
         "claimed": False,
         "consumed": False,
         "replay_permitted": False,
@@ -43,6 +43,11 @@ def test_r37_manifest_is_ungranted_readonly_and_stops_before_u10():
     assert contract["fresh_recovery_capacity_required"] is True
     assert contract["exact_homeassistant_stopped_container_allowlist_required"] is True
     assert contract["manager_broker_release_forbidden"] is True
+    assert contract["real_t1_readonly_preflight_authorized"] is True
+    assert contract["u10_destructive_execution_authorized"] is False
+    assert contract["predecessor_capacity_release_authorized"] is False
+    assert contract["target_load_authorized"] is False
+    assert contract["u11_authorized"] is False
     for key in (
         "transaction_mutation",
         "usb_mutation",
