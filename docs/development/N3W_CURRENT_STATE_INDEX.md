@@ -1,3 +1,18 @@
+## 2026-11-16 — U10 R37 real-T1 read-only preflight CLOSED_PASS
+
+- PR #807 exact R37 source head `6d4e93b9fded6b719e48f3d0678850677dc0dce8` completed 16/16 CI SUCCESS before real-T1 execution.
+- R37 execution `u10-r37-readonly-20261116T024337Z` returned RC=0 and `U10_R37_READONLY_PREFLIGHT_PASS`.
+- Durable transaction remains exact `U9_LIVE_AUTHORIZATION_CLAIMED`, SHA-256 `69f5a8c2190dac0a12df3aac1bdc9c9f3b02050e9541e7a202907204d280f7c3`; R35/R36 remain consumed/no-replay.
+- Bound USB mirror is exact; filesystem UUID continuity PASS. Target/predecessor recovery archives and protected Home Assistant backup verified; fresh capacity PASS with 28132077568 free bytes versus 1610612736 required.
+- Broker remains running; Manager remains quiesced; Home Assistant remains exactly exited; services owner remains failed/quiesced.
+- Future U10 predecessor runtime release allowlist is exactly Home Assistant container `26b095e1ba8aa3a009f02a2460234eae45764debf61d878b965761ce75212676`; predecessor image allowlist is exactly `sha256:c261fa53f30508951833492ba2a19af6cfbb6aa8f2806b531d8f5c6599265306`.
+- Manager/Broker release is forbidden; target internal image is still absent.
+- R37 was strictly read-only: no transaction/USB/service mutation, predecessor delete, target load, U10 transition, U11+, board access or merge.
+- `U10_READONLY_ELIGIBLE=true`, but `U10_DESTRUCTIVE_EXECUTION_AUTHORIZED=false`.
+- The post-command shell-session-save warning occurred after RC=0 and successful SSH cleanup and does not alter the PASS result.
+- Closure authority: `docs/development/N3W_T1_U10_R37_READONLY_PREFLIGHT_CLOSURE_20261116.md`.
+- Next safe gate: repository-only U10 destructive successor source/execution package preparation. Fresh explicit authorization remains mandatory before any real-T1 predecessor runtime/image removal or U9→U10 phase advancement.
+
 ## 2026-11-16 — R36 real-T1 CLOSED_PASS / U9 LIVE_AUTHORIZATION_CLAIMED
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted.
