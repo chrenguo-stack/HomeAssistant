@@ -368,7 +368,7 @@ def test_r41_remote_transport_streams_large_program_over_stdin(monkeypatch):
     assert observed["text"] is True
     assert observed["timeout"] == 77
     assert observed["input"].startswith(
-        "import sys\\nsys.argv = ['r41-remote', 'preflight', "
+        "import sys\nsys.argv = ['r41-remote', 'preflight', "
     )
     assert executor.REMOTE_SCRIPT in observed["input"]
     assert len(observed["input"]) > 400000
