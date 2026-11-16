@@ -174,3 +174,27 @@ def test_r42_contract_forbids_scope_expansion():
     assert contract["u12_acceptance_forbidden"] is True
     assert contract["r40_replay_forbidden"] is True
     assert contract["partial_failure_requires_new_recovery"] is True
+
+
+def test_r42_postclaim_usb_failure_compares_all_mirror_files():
+    source = load_executor().REMOTE_SCRIPT
+    start = source.index("def execute(plan, authorization_id, confirmation):")
+    execute = source[start:source.index("\ndef main():", start)]
+    assert '"manifest": sha_file(mirror_root / "manifest.json")' in execute
+    assert '"phase": sha_file(mirror_root / "phase.json")' in execute
+    assert '"content_authority": sha_file(' in execute
+    assert '"checksums": sha_file(mirror_root / "checksums.json")' in execute
+    assert 'observed_mirror != plan["r41_mirror_sha256"]' in execute
+    assert 'result["usb_mutation"] = True' in execute
+    assert 'result["usb_mutation_unknown"] = True' in execute
+
+
+def test_r42_interrupted_status_never_implies_target_reload_or_binding_rewrite():
+    source = load_executor().REMOTE_SCRIPT
+    start = source.index("def status(plan):")
+    status = source[start:source.index("\ndef execute(", start)]
+    assert '"target_image_load": False' in status
+    assert '"compose_binding_mutation": False' in status
+    assert "target_image_load_may_have_occurred" not in status
+    assert '"r40_replay": False' in status
+    assert '"u13_plus": False' in status

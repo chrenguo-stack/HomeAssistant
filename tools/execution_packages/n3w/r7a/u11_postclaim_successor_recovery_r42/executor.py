@@ -371,9 +371,12 @@ def status(plan):
         ),
         "replay_permitted": False,
         "transaction_phase": transaction.get("phase"),
-        "target_image_load_may_have_occurred": bool(claim),
+        "r40_replay": False,
+        "target_image_load": False,
+        "compose_binding_mutation": False,
         "service_mutation_may_have_occurred": bool(claim),
         "u12_plus": False,
+        "u13_plus": False,
     }
 
 
@@ -565,6 +568,7 @@ def execute(plan, authorization_id, confirmation):
                 observed_phase == "U11_TARGET_INSTALLED_STARTED"
             )
         except Exception:
+            result["transaction_mutation"] = True
             result["transaction_mutation_unknown"] = True
         try:
             if "owner" in locals():
@@ -585,20 +589,28 @@ def execute(plan, authorization_id, confirmation):
                     or ha_count > 0
                 )
         except Exception:
+            result["service_mutation"] = True
             result["service_mutation_unknown"] = True
         try:
-            phase_path = (
+            mirror_root = (
                 Path(plan["mount_target"])
                 / "n3w-update"
                 / "transaction"
-                / "phase.json"
             )
-            observed_phase_hash = sha_file(phase_path)
-            result["observed_usb_phase_sha256"] = observed_phase_hash
+            observed_mirror = {
+                "manifest": sha_file(mirror_root / "manifest.json"),
+                "phase": sha_file(mirror_root / "phase.json"),
+                "content_authority": sha_file(
+                    mirror_root / "content-authority.json"
+                ),
+                "checksums": sha_file(mirror_root / "checksums.json"),
+            }
+            result["observed_usb_mirror_sha256"] = observed_mirror
             result["usb_mutation"] = (
-                observed_phase_hash != plan["r41_mirror_sha256"]["phase"]
+                observed_mirror != plan["r41_mirror_sha256"]
             )
         except Exception:
+            result["usb_mutation"] = True
             result["usb_mutation_unknown"] = True
         try:
             durable_json_once(state_root / "failure.json", result)

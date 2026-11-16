@@ -28,7 +28,7 @@
     "tools/execution_packages/n3w/r7a/u11_postclaim_recovery_readonly_preflight/executor.py": "ec8bafdffd971c1695b0336b89833c86a7879749",
     "infra/n3w-t1/upgrades/homeassistant-2026.10.4-storage-policy.json": "01a5cec8877e2837504ed798e91ca552ab6f2a0e",
     "tools/n3w_t1_core_updater_ha_u11.py": "33bd5e486db17b2476674009a6c23eecf750c12a",
-    "tools/execution_packages/n3w/r7a/u11_postclaim_successor_recovery_r42/executor.py": "51179d3a48bd8ae7d39d0f8b057632f34ddde334"
+    "tools/execution_packages/n3w/r7a/u11_postclaim_successor_recovery_r42/executor.py": "cf4831be5556fa967c1a61c8232adc73dd6e05cb"
   },
   "exact_source_delivery": "IN_MEMORY_REPAIRED_HOST_U11_AND_U11_HOST_NO_LIVE_SOURCE_INSTALL",
   "state_root": "/var/lib/n3w-t1-core-updater/u11-r42-post-r40-successor-recovery-20261116-01",
@@ -186,7 +186,9 @@
     "board_access": false,
     "merge": false,
     "partial_failure_requires_new_recovery": true,
-    "transport_ambiguity_status_reconciliation_required": true
+    "transport_ambiguity_status_reconciliation_required": true,
+    "postclaim_usb_partial_write_detection": "ALL_FOUR_MIRROR_FILES",
+    "unobservable_postclaim_mutation_is_conservative": true
   },
   "next_boundary": "EXPLICIT_SUCCESSOR_LIVE_RECOVERY_AUTHORIZATION",
   "stop_boundary": "STOP_BEFORE_REAL_T1_R42_LIVE_RECOVERY_CLAIM"
