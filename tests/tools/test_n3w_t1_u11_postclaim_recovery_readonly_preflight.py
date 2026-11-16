@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import base64
+import hashlib
 import importlib.util
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -218,3 +222,96 @@ def test_r41_local_entry_has_no_execute_switch_or_live_recovery_claim():
     assert '"service_mutation": False' in source
     assert '"u12_plus": False' in source
     assert '"u13_plus": False' in source
+
+
+def test_r41_repaired_supervision_probe_executes_exact_in_memory_sources(
+    monkeypatch,
+    tmp_path,
+):
+    executor = load_executor()
+    source = executor.REMOTE_SCRIPT
+    start = source.index("def verify_repaired_supervision_contract(plan):")
+    end = source.index("def verify_postload_internal_reserve(plan):")
+    function = source[start:end]
+
+    import n3w_t1_core_updater_common as common
+    from n3w_t1_core_updater_ha_u11_host import (
+        EXPECTED_U11_EXECSTART,
+        EXPECTED_U11_EXECSTOP,
+    )
+
+    broker_env = tmp_path / "broker.env"
+    compose = tmp_path / "docker-compose.yml"
+    compose_env = tmp_path / "compose.env"
+    broker_env.write_text(
+        "\n".join(
+            (
+                f"N3WFC4_COMPOSE_FILE={compose}",
+                f"N3WFC4_COMPOSE_ENV_FILE={compose_env}",
+                f"N3WFC4_COMPOSE_PROJECT_NAME={common.PROJECT}",
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(common, "BROKER_ENV", broker_env)
+    monkeypatch.setattr(common, "COMPOSE", compose)
+    monkeypatch.setattr(common, "COMPOSE_ENV", compose_env)
+
+    systemd_cat = "\n".join(
+        (
+            "ExecStart=/usr/bin/docker compose legacy-start",
+            "ExecStop=/usr/bin/docker compose legacy-stop",
+            "ExecStart=",
+            EXPECTED_U11_EXECSTART,
+            "ExecStop=",
+            EXPECTED_U11_EXECSTOP,
+            "",
+        )
+    )
+
+    def fake_run(argv, **kwargs):
+        assert tuple(argv) == ("systemctl", "cat", common.SERVICES_UNIT)
+        return subprocess.CompletedProcess(
+            argv,
+            0,
+            stdout=systemd_cat.encode(),
+            stderr=b"",
+        )
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    host_raw = (ROOT / "tools" / "n3w_t1_core_updater_host.py").read_bytes()
+    u11_host_raw = (
+        ROOT / "tools" / "n3w_t1_core_updater_ha_u11_host.py"
+    ).read_bytes()
+    plan = {
+        "repaired_host_source_b64": base64.b64encode(host_raw).decode("ascii"),
+        "repaired_u11_host_source_b64": base64.b64encode(u11_host_raw).decode(
+            "ascii"
+        ),
+        "repaired_host_source_sha256": hashlib.sha256(host_raw).hexdigest(),
+        "repaired_u11_host_source_sha256": hashlib.sha256(
+            u11_host_raw
+        ).hexdigest(),
+        "source_repair_authority": (
+            "155f9a7b62d6b758fb87c109b3ffbf54aa5614c7"
+        ),
+    }
+    namespace = {
+        "base64": base64,
+        "hashlib": hashlib,
+        "sys": sys,
+        "Stop": executor.Stop,
+    }
+    exec(compile(function, "<r41-supervision-probe>", "exec"), namespace)
+    result = namespace["verify_repaired_supervision_contract"](plan)
+
+    assert result["effective_contract"] == "EXACT_HA_OTA_OVERLAY"
+    assert result["repair_source_authority"] == plan["source_repair_authority"]
+    assert result["execstart_sha256"] == common.sha256_text(
+        EXPECTED_U11_EXECSTART
+    )
+    assert result["execstop_sha256"] == common.sha256_text(
+        EXPECTED_U11_EXECSTOP
+    )
