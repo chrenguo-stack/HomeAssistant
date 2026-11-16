@@ -22,6 +22,7 @@ R39_EXECUTOR = (
     / "executor.py"
 )
 REPAIRED_HOST_SOURCE = ROOT / "tools" / "n3w_t1_core_updater_host.py"
+EXACT_U11_SOURCE = ROOT / "tools" / "n3w_t1_core_updater_ha_u11.py"
 REPAIRED_U11_HOST_SOURCE = ROOT / "tools" / "n3w_t1_core_updater_ha_u11_host.py"
 
 GATE_ID = (
@@ -244,16 +245,23 @@ def verify_partial_u10_runtime(plan, transaction):
 def verify_repaired_supervision_contract(plan):
     types = __import__("types")
     host_raw = base64.b64decode(plan["repaired_host_source_b64"])
+    u11_raw = base64.b64decode(plan["exact_u11_source_b64"])
     u11_host_raw = base64.b64decode(plan["repaired_u11_host_source_b64"])
     if (
         hashlib.sha256(host_raw).hexdigest()
         != plan["repaired_host_source_sha256"]
+        or hashlib.sha256(u11_raw).hexdigest()
+        != plan["exact_u11_source_sha256"]
         or hashlib.sha256(u11_host_raw).hexdigest()
         != plan["repaired_u11_host_source_sha256"]
     ):
         raise Stop("u11_r41_repaired_source_payload_hash_drift")
 
-    names = ("n3w_t1_core_updater_host", "n3w_t1_core_updater_ha_u11_host")
+    names = (
+        "n3w_t1_core_updater_host",
+        "n3w_t1_core_updater_ha_u11",
+        "n3w_t1_core_updater_ha_u11_host",
+    )
     previous = {name: sys.modules.get(name) for name in names}
     try:
         host_module = types.ModuleType(names[0])
@@ -268,9 +276,21 @@ def verify_repaired_supervision_contract(plan):
             host_module.__dict__,
         )
 
-        u11_host_module = types.ModuleType(names[1])
+        u11_module = types.ModuleType(names[1])
+        u11_module.__file__ = "<memory:n3w_t1_core_updater_ha_u11.py>"
+        sys.modules[names[1]] = u11_module
+        exec(
+            compile(
+                u11_raw.decode("utf-8"),
+                u11_module.__file__,
+                "exec",
+            ),
+            u11_module.__dict__,
+        )
+
+        u11_host_module = types.ModuleType(names[2])
         u11_host_module.__file__ = "<memory:n3w_t1_core_updater_ha_u11_host.py>"
-        sys.modules[names[1]] = u11_host_module
+        sys.modules[names[2]] = u11_host_module
         exec(
             compile(
                 u11_host_raw.decode("utf-8"),
@@ -289,6 +309,7 @@ def verify_repaired_supervision_contract(plan):
         return {
             "repair_source_authority": plan["source_repair_authority"],
             "host_source_sha256": plan["repaired_host_source_sha256"],
+            "u11_source_sha256": plan["exact_u11_source_sha256"],
             "u11_host_source_sha256": plan["repaired_u11_host_source_sha256"],
             "execstart_sha256": unit["execstart_sha256"],
             "execstop_sha256": unit["execstop_sha256"],
@@ -575,6 +596,7 @@ def main() -> int:
         )
         for prefix, source in (
             ("repaired_host", REPAIRED_HOST_SOURCE),
+            ("exact_u11", EXACT_U11_SOURCE),
             ("repaired_u11_host", REPAIRED_U11_HOST_SOURCE),
         ):
             raw = source.read_bytes()

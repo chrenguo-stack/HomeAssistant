@@ -268,3 +268,43 @@ prove information that it does not encode.
 
 Attempt 02 authorizes no live action and consumes no successor recovery
 authorization.
+
+
+## 12. R41 real-T1 Attempt 03 in-memory dependency gap and bounded repair
+
+Real-T1 Attempt 03 used execution ID
+`u11-r41-readonly03-20261116T124701Z` and stopped read-only:
+
+```text
+STATUS=STOP
+REASON=ModuleNotFoundError:No module named 'n3w_t1_core_updater_ha_u11'
+REMOTE_RETURNCODE=2
+MUTATION=false
+```
+
+The failure occurred while loading the exact repaired
+`n3w_t1_core_updater_ha_u11_host.py` into the remote Python process. That
+module imports `U11RuntimeEvidence` from
+`n3w_t1_core_updater_ha_u11`. R41 delivered the repaired host and U11-host
+sources in memory but did not deliver that dependency. The development/CI
+environment had the repository tools directory importable, masking the missing
+dependency that exists on the real T1 execution environment.
+
+The bounded repair adds the exact repository
+`tools/n3w_t1_core_updater_ha_u11.py` blob to R41 package authority and sends
+its exact bytes in the same stdin request. The remote probe verifies all three
+payload hashes and loads them only into `sys.modules`, in this order:
+
+```text
+n3w_t1_core_updater_host
+n3w_t1_core_updater_ha_u11
+n3w_t1_core_updater_ha_u11_host
+```
+
+No source file is written to T1. The focused test now removes
+`n3w_t1_core_updater_ha_u11` from `sys.modules` before the probe, so the
+test no longer succeeds merely because the CI checkout makes that module
+available.
+
+Attempt 03 authorizes no live recovery action and leaves all product mutation
+flags false.

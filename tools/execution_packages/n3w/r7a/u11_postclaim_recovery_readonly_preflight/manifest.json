@@ -30,8 +30,9 @@
     "tools/execution_packages/n3w/r7a/u11_target_install_readonly_preflight_r39/executor.py": "273ccfc6c7ba3d12da9f47af507e13543f29716a",
     "tools/n3w_t1_core_updater_host.py": "fe859feef9f8321aa65289c688ee3d2a8d2d4a3b",
     "tools/n3w_t1_core_updater_ha_u11_host.py": "40b05778811091404ea8eef59b8ff51c635be25c",
-    "tools/execution_packages/n3w/r7a/u11_postclaim_recovery_readonly_preflight/executor.py": "cdcb1af3896d1861b6e31c5a293a3a2790eed38d",
-    "infra/n3w-t1/upgrades/homeassistant-2026.10.4-storage-policy.json": "01a5cec8877e2837504ed798e91ca552ab6f2a0e"
+    "tools/execution_packages/n3w/r7a/u11_postclaim_recovery_readonly_preflight/executor.py": "ec8bafdffd971c1695b0336b89833c86a7879749",
+    "infra/n3w-t1/upgrades/homeassistant-2026.10.4-storage-policy.json": "01a5cec8877e2837504ed798e91ca552ab6f2a0e",
+    "tools/n3w_t1_core_updater_ha_u11.py": "33bd5e486db17b2476674009a6c23eecf750c12a"
   },
   "exact_source_delivery": "TEMPORARY_IN_MEMORY_REPAIRED_SUPERVISION_SOURCE_NO_LIVE_SOURCE_MUTATION",
   "r40_state_root": "/var/lib/n3w-t1-core-updater/u11-r40-target-install-20261116-01",
@@ -192,7 +193,8 @@
     "u12_plus": false,
     "u13_plus": false,
     "board_access": false,
-    "merge": false
+    "merge": false,
+    "exact_u11_dependency_in_memory_required": true
   },
   "next_boundary": "REAL_T1_R41_POST_R40_SUCCESSOR_READONLY_PREFLIGHT",
   "stop_boundary": "STOP_AFTER_R41_READONLY_BEFORE_ANY_SUCCESSOR_LIVE_CLAIM",
@@ -222,5 +224,27 @@
     "exact_kf162_root_cause_from_durable_reason": false,
     "kf162_root_cause_authority": "155f9a7b62d6b758fb87c109b3ffbf54aa5614c7",
     "repaired_supervision_probe_required": true
+  },
+  "r41_attempt_03": {
+    "execution_id": "u11-r41-readonly03-20261116T124701Z",
+    "result": "STOP_READONLY_IN_MEMORY_DEPENDENCY_MISSING",
+    "rc": 2,
+    "reason": "ModuleNotFoundError:No module named 'n3w_t1_core_updater_ha_u11'",
+    "t1_access": true,
+    "remote_preflight_invoked": true,
+    "mutation": false,
+    "diagnosis": "R41_IN_MEMORY_U11_HOST_SOURCE_DEPENDED_ON_U11_MODULE_NOT_DELIVERED_BY_R41"
+  },
+  "in_memory_dependency_repair": {
+    "dependency": "tools/n3w_t1_core_updater_ha_u11.py",
+    "dependency_blob": "33bd5e486db17b2476674009a6c23eecf750c12a",
+    "delivery": "EXACT_REPOSITORY_SOURCE_IN_MEMORY_ONLY",
+    "load_order": [
+      "n3w_t1_core_updater_host",
+      "n3w_t1_core_updater_ha_u11",
+      "n3w_t1_core_updater_ha_u11_host"
+    ],
+    "t1_file_write": false,
+    "live_mutation": false
   }
 }

@@ -112,13 +112,16 @@ def test_r41_binds_repaired_source_authority_and_exact_blobs():
     assert bound["tools/n3w_t1_core_updater_host.py"] == (
         "fe859feef9f8321aa65289c688ee3d2a8d2d4a3b"
     )
+    assert bound["tools/n3w_t1_core_updater_ha_u11.py"] == (
+        "33bd5e486db17b2476674009a6c23eecf750c12a"
+    )
     assert bound["tools/n3w_t1_core_updater_ha_u11_host.py"] == (
         "40b05778811091404ea8eef59b8ff51c635be25c"
     )
     assert bound[
         "tools/execution_packages/n3w/r7a/"
         "u11_postclaim_recovery_readonly_preflight/executor.py"
-    ] == "cdcb1af3896d1861b6e31c5a293a3a2790eed38d"
+    ] == "ec8bafdffd971c1695b0336b89833c86a7879749"
     assert value["exact_source_delivery"] == (
         "TEMPORARY_IN_MEMORY_REPAIRED_SUPERVISION_SOURCE_"
         "NO_LIVE_SOURCE_MUTATION"
@@ -303,15 +306,18 @@ def test_r41_repaired_supervision_probe_executes_exact_in_memory_sources(
     monkeypatch.setattr(subprocess, "run", fake_run)
 
     host_raw = (ROOT / "tools" / "n3w_t1_core_updater_host.py").read_bytes()
+    u11_raw = (ROOT / "tools" / "n3w_t1_core_updater_ha_u11.py").read_bytes()
     u11_host_raw = (
         ROOT / "tools" / "n3w_t1_core_updater_ha_u11_host.py"
     ).read_bytes()
     plan = {
         "repaired_host_source_b64": base64.b64encode(host_raw).decode("ascii"),
+        "exact_u11_source_b64": base64.b64encode(u11_raw).decode("ascii"),
         "repaired_u11_host_source_b64": base64.b64encode(u11_host_raw).decode(
             "ascii"
         ),
         "repaired_host_source_sha256": hashlib.sha256(host_raw).hexdigest(),
+        "exact_u11_source_sha256": hashlib.sha256(u11_raw).hexdigest(),
         "repaired_u11_host_source_sha256": hashlib.sha256(
             u11_host_raw
         ).hexdigest(),
@@ -326,9 +332,15 @@ def test_r41_repaired_supervision_probe_executes_exact_in_memory_sources(
         "Stop": executor.Stop,
     }
     exec(compile(function, "<r41-supervision-probe>", "exec"), namespace)
-    result = namespace["verify_repaired_supervision_contract"](plan)
+    original_u11 = sys.modules.pop("n3w_t1_core_updater_ha_u11", None)
+    try:
+        result = namespace["verify_repaired_supervision_contract"](plan)
+    finally:
+        if original_u11 is not None:
+            sys.modules["n3w_t1_core_updater_ha_u11"] = original_u11
 
     assert result["effective_contract"] == "EXACT_HA_OTA_OVERLAY"
+    assert result["u11_source_sha256"] == plan["exact_u11_source_sha256"]
     assert result["repair_source_authority"] == plan["source_repair_authority"]
     assert result["execstart_sha256"] == common.sha256_text(
         EXPECTED_U11_EXECSTART
@@ -371,6 +383,7 @@ def test_r41_remote_transport_streams_large_program_over_stdin(monkeypatch):
     plan = {
         "gate_id": executor.GATE_ID,
         "repaired_host_source_b64": "A" * 200000,
+        "exact_u11_source_b64": "C" * 200000,
         "repaired_u11_host_source_b64": "B" * 200000,
     }
     completed, result = executor.remote_mode(
@@ -392,4 +405,4 @@ def test_r41_remote_transport_streams_large_program_over_stdin(monkeypatch):
         "import sys\nsys.argv = ['r41-remote', 'preflight', "
     )
     assert executor.REMOTE_SCRIPT in observed["input"]
-    assert len(observed["input"]) > 400000
+    assert len(observed["input"]) > 600000
