@@ -1,5 +1,7 @@
 ## 2026-11-16 — U11 R41 real-T1 Attempt 04 CLOSED_PASS / successor live recovery authorization boundary
 
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`, Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`; live deployment remains `APPLIED_ACCEPTED`.
+- Historical clean reference remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
 - R41 Attempt 04 execution `u11-r41-readonly04-20261116T140219Z` returned `RC=0` and `U11_R41_POST_R40_READONLY_PREFLIGHT_PASS`.
 - The real-T1 run remained strictly read-only. Transaction, USB, target-image load, Compose binding, service, U11, U12/U13, board and merge mutation flags are all false; SSH master cleanup passed.
 - Exact durable state remains host/USB `U10_INTERNAL_PREDECESSOR_CAPACITY_RELEASED` with transaction SHA-256 `c0dc58ebcfcd2876aec5bfcf556723ae779106803e19df5541b1847fc494bba3`.
