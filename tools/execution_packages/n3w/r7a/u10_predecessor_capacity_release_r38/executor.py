@@ -868,7 +868,12 @@ def main() -> int:
         result["t1_access"] = True
 
         result["remote_preclaim_invoked"] = True
-        pre_transport, pre = r37.remote_preflight(transport, plan)
+        r37_plan = dict(plan)
+        r37_plan["gate_id"] = r37.GATE_ID
+        pre_transport, pre = r37.remote_preflight(
+            transport,
+            r37_plan,
+        )
         base.write_remote_evidence(
             evidence,
             "r37_preclaim_remote",
