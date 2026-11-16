@@ -168,6 +168,24 @@ def verify_usb_mirror_u10(plan, transaction):
     return {"exact": True, "sha256": observed}
 
 
+
+def image_absent(reference):
+    completed = run(
+        ["docker", "image", "inspect", reference],
+        timeout=45,
+        check=False,
+    )
+    return completed.returncode != 0
+
+
+def exact_predecessor_users(predecessor_id):
+    documents = all_container_documents()
+    return sorted(
+        container_id
+        for container_id, item in documents.items()
+        if item.get("Image") == predecessor_id
+    )
+
 def verify_u11_runtime_prestate(plan):
     require_unit(HOST_UNIT, active=True)
     services_owner = require_unit(SERVICES_UNIT, active=False)
