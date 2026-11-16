@@ -3,9 +3,9 @@
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U11_TARGET_INSTALL_R40_20261116_01",
   "authorization_id": "N3W_T1_CORE_UPDATER_HOMEASSISTANT_USB_U11_R40_20261116_01",
   "confirmation": "EXECUTE U11 R40 TARGET INSTALL: YES",
-  "live_execution_authorized": false,
+  "live_execution_authorized": true,
   "authorization_state": {
-    "granted": false,
+    "granted": true,
     "claimed": false,
     "consumed": false,
     "replay_permitted": false
@@ -21,7 +21,10 @@
     "r39_closure_doc": "docs/development/N3W_T1_U11_R39_READONLY_PREFLIGHT_CLOSURE_20261116.md",
     "u11_controller_ci_head": "03b921965cb7227d7942d74d7e0632db2fd5c2c4",
     "u11_controller_ci": "16_OF_16_SUCCESS",
-    "u10_transaction_sha256": "c0dc58ebcfcd2876aec5bfcf556723ae779106803e19df5541b1847fc494bba3"
+    "u10_transaction_sha256": "c0dc58ebcfcd2876aec5bfcf556723ae779106803e19df5541b1847fc494bba3",
+    "r40_pre_authorization_source_head": "a187e70f4c3aef4657be3d47983a404d61ea07e3",
+    "r40_pre_authorization_ci": "16_OF_16_SUCCESS",
+    "r40_pre_authorization_review": "PASS"
   },
   "package_source_authority": {
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
@@ -162,8 +165,8 @@
     "board_access": false,
     "merge": false,
     "explicit_r40_user_authorization_required": true,
-    "explicit_r40_user_authorization_granted": false
+    "explicit_r40_user_authorization_granted": true
   },
-  "next_boundary": "SOURCE_REVIEW_AND_PREAUTHORIZATION_CI",
-  "stop_boundary": "STOP_BEFORE_REAL_T1_U11_TARGET_LOAD_BINDING_OR_SERVICE_START"
+  "next_boundary": "EXECUTE_REAL_T1_U11_TARGET_INSTALL_ONCE",
+  "stop_boundary": "STOP_AFTER_REAL_T1_U11_BEFORE_U12_TARGET_ACCEPTANCE"
 }

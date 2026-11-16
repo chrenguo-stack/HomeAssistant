@@ -29,11 +29,11 @@ def manifest():
     return json.loads(MANIFEST.read_text(encoding="utf-8"))
 
 
-def test_r40_manifest_is_preauthorization_and_fail_closed():
+def test_r40_manifest_is_explicitly_granted_and_one_shot():
     value = manifest()
-    assert value["live_execution_authorized"] is False
+    assert value["live_execution_authorized"] is True
     assert value["authorization_state"] == {
-        "granted": False,
+        "granted": True,
         "claimed": False,
         "consumed": False,
         "replay_permitted": False,
@@ -43,10 +43,17 @@ def test_r40_manifest_is_preauthorization_and_fail_closed():
     ] is True
     assert value["execution_contract"][
         "explicit_r40_user_authorization_granted"
-    ] is False
-    assert value["next_boundary"] == "SOURCE_REVIEW_AND_PREAUTHORIZATION_CI"
+    ] is True
+    assert value["source_authority"]["r40_pre_authorization_source_head"] == (
+        "a187e70f4c3aef4657be3d47983a404d61ea07e3"
+    )
+    assert value["source_authority"]["r40_pre_authorization_ci"] == (
+        "16_OF_16_SUCCESS"
+    )
+    assert value["source_authority"]["r40_pre_authorization_review"] == "PASS"
+    assert value["next_boundary"] == "EXECUTE_REAL_T1_U11_TARGET_INSTALL_ONCE"
     assert value["stop_boundary"] == (
-        "STOP_BEFORE_REAL_T1_U11_TARGET_LOAD_BINDING_OR_SERVICE_START"
+        "STOP_AFTER_REAL_T1_U11_BEFORE_U12_TARGET_ACCEPTANCE"
     )
 
 
