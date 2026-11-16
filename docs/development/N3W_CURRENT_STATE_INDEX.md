@@ -1,5 +1,8 @@
 ## 2026-11-16 — U10 R37 real-T1 read-only preflight CLOSED_PASS
 
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
 - PR #807 exact R37 source head `6d4e93b9fded6b719e48f3d0678850677dc0dce8` completed 16/16 CI SUCCESS before real-T1 execution.
 - R37 execution `u10-r37-readonly-20261116T024337Z` returned RC=0 and `U10_R37_READONLY_PREFLIGHT_PASS`.
 - Durable transaction remains exact `U9_LIVE_AUTHORIZATION_CLAIMED`, SHA-256 `69f5a8c2190dac0a12df3aac1bdc9c9f3b02050e9541e7a202907204d280f7c3`; R35/R36 remain consumed/no-replay.
