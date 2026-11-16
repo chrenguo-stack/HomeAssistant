@@ -605,13 +605,58 @@ def test_r2_backup_corruption_stops_before_u8_and_u9(tmp_path):
     assert docker.active == CURRENT
 
 
+def test_r2_u10_requires_observed_capacity_release_evidence(tmp_path):
+    tx, _media, _docker, _ha, _target, _predecessor, _backup = drive_to_u8(
+        tmp_path
+    )
+    tx = claim_live_authorization(tx, AUTHORIZATION_ID)
+    assert tx["phase"] == U9
+
+    cases = (
+        (
+            {
+                "predecessor_runtime_released": False,
+                "predecessor_image_released": True,
+                "target_internal_image_absent": True,
+            },
+            "ha_usb_predecessor_runtime_not_released",
+        ),
+        (
+            {
+                "predecessor_runtime_released": True,
+                "predecessor_image_released": False,
+                "target_internal_image_absent": True,
+            },
+            "ha_usb_predecessor_image_not_released",
+        ),
+        (
+            {
+                "predecessor_runtime_released": True,
+                "predecessor_image_released": True,
+                "target_internal_image_absent": False,
+            },
+            "ha_usb_target_loaded_before_u10",
+        ),
+    )
+    for evidence, reason in cases:
+        with pytest.raises(UpdaterV2Error, match=reason):
+            record_predecessor_capacity_released(tx, **evidence)
+
+    assert tx["phase"] == U9
+
+
 def test_r2_success_keeps_target_migrated_config(tmp_path):
     tx, media, docker, ha, target, predecessor, backup = drive_to_u8(tmp_path)
     tx = claim_live_authorization(tx, AUTHORIZATION_ID)
     assert tx["phase"] == U9
 
     docker.remove_predecessor(predecessor)
-    tx = record_predecessor_capacity_released(tx)
+    tx = record_predecessor_capacity_released(
+        tx,
+        predecessor_runtime_released=(docker.active is None),
+        predecessor_image_released=(CURRENT not in docker.images),
+        target_internal_image_absent=(TARGET not in docker.images),
+    )
     assert tx["phase"] == U10
     assert CURRENT not in docker.images
 
@@ -636,7 +681,12 @@ def test_r2_failed_target_restores_predecessor_and_preupgrade_data(tmp_path):
     tx, media, docker, ha, target, predecessor, backup = drive_to_u8(tmp_path)
     tx = claim_live_authorization(tx, AUTHORIZATION_ID)
     docker.remove_predecessor(predecessor)
-    tx = record_predecessor_capacity_released(tx)
+    tx = record_predecessor_capacity_released(
+        tx,
+        predecessor_runtime_released=(docker.active is None),
+        predecessor_image_released=(CURRENT not in docker.images),
+        target_internal_image_absent=(TARGET not in docker.images),
+    )
     docker.load_target(target)
     ha.start_target()
     tx = record_target_started(tx)
@@ -757,7 +807,12 @@ def test_r2_u12_power_loss_can_forward_commit_with_exact_recovery_content(tmp_pa
     tx, _media, docker, ha, target, predecessor, _backup = drive_to_u8(tmp_path)
     tx = claim_live_authorization(tx, AUTHORIZATION_ID)
     docker.remove_predecessor(predecessor)
-    tx = record_predecessor_capacity_released(tx)
+    tx = record_predecessor_capacity_released(
+        tx,
+        predecessor_runtime_released=(docker.active is None),
+        predecessor_image_released=(CURRENT not in docker.images),
+        target_internal_image_absent=(TARGET not in docker.images),
+    )
     docker.load_target(target)
     ha.start_target()
     tx = record_target_started(tx)
@@ -863,7 +918,12 @@ def test_r2_power_loss_classification_is_deterministic_u0_through_u11(tmp_path):
     snapshots[U9] = tx
 
     docker.remove_predecessor(predecessor)
-    tx = record_predecessor_capacity_released(tx)
+    tx = record_predecessor_capacity_released(
+        tx,
+        predecessor_runtime_released=(docker.active is None),
+        predecessor_image_released=(CURRENT not in docker.images),
+        target_internal_image_absent=(TARGET not in docker.images),
+    )
     snapshots[U10] = tx
 
     docker.load_target(target)

@@ -207,10 +207,20 @@ def record_predecessor_recovery_and_ha_quiesced(
 
 def record_predecessor_capacity_released(
     document: dict[str, Any],
+    *,
+    predecessor_runtime_released: bool,
+    predecessor_image_released: bool,
+    target_internal_image_absent: bool,
 ) -> dict[str, Any]:
     current = validate_transaction_document(document)
     if current["phase"] != U9 or not destructive_cutover_allowed(current):
         raise UpdaterV2Error("ha_usb_predecessor_release_not_allowed")
+    if predecessor_runtime_released is not True:
+        raise UpdaterV2Error("ha_usb_predecessor_runtime_not_released")
+    if predecessor_image_released is not True:
+        raise UpdaterV2Error("ha_usb_predecessor_image_not_released")
+    if target_internal_image_absent is not True:
+        raise UpdaterV2Error("ha_usb_target_loaded_before_u10")
     return transition(current, U10)
 
 
