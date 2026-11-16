@@ -341,6 +341,9 @@ def status(plan):
     success_path = root / "success.json"
     failure_path = root / "failure.json"
 
+    claim = read_object(claim_path) if claim_path.exists() else None
+    transaction = read_object(TX)
+
     if success_path.exists():
         terminal = verify_terminal_u11(plan)
         value = read_object(success_path)
@@ -351,14 +354,41 @@ def status(plan):
             post=terminal,
         )
         return value
+
+    if (
+        claim
+        and claim.get("claimed") is True
+        and claim.get("consumed") is True
+        and claim.get("replay_permitted") is False
+        and transaction.get("phase") == "U11_TARGET_INSTALLED_STARTED"
+    ):
+        try:
+            terminal = verify_terminal_u11(plan)
+            return {
+                "schema": R42_REMOTE_SCHEMA,
+                "status": "U11_R42_POST_R40_SUCCESSOR_RECOVERY_PASS_RECONCILED",
+                "terminal": True,
+                "authorization_claimed": True,
+                "authorization_consumed": True,
+                "replay_permitted": False,
+                "recovery_required": False,
+                "reconciled_from_durable_u11": True,
+                "success_ledger_present": False,
+                "failure_ledger_present": failure_path.exists(),
+                "post": terminal,
+                "r40_replay": False,
+                "u12_plus": False,
+                "u13_plus": False,
+            }
+        except Exception:
+            pass
+
     if failure_path.exists():
         value = read_object(failure_path)
         value["terminal"] = True
         value["reconciled_from_ledger"] = True
         return value
 
-    claim = read_object(claim_path) if claim_path.exists() else None
-    transaction = read_object(TX)
     return {
         "schema": R42_REMOTE_SCHEMA,
         "status": "RUNNING_OR_INTERRUPTED",

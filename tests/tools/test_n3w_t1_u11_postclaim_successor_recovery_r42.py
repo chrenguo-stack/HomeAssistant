@@ -198,3 +198,18 @@ def test_r42_interrupted_status_never_implies_target_reload_or_binding_rewrite()
     assert "target_image_load_may_have_occurred" not in status
     assert '"r40_replay": False' in status
     assert '"u13_plus": False' in status
+
+
+def test_r42_status_reconciles_durable_u11_before_failure_ledger():
+    source = load_executor().REMOTE_SCRIPT
+    start = source.index("def status(plan):")
+    status = source[start:source.index("\ndef execute(", start)]
+    durable = status.index(
+        'transaction.get("phase") == "U11_TARGET_INSTALLED_STARTED"'
+    )
+    terminal = status.index("terminal = verify_terminal_u11(plan)", durable)
+    failure = status.index("if failure_path.exists():", durable)
+    assert durable < terminal < failure
+    assert '"success_ledger_present": False' in status
+    assert '"failure_ledger_present": failure_path.exists()' in status
+    assert '"recovery_required": False' in status
