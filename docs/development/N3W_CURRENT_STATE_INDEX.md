@@ -1,3 +1,16 @@
+## 2026-11-17 — U12 preparation / OTA performance validation added
+
+- U11 remains physically complete at `U11_TARGET_INSTALLED_STARTED`; U12 has not been entered.
+- R42 remains consumed and permanently no-replay.
+- OTA performance validation is now mandatory in the next stage, with two distinct scopes: current U12 acceptance timing and a future clean normal-OTA end-to-end baseline.
+- R42's roughly 47-minute recovery duration is an abnormal recovery reference, not the production baseline.
+- Engineering targets: user-visible service downtime target <=300 s, hard limit <=600 s; total OTA target <=1800 s; >1800 s requires performance investigation.
+- Instrumentation must use lightweight monotonic phase timing, must not reread/hash large artifacts solely for timing, and must not restart/replay an upgrade solely to benchmark.
+- Long-running execution must be decoupled from client/SSH wait so transport timeout cannot produce a false operational failure when durable remote state later succeeds.
+- Next gate: `N3W_T1_U12_READONLY_PREFLIGHT_AND_PERFORMANCE_INSTRUMENTATION_SOURCE_DESIGN`.
+- No U12 live execution, U13+, board access or merge is authorized.
+- Design: `docs/development/N3W_T1_U12_TARGET_ACCEPTANCE_AND_OTA_PERFORMANCE_VALIDATION_DESIGN_20261117.md`.
+
 ## 2026-11-16 — U11 R42 Attempt 02 TIMEOUT_RECONCILED_CLOSED_PASS / U12 separate-gate boundary
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`, Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant repository authority `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`; Live upgrade accepted; live deployment remains `APPLIED_ACCEPTED`.

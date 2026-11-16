@@ -1,3 +1,46 @@
+## Latest authority — 2026-11-17 U12 preparation / OTA performance validation added to next stage
+
+```text
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+LIVE_TRANSACTION_PHASE=U11_TARGET_INSTALLED_STARTED
+LIVE_TRANSACTION_SHA256=33350ba47e0af43b4f0e11fac990e24924f22057da60d980b26453b4e80e0471
+USB_TRANSACTION_PHASE=U11_TARGET_INSTALLED_STARTED
+U11_PHYSICAL_COMPLETE=true
+R42_REPLAY_PERMITTED=false
+U12_ACCEPTANCE=false
+
+U12_PERFORMANCE_VALIDATION_REQUIRED=true
+CURRENT_U12_ACCEPTANCE_TIMING_REQUIRED=true
+FUTURE_CLEAN_OTA_BASELINE_REQUIRED=true
+R42_47_MINUTES_NORMAL_PRODUCTION_BASELINE=false
+USER_VISIBLE_SERVICE_DOWNTIME_TARGET_SECONDS=300
+USER_VISIBLE_SERVICE_DOWNTIME_HARD_LIMIT_SECONDS=600
+OTA_TOTAL_TARGET_SECONDS=1800
+
+NEXT_ONE_GATE=N3W_T1_U12_READONLY_PREFLIGHT_AND_PERFORMANCE_INSTRUMENTATION_SOURCE_DESIGN
+U12_LIVE_EXECUTION=false
+U13_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+```
+
+Performance validation is now a formal part of the next stage. The current U12 gate must measure U12 acceptance/readiness timing, while a future legitimate clean normal OTA must provide the end-to-end production baseline. R42's roughly 47-minute recovery duration is retained as an abnormal recovery reference only and must not be used as the expected customer upgrade time.
+
+No upgrade replay is allowed solely to benchmark performance. Instrumentation must be lightweight, durable, and must decouple long-running device execution from client/SSH wait time so a transport timeout cannot convert a durable device PASS into a false operational failure.
+
+Design authority: `docs/development/N3W_T1_U12_TARGET_ACCEPTANCE_AND_OTA_PERFORMANCE_VALIDATION_DESIGN_20261117.md`.
+
 ## Latest authority — 2026-11-16 U11 R42 Attempt 02 TIMEOUT_RECONCILED_CLOSED_PASS / U12 separate-gate boundary
 
 ```text
