@@ -14,6 +14,25 @@ from n3w_t1_core_updater_host import LocalHost
 
 
 PRODUCTION_HA_CONFIG = "/var/lib/n3wfc4-homeassistant"
+HA_OTA_COMPOSE = (
+    "/opt/HomeAssistant/infra/n3w-t1/production/docker-compose.ha-ota.yml"
+)
+EXPECTED_U11_EXECSTART = (
+    "ExecStart=/usr/bin/docker compose "
+    "--project-name ${N3WFC4_COMPOSE_PROJECT_NAME} "
+    "--env-file ${N3WFC4_COMPOSE_ENV_FILE} "
+    "-f ${N3WFC4_COMPOSE_FILE} "
+    f"-f {HA_OTA_COMPOSE} "
+    "--profile application up --no-deps --no-log-prefix "
+    "--abort-on-container-exit manager homeassistant"
+)
+EXPECTED_U11_EXECSTOP = (
+    "ExecStop=/usr/bin/docker compose "
+    "--project-name ${N3WFC4_COMPOSE_PROJECT_NAME} "
+    "--env-file ${N3WFC4_COMPOSE_ENV_FILE} "
+    "-f ${N3WFC4_COMPOSE_FILE} "
+    f"-f {HA_OTA_COMPOSE} stop homeassistant manager"
+)
 START_TIMEOUT_SECONDS = 180
 
 
@@ -130,7 +149,10 @@ class LocalU11RuntimeOwner:
 
     def _require_prestart_owner_state(self) -> None:
         self.host._activation_env()
-        self.host._service_unit()
+        self.host._service_unit(
+            expected_execstart=EXPECTED_U11_EXECSTART,
+            expected_execstop=EXPECTED_U11_EXECSTOP,
+        )
         if self.host._systemctl("is-active", BROKER_UNIT) != "active":
             raise UpdaterError("u11_broker_owner_not_active")
         if self.host._systemctl("is-active", SERVICES_UNIT) not in {

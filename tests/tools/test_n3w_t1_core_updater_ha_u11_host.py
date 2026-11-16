@@ -71,8 +71,19 @@ class FakeHost:
     def _activation_env(self):
         self.calls.append(("_activation_env",))
 
-    def _service_unit(self):
-        self.calls.append(("_service_unit",))
+    def _service_unit(
+        self,
+        *,
+        expected_execstart=None,
+        expected_execstop=None,
+    ):
+        self.calls.append(
+            (
+                "_service_unit",
+                expected_execstart,
+                expected_execstop,
+            )
+        )
         return {"execstart_sha256": "x", "execstop_sha256": "y"}
 
     def _systemctl(self, action, unit):
@@ -180,6 +191,67 @@ def test_u11_host_adapter_delegates_image_and_binding_primitives(tmp_path):
     assert adapter.homeassistant_binding() == TARGET
 
 
+def test_u11_host_effective_service_unit_accepts_exact_ha_ota_dropin():
+    base_start = (
+        "ExecStart=/usr/bin/docker compose "
+        "--project-name ${N3WFC4_COMPOSE_PROJECT_NAME} "
+        "--env-file ${N3WFC4_COMPOSE_ENV_FILE} "
+        "-f ${N3WFC4_COMPOSE_FILE} "
+        "--profile application up --no-deps --no-log-prefix "
+        "--abort-on-container-exit manager homeassistant"
+    )
+    base_stop = (
+        "ExecStop=/usr/bin/docker compose "
+        "--project-name ${N3WFC4_COMPOSE_PROJECT_NAME} "
+        "--env-file ${N3WFC4_COMPOSE_ENV_FILE} "
+        "-f ${N3WFC4_COMPOSE_FILE} stop homeassistant manager"
+    )
+    raw = "\n".join(
+        (
+            base_start,
+            base_stop,
+            "ExecStart=",
+            u11host.EXPECTED_U11_EXECSTART,
+            "ExecStop=",
+            u11host.EXPECTED_U11_EXECSTOP,
+        )
+    )
+
+    class SystemdCatHost(u11host.LocalHost):
+        def _run(self, argv, *, timeout=60, check=True):
+            assert tuple(argv) == ("systemctl", "cat", SERVICES_UNIT)
+            return Result(raw.encode())
+
+    unit = SystemdCatHost()._service_unit(
+        expected_execstart=u11host.EXPECTED_U11_EXECSTART,
+        expected_execstop=u11host.EXPECTED_U11_EXECSTOP,
+    )
+    assert set(unit) == {"execstart_sha256", "execstop_sha256"}
+
+
+def test_u11_host_effective_service_unit_rejects_base_contract_for_ota():
+    raw = "\n".join(
+        (
+            "ExecStart=/usr/bin/false",
+            "ExecStop=/usr/bin/false",
+        )
+    )
+
+    class SystemdCatHost(u11host.LocalHost):
+        def _run(self, argv, *, timeout=60, check=True):
+            assert tuple(argv) == ("systemctl", "cat", SERVICES_UNIT)
+            return Result(raw.encode())
+
+    with pytest.raises(
+        UpdaterError,
+        match="services_supervision_contract_drift",
+    ):
+        SystemdCatHost()._service_unit(
+            expected_execstart=u11host.EXPECTED_U11_EXECSTART,
+            expected_execstop=u11host.EXPECTED_U11_EXECSTOP,
+        )
+
+
 def test_u11_host_start_uses_production_owner_without_u12_health(monkeypatch):
     host = FakeHost()
     adapter = owner(host)
@@ -195,6 +267,11 @@ def test_u11_host_start_uses_production_owner_without_u12_health(monkeypatch):
     assert evidence.broker_running is True
     assert evidence.homeassistant_running is True
     assert evidence.production_config_mounted is True
+    assert (
+        "_service_unit",
+        u11host.EXPECTED_U11_EXECSTART,
+        u11host.EXPECTED_U11_EXECSTOP,
+    ) in host.calls
     assert (
         "_run",
         ("systemctl", "start", SERVICES_UNIT),

@@ -144,27 +144,39 @@ class LocalHost:
         if any(values.get(key) != value for key, value in expected.items()):
             raise UpdaterError("activation_env_authority_drift")
 
-    def _service_unit(self) -> dict[str, str]:
+    @staticmethod
+    def _effective_service_directive(raw: str, name: str) -> str:
+        prefix = name + "="
+        current: str | None = None
+        seen = False
+        for raw_line in raw.splitlines():
+            line = raw_line.strip()
+            if not line.startswith(prefix):
+                continue
+            seen = True
+            current = None if line == prefix else line
+        if not seen or current is None:
+            raise UpdaterError("services_supervision_contract_drift")
+        return current
+
+    def _service_unit(
+        self,
+        *,
+        expected_execstart: str = EXPECTED_EXECSTART,
+        expected_execstop: str = EXPECTED_EXECSTOP,
+    ) -> dict[str, str]:
         raw = self._run(("systemctl", "cat", SERVICES_UNIT)).stdout.decode()
-        starts = [
-            line.strip()
-            for line in raw.splitlines()
-            if line.strip().startswith("ExecStart=")
-        ]
-        stops = [
-            line.strip()
-            for line in raw.splitlines()
-            if line.strip().startswith("ExecStop=")
-        ]
+        start = self._effective_service_directive(raw, "ExecStart")
+        stop = self._effective_service_directive(raw, "ExecStop")
         if (
-            starts != [EXPECTED_EXECSTART]
-            or stops != [EXPECTED_EXECSTOP]
+            start != expected_execstart
+            or stop != expected_execstop
             or "--force-recreate" in raw
         ):
             raise UpdaterError("services_supervision_contract_drift")
         return {
-            "execstart_sha256": sha256_text(starts[0]),
-            "execstop_sha256": sha256_text(stops[0]),
+            "execstart_sha256": sha256_text(start),
+            "execstop_sha256": sha256_text(stop),
         }
 
     def _compose_argv(self) -> tuple[str, ...]:
