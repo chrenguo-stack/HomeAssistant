@@ -1,3 +1,19 @@
+## 2026-11-16 — U11 R39 real-T1 read-only preflight CLOSED_PASS
+
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant repository target `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- R39 exact source head `d81c6de0a25fd9d4ae662f55e8cffc5c4a7036c4` completed 16/16 CI SUCCESS before real-T1 execution.
+- Real-T1 execution `u11-r39-readonly-20261116T042337Z` returned RC=0 and `U11_R39_READONLY_PREFLIGHT_PASS`; SSH cleanup succeeded.
+- Durable transaction remains exact `U10_INTERNAL_PREDECESSOR_CAPACITY_RELEASED`, SHA-256 `c0dc58ebcfcd2876aec5bfcf556723ae779106803e19df5541b1847fc494bba3`; R38 remains consumed/no-replay.
+- Bound USB mirror remains exact; target archive, predecessor recovery archive, and protected Home Assistant backup all reverified.
+- Broker remains running and Manager remains quiesced. Home Assistant predecessor container is absent; predecessor internal image is absent; target internal image is absent.
+- Home Assistant Compose binding still points to `local/n3w-homeassistant:2026.10.0-0c73235a`, which is the expected pre-U11 binding state.
+- Internal Docker free space is 10887344128 bytes versus the frozen U11 target-import requirement of 4950401057 bytes; capacity PASS.
+- R39 was strictly read-only: no target image load, Compose binding mutation, service mutation, transaction/USB mutation, U11 transition, U12+, board access, or merge.
+- Closure authority: `docs/development/N3W_T1_U11_R39_READONLY_PREFLIGHT_CLOSURE_20261116.md`.
+- Next safe gate is repository-only U11 production-controller source design and simulation. Real target load, binding mutation, Home Assistant recreation/start, or U10→U11 transition requires fresh explicit authorization.
+
 ## 2026-11-16 — U10 R38 real-T1 predecessor-capacity release CLOSED_PASS
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; Live upgrade accepted.
