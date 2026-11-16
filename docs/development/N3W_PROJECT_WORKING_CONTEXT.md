@@ -1,3 +1,48 @@
+## Stable updater authority — 2026-11-17 U11 R42 CLOSED_PASS / U12 read-only + performance-design boundary
+
+```text
+PROJECT_WORKING_CONTEXT_VERSION=7.9
+
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+HANDOFF_PARENT_HEAD=79c11060e9493f8c16d5b419fa7bec25dd331b01
+
+R42_EXECUTION_ID=u11-r42-live02-20261116T152940Z
+R42_DURABLE_RESULT=U11_R42_POST_R40_SUCCESSOR_RECOVERY_PASS
+R42_AUTHORIZATION_CONSUMED=true
+R42_REPLAY_PERMITTED=false
+
+LIVE_TRANSACTION_PHASE=U11_TARGET_INSTALLED_STARTED
+LIVE_TRANSACTION_SHA256=33350ba47e0af43b4f0e11fac990e24924f22057da60d980b26453b4e80e0471
+USB_TRANSACTION_PHASE=U11_TARGET_INSTALLED_STARTED
+U11_PHYSICAL_COMPLETE=true
+KF162_STATUS=CLOSED_PASS
+
+LAST_PROVEN_LIVE_HOMEASSISTANT=local/n3w-homeassistant:2026.10.4-5881590f
+LAST_PROVEN_LIVE_HOMEASSISTANT_RUNTIME_IMAGE_ID=sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365
+LAST_PROVEN_RUNTIME_HEALTH=PASS
+NEXT_CHAT_FRESH_RUNTIME=UNKNOWN_FRESH
+
+U12_ACCEPTANCE=false
+U12_PERFORMANCE_VALIDATION_REQUIRED=true
+NEXT_ONE_GATE=N3W_T1_U12_READONLY_PREFLIGHT_AND_PERFORMANCE_INSTRUMENTATION_SOURCE_DESIGN
+U12_LIVE_EXECUTION=false
+U13_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+```
+
+R42's Mac-side 2400-second wait timed out before the remote task returned, but durable success ledger, host/USB U11 state and healthy target runtime prove U11 physical completion. R42 is consumed/no-replay. KF-162 is physically closed. U12 has not started. The next stage combines a fresh U12 read-only preflight with lightweight OTA performance instrumentation design; a future legitimate clean OTA must provide the normal end-to-end baseline. New-chat runtime freshness is `UNKNOWN_FRESH` until rechecked.
+
+Handoff: `docs/development/N3W_T1_U11_R42_CLOSED_PASS_TO_U12_READONLY_PERFORMANCE_DESIGN_NEW_CHAT_HANDOFF_V1.0_20261117.md`.
+
 ## Stable updater authority — 2026-11-15 R30M source CLOSED_PASS / mount-recovery read-only boundary
 
 ```text

@@ -1,3 +1,16 @@
+## 2026-11-17 — U11 R42 CLOSED_PASS / new-chat handoff STOP / U12 read-only + performance-design boundary
+
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`, repository Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, repository Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`; Live upgrade accepted; deployment state remains `APPLIED_ACCEPTED`.
+- R42 execution `u11-r42-live02-20261116T152940Z` is durably `U11_R42_POST_R40_SUCCESSOR_RECOVERY_PASS`; authorization is claimed + consumed + no-replay.
+- Host and USB are both `U11_TARGET_INSTALLED_STARTED`; host transaction SHA-256 `33350ba47e0af43b4f0e11fac990e24924f22057da60d980b26453b4e80e0471`.
+- Last proven live runtime: Manager `local/greenhouse-manager:fresh-44e7d7472714`, Broker `local/n3w-mosquitto:2.1.2-3184566d`, Home Assistant `local/n3w-homeassistant:2026.10.4-5881590f` with target runtime ID `sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365`; services owner and production /config binding are healthy.
+- KF-162 closure condition is now physically satisfied and status is CLOSED_PASS.
+- U12 has not been entered. OTA performance validation is mandatory in the next stage; R42's roughly 47-minute recovery is not the normal-production baseline.
+- Next chat starts with `NEXT_CHAT_FRESH_RUNTIME=UNKNOWN_FRESH`; fresh read-only state must be re-established before U12 live acceptance.
+- Next gate is `N3W_T1_U12_READONLY_PREFLIGHT_AND_PERFORMANCE_INSTRUMENTATION_SOURCE_DESIGN`.
+- R42 replay, U12 live execution, U13+, board access and merge remain forbidden/ungranted.
+- V1.4 handoff: `docs/development/N3W_T1_U11_R42_CLOSED_PASS_TO_U12_READONLY_PERFORMANCE_DESIGN_NEW_CHAT_HANDOFF_V1.0_20261117.md`.
+
 ## 2026-11-17 — U12 preparation / OTA performance validation added
 
 - U11 remains physically complete at `U11_TARGET_INSTALLED_STARTED`; U12 has not been entered.

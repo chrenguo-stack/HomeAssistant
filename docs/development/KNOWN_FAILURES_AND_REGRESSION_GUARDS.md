@@ -1,4 +1,4 @@
-### 2026-11-16 KF-162 R40 U11 production-owner supervision false drift after claim — OPEN / ROOT_CAUSE_PROVEN / SOURCE_REPAIR_CI_CLOSED
+### 2026-11-16 KF-162 R40 U11 production-owner supervision false drift after claim — CLOSED_PASS / PHYSICALLY_RECOVERED_BY_R42
 
 ```text
 R40_EXECUTION_ID=u11-r40-live02-20261116T063426Z
@@ -6,52 +6,43 @@ R40_RESULT=STOP_POSTCLAIM
 R40_AUTHORIZATION_CLAIMED=true
 R40_AUTHORIZATION_CONSUMED=true
 R40_REPLAY_PERMITTED=false
-R40_TARGET_IMAGE_LOAD=true
-R40_COMPOSE_BINDING_MUTATION=true
-R40_SERVICE_MUTATION=false
-R40_TRANSACTION_MUTATION=false
-R40_USB_MUTATION=false
-R40_U11_TRANSITION=false
-LIVE_TRANSACTION_PHASE=U10_INTERNAL_PREDECESSOR_CAPACITY_RELEASED
-USB_TRANSACTION_PHASE=U10_INTERNAL_PREDECESSOR_CAPACITY_RELEASED
 ROOT_CAUSE=SYSTEMD_EFFECTIVE_EXECSTART_EXECSTOP_CONTRACT_FALSE_DRIFT
-R39_PRECLAIM_COVERAGE_GAP=true
 SOURCE_REPAIR_HEAD=155f9a7b62d6b758fb87c109b3ffbf54aa5614c7
 SOURCE_REPAIR_CI=16_OF_16_SUCCESS
-PHYSICAL_RECOVERY_PENDING=true
-STATUS=OPEN
+
+R42_EXECUTION_ID=u11-r42-live02-20261116T152940Z
+R42_DURABLE_RESULT=U11_R42_POST_R40_SUCCESSOR_RECOVERY_PASS
+R42_AUTHORIZATION_CLAIMED=true
+R42_AUTHORIZATION_CONSUMED=true
+R42_REPLAY_PERMITTED=false
+
+LIVE_TRANSACTION_PHASE=U11_TARGET_INSTALLED_STARTED
+LIVE_TRANSACTION_SHA256=33350ba47e0af43b4f0e11fac990e24924f22057da60d980b26453b4e80e0471
+USB_TRANSACTION_PHASE=U11_TARGET_INSTALLED_STARTED
+U11_PHYSICAL_COMPLETE=true
+U12_ACCEPTANCE=false
+PHYSICAL_RECOVERY_PENDING=false
+STATUS=CLOSED_PASS
 ```
 
-Root cause:
-- the production services owner legitimately carries the repository-owned `95-n3w-ha-ota.conf` drop-in;
-- that drop-in uses systemd reset/replace semantics: the base `ExecStart` / `ExecStop` is followed by an empty assignment and then the HA-OTA overlay command;
-- the old `LocalHost._service_unit()` gathered every `ExecStart=` / `ExecStop=` line from `systemctl cat` and required a single base directive, so it falsely reported `services_supervision_contract_drift`;
-- U11 calls that check before invoking `systemctl start`, which is why the R40 failure window has no new service-start journal and no Docker container events;
-- R39 preclaim did not validate this effective supervision contract, allowing a false-PASS before the one-shot R40 claim.
+Root cause remains the R40 false supervision drift: the production services owner legitimately uses the repository-owned HA-OTA systemd reset/replacement drop-in, while the historical parser compared raw directive lists instead of resolving effective reset semantics. R39 also lacked that exact effective-supervision preclaim coverage.
 
-Physical state after the stop:
-- exact target image is present and target Compose binding is published;
-- services owner is failed/quiesced; Manager and Home Assistant are stopped; Broker remains running;
-- host and USB durable phases remain exact U10 and no U11 persistence occurred;
-- the consumed R40 authorization is permanently non-replayable.
+Regression guard remains:
+- resolve effective systemd reset semantics and require the exact HA-OTA overlay;
+- successor recovery must verify the supervision contract before claim;
+- never replay R40 or repair this class with untracked manual service starts;
+- post-claim client/SSH timeout is uncertainty, not proof of remote failure; consumed authorization is never replayed.
 
-Regression guard:
-- resolve the effective systemd directive after reset semantics instead of comparing raw `systemctl cat` line lists;
-- U11 must require the exact production HA-OTA overlay `ExecStart` / `ExecStop`, not merely accept arbitrary additional directives;
-- focused tests must contain the real base + reset + replacement drop-in shape;
-- any successor recovery preclaim must verify the exact effective supervision contract before claiming a new one-shot recovery authorization;
-- never repair this incident by replaying R40 or by an untracked manual `systemctl start`.
+Physical closure evidence:
+- R41 fresh read-only preflight proved the exact partial-U10 recovery eligibility and repaired supervision contract;
+- R42 used a separate one-shot authorization and no R40 replay;
+- R42 local transport timed out after 2400 seconds, but later strictly read-only evidence found a durable R42 success ledger, no failure ledger, exact host/USB U11 phase, exact target Home Assistant runtime, production /config RW bind, and healthy Manager/Broker/services owner;
+- therefore the original KF-162 closure condition “physical U11 completion” is satisfied;
+- U12 was not entered by the recovery and remains a separate gate.
 
-Source repair:
-- `155f9a7b62d6b758fb87c109b3ffbf54aa5614c7`;
-- 16/16 workflow SUCCESS;
-- this repairs the U11 supervision parser/adapter path, but does not retroactively repair the historical R39 executor.
-
-Closure condition:
-- design a successor recovery gate from the exact partial U10 state;
-- complete a fresh read-only preflight that includes the supervision contract;
-- only after separate explicit live authorization may a successor perform service start and complete U11 durable persistence;
-- physical U11 completion is required before KF-162 can be RESOLVED/CLOSED_PASS.
+Authority:
+- `docs/development/N3W_T1_U11_R42_ATTEMPT02_TIMEOUT_RECONCILED_CLOSED_PASS_20261116.md`
+- `docs/development/N3W_T1_U12_TARGET_ACCEPTANCE_AND_OTA_PERFORMANCE_VALIDATION_DESIGN_20261117.md`
 
 ### 2026-11-16 KF-161 R35 U9 product authorization namespace mismatch — CLOSED_PASS / R36 PHYSICALLY VALIDATED
 
