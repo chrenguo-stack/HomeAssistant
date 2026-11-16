@@ -1,3 +1,59 @@
+## Latest authority — 2026-11-16 U10 R37 real-T1 read-only preflight CLOSED_PASS
+
+```text
+PR=807
+R37_SOURCE_HEAD=6d4e93b9fded6b719e48f3d0678850677dc0dce8
+R37_SOURCE_CI=16_OF_16_SUCCESS
+R37_EXECUTION_ID=u10-r37-readonly-20261116T024337Z
+R37_RESULT=U10_R37_READONLY_PREFLIGHT_PASS
+R37_RC=0
+READ_ONLY=true
+SSH_MASTER_CLEANUP=true
+
+LIVE_TRANSACTION_PHASE=U9_LIVE_AUTHORIZATION_CLAIMED
+LIVE_TRANSACTION_SHA256=69f5a8c2190dac0a12df3aac1bdc9c9f3b02050e9541e7a202907204d280f7c3
+R35_REPLAY_PERMITTED=false
+R36_REPLAY_PERMITTED=false
+R37_USB_MIRROR_EXACT=true
+R37_BOUND_FILESYSTEM_UUID=967cf065-abe5-49ee-8499-7c3f50d2c48f
+R37_BACKUP_VERIFIED=true
+R37_RECOVERY_CAPACITY_PASS=true
+R37_OBSERVED_USB_FREE_BYTES=28132077568
+R37_REQUIRED_FREE_AFTER_RECOVERY_ASSETS_BYTES=1610612736
+
+R37_BROKER_RUNNING=true
+R37_MANAGER_QUIESCED=true
+R37_HOMEASSISTANT_EXITED=true
+R37_SERVICES_OWNER_STATE=failed
+R37_PREDECESSOR_RUNTIME_RELEASE_ALLOWLIST=26b095e1ba8aa3a009f02a2460234eae45764debf61d878b965761ce75212676
+R37_PREDECESSOR_IMAGE_RELEASE_ALLOWLIST=sha256:c261fa53f30508951833492ba2a19af6cfbb6aa8f2806b531d8f5c6599265306
+R37_TARGET_INTERNAL_IMAGE_ABSENT=true
+R37_MANAGER_BROKER_RELEASE_FORBIDDEN=true
+
+U10_READONLY_ELIGIBLE=true
+U10_DESTRUCTIVE_EXECUTION_AUTHORIZED=false
+TRANSACTION_MUTATION=false
+USB_MUTATION=false
+PREDECESSOR_RUNTIME_DELETE=false
+PREDECESSOR_IMAGE_DELETE=false
+TARGET_IMAGE_LOAD=false
+SERVICE_MUTATION=false
+U10_TRANSITION=false
+U11_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+
+R37_STATUS=CLOSED_PASS
+NEXT_ONE_GATE=U10_DESTRUCTIVE_SUCCESSOR_SOURCE_AND_EXECUTION_PACKAGE_PREPARATION
+STOP_BOUNDARY=FRESH_EXPLICIT_AUTHORIZATION_REQUIRED_BEFORE_ANY_REAL_T1_U10_DESTRUCTIVE_MUTATION
+```
+
+R37 physically revalidated the exact U9 transaction, consumed/no-replay R35 and R36 ledgers, bound USB mirror and recovery assets, protected Home Assistant backup, fresh recovery capacity, exact container/image identities and the future U10 release allowlist. The only predecessor runtime object eligible for a future destructive release is the exact stopped Home Assistant container; Manager and Broker are explicitly excluded. The exact predecessor image remains present and the target image remains absent.
+
+No real U10 mutation occurred. The next safe repository-only gate is to prepare the destructive U10 successor source/execution package and focused tests. Any real T1 predecessor runtime/image removal or U9→U10 phase advancement still requires a fresh explicit authorization. The post-command shell-session-save warning occurred after RC=0 and successful SSH cleanup and does not alter the PASS result.
+
+Authority: `docs/development/N3W_T1_U10_R37_READONLY_PREFLIGHT_CLOSURE_20261116.md`.
+
 ## Latest authority — 2026-11-16 R36 real-T1 CLOSED_PASS / U9 LIVE_AUTHORIZATION_CLAIMED
 
 ```text
