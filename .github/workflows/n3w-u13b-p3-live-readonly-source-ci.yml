@@ -1,0 +1,50 @@
+name: N3W U13B P3 live and readonly source CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/n3w-u13b-p3-live-readonly-source-ci.yml"
+      - "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/**"
+      - "tools/execution_packages/n3w/r7a/u13b_p3_live_to_u11/**"
+      - "tests/tools/test_n3w_t1_u13b_p3_live_and_readonly_preflight.py"
+      - "docs/development/N3W_T1_U13B_P3_LIVE_EXECUTOR_AND_FRESH_READONLY_PREFLIGHT_SOURCE_DESIGN_20261117.md"
+      - "tools/n3w_t1_core_updater*.py"
+      - "infra/n3w-t1/upgrades/homeassistant-2026.10.3-u13b-physical.json"
+      - "docs/development/N3W_CI_POLICY_MANIFEST_V1.json"
+      - "tests/tools/test_n3w_ci_policy_check.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: n3w-u13b-p3-live-readonly-source-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_HEAD }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate P3 readonly and live source packages
+        env:
+          PYTHONPATH: tools
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_HEAD"
+          python -m pip install "pytest>=8,<9"
+          python -m py_compile             tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/executor.py             tools/execution_packages/n3w/r7a/u13b_p3_live_to_u11/executor.py
+          python tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/executor.py             --expected-package-commit "$SOURCE_HEAD"             --mode source-check
+          python tools/execution_packages/n3w/r7a/u13b_p3_live_to_u11/executor.py             --expected-package-commit "$SOURCE_HEAD"             --mode source-check
+          python -m pytest -q             tests/tools/test_n3w_t1_u13b_p3_live_and_readonly_preflight.py             tests/tools/test_n3w_t1_core_updater_ha_usb_r1.py::test_terminal_ha_usb_transaction_is_archived_before_next             tests/tools/test_n3w_t1_core_updater_ha_usb_r2.py::test_r2_power_loss_classification_is_deterministic_u0_through_u11             tests/tools/test_n3w_t1_u11_target_install_r40.py::test_r40_success_persists_usb_before_host_and_stops_before_u12
