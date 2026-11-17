@@ -98,6 +98,10 @@ def test_artifact_workflow_only_changes_labels_and_proves_distinct_identity():
     assert 'annotations["io.containerd.image.name"]' in text
     assert 'annotations["org.opencontainers.image.ref.name"]' in text
     assert 'image_name.endswith(base_ref)' in text
+    assert "old_config_raw = source.extractfile(old_config_name).read()" in text
+    assert "if old_oci_config != old_config_raw:" in text
+    assert "old_config_name ==" not in text
+    assert 'raise AssertionError("oci_ref_name_not_bound_to_base")' in text
 
 
 def test_artifact_workflow_has_no_live_authority():

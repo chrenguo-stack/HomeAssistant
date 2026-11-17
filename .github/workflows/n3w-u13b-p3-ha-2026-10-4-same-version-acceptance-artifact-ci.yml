@@ -230,7 +230,8 @@ jobs:
               entry = manifest[0]
               assert entry["RepoTags"] == [os.environ["BASE_IMAGE"]]
               old_config_name = entry["Config"]
-              old_config = json.loads(source.extractfile(old_config_name).read())
+              old_config_raw = source.extractfile(old_config_name).read()
+              old_config = json.loads(old_config_raw)
               config = old_config.setdefault("config", {})
               labels = config.get("Labels")
               if labels is None:
@@ -266,12 +267,8 @@ jobs:
                   return json.loads(source.extractfile(name).read())
 
               # Docker 29 archives contain both docker-save and OCI metadata.
-              # Rebind both representations to the same label-only config.
-              assert old_config_name == (
-                  hashlib.sha256(
-                      source.extractfile(old_config_name).read()
-                  ).hexdigest() + ".json"
-              )
+              # The docker-save Config filename is not a portable content-digest
+              # oracle. Join the two representations by exact config bytes.
               index = read_json_member("index.json")
               assert index["schemaVersion"] == 2
               assert isinstance(index["manifests"], list)
@@ -289,10 +286,9 @@ jobs:
                       hashlib.sha256(old_oci_config).hexdigest()
                       == config_descriptor["digest"].split(":")[1]
                   )
-                  if hashlib.sha256(old_oci_config).hexdigest() != old_config_name[:-5]:
+                  if old_oci_config != old_config_raw:
                       continue
                   assert updated == 0
-                  assert old_oci_config == source.extractfile(old_config_name).read()
                   oci_manifest["config"]["digest"] = (
                       "sha256:" + hashlib.sha256(config_raw).hexdigest()
                   )
@@ -315,11 +311,18 @@ jobs:
                   annotations["io.containerd.image.name"] = (
                       image_name[:-len(base_ref)] + target_ref
                   )
-                  assert (
-                      annotations.get("org.opencontainers.image.ref.name")
-                      == base_tag
-                  )
-                  annotations["org.opencontainers.image.ref.name"] = target_tag
+                  ref_name = annotations.get("org.opencontainers.image.ref.name")
+                  assert isinstance(ref_name, str)
+                  if ref_name == base_tag:
+                      annotations["org.opencontainers.image.ref.name"] = target_tag
+                  elif ref_name == base_ref:
+                      annotations["org.opencontainers.image.ref.name"] = target_ref
+                  elif ref_name.endswith(base_ref):
+                      annotations["org.opencontainers.image.ref.name"] = (
+                          ref_name[:-len(base_ref)] + target_ref
+                      )
+                  else:
+                      raise AssertionError("oci_ref_name_not_bound_to_base")
                   updated += 1
               assert updated == 1
               index_raw = encoded(index)
