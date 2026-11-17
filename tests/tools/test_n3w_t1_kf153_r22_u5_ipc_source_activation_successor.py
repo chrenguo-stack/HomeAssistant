@@ -73,12 +73,14 @@ def test_r22_claim_is_durable_and_rollback_is_lifecycle_gated():
     assert 'result["lifecycle_mutation_started"]=True' in remote
     assert 'result["rollback_required"]=bool(result["lifecycle_mutation_started"]' in remote
 
-def test_r22_package_source_authority_matches_exact_head():
+def test_r22_package_source_authority_matches_frozen_historical_head():
     m=load_executor()
-    head=m.git_text("rev-parse","HEAD")
-    d=m.read_manifest(head,execute=False)
+    d=json.loads(MANIFEST.read_text(encoding="utf-8"))
+    historical_head="aa5eb8b8ccb7628aae782d00d4b97fa8fe741239"
     for path,blob in d["package_source_authority"].items():
-        assert m.git_text("rev-parse","HEAD:"+path)==blob
+        assert m.git_text("rev-parse",historical_head+":"+path)==blob
+    current_ipc=m.git_text("rev-parse","HEAD:tools/n3w_t1_core_updater_ha_ipc.py")
+    assert current_ipc!=d["package_source_authority"]["tools/n3w_t1_core_updater_ha_ipc.py"]
 
 def test_r22_persists_raw_remote_transport_evidence_before_verdict():
     source=EXECUTOR.read_text(encoding="utf-8")

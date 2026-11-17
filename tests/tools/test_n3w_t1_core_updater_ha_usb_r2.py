@@ -958,6 +958,106 @@ def test_r2_u12_power_loss_can_forward_commit_with_exact_recovery_content(tmp_pa
     ) == "FORWARD_COMMIT_ELIGIBLE"
 
 
+def test_r2_u13a_success_is_terminal_and_cannot_enter_rollback(tmp_path):
+    tx, _media, docker, ha, target, predecessor, backup = drive_to_u8(tmp_path)
+    tx = claim_live_authorization(tx, AUTHORIZATION_ID)
+    docker.remove_predecessor(predecessor)
+    tx = record_predecessor_capacity_released(
+        tx,
+        predecessor_runtime_released=(docker.active is None),
+        predecessor_image_released=(CURRENT not in docker.images),
+        target_internal_image_absent=(TARGET not in docker.images),
+    )
+    docker.load_target(target)
+    ha.start_target()
+    tx = record_target_started(tx)
+    tx = record_target_accepted(tx)
+    tx = record_commit(tx)
+    assert tx["phase"] == U13A
+    assert classify_power_loss_reentry(
+        tx,
+        recovery_media_present=True,
+        exact_recovery_content_verified=True,
+    ) == "TERMINAL"
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_usb_rollback_phase_invalid",
+    ):
+        start_rollback(
+            tx,
+            failure_code="late_failure_must_not_reopen_commit",
+            target=target,
+            predecessor=predecessor,
+            backup=backup,
+        )
+
+
+def test_r2_all_u13b_progress_phases_require_recovery_media_and_resume_rollback(
+    tmp_path,
+):
+    tx, _media, _docker, _ha, target, predecessor, backup = drive_to_u8(tmp_path)
+    tx = claim_live_authorization(tx, AUTHORIZATION_ID)
+    snapshots = []
+
+    tx = start_rollback(
+        tx,
+        failure_code="target_health_acceptance_failed",
+        target=target,
+        predecessor=predecessor,
+        backup=backup,
+    )
+    snapshots.append(tx)
+    tx = record_rollback_target_cleanup(
+        tx,
+        services_quiesced=True,
+        target_runtime_absent=True,
+        target_image_absent=True,
+    )
+    snapshots.append(tx)
+    tx = record_rollback_predecessor_image_restored(
+        tx,
+        predecessor=predecessor,
+        predecessor_image_exact_present=True,
+    )
+    snapshots.append(tx)
+    tx = record_rollback_ha_data_restored(
+        tx,
+        backup=backup,
+        ha_data_backup_restored=True,
+    )
+    snapshots.append(tx)
+    tx = record_rollback_predecessor_runtime_started(
+        tx,
+        predecessor_runtime_started=True,
+        production_config_mounted=True,
+        manager_running=True,
+        broker_running=True,
+        homeassistant_running=True,
+    )
+    snapshots.append(tx)
+
+    assert [item["phase"] for item in snapshots] == [
+        U13B0,
+        U13B1,
+        U13B2,
+        U13B3,
+        U13B4,
+    ]
+    for item in snapshots:
+        assert item["status"] == "ACTIVE"
+        assert item["recovery_required"] is True
+        assert classify_power_loss_reentry(
+            item,
+            recovery_media_present=False,
+            exact_recovery_content_verified=False,
+        ) == "RECOVERY_MEDIA_REQUIRED"
+        assert classify_power_loss_reentry(
+            item,
+            recovery_media_present=True,
+            exact_recovery_content_verified=True,
+        ) == "ROLLBACK_REQUIRED"
+
+
 def test_r2_media_binding_rejects_wrong_label(tmp_path):
     media = SyntheticUsb(tmp_path / "synthetic-usb")
     tx = request_prepare(transaction())
