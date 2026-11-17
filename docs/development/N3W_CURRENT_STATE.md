@@ -1,3 +1,51 @@
+## Latest authority — 2026-11-17 U13B P2 exact-bound read-only preexecution package CLOSED_PASS
+
+```text
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+P1_CLOSED_PASS=true
+P2_PACKAGE_HEAD=67b2995c983c1265dfcb24aed1395c2eefc50302
+P2_CI=16_OF_16_SUCCESS
+P2_REAL_T1_ACCESS=false
+P2_T1_MUTATION=false
+P2_USB_MUTATION=false
+P2_SERVICE_MUTATION=false
+P2_IMAGE_MUTATION=false
+P2_HA_DATA_MUTATION=false
+
+BOUND_PHASE=U13A_COMMITTED
+BOUND_STATUS=COMMITTED
+BOUND_TRANSACTION_SHA256=06951ac4d8a8723ae808f25d955560052eee02f884ab78f5c6ffe0580e84b600
+BOUND_USB_PHASE_SHA256=11d150bc3828a0e400a90670671a607a02f6d1a53350ef53b3366d95fcb64288
+ROLLBACK_ELIGIBLE=false
+NEW_CLEAN_OTA_REQUIRED=true
+
+P2_CLOSED_PASS=true
+P3_TARGET_SELECTION_REQUIRED=true
+NEW_CLEAN_OTA_MUTATION_AUTHORIZED=false
+U13B_LIVE_EXECUTION_AUTHORIZED=false
+CONTROLLED_ROLLBACK_MUTATION_AUTHORIZED=false
+BOARD_ACCESS=false
+MERGE=false
+```
+
+P2 exact-bound package is closed at `67b2995c983c1265dfcb24aed1395c2eefc50302` with 16/16 CI SUCCESS. It binds the P1 fresh real-T1 terminal U13A facts to the repository-closed U13B read-only-preexecution source and remains non-live.
+
+Public closure:
+`docs/development/N3W_T1_U13B_P2_EXACT_BOUND_READONLY_PREEXECUTION_PACKAGE_CLOSED_PASS_20261117.md`.
+
+The next stage is P3 target selection/preparation. Same-image reapply of current 2026.10.4 is not accepted as rollback proof, and 2026.11.0 remains deferred under the existing IMAGE_ONLY_V1 compatibility rule.
+
 ## Latest authority — 2026-11-17 U13B P1 Attempt 02 real-T1 read-only binding CLOSED_PASS
 
 ```text

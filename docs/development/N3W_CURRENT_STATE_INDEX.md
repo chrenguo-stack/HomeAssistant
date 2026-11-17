@@ -1,3 +1,17 @@
+## 2026-11-17 — U13B P2 exact-bound read-only preexecution package CLOSED_PASS
+
+- PR #807 remains OPEN/DRAFT/unmerged; default main remains `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`.
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference remains `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- P2 exact package head `67b2995c983c1265dfcb24aed1395c2eefc50302` completed 16/16 CI SUCCESS.
+- P2 binds P1 fresh terminal `U13A_COMMITTED / COMMITTED` facts to closed U13B read-only-preexecution source hashes.
+- Bound transaction SHA-256 remains `06951ac4d8a8723ae808f25d955560052eee02f884ab78f5c6ffe0580e84b600`; bound USB phase SHA-256 remains `11d150bc3828a0e400a90670671a607a02f6d1a53350ef53b3366d95fcb64288`.
+- P2 does not access T1 and does not authorize live read-only access, new clean OTA mutation, U13B live rollback, board access or merge.
+- At current U13A, any later separately authorized P2 execution must STOP outside the rollback domain; `ROLLBACK_ELIGIBLE=false / NEW_CLEAN_OTA_REQUIRED=true`.
+- Public closure: `docs/development/N3W_T1_U13B_P2_EXACT_BOUND_READONLY_PREEXECUTION_PACKAGE_CLOSED_PASS_20261117.md`.
+- Next stage is P3 target selection/preparation; current 2026.10.4 cannot be reused as a same-image rollback proof, and 2026.11.0 remains deferred by existing compatibility review.
+
 ## 2026-11-17 — U13B P1 Attempt 02 real-T1 read-only binding CLOSED_PASS
 
 - PR #807 remains OPEN/DRAFT/unmerged; default main remains `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`.
