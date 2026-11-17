@@ -303,6 +303,23 @@ jobs:
                       "sha256:" + hashlib.sha256(new_oci_manifest_raw).hexdigest()
                   )
                   descriptor["size"] = len(new_oci_manifest_raw)
+                  annotations = descriptor.get("annotations")
+                  assert isinstance(annotations, dict)
+                  base_ref = os.environ["BASE_IMAGE"]
+                  target_ref = os.environ["TARGET_IMAGE"]
+                  base_tag = base_ref.rsplit(":", 1)[1]
+                  target_tag = target_ref.rsplit(":", 1)[1]
+                  image_name = annotations.get("io.containerd.image.name")
+                  assert isinstance(image_name, str)
+                  assert image_name.endswith(base_ref)
+                  annotations["io.containerd.image.name"] = (
+                      image_name[:-len(base_ref)] + target_ref
+                  )
+                  assert (
+                      annotations.get("org.opencontainers.image.ref.name")
+                      == base_tag
+                  )
+                  annotations["org.opencontainers.image.ref.name"] = target_tag
                   updated += 1
               assert updated == 1
               index_raw = encoded(index)

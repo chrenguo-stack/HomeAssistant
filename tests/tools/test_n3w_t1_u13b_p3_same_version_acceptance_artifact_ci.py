@@ -95,6 +95,9 @@ def test_artifact_workflow_only_changes_labels_and_proves_distinct_identity():
     assert 'descriptor["digest"]' in text
     assert 'assert updated == 1' in text
     assert 'add_bytes(target, "index.json", index_raw)' in text
+    assert 'annotations["io.containerd.image.name"]' in text
+    assert 'annotations["org.opencontainers.image.ref.name"]' in text
+    assert 'image_name.endswith(base_ref)' in text
 
 
 def test_artifact_workflow_has_no_live_authority():
