@@ -1,3 +1,19 @@
+## 2026-11-17 — U12 live acceptance CLOSED_PASS / durable U12 stop before U13
+
+- PR #807 U12 execution source head `dc5a5cce3d4b6221c0ea64b58bd5e5bd2d802e94` completed 16/16 CI SUCCESS before real-T1 execution.
+- Real-T1 execution `u12-live01-20261117T005801Z` returned RC=0 / `U12_LIVE_ACCEPTANCE_PASS`.
+- Fresh embedded U12 read-only preflight passed before claim; prestate was exact host/USB `U11_TARGET_INSTALLED_STARTED` with transaction SHA-256 `33350ba47e0af43b4f0e11fac990e24924f22057da60d980b26453b4e80e0471`.
+- U12 authorization is claimed + consumed + no-replay. R42 remained consumed/no-replay and was not replayed.
+- Host transaction is durably `U12_TARGET_ACCEPTANCE` with SHA-256 `32a92edcd9fbdad1356b874a55d40f6e919518363c5740b495f9b5fa08a56071`.
+- USB transaction phase is durably `U12_TARGET_ACCEPTANCE` with phase SHA-256 `ca5cbcaa0d915f9a0fe590d2beeeace846ce7029bdf6dcb8b46331d205212283`; manifest/content-authority/checksums hashes remain unchanged and exact.
+- Terminal runtime acceptance passed: Broker, Manager and Home Assistant are running; services owner active; production `/config` bind present; target HA runtime image ID remains `sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365`.
+- Listener contract passed; Manager and Home Assistant current MQTT authentication passed; Home Assistant HTTP returned 401 as expected authenticated-service readiness evidence.
+- U12 acceptance duration was 2648 ms; readiness portion 1281 ms; MQTT 721 ms; HA HTTP 9 ms. This is acceptance-phase timing only.
+- `NORMAL_OTA_BASELINE_AVAILABLE=false` and `USER_VISIBLE_DOWNTIME_MEASURED=false` remain true; do not substitute this U12 timing for end-to-end OTA performance.
+- No service mutation, image mutation, U13+, board access or merge occurred.
+- Stop point: durable U12 is CLOSED_PASS; next work must be a separate U13 design/read-only gate.
+- Public-safe closure: `docs/development/N3W_T1_U12_LIVE_ACCEPTANCE_CLOSURE_20261117.md`.
+
 ## 2026-11-17 — U11 R42 CLOSED_PASS / new-chat handoff STOP / U12 read-only + performance-design boundary
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`, repository Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, repository Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`; Live upgrade accepted; deployment state remains `APPLIED_ACCEPTED`.
