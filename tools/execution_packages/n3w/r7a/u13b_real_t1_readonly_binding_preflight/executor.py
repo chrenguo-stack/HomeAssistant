@@ -242,7 +242,8 @@ def run_status_only(
     known_hosts: Path,
     expected_host_key_sha256: str,
     expected_terminal: dict[str, Any],
-) -> tuple[subprocess.CompletedProcess[str], dict[str, Any], bool]:
+    access_state: dict[str, bool],
+) -> tuple[subprocess.CompletedProcess[str], dict[str, Any]]:
     executor, historical = load_historical_status_authority()
     plan = build_status_plan(
         executor,
@@ -258,18 +259,34 @@ def run_status_only(
         known_hosts=known_hosts.expanduser(),
         expected_host_key_sha256=expected_host_key_sha256,
     )
-    accessed = False
+    remote_error: Exception | None = None
+    completed = None
+    delegated = None
+    transport.start_epoch()
+    access_state["t1_access"] = True
     try:
-        transport.start_epoch()
-        accessed = True
         completed, delegated = executor.remote_mode(
             transport,
             plan,
             "status",
             timeout=120,
         )
-    finally:
+    except Exception as error:
+        remote_error = error
+    try:
         transport.close_epoch()
+    except Exception as cleanup_error:
+        if remote_error is None:
+            raise Stop(
+                "ssh_master_cleanup_failed:"
+                + type(cleanup_error).__name__
+                + ":"
+                + str(cleanup_error)[:160]
+            ) from cleanup_error
+    if remote_error is not None:
+        raise remote_error
+    if completed is None or not isinstance(delegated, dict):
+        raise Stop("delegated_status_result_missing")
 
     write_private_text(
         evidence_root / "u13a_status_stdout.txt",
@@ -286,7 +303,7 @@ def run_status_only(
     if completed.returncode != 0:
         reason = delegated.get("reason", "delegated_status_nonzero")
         raise Stop("delegated_u13a_status_failed:" + str(reason)[:220])
-    return completed, normalize_status(delegated, expected_terminal), accessed
+    return completed, normalize_status(delegated, expected_terminal)
 
 
 def main() -> int:
@@ -326,16 +343,16 @@ def main() -> int:
     try:
         manifest = read_manifest(args.expected_package_commit)
         evidence = prepare_evidence_root(args.evidence_root)
-        _, normalized, accessed = run_status_only(
+        _, normalized = run_status_only(
             execution_id=args.execution_id,
             evidence_root=evidence,
             t1_ssh_target=args.t1_ssh_target,
             known_hosts=args.known_hosts,
             expected_host_key_sha256=args.expected_host_key_sha256,
             expected_terminal=manifest["expected_terminal_u13a"],
+            access_state=result,
         )
         result.update(normalized)
-        result["t1_access"] = accessed
         result["local_evidence_write"] = True
         return_code = 0
     except Exception as error:

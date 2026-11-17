@@ -16,7 +16,7 @@
     "design": "docs/development/N3W_T1_U13B_REAL_T1_PHYSICAL_ACCEPTANCE_AND_READONLY_PREEXECUTION_PLAN_20261117.md"
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/u13b_real_t1_readonly_binding_preflight/executor.py": "a57c4dad7718fb3ffb37b221ed928309e3e98e89",
+    "tools/execution_packages/n3w/r7a/u13b_real_t1_readonly_binding_preflight/executor.py": "d4370a3962558f156db722dc9370154e0800fb23",
     "tools/execution_packages/n3w/r7a/u13a_live_commit/executor.py": "b55855e880f6b2cf17212b3b8172352771442ea9",
     "tools/execution_packages/n3w/r7a/u13a_live_commit/manifest.json": "23a46203ddcbe2bfd07daa4d7d5f4d977ed27845",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
@@ -52,7 +52,8 @@
     "merge": false,
     "historical_live_manifest_revalidation": false,
     "current_u13b_transition_source_required": false,
-    "status_plan_contains_live_transition_source": false
+    "status_plan_contains_live_transition_source": false,
+    "t1_access_truth_preserved_on_remote_stop": true
   },
   "next_boundary": "FRESH_REAL_T1_READONLY_BINDING_ONLY",
   "stop_boundary": "STOP_AFTER_FRESH_TERMINAL_U13A_BINDING_BEFORE_ANY_NEW_OTA_OR_U13B_MUTATION",

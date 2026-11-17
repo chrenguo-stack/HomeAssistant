@@ -287,7 +287,8 @@ def test_run_status_only_calls_remote_status_without_live_manifest_gate(
 
     monkeypatch.setattr(executor, "load_module", fake_load)
 
-    _, result, accessed = executor.run_status_only(
+    access_state = {"t1_access": False}
+    _, result = executor.run_status_only(
         execution_id="p1-test",
         evidence_root=tmp_path,
         t1_ssh_target="operator@t1",
@@ -299,11 +300,12 @@ def test_run_status_only_calls_remote_status_without_live_manifest_gate(
             "transaction_sha256": "a" * 64,
             "target_runtime_image_id": "sha256:" + "b" * 64,
         },
+        access_state=access_state,
     )
     assert observed["mode"] == "status"
     assert observed["started"] is True
     assert observed["closed"] is True
     assert "transition_source_b64" not in observed["plan"]
     assert "transition_source_sha256" not in observed["plan"]
-    assert accessed is True
+    assert access_state["t1_access"] is True
     assert result["current_probe_transaction_mutation"] is False
