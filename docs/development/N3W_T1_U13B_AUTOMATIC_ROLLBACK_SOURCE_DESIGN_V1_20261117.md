@@ -392,3 +392,27 @@ The exact predecessor runtime image ID is derived from the durable transaction's
 Backup verification now requires the recovery directory to already exist with private ownership/mode; it never creates a missing directory. Directory creation remains confined to the U7 backup-production path.
 
 This repair still does not close USB-ahead/host-behind durable split-write reconciliation. That remains a later gate after Stage A/B source closure.
+## 14. Final independent review repair — persistent Home Assistant binding is terminal health authority
+
+The 2026-11-17 final independent Stage A / Stage B review found one additional Stage B false-PASS path after the previous source-repair CI closure.
+
+A durable `U13B4_PREDECESSOR_RUNTIME_STARTED` transaction can be resumed after a crash or process restart. At that point the predecessor container may still be running with the exact predecessor image, zero restart count, the production `/config` mount, healthy Manager/Broker peers, listeners, MQTT authentication and HTTP readiness. Those runtime facts are necessary but not sufficient for terminal rollback closure: the persistent Home Assistant image binding must also still select the predecessor. Otherwise a later systemd/Compose recreate can start the target again even though the transaction was already marked `U13B_ROLLED_BACK`.
+
+The Stage B terminal-health contract is therefore strengthened to require:
+
+```text
+RUNNING_PREDECESSOR_IMAGE_EXACT=true
+PREDECESSOR_RESTART_COUNT_ZERO=true
+PRODUCTION_CONFIG_MOUNTED=true
+MANAGER_BROKER_PEERS_EXACT=true
+HOMEASSISTANT_PERSISTENT_BINDING=PREDECESSOR
+LISTENERS_EXACT=true
+MANAGER_MQTT_AUTHENTICATED=true
+HOMEASSISTANT_MQTT_AUTHENTICATED=true
+HOMEASSISTANT_HTTP_READY=true
+```
+
+A mismatch between the running predecessor and the persistent Home Assistant binding is fail-closed as `u13b_homeassistant_binding_drift` and must never advance `U13B4 -> U13B_ROLLED_BACK`.
+
+This repair is intentionally Stage B scoped. It does not implement Stage C USB/host split-write reconciliation, does not authorize a live rollback, and does not change the already terminal U13A production transaction.
+

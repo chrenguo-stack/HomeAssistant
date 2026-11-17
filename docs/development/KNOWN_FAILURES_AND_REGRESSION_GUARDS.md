@@ -1,3 +1,7 @@
+### 2026-11-17 KF-163 U13B terminal rollback persistent-binding false PASS — OPEN / SOURCE REPAIR SUBMITTED
+
+The final independent U13B Stage A / Stage B review found a fail-closed gap in the Stage B terminal health oracle. After `U13B3 -> U13B4` has durably recorded predecessor runtime start, a later resume can observe the exact predecessor container healthy while the persistent Home Assistant image binding has drifted back to the target. The existing `verify_predecessor_health()` checked runtime image/ref, restart count, production `/config`, Manager/Broker identity, listeners, MQTT and HTTP, but did not re-check the durable Home Assistant binding. That could falsely advance to terminal `U13B_ROLLED_BACK` even though the next recreate would select the target. Repair: terminal/running-predecessor evidence must also require `component_binding_v2("homeassistant") == predecessor.image_ref`; binding drift fails closed with `u13b_homeassistant_binding_drift`. Regression explicitly covers healthy predecessor runtime + wrong persistent binding. Stage C remains blocked until this source repair passes exact-head CI and a fresh independent re-review.
+
 ### 2026-11-16 KF-162 R40 U11 production-owner supervision false drift after claim — CLOSED_PASS / PHYSICALLY_RECOVERED_BY_R42
 
 ```text

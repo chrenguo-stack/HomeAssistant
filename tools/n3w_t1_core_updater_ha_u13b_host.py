@@ -394,6 +394,8 @@ class U13BProductionRuntime:
                 self.u11.expected_broker_runtime_image_id
             ),
         )
+        if self.host.component_binding_v2("homeassistant") != predecessor.image_ref:
+            raise UpdaterV2Error("u13b_homeassistant_binding_drift")
         ha = self.host._runtime("homeassistant")
         container_id = ha["container_id"]
         expected_runtime_id = self._expected_predecessor_runtime_id(

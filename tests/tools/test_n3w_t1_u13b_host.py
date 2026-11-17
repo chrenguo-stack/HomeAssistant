@@ -233,9 +233,24 @@ def test_u13b_predecessor_runtime_start_uses_ha_ota_path():
     assert host.binding == CURRENT
 
 
+def test_u13b_predecessor_health_rejects_binding_drift():
+    host = Host()
+    host.owner = "active"
+    adapter = runtime(host)
+    with pytest.raises(
+        UpdaterV2Error,
+        match="u13b_homeassistant_binding_drift",
+    ):
+        adapter.verify_predecessor_health(
+            transaction=transaction(),
+            predecessor=image("predecessor", CURRENT),
+        )
+
+
 def test_u13b_predecessor_health_rejects_wrong_runtime_image_id():
     host = Host()
     host.owner = "active"
+    host.binding = CURRENT
     host.ha_runtime_image_id_override = "sha256:" + "e" * 64
     adapter = runtime(host)
     with pytest.raises(
@@ -251,6 +266,7 @@ def test_u13b_predecessor_health_rejects_wrong_runtime_image_id():
 def test_u13b_predecessor_health_rejects_restart_loop_evidence():
     host = Host()
     host.owner = "active"
+    host.binding = CURRENT
     host.ha_restart_count = 1
     adapter = runtime(host)
     with pytest.raises(
