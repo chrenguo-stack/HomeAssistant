@@ -40,6 +40,7 @@ def disk(mount_path=None):
 def backend(tmp_path, observed_disk):
     runtime_root = tmp_path / "run"
     runtime_root.mkdir(mode=0o700, exist_ok=True)
+    runtime_root.chmod(0o700)
     value = SubprocessPrepareBackend(runtime_root=runtime_root)
     value._lsblk = lambda: [observed_disk]
     value._filesystem_space = lambda path: (20 * 1024**3, 10 * 1024**3)
