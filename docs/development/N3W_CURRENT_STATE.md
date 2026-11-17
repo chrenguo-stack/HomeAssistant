@@ -1,3 +1,56 @@
+## Latest authority — 2026-11-17 U12 live acceptance CLOSED_PASS / durable U12 stop before U13
+
+```text
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+U12_EXECUTION_SOURCE_HEAD=dc5a5cce3d4b6221c0ea64b58bd5e5bd2d802e94
+U12_EXECUTION_SOURCE_CI=16_OF_16_SUCCESS
+U12_EXECUTION_ID=u12-live01-20261117T005801Z
+U12_RESULT=U12_LIVE_ACCEPTANCE_PASS
+U12_AUTHORIZATION_CLAIMED=true
+U12_AUTHORIZATION_CONSUMED=true
+U12_REPLAY_PERMITTED=false
+
+LIVE_TRANSACTION_PHASE=U12_TARGET_ACCEPTANCE
+LIVE_TRANSACTION_SHA256=32a92edcd9fbdad1356b874a55d40f6e919518363c5740b495f9b5fa08a56071
+USB_TRANSACTION_PHASE=U12_TARGET_ACCEPTANCE
+USB_PHASE_SHA256=ca5cbcaa0d915f9a0fe590d2beeeace846ce7029bdf6dcb8b46331d205212283
+USB_MIRROR_EXACT=true
+
+LAST_PROVEN_LIVE_HOMEASSISTANT=local/n3w-homeassistant:2026.10.4-5881590f
+LAST_PROVEN_LIVE_HOMEASSISTANT_RUNTIME_IMAGE_ID=sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365
+LAST_PROVEN_LIVE_RUNTIME_HEALTH=PASS
+LAST_PROVEN_MANAGER_MQTT_AUTHENTICATED=true
+LAST_PROVEN_HOMEASSISTANT_MQTT_AUTHENTICATED=true
+LAST_PROVEN_HOMEASSISTANT_HTTP_STATUS=401
+
+U11_DURABLE_PASS=true
+U12_ACCEPTANCE=true
+U12_DURABLE_PASS=true
+U12_ACCEPTANCE_DURATION_MS=2648
+NORMAL_OTA_BASELINE_AVAILABLE=false
+USER_VISIBLE_DOWNTIME_MEASURED=false
+
+SERVICE_MUTATION=false
+IMAGE_MUTATION=false
+R42_REPLAY=false
+U13_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=SEPARATE_U13_DESIGN_OR_READONLY_PREFLIGHT
+STOPPED_AFTER_DURABLE_U12=true
+STOPPED_BEFORE_U13_PLUS=true
+```
+
+Real-T1 U12 live acceptance completed with a fresh read-only preflight followed by the bounded U11→U12 durable transition. USB transaction metadata was synchronized before the host transaction. Terminal verification proved exact target runtime continuity, production config mount, Broker/Manager/Home Assistant readiness, MQTT authentication and Home Assistant HTTP readiness. No service or image mutation occurred in U12, and R42 was not replayed.
+
+The measured 2648 ms is the U12 acceptance-phase duration only. It is not the normal end-to-end OTA baseline; no user-visible downtime measurement was produced.
+
+Authority: `docs/development/N3W_T1_U12_LIVE_ACCEPTANCE_CLOSURE_20261117.md`.
+
 ## Latest authority — 2026-11-17 U11 R42 CLOSED_PASS / new-chat handoff STOP / U12 read-only + performance-design boundary
 
 ```text
