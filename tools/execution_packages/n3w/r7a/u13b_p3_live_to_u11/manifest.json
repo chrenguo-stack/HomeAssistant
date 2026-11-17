@@ -24,12 +24,15 @@
     "p3_target_binding_run": 44199389702,
     "p3_same_version_artifact_head": "d8446485557eb8e02bdb1460e84fe23984047f5b",
     "p3_same_version_exact_artifact_run": 44199389702,
-    "p3_same_version_exact_artifact_id": 14381710716
+    "p3_same_version_exact_artifact_id": 14381710716,
+    "p3_fresh_readonly_authorization_id": "N3W_T1_U13B_P3_FRESH_READONLY_PREFLIGHT_20261118_01",
+    "p3_fresh_readonly_authorized": true,
+    "p3_fresh_readonly_authorized_date": "2026-11-18"
   },
   "package_source_authority": {
     "tools/execution_packages/n3w/r7a/u13b_p3_live_to_u11/executor.py": "6bfd6dcdad7f32cac4896a6b0cb454028cd6bed3",
-    "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/executor.py": "b5a86ce789a1e5c405c7f487f6617aec45a153c1",
-    "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/manifest.json": "0bae536141f5204d90a61fe4fb6e3878da787505",
+    "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/executor.py": "f48872edeb8b3546883b6669cc6c2eb0ddd525ec",
+    "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/manifest.json": "962fbf01fc6cdc30c47af3e583cd58bb71133850",
     "tools/execution_packages/n3w/r7a/u13b_p3_acceptance_clean_ota_source/executor.py": "360c2587b92e7a390547875ce7e404c40e2e38bf",
     "tools/execution_packages/n3w/r7a/u13b_p3_acceptance_clean_ota_source/manifest.json": "f3497bb11d3fe534825bc62b78336108551d0c77",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
@@ -75,7 +78,7 @@
     "schema": "gh.n3w-t1-u13b-p3-fresh-readonly-preflight-manifest/1",
     "gate_id": "N3W_T1_U13B_P3_FRESH_REAL_T1_READONLY_PREFLIGHT_20261117_01",
     "read_only_preflight": true,
-    "real_t1_readonly_execution_authorized": false,
+    "real_t1_readonly_execution_authorized": true,
     "new_clean_ota_mutation_authorized": false,
     "u13b_live_execution_authorized": false,
     "controlled_rollback_mutation_authorized": false,
@@ -89,10 +92,13 @@
       "p3_target_binding_run": 44199389702,
       "p3_same_version_artifact_head": "d8446485557eb8e02bdb1460e84fe23984047f5b",
       "p3_same_version_exact_artifact_run": 44199389702,
-      "p3_same_version_exact_artifact_id": 14381710716
+      "p3_same_version_exact_artifact_id": 14381710716,
+      "p3_fresh_readonly_authorization_id": "N3W_T1_U13B_P3_FRESH_READONLY_PREFLIGHT_20261118_01",
+      "p3_fresh_readonly_authorized": true,
+      "p3_fresh_readonly_authorized_date": "2026-11-18"
     },
     "package_source_authority": {
-      "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/executor.py": "b5a86ce789a1e5c405c7f487f6617aec45a153c1",
+      "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/executor.py": "f48872edeb8b3546883b6669cc6c2eb0ddd525ec",
       "tools/execution_packages/n3w/r7a/u13b_real_t1_readonly_binding_preflight/executor.py": "d4370a3962558f156db722dc9370154e0800fb23",
       "tools/execution_packages/n3w/r7a/u13b_real_t1_readonly_binding_preflight/manifest.json": "081b92c7e15e6b98147fdbc4014e5b686491e121",
       "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
@@ -128,7 +134,7 @@
     "execution_contract": {
       "delegate_p1_terminal_status_only": true,
       "additional_prepare_new_readonly_probe": true,
-      "execute_mode_forbidden_until_separate_authorization": true,
+      "execute_mode_forbidden_until_separate_authorization": false,
       "exactly_one_fresh_usb_candidate_required": true,
       "historical_usb_reuse_forbidden": true,
       "current_terminal_transaction_write": false,
@@ -142,8 +148,8 @@
       "board_access": false,
       "merge": false
     },
-    "next_boundary": "SOURCE_AND_CI_REVIEW_ONLY",
-    "stop_boundary": "STOP_BEFORE_REAL_T1_READONLY_PREFLIGHT_AUTHORIZATION"
+    "next_boundary": "EXECUTE_FRESH_REAL_T1_READONLY_PREFLIGHT",
+    "stop_boundary": "STOP_AFTER_REAL_T1_READONLY_PREFLIGHT_BEFORE_P3_LIVE_AUTHORIZATION"
   },
   "expected_terminal_u13a": {
     "transaction_phase": "U13A_COMMITTED",

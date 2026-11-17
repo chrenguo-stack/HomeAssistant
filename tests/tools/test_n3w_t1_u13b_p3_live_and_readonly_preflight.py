@@ -32,7 +32,7 @@ def manifest(path: Path):
 def test_fresh_readonly_manifest_is_non_live_and_preserves_old_usb():
     value = manifest(PREFLIGHT_MANIFEST)
     assert value["read_only_preflight"] is True
-    assert value["real_t1_readonly_execution_authorized"] is False
+    assert value["real_t1_readonly_execution_authorized"] is True
     assert value["new_clean_ota_mutation_authorized"] is False
     assert value["u13b_live_execution_authorized"] is False
     assert value["controlled_rollback_mutation_authorized"] is False
@@ -41,8 +41,9 @@ def test_fresh_readonly_manifest_is_non_live_and_preserves_old_usb():
     assert contract["historical_usb_reuse_forbidden"] is True
     assert contract["current_terminal_transaction_write"] is False
     assert contract["usb_format"] is False
+    assert value["execution_contract"]["execute_mode_forbidden_until_separate_authorization"] is False
     assert value["stop_boundary"] == (
-        "STOP_BEFORE_REAL_T1_READONLY_PREFLIGHT_AUTHORIZATION"
+        "STOP_AFTER_REAL_T1_READONLY_PREFLIGHT_BEFORE_P3_LIVE_AUTHORIZATION"
     )
 
 
@@ -71,10 +72,11 @@ def test_fresh_readonly_remote_compiles_and_has_no_mutation_calls():
     assert "candidate.public_fingerprint != old_fingerprint" in remote
 
 
-def test_fresh_readonly_execute_mode_is_blocked_by_false_manifest_authority():
+def test_fresh_readonly_execute_mode_requires_true_manifest_authority():
     source = PREFLIGHT_EXECUTOR.read_text(encoding="utf-8")
     assert 'choices=("source-check", "execute-readonly")' in source
-    assert "require_authorized=execute" in source
+    assert "require_authorized=True if execute else None" in source
+    assert "require_authorized is not None" in source
     assert (
         'document.get("real_t1_readonly_execution_authorized")'
         in source

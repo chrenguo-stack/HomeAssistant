@@ -53,7 +53,11 @@ def load_module(path: Path, name: str):
     return module
 
 
-def read_manifest(expected_commit: str, *, require_authorized: bool) -> dict[str, Any]:
+def read_manifest(
+    expected_commit: str,
+    *,
+    require_authorized: bool | None,
+) -> dict[str, Any]:
     if re.fullmatch(r"[0-9a-f]{40}", expected_commit or "") is None:
         raise Stop("expected_commit_invalid")
     if git_text("rev-parse", "HEAD") != expected_commit:
@@ -65,8 +69,11 @@ def read_manifest(expected_commit: str, *, require_authorized: bool) -> dict[str
         document.get("schema") != MANIFEST_SCHEMA
         or document.get("gate_id") != GATE_ID
         or document.get("read_only_preflight") is not True
-        or document.get("real_t1_readonly_execution_authorized")
-        is not require_authorized
+        or (
+            require_authorized is not None
+            and document.get("real_t1_readonly_execution_authorized")
+            is not require_authorized
+        )
         or document.get("new_clean_ota_mutation_authorized") is not False
         or document.get("u13b_live_execution_authorized") is not False
         or document.get("controlled_rollback_mutation_authorized") is not False
@@ -435,7 +442,9 @@ def source_check(manifest: dict[str, Any]) -> dict[str, Any]:
         "gate_id": GATE_ID,
         "status": "P3_FRESH_READONLY_PREFLIGHT_SOURCE_READY",
         "read_only": True,
-        "real_t1_readonly_execution_authorized": False,
+        "real_t1_readonly_execution_authorized": manifest[
+            "real_t1_readonly_execution_authorized"
+        ],
         "target_image_ref": target["target_image_ref"],
         "expected_predecessor_image_ref": target[
             "expected_predecessor_image_ref"
@@ -486,7 +495,7 @@ def main() -> int:
         execute = args.mode == "execute-readonly"
         manifest = read_manifest(
             args.expected_package_commit,
-            require_authorized=execute,
+            require_authorized=True if execute else None,
         )
         if not execute:
             result.update(source_check(manifest))
