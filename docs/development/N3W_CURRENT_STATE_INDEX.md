@@ -1,3 +1,16 @@
+## 2026-11-17 — U13B P3 acceptance-only clean OTA source package CLOSED_PASS
+
+- PR #807 remains OPEN/DRAFT/unmerged; default main remains `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`.
+- P3 exact artifact run `44089585822` and P3 target-binding run `44091564730` are SUCCESS.
+- Exact acceptance target is `local/n3w-homeassistant:2026.10.3-c2bb99de`, predecessor `local/n3w-homeassistant:2026.10.4-5881590f`.
+- Target archive SHA-256 is `d26ac92ceed7baf689e1db9f11550c1e51d36f6dc81cac995a3eaf7a3d13912d`, size 835151232 bytes, artifact ID `14330409226`.
+- Non-live source package head `c476770f652d06ab581ad7022a2935e59a597268`; focused run `44093176411` SUCCESS; all 20 workflows on that head SUCCESS.
+- Manager's higher-version rule is unchanged. The acceptance path bypasses only version discovery and reuses the existing `HostOtaAdmission -> HaUsbIpcExecutor -> prepare_new()` product path.
+- Existing terminal transaction archival before a fresh transaction is covered by the focused source CI.
+- Real-T1 read-only preflight has not run; real-T1 access, new clean OTA mutation, U13B live rollback, board access and merge remain unauthorized.
+- Public closure: `docs/development/N3W_T1_U13B_P3_ACCEPTANCE_ONLY_CLEAN_OTA_SOURCE_PACKAGE_CLOSED_PASS_20261117.md`.
+- Next source gate: exact fresh real-T1 read-only preflight package + separately authorized P3 live executor, with hard STOP at U11 before U12.
+
 ## 2026-11-17 — U13B P2 exact-bound read-only preexecution package CLOSED_PASS
 
 - PR #807 remains OPEN/DRAFT/unmerged; default main remains `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`.
