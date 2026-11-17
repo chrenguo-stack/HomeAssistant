@@ -1,3 +1,54 @@
+## Latest authority — 2026-11-17 U13A live commit CLOSED_PASS / durable terminal commit
+
+```text
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+PR_BASE_HEAD=ab277001dc9b31dcccb4d36b1507cec5f26d5a1d
+AUTHORIZED_PACKAGE_HEAD=b1d4ea98bc768ed26d626b895d494cd8ca38cc69
+AUTHORIZED_PACKAGE_CI=16_OF_16_SUCCESS
+U13A_EXECUTION_ID=u13a-live01-20261117T022518Z
+U13A_RESULT=U13A_LIVE_COMMIT_PASS
+U13A_LOCAL_RC=0
+U13A_FRESH_PREFLIGHT_PASS=true
+
+U13A_AUTHORIZATION_GRANTED=true
+U13A_AUTHORIZATION_CLAIMED=true
+U13A_AUTHORIZATION_CONSUMED=true
+U13A_REPLAY_PERMITTED=false
+
+LIVE_TRANSACTION_PHASE=U13A_COMMITTED
+LIVE_TRANSACTION_STATUS=COMMITTED
+LIVE_TRANSACTION_SHA256=06951ac4d8a8723ae808f25d955560052eee02f884ab78f5c6ffe0580e84b600
+RECOVERY_REQUIRED=false
+USB_TRANSACTION_PHASE=U13A_COMMITTED
+USB_PHASE_SHA256=11d150bc3828a0e400a90670671a607a02f6d1a53350ef53b3366d95fcb64288
+USB_MIRROR_EXACT=true
+
+LAST_PROVEN_LIVE_HOMEASSISTANT_RUNTIME_IMAGE_ID=sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365
+LAST_PROVEN_LIVE_RUNTIME_HEALTH=PASS
+LAST_PROVEN_MANAGER_MQTT_AUTHENTICATED=true
+LAST_PROVEN_HOMEASSISTANT_MQTT_AUTHENTICATED=true
+LAST_PROVEN_HOMEASSISTANT_HTTP_STATUS=401
+
+SERVICE_MUTATION=false
+IMAGE_MUTATION=false
+U13B_EXECUTED=false
+BOARD_ACCESS=false
+MERGE=false
+
+U13A_CLOSED_PASS=true
+NEXT_LIVE_MUTATION_AUTHORIZED=false
+NEXT_ONE_GATE=POST_U13A_ARCHIVE_OR_SEPARATELY_AUTHORIZED_FUTURE_GATE
+```
+
+Real-T1 U13A completed with RC=0 / `U13A_LIVE_COMMIT_PASS`. The executor's fresh embedded read-only preflight passed before claim, then the one-shot authorization was claimed and consumed. Host and USB are durably committed at `U13A_COMMITTED`; replay is forbidden.
+
+Terminal verification kept the target runtime healthy: Broker, Manager and Home Assistant are running, the services owner is active, the production config mount is present, Manager/Home Assistant MQTT authentication passed and Home Assistant HTTP readiness returned 401. U13A did not mutate services/images and did not enter U13B, access boards or merge PR #807.
+
+Public-safe closure: `docs/development/N3W_T1_U13A_LIVE_COMMIT_CLOSURE_20261117.md`. Raw execution evidence remains private.
+
 ## Latest authority — 2026-11-17 U13A live exact authorization bound / CI CLOSED_PASS / execution not started
 
 ```text

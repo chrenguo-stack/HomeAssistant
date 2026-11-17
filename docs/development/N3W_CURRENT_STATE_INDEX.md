@@ -1,3 +1,18 @@
+## 2026-11-17 — U13A live commit CLOSED_PASS / durable terminal commit
+
+- Exact authorized package head `b1d4ea98bc768ed26d626b895d494cd8ca38cc69` had 16/16 CI SUCCESS before execution.
+- Real-T1 execution `u13a-live01-20261117T022518Z` returned RC=0 / `U13A_LIVE_COMMIT_PASS`; remote execute result was observed directly and no status reconciliation was needed.
+- Embedded fresh U13A read-only preflight PASSed before claim with `FORWARD_COMMIT_ELIGIBLE=true` and `rollback_required=false`.
+- U13A authorization is now `granted=true / claimed=true / consumed=true / replay_permitted=false`; it is terminal and must never be replayed.
+- Host transaction is durably `U13A_COMMITTED / COMMITTED`, SHA-256 `06951ac4d8a8723ae808f25d955560052eee02f884ab78f5c6ffe0580e84b600`, with `recovery_required=false`.
+- USB transaction phase is durably `U13A_COMMITTED`, phase SHA-256 `11d150bc3828a0e400a90670671a607a02f6d1a53350ef53b3366d95fcb64288`; USB mirror remains exact.
+- Target runtime stayed healthy with runtime image ID `sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365`; Broker/Manager/Home Assistant running, production config mounted, Manager/Home Assistant MQTT auth PASS, HA HTTP readiness 401.
+- `service_mutation=false / image_mutation=false / u13b_transition=false / board_access=false / merge=false`.
+- Raw evidence remains in the approved private Mac evidence root and is not uploaded publicly; public continuation is bound by execution ID and durable hashes.
+- A shell session-save warning occurred only after the executor completed and does not affect the U13A result.
+- Public-safe closure: `docs/development/N3W_T1_U13A_LIVE_COMMIT_CLOSURE_20261117.md`.
+- Stop boundary: no U13B, board, merge, service/image mutation or other live transition is authorized. Next safe work is archive-only or a separately authorized future gate.
+
 ## 2026-11-17 — U13A live exact authorization bound / CI CLOSED_PASS / execution not started
 
 - PR #807 remains OPEN/DRAFT/unmerged; fresh base/main is `ab277001dc9b31dcccb4d36b1507cec5f26d5a1d`.
