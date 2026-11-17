@@ -1,3 +1,18 @@
+## 2026-11-17 — U13A live exact authorization bound / CI CLOSED_PASS / execution not started
+
+- PR #807 remains OPEN/DRAFT/unmerged; fresh base/main is `ab277001dc9b31dcccb4d36b1507cec5f26d5a1d`.
+- Real-T1 U13A read-only preflight returned RC=0 / `U13A_COMMIT_READONLY_PREFLIGHT_PASS`; host and USB remain exact `U12_TARGET_ACCEPTANCE`, transaction SHA-256 `32a92edcd9fbdad1356b874a55d40f6e919518363c5740b495f9b5fa08a56071`, USB phase SHA-256 `ca5cbcaa0d915f9a0fe590d2beeeace846ce7029bdf6dcb8b46331d205212283`.
+- The read-only gate proved `FORWARD_COMMIT_ELIGIBLE`, `rollback_required=false`, exact recovery assets and USB mirror, healthy target runtime, Manager/Home Assistant MQTT authentication and Home Assistant readiness; no transaction/USB/service/image mutation occurred.
+- U13A live source head `e56eb75f02857b1b150accf371e91d852ee08709` completed 16/16 CI SUCCESS; preauthorization review PASS with zero new blockers.
+- User explicitly granted `EXECUTE U13A LIVE COMMIT: YES`.
+- The grant is bound to the separate exact authorized package head `b1d4ea98bc768ed26d626b895d494cd8ca38cc69`; all 16 workflows on that head are SUCCESS.
+- Authorized executor: `tools/execution_packages/n3w/r7a/u13a_live_commit_authorized/executor.py`; authorized manifest: `tools/execution_packages/n3w/r7a/u13a_live_commit_authorized/manifest.json`.
+- Authorization state is `granted=true / claimed=false / consumed=false / replay_permitted=false`. Real-T1 U13A execution has not started and `U13A_COMMITTED=false`.
+- Next chat must fresh-rebind PR/base/main, exact authorized package and CI. If unchanged, execute the exact U13A live commit once. The executor performs a fresh U13A read-only preflight before claim; any post-claim ambiguity is no-replay and must use read-only durable-state reconciliation.
+- No U13B execution, board access or merge has occurred.
+- Public-safe evidence: `docs/development/N3W_T1_U13A_COMMIT_READONLY_PREFLIGHT_CLOSURE_20261117.md`, `docs/development/N3W_T1_U13A_LIVE_COMMIT_SOURCE_DESIGN_20261117.md`, `docs/development/N3W_T1_U13A_LIVE_COMMIT_PREAUTHORIZATION_REVIEW_20261117.md`.
+- Next one gate: `REAL_T1_U13A_LIVE_COMMIT_ONCE_FROM_EXACT_AUTHORIZED_PACKAGE_AFTER_FRESH_REBIND`.
+
 ## 2026-11-17 — U12 live acceptance CLOSED_PASS / durable U12 stop before U13
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`, repository Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, repository Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`; Live upgrade accepted; deployment state remains `APPLIED_ACCEPTED`.
