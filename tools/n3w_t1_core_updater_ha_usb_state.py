@@ -604,15 +604,6 @@ def _transition_impl(
         raise UpdaterV2Error("ha_usb_transaction_not_active")
     if next_phase not in _ALLOWED_TRANSITIONS[current_phase]:
         raise UpdaterV2Error("ha_usb_phase_transition_invalid")
-    expected_update_keys = _TRANSITION_UPDATE_KEYS.get(
-        (current_phase, next_phase)
-    )
-    if expected_update_keys is None:
-        raise UpdaterV2Error("ha_usb_transition_contract_missing")
-    observed_update_keys = frozenset((updates or {}).keys())
-    if observed_update_keys != expected_update_keys:
-        raise UpdaterV2Error("ha_usb_transition_update_contract_invalid")
-
     result = copy.deepcopy(current)
     result["phase"] = next_phase
     if current_phase == U4 and next_phase == U3:
@@ -688,6 +679,17 @@ def _rollback_transition(
         and next_phase != U13B
     ):
         raise UpdaterV2Error("ha_usb_rollback_transition_target_invalid")
+    expected_update_keys = _TRANSITION_UPDATE_KEYS.get(
+        (current["phase"], next_phase)
+    )
+    if expected_update_keys is None:
+        raise UpdaterV2Error(
+            "ha_usb_rollback_transition_contract_missing"
+        )
+    if frozenset(updates) != expected_update_keys:
+        raise UpdaterV2Error(
+            "ha_usb_rollback_transition_update_contract_invalid"
+        )
     return _transition_impl(
         current,
         next_phase,

@@ -355,12 +355,12 @@ The repaired contract is:
 ```text
 PUBLIC_GENERIC_TRANSITION_U13B_EDGES=false
 ROLLBACK_DOMAIN_TRANSITION_REQUIRED=true
-PER_EDGE_UPDATE_KEY_ALLOWLIST=true
+ROLLBACK_PER_EDGE_UPDATE_KEY_ALLOWLIST=true
 SPOOFED_GENERIC_EVIDENCE_UPDATE_REJECTED=true
 ROLLBACK_BRANCH_LINEAR_RANK_ASSUMPTION=false
 ```
 
-The public generic transition now rejects every U13B edge. Rollback helpers use a separate internal transition path and every phase edge has an exact update-key contract.
+The public generic transition now rejects every U13B edge. Rollback helpers use a separate internal transition path and every rollback edge has an exact update-key contract. Non-rollback transition semantics remain unchanged.
 
 Shared prerequisite checks no longer rank U13B0..U13B after U13A. The rollback branch is anchored at U9 for forward-path prerequisite semantics, so a future U10/U11/U12-only rule is not inherited merely because a rollback phase appears later in the phase tuple.
 
