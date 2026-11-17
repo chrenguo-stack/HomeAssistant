@@ -416,3 +416,56 @@ A mismatch between the running predecessor and the persistent Home Assistant bin
 
 This repair is intentionally Stage B scoped. It does not implement Stage C USB/host split-write reconciliation, does not authorize a live rollback, and does not change the already terminal U13A production transaction.
 
+
+
+## 15. Stage C — USB/host split-write read-only reconciliation source gate
+
+Stage A/B final independent review is CLOSED_PASS after KF-163 repair and exact-head 16/16 CI. Stage C is repository-only and addresses the remaining durability split created by the intentionally ordered write sequence:
+
+```text
+validated successor transaction
+-> USB metadata fsync
+-> host transaction durable write
+```
+
+A crash between the last two steps can leave the USB exactly one U13B rollback edge ahead of the host. The existing Stage B controller would otherwise re-enter from the older host phase and repeat the bounded operation. Stage C therefore makes split classification a mandatory controller entry guard before recovery authorities or runtime operations are touched.
+
+The read-only classifier validates all four existing USB transaction documents:
+
+- `manifest.json`;
+- `phase.json`;
+- `checksums.json`;
+- `content-authority.json`.
+
+The classifier requires exact transaction ID, release, target archive identity, target image, filesystem UUID, recovery content identities and recovery-content manifest continuity. The session-scoped USB public fingerprint must remain structurally valid but is deliberately not promoted to cross-session authority.
+
+Classification is restricted to the U13B rollback branch:
+
+```text
+HOST_USB_EXACT
+USB_ONE_PHASE_AHEAD_RECONCILABLE
+HOST_ONE_PHASE_AHEAD_STOP
+DIVERGENT_OR_UNKNOWN_STOP
+```
+
+Only `HOST_USB_EXACT` permits the current rollback controller to continue. `USB_ONE_PHASE_AHEAD_RECONCILABLE` is a read-only classification result, not permission to write the host transaction and not permission to replay the operation. The controller stops with a dedicated reconciliation-required error. Host-ahead, multi-phase divergence, malformed metadata and authority drift all fail closed.
+
+This stage intentionally does **not** implement automatic host reconciliation. A later source gate must re-observe the exact real-world postcondition corresponding to the USB successor before any host-only metadata repair is considered.
+
+Production USB metadata reading is itself non-mutating: it reads existing private regular files only and rejects symlinks, ownership/mode drift, oversized metadata, malformed JSON and duplicate keys. No directory creation, USB metadata write, service action, image action or transaction write occurs in the read path.
+
+```text
+STAGE_A_CLOSED_PASS=true
+STAGE_B_CLOSED_PASS=true
+U13B_SPLIT_CLASSIFIER=true
+U13B_USB_METADATA_READONLY=true
+U13B_CONTROLLER_BLIND_REPLAY_BLOCKED=true
+USB_ONE_PHASE_AHEAD_AUTO_HOST_WRITE=false
+USB_ONE_PHASE_AHEAD_AUTO_OPERATION_REPLAY=false
+U13B_READONLY_RECONCILIATION_SOURCE=true
+U13B_LIVE_EXECUTION_AUTHORIZED=false
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+```

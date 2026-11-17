@@ -7,6 +7,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
+from n3w_t1_core_updater_v2_common import UpdaterV2Error
+
 from n3w_t1_core_updater_ha_backup import HaDataBackupRecord
 from n3w_t1_core_updater_ha_capacity import (
     compute_install_revalidation,
@@ -15,12 +17,18 @@ from n3w_t1_core_updater_ha_capacity import (
 from n3w_t1_core_updater_ha_prepare import PreparedUsbMedia
 from n3w_t1_core_updater_ha_recovery import ImageRecoveryRecord
 from n3w_t1_core_updater_ha_u13b import (
+    DIVERGENT_OR_UNKNOWN_STOP,
+    HOST_ONE_PHASE_AHEAD_STOP,
+    HOST_USB_EXACT,
+    USB_ONE_PHASE_AHEAD_RECONCILABLE,
     HaUsbU13BRollbackController,
     U13BDataRestoreReadiness,
     U13BHealthEvidence,
     U13BPredecessorImageEvidence,
     U13BRuntimeEvidence,
     U13BTargetCleanupEvidence,
+    U13BUsbMetadataSnapshot,
+    classify_u13b_usb_host_split,
 )
 from n3w_t1_core_updater_ha_usb import (
     claim_live_authorization,
@@ -32,9 +40,11 @@ from n3w_t1_core_updater_ha_usb import (
     record_target_accepted,
     record_target_ready,
     record_target_started,
+    record_rollback_target_cleanup,
     request_install,
     request_prepare,
     start_predecessor_recovery,
+    start_rollback,
     start_target_preparation,
 )
 from n3w_t1_core_updater_ha_usb_media import (
@@ -43,6 +53,10 @@ from n3w_t1_core_updater_ha_usb_media import (
     assess_capacity,
 )
 from n3w_t1_core_updater_ha_usb_state import (
+    USB_TX_CHECKSUM_SCHEMA,
+    USB_TX_CONTENT_AUTHORITY_SCHEMA,
+    USB_TX_MANIFEST_SCHEMA,
+    USB_TX_PHASE_SCHEMA,
     U9,
     U10,
     U11,
@@ -190,15 +204,58 @@ def origin_transaction(phase):
     raise AssertionError("unsupported origin")
 
 
+def usb_snapshot(transaction, *, phase=None, authority_override=None):
+    authority = {
+        "schema": USB_TX_CONTENT_AUTHORITY_SCHEMA,
+        "transaction_id_sha256": transaction["transaction_id_sha256"],
+        "release_identity": transaction["target_manifest_identity"]["release_identity"],
+        "target_artifact_identity": transaction["target_artifact_identity"],
+        "predecessor_recovery_identity": transaction["predecessor_recovery_identity"],
+        "ha_data_backup_identity": transaction["ha_data_backup_identity"],
+        "recovery_content_manifest_sha256": transaction["recovery_content_manifest_sha256"],
+    }
+    if authority_override:
+        authority.update(authority_override)
+    return U13BUsbMetadataSnapshot(
+        manifest={
+            "schema": USB_TX_MANIFEST_SCHEMA,
+            "transaction_id_sha256": transaction["transaction_id_sha256"],
+            "release_identity": transaction["target_manifest_identity"]["release_identity"],
+            "target_image_ref": transaction["target_image_ref"],
+            "target_archive_sha256": transaction["target_archive_sha256"],
+            "target_archive_size_bytes": transaction["target_archive_size"],
+            "usb_filesystem_uuid": transaction["usb_filesystem_uuid"],
+            "usb_device_identity_public_fingerprint": FINGERPRINT,
+        },
+        phase={
+            "schema": USB_TX_PHASE_SCHEMA,
+            "transaction_id_sha256": transaction["transaction_id_sha256"],
+            "phase": phase or transaction["phase"],
+            "target_artifact_verified": transaction["target_artifact_verified"],
+            "usb_capacity_verified": transaction["usb_capacity_verified"],
+        },
+        checksums={
+            "schema": USB_TX_CHECKSUM_SCHEMA,
+            "target_archive_sha256": transaction["target_archive_sha256"],
+            "target_archive_size_bytes": transaction["target_archive_size"],
+        },
+        content_authority=authority,
+    )
+
+
 class Store:
     def __init__(self, document):
         self.document = document
         self.writes = []
+        self.fail_next_write = False
 
     def read(self):
         return self.document
 
     def write(self, document):
+        if self.fail_next_write:
+            self.fail_next_write = False
+            raise RuntimeError("synthetic_host_persist_loss")
         self.document = document
         self.writes.append(document["phase"])
 
@@ -207,10 +264,14 @@ class Backend:
     def __init__(self, media):
         self.media = media
         self.syncs = []
+        self.snapshot = None
 
     def resolve_transaction_media(self, transaction, *, write_required):
         assert write_required is True
         return self.media
+
+    def read_transaction_metadata(self, transaction, media):
+        return self.snapshot or usb_snapshot(transaction)
 
     def verify_recovery_target(self, *, transaction, media):
         return TARGET_RECORD
@@ -220,6 +281,7 @@ class Backend:
 
     def sync_transaction_metadata(self, transaction, media):
         self.syncs.append(transaction["phase"])
+        self.snapshot = usb_snapshot(transaction)
 
 
 class Backup:
@@ -427,3 +489,89 @@ def test_u13b_controller_resumes_from_each_operation_level_interruption(
 
     result = controller.rollback(failure_code="resume")
     assert result.transaction["phase"] == U13B
+
+
+
+def test_u13b_split_classifier_exact_and_usb_ahead(tmp_path):
+    host = origin_transaction(U9)
+    observed_media = media(tmp_path)
+    exact = classify_u13b_usb_host_split(host, observed_media, usb_snapshot(host))
+    assert exact.classification == HOST_USB_EXACT
+
+    ahead = classify_u13b_usb_host_split(
+        host,
+        observed_media,
+        usb_snapshot(host, phase="U13B0_ROLLBACK_IN_PROGRESS"),
+    )
+    assert ahead.classification == USB_ONE_PHASE_AHEAD_RECONCILABLE
+
+
+def test_u13b_split_classifier_host_ahead_and_divergent(tmp_path):
+    host_u9 = origin_transaction(U9)
+    b0 = start_rollback(
+        host_u9,
+        failure_code="target_health_acceptance_failed",
+        target=TARGET_RECORD,
+        predecessor=PREDECESSOR_RECORD,
+        backup=BACKUP_RECORD,
+    )
+    b1 = record_rollback_target_cleanup(
+        b0,
+        services_quiesced=True,
+        target_runtime_absent=True,
+        target_image_absent=True,
+    )
+    observed_media = media(tmp_path)
+
+    host_ahead = classify_u13b_usb_host_split(
+        b1,
+        observed_media,
+        usb_snapshot(b1, phase=b0["phase"]),
+    )
+    assert host_ahead.classification == HOST_ONE_PHASE_AHEAD_STOP
+
+    divergent = classify_u13b_usb_host_split(
+        b0,
+        observed_media,
+        usb_snapshot(b0, phase="U13B3_HA_DATA_RESTORED"),
+    )
+    assert divergent.classification == DIVERGENT_OR_UNKNOWN_STOP
+
+
+def test_u13b_split_classifier_rejects_recovery_authority_drift(tmp_path):
+    host = origin_transaction(U9)
+    observed = usb_snapshot(
+        host,
+        authority_override={"recovery_content_manifest_sha256": "f" * 64},
+    )
+    result = classify_u13b_usb_host_split(host, media(tmp_path), observed)
+    assert result.classification == DIVERGENT_OR_UNKNOWN_STOP
+    assert result.reason == "u13b_usb_transaction_or_recovery_authority_drift"
+
+
+def test_u13b_controller_stops_usb_ahead_before_blind_replay(tmp_path):
+    store = Store(origin_transaction(U9))
+    backend = Backend(media(tmp_path))
+    runtime = Runtime()
+    backup = Backup()
+    controller = HaUsbU13BRollbackController(
+        transaction_store=store,
+        backend=backend,
+        runtime_owner=runtime,
+        backup_provider=backup,
+    )
+    store.fail_next_write = True
+    with pytest.raises(RuntimeError, match="synthetic_host_persist_loss"):
+        controller.rollback(failure_code="target_health_acceptance_failed")
+
+    assert store.document["phase"] == U9
+    assert backend.snapshot.phase["phase"] == "U13B0_ROLLBACK_IN_PROGRESS"
+    assert runtime.steps == []
+
+    with pytest.raises(
+        UpdaterV2Error,
+        match="u13b_usb_one_phase_ahead_reconciliation_required",
+    ):
+        controller.rollback(failure_code="resume")
+    assert store.document["phase"] == U9
+    assert runtime.steps == []

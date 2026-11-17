@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -8,8 +9,12 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
 from n3w_t1_core_updater_common import BROKER_UNIT, SERVICES_UNIT
+from n3w_t1_core_updater_ha_prepare import PreparedUsbMedia
 from n3w_t1_core_updater_ha_recovery import ImageRecoveryRecord
-from n3w_t1_core_updater_ha_u13b_host import U13BProductionRuntime
+from n3w_t1_core_updater_ha_u13b_host import (
+    U13BProductionBackend,
+    U13BProductionRuntime,
+)
 from n3w_t1_core_updater_v2_common import UpdaterV2Error
 
 
@@ -312,3 +317,40 @@ def test_u13b_restore_predecessor_rejects_runtime_identity_drift(tmp_path):
             media=media,
             predecessor=image("predecessor", CURRENT),
         )
+
+
+
+def test_u13b_production_backend_reads_usb_metadata_without_mutation(tmp_path):
+    mount = tmp_path / "usb"
+    transaction_dir = mount / "n3w-update" / "transaction"
+    transaction_dir.mkdir(parents=True, mode=0o700)
+    documents = {
+        "manifest.json": {"schema": "manifest", "value": 1},
+        "phase.json": {"schema": "phase", "value": 2},
+        "checksums.json": {"schema": "checksums", "value": 3},
+        "content-authority.json": {"schema": "authority", "value": 4},
+    }
+    for name, document in documents.items():
+        path = transaction_dir / name
+        path.write_text(json.dumps(document) + "\n", encoding="utf-8")
+        path.chmod(0o600)
+
+    before = {name: (transaction_dir / name).read_bytes() for name in documents}
+    observed_media = PreparedUsbMedia(
+        locator="/dev/sdz",
+        public_fingerprint="a" * 64,
+        filesystem_uuid="12345678-1234-5678-1234-567812345678",
+        measured_usable_bytes=1024,
+        mount_path=str(mount),
+    ).validate()
+    backend = U13BProductionBackend(prepare_backend=object())
+    snapshot = backend.read_transaction_metadata(
+        {"usb_filesystem_uuid": observed_media.filesystem_uuid},
+        observed_media,
+    )
+
+    assert snapshot.manifest == documents["manifest.json"]
+    assert snapshot.phase == documents["phase.json"]
+    assert snapshot.checksums == documents["checksums.json"]
+    assert snapshot.content_authority == documents["content-authority.json"]
+    assert {name: (transaction_dir / name).read_bytes() for name in documents} == before

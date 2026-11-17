@@ -1,21 +1,16 @@
-## 2026-11-17 — U13B Stage A/B independent-review source repair CI CLOSED_PASS / final review required
+## 2026-11-17 — U13B Stage C split-write read-only reconciliation source development
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
 - Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
 - Historical clean reference remains `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
 - Live upgrade accepted; `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
-- PR #807 remains OPEN/DRAFT/unmerged; default main is `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`, PR base is `ab277001dc9b31dcccb4d36b1507cec5f26d5a1d`.
-- Exact source-repair head is `6475c06e831cd597d6680502b41ea6fde6642837`; all 16 workflows are SUCCESS.
-- Critical CI evidence: HA target-binding run `44011716167` SUCCESS; Manager A-to-B run `44011716095` SUCCESS.
-- The prior Stage A/Stage B completion claims are not reused as review authority. Independent review found real blockers and source repair was performed.
-- Stage A repair: public generic `transition()` rejects all U13B edges; rollback domain transitions have exact rollback-edge update-key contracts; rollback branch prerequisite semantics no longer rely on linear ranking after U12/U13A.
-- Stage B repair: predecessor runtime must match the durable exact runtime image ID, HA restart count must remain zero, Broker owner must be active, Manager/Broker exact-peer checks remain required, and backup verification no longer creates a missing recovery directory.
-- Tests now cover rollback origins U9/U10/U11/U12 and operation-level interruption/resume at cleanup, predecessor image, data quiesce, data restore, predecessor runtime and final health.
-- U13A remains terminal `U13A_COMMITTED`; its authorization is consumed/no-replay. No T1/board/merge/live U13B mutation occurred during this source repair.
-- Stage A and Stage B are deliberately **not** marked final CLOSED_PASS yet. New chat must perform a fresh independent review of design/source/tests before forward progress.
-- If that review finds no new blocker, next repository-only work may enter Stage C USB/host split-write read-only reconciliation source design/development. If any blocker appears, Stage C stays stopped.
-- Next gate: `U13B_STAGE_A_STAGE_B_FINAL_INDEPENDENT_REVIEW_20261117_01`.
-- Handoff: `docs/development/N3W_T1_U13B_STAGE_A_STAGE_B_SOURCE_REPAIR_CI_PASS_TO_FINAL_INDEPENDENT_REVIEW_NEW_CHAT_HANDOFF_V1.0_20261117.md`.
+- PR #807 remains OPEN/DRAFT/unmerged; default main remains `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`.
+- Stage A / Stage B final independent review is PASS after KF-163 repair; the final pre-Stage-C head completed 16/16 CI SUCCESS.
+- Stage C source gate implements read-only USB transaction metadata loading plus `HOST_USB_EXACT / USB_ONE_PHASE_AHEAD_RECONCILABLE / HOST_ONE_PHASE_AHEAD_STOP / DIVERGENT_OR_UNKNOWN_STOP` classification.
+- The U13B controller proceeds only for `HOST_USB_EXACT`; USB-ahead now stops before blind operation replay or host transaction repair.
+- Stage C does not authorize automatic host reconciliation, live rollback, T1 mutation, board access or merge.
+- Design authority: `docs/development/N3W_T1_U13B_AUTOMATIC_ROLLBACK_SOURCE_DESIGN_V1_20261117.md`.
+- Next gate: `U13B_STAGE_C_SOURCE_CI_AND_INDEPENDENT_REVIEW`.
 
 ## 2026-11-17 — U13B Stage A source design/development started
 

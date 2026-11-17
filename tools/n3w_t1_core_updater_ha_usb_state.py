@@ -26,6 +26,10 @@ from n3w_t1_core_updater_v2_state import STATE_ROOT_V2, V2StateStore
 
 
 HA_USB_TX_SCHEMA = "gh.n3w-t1-core-updater-homeassistant-usb-transaction/1"
+USB_TX_MANIFEST_SCHEMA = "gh.n3w-t1-ha-usb-transaction-manifest/1"
+USB_TX_PHASE_SCHEMA = "gh.n3w-t1-ha-usb-transaction-phase/1"
+USB_TX_CHECKSUM_SCHEMA = "gh.n3w-t1-ha-usb-checksums/1"
+USB_TX_CONTENT_AUTHORITY_SCHEMA = "gh.n3w-t1-ha-usb-content-authority/1"
 HA_USB_ACTIVE_FILE = "homeassistant-usb-upgrade.json"
 HA_USB_TERMINAL_STATUSES = frozenset({"COMMITTED", "ROLLED_BACK"})
 HA_USB_STATUSES = frozenset(

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+import os
+import stat
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -22,6 +25,7 @@ from n3w_t1_core_updater_ha_u13b import (
     U13BPredecessorImageEvidence,
     U13BRuntimeEvidence,
     U13BTargetCleanupEvidence,
+    U13BUsbMetadataSnapshot,
 )
 from n3w_t1_core_updater_host import EXPECTED_LISTENERS, LocalHost
 from n3w_t1_core_updater_v2_common import (
@@ -129,6 +133,67 @@ class U13BProductionBackend:
         media: PreparedUsbMedia,
     ) -> ImageRecoveryRecord:
         return self._verify_record(transaction, media, "predecessor")
+
+    @staticmethod
+    def _read_transaction_metadata_file(path: Path) -> dict[str, Any]:
+        if path.is_symlink() or not path.is_file():
+            raise UpdaterV2Error("u13b_usb_transaction_metadata_file_invalid")
+        metadata = path.stat()
+        if (
+            metadata.st_uid != os.geteuid()
+            or stat.S_IMODE(metadata.st_mode) != 0o600
+            or metadata.st_size <= 0
+            or metadata.st_size > 256 * 1024
+        ):
+            raise UpdaterV2Error(
+                "u13b_usb_transaction_metadata_file_metadata_invalid"
+            )
+        try:
+            payload = path.read_text(encoding="utf-8")
+            def reject_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+                result: dict[str, Any] = {}
+                for key, value in pairs:
+                    if key in result:
+                        raise UpdaterV2Error(
+                            "u13b_usb_transaction_metadata_duplicate_field"
+                        )
+                    result[key] = value
+                return result
+            document = json.loads(payload, object_pairs_hook=reject_duplicates)
+        except UpdaterV2Error:
+            raise
+        except (OSError, UnicodeError, json.JSONDecodeError) as error:
+            raise UpdaterV2Error(
+                "u13b_usb_transaction_metadata_json_invalid"
+            ) from error
+        if not isinstance(document, dict):
+            raise UpdaterV2Error("u13b_usb_transaction_metadata_json_invalid")
+        return document
+
+    def read_transaction_metadata(
+        self,
+        transaction: Mapping[str, Any],
+        media: PreparedUsbMedia,
+    ) -> U13BUsbMetadataSnapshot:
+        media.validate()
+        if media.filesystem_uuid != transaction.get("usb_filesystem_uuid"):
+            raise UpdaterV2Error("u13b_bound_media_uuid_drift")
+        transaction_dir = Path(media.mount_path) / "n3w-update" / "transaction"
+        if transaction_dir.is_symlink() or not transaction_dir.is_dir():
+            raise UpdaterV2Error("u13b_usb_transaction_directory_invalid")
+        metadata = transaction_dir.stat()
+        if metadata.st_uid != os.geteuid() or stat.S_IMODE(metadata.st_mode) & 0o077:
+            raise UpdaterV2Error(
+                "u13b_usb_transaction_directory_metadata_invalid"
+            )
+        return U13BUsbMetadataSnapshot(
+            manifest=self._read_transaction_metadata_file(transaction_dir / "manifest.json"),
+            phase=self._read_transaction_metadata_file(transaction_dir / "phase.json"),
+            checksums=self._read_transaction_metadata_file(transaction_dir / "checksums.json"),
+            content_authority=self._read_transaction_metadata_file(
+                transaction_dir / "content-authority.json"
+            ),
+        )
 
     def sync_transaction_metadata(
         self,

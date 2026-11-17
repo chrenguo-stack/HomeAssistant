@@ -1,4 +1,4 @@
-## Latest authority — 2026-11-17 U13B final independent review KF-163 source repair / CI retry pending
+## Latest authority — 2026-11-17 U13B Stage C split-write read-only reconciliation source development
 
 ```text
 PR=807
@@ -12,27 +12,38 @@ CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
 HISTORICAL_CLEAN_SOURCE=24382caae4a1f5d459297f86e8d18f10a848ca64
 HISTORICAL_CLEAN_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
 LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
-KF163_STATUS=SOURCE_REPAIR_IMPLEMENTED_CI_RETRY_PENDING
+
+STAGE_A_FINAL_REVIEW=PASS
+STAGE_B_FINAL_REVIEW=PASS
+KF163_STATUS=CLOSED_SOURCE_GUARDED
 KF163_SOURCE_REPAIR_HEAD=b9eb9bf1c8eddeb52943dc586f3b88c8ad8bc112
-KF163_ROOT_CAUSE=U13B_TERMINAL_HEALTH_DID_NOT_RECHECK_PERSISTENT_HA_BINDING
-STAGE_A_REVIEW=PASS_NO_NEW_BLOCKER_OBSERVED
-STAGE_B_REVIEW=BLOCKED_BY_KF163_UNTIL_REPAIR_CI
-NEW_BLOCKER_COUNT=1
-SOURCE_REPAIR_REQUIRED=true
-STAGE_A_CLOSED_PASS=false
-STAGE_B_CLOSED_PASS=false
-STAGE_C_ENTRY_ALLOWED=false
+KF163_EXACT_HEAD_CI=16_OF_16_SUCCESS
+STAGE_A_CLOSED_PASS=true
+STAGE_B_CLOSED_PASS=true
+STAGE_C_ENTRY_ALLOWED=true
+
+STAGE_C_SOURCE_DESIGN=true
+STAGE_C_SOURCE_DEVELOPMENT=true
+U13B_SPLIT_CLASSIFIER=true
+U13B_USB_METADATA_READONLY=true
+U13B_CONTROLLER_BLIND_REPLAY_BLOCKED=true
+USB_ONE_PHASE_AHEAD_AUTO_HOST_WRITE=false
+USB_ONE_PHASE_AHEAD_AUTO_OPERATION_REPLAY=false
+
 T1_ACCESS=false
 T1_MUTATION=false
 U13B_LIVE_EXECUTION_AUTHORIZED=false
 BOARD_ACCESS=false
 MERGE=false
-NEXT_ONE_GATE=KF163_EXACT_HEAD_CI_AND_FINAL_REREVIEW
+NEXT_ONE_GATE=U13B_STAGE_C_SOURCE_CI_AND_INDEPENDENT_REVIEW
 ```
 
-Final independent review found KF-163: a resumed `U13B4_PREDECESSOR_RUNTIME_STARTED` state could prove the predecessor container healthy while the persistent Home Assistant image binding had drifted back to the target, allowing a false terminal `U13B_ROLLED_BACK`. The source repair now rechecks the persistent binding inside the shared running-predecessor evidence path and adds a regression for healthy predecessor runtime plus wrong binding.
+Fresh rebind confirmed PR #807 remained at the Stage A/B final-review head and all 16 workflows were SUCCESS before Stage C began. Stage A and Stage B are now final CLOSED_PASS at the source/CI review boundary.
 
-The first repair CI round reached 13/16 SUCCESS, with two failures caused by the existing current-state index omitting the Core Stack current-authority link (`index_authority_link_missing`) and one workflow still queued. This is a repository-document consistency failure, not a U13B runtime-test failure. The index link is repaired in the following docs-only successor commit; Stage C remains stopped until the successor exact-head CI is green and the final review is repeated.
+Stage C implements the previously deferred USB-ahead/host-behind split-write read-only classification. The existing write order is USB metadata fsync first, host transaction second. The controller now requires exact USB/host reconciliation before any rollback operation. A USB-one-phase-ahead state is classified as reconcilable but stops before any operation replay or host write; host-ahead, divergent and authority-drift states fail closed.
+
+No real T1, USB content, service, image, board or production transaction mutation is authorized by this source gate.
+
 ## Latest authority — 2026-11-17 U13B Stage A/B independent-review source repair CI CLOSED_PASS / final independent review handoff
 
 ```text

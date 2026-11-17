@@ -23,6 +23,10 @@ from n3w_t1_core_updater_ha_usb import (
     start_rollback,
 )
 from n3w_t1_core_updater_ha_usb_state import (
+    USB_TX_CHECKSUM_SCHEMA,
+    USB_TX_CONTENT_AUTHORITY_SCHEMA,
+    USB_TX_MANIFEST_SCHEMA,
+    USB_TX_PHASE_SCHEMA,
     U13A,
     U13B0,
     U13B1,
@@ -35,7 +39,169 @@ from n3w_t1_core_updater_ha_usb_state import (
     HaUsbStateStore,
     validate_transaction_document,
 )
-from n3w_t1_core_updater_v2_common import UpdaterV2Error
+from n3w_t1_core_updater_v2_common import SHA256, UpdaterV2Error
+
+
+HOST_USB_EXACT = "HOST_USB_EXACT"
+USB_ONE_PHASE_AHEAD_RECONCILABLE = "USB_ONE_PHASE_AHEAD_RECONCILABLE"
+HOST_ONE_PHASE_AHEAD_STOP = "HOST_ONE_PHASE_AHEAD_STOP"
+DIVERGENT_OR_UNKNOWN_STOP = "DIVERGENT_OR_UNKNOWN_STOP"
+
+_U13B_USB_SUCCESSOR = {phase: U13B0 for phase in U13B_ENTRY_PHASES}
+_U13B_USB_SUCCESSOR.update({
+    U13B0: U13B1,
+    U13B1: U13B2,
+    U13B2: U13B3,
+    U13B3: U13B4,
+    U13B4: U13B,
+})
+_U13B_RECONCILIATION_PHASES = frozenset(
+    set(U13B_ENTRY_PHASES) | set(U13B_PROGRESS_PHASES) | {U13B}
+)
+
+
+@dataclass(frozen=True, slots=True)
+class U13BUsbMetadataSnapshot:
+    manifest: Mapping[str, Any]
+    phase: Mapping[str, Any]
+    checksums: Mapping[str, Any]
+    content_authority: Mapping[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class U13BSplitReconciliation:
+    classification: str
+    host_phase: str
+    usb_phase: str | None
+    reason: str
+
+
+def _metadata_shape(
+    document: Mapping[str, Any],
+    expected_keys: frozenset[str],
+    schema: str,
+) -> bool:
+    return (
+        isinstance(document, Mapping)
+        and frozenset(document) == expected_keys
+        and document.get("schema") == schema
+    )
+
+
+def classify_u13b_usb_host_split(
+    host_transaction: Mapping[str, Any],
+    media: PreparedUsbMedia,
+    snapshot: U13BUsbMetadataSnapshot,
+) -> U13BSplitReconciliation:
+    host = validate_transaction_document(dict(host_transaction))
+    media.validate()
+    host_phase = host["phase"]
+
+    def stop(reason: str, usb_phase: str | None = None) -> U13BSplitReconciliation:
+        return U13BSplitReconciliation(
+            DIVERGENT_OR_UNKNOWN_STOP, host_phase, usb_phase, reason
+        )
+
+    if host_phase not in _U13B_RECONCILIATION_PHASES:
+        return stop("u13b_host_phase_outside_reconciliation_domain")
+    if media.filesystem_uuid != host.get("usb_filesystem_uuid"):
+        return stop("u13b_usb_filesystem_uuid_drift")
+
+    manifest = snapshot.manifest
+    phase = snapshot.phase
+    checksums = snapshot.checksums
+    authority = snapshot.content_authority
+    if not _metadata_shape(
+        manifest,
+        frozenset({
+            "schema", "transaction_id_sha256", "release_identity",
+            "target_image_ref", "target_archive_sha256",
+            "target_archive_size_bytes", "usb_filesystem_uuid",
+            "usb_device_identity_public_fingerprint",
+        }),
+        USB_TX_MANIFEST_SCHEMA,
+    ):
+        return stop("u13b_usb_manifest_invalid")
+    if not _metadata_shape(
+        phase,
+        frozenset({
+            "schema", "transaction_id_sha256", "phase",
+            "target_artifact_verified", "usb_capacity_verified",
+        }),
+        USB_TX_PHASE_SCHEMA,
+    ):
+        return stop("u13b_usb_phase_metadata_invalid")
+    if not _metadata_shape(
+        checksums,
+        frozenset({"schema", "target_archive_sha256", "target_archive_size_bytes"}),
+        USB_TX_CHECKSUM_SCHEMA,
+    ):
+        return stop("u13b_usb_checksums_invalid")
+    if not _metadata_shape(
+        authority,
+        frozenset({
+            "schema", "transaction_id_sha256", "release_identity",
+            "target_artifact_identity", "predecessor_recovery_identity",
+            "ha_data_backup_identity", "recovery_content_manifest_sha256",
+        }),
+        USB_TX_CONTENT_AUTHORITY_SCHEMA,
+    ):
+        return stop("u13b_usb_content_authority_invalid")
+
+    transaction_id = host["transaction_id_sha256"]
+    release = host["target_manifest_identity"].get("release_identity")
+    usb_phase = phase.get("phase")
+    fingerprint = manifest.get("usb_device_identity_public_fingerprint")
+    authority_matches = (
+        manifest.get("transaction_id_sha256") == transaction_id
+        and phase.get("transaction_id_sha256") == transaction_id
+        and authority.get("transaction_id_sha256") == transaction_id
+        and manifest.get("release_identity") == release
+        and authority.get("release_identity") == release
+        and manifest.get("target_image_ref") == host["target_image_ref"]
+        and manifest.get("target_archive_sha256") == host["target_archive_sha256"]
+        and manifest.get("target_archive_size_bytes") == host["target_archive_size"]
+        and manifest.get("usb_filesystem_uuid") == host["usb_filesystem_uuid"]
+        and isinstance(fingerprint, str)
+        and SHA256.fullmatch(fingerprint) is not None
+        and phase.get("target_artifact_verified") is host.get("target_artifact_verified")
+        and phase.get("usb_capacity_verified") is host.get("usb_capacity_verified")
+        and checksums.get("target_archive_sha256") == host["target_archive_sha256"]
+        and checksums.get("target_archive_size_bytes") == host["target_archive_size"]
+        and authority.get("target_artifact_identity") == host.get("target_artifact_identity")
+        and authority.get("predecessor_recovery_identity") == host.get("predecessor_recovery_identity")
+        and authority.get("ha_data_backup_identity") == host.get("ha_data_backup_identity")
+        and authority.get("recovery_content_manifest_sha256") == host.get("recovery_content_manifest_sha256")
+    )
+    if not authority_matches:
+        return stop(
+            "u13b_usb_transaction_or_recovery_authority_drift",
+            usb_phase if isinstance(usb_phase, str) else None,
+        )
+    if usb_phase not in _U13B_RECONCILIATION_PHASES:
+        return stop(
+            "u13b_usb_phase_outside_reconciliation_domain",
+            usb_phase if isinstance(usb_phase, str) else None,
+        )
+    if usb_phase == host_phase:
+        return U13BSplitReconciliation(
+            HOST_USB_EXACT, host_phase, usb_phase, "u13b_host_usb_exact"
+        )
+    if _U13B_USB_SUCCESSOR.get(host_phase) == usb_phase:
+        return U13BSplitReconciliation(
+            USB_ONE_PHASE_AHEAD_RECONCILABLE,
+            host_phase,
+            usb_phase,
+            "u13b_usb_one_phase_ahead",
+        )
+    if _U13B_USB_SUCCESSOR.get(usb_phase) == host_phase:
+        return U13BSplitReconciliation(
+            HOST_ONE_PHASE_AHEAD_STOP,
+            host_phase,
+            usb_phase,
+            "u13b_host_one_phase_ahead",
+        )
+    return stop("u13b_host_usb_phase_divergent", usb_phase)
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,6 +311,13 @@ class U13BBackend(Protocol):
         transaction: Mapping[str, Any],
         media: PreparedUsbMedia,
     ) -> ImageRecoveryRecord:
+        ...
+
+    def read_transaction_metadata(
+        self,
+        transaction: Mapping[str, Any],
+        media: PreparedUsbMedia,
+    ) -> U13BUsbMetadataSnapshot:
         ...
 
     def sync_transaction_metadata(
@@ -298,6 +471,19 @@ class HaUsbU13BRollbackController:
         )
         if media is None:
             raise UpdaterV2Error("usb_transaction_media_unavailable")
+        reconciliation = classify_u13b_usb_host_split(
+            current,
+            media,
+            self.backend.read_transaction_metadata(current, media),
+        )
+        if reconciliation.classification == USB_ONE_PHASE_AHEAD_RECONCILABLE:
+            raise UpdaterV2Error(
+                "u13b_usb_one_phase_ahead_reconciliation_required"
+            )
+        if reconciliation.classification == HOST_ONE_PHASE_AHEAD_STOP:
+            raise UpdaterV2Error("u13b_host_one_phase_ahead_stop")
+        if reconciliation.classification != HOST_USB_EXACT:
+            raise UpdaterV2Error("u13b_host_usb_reconciliation_stop")
         target, predecessor, backup = self._authorities(current, media)
 
         if current["phase"] in U13B_ENTRY_PHASES:

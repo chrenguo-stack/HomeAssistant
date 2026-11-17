@@ -29,6 +29,12 @@ from n3w_t1_core_updater_ha_usb_media import (
     UsbCapacityInputs,
     validate_filesystem_uuid,
 )
+from n3w_t1_core_updater_ha_usb_state import (
+    USB_TX_CHECKSUM_SCHEMA,
+    USB_TX_CONTENT_AUTHORITY_SCHEMA,
+    USB_TX_MANIFEST_SCHEMA,
+    USB_TX_PHASE_SCHEMA,
+)
 from n3w_t1_core_updater_v2_common import (
     SHA256,
     UpdaterV2Error,
@@ -37,10 +43,6 @@ from n3w_t1_core_updater_v2_common import (
 )
 
 HOST_RELEASE_POLICY_SCHEMA = "gh.n3w-t1-ha-ota-host-release-policy/2"
-USB_TX_MANIFEST_SCHEMA = "gh.n3w-t1-ha-usb-transaction-manifest/1"
-USB_TX_PHASE_SCHEMA = "gh.n3w-t1-ha-usb-transaction-phase/1"
-USB_TX_CHECKSUM_SCHEMA = "gh.n3w-t1-ha-usb-checksums/1"
-USB_TX_CONTENT_AUTHORITY_SCHEMA = "gh.n3w-t1-ha-usb-content-authority/1"
 DEFAULT_HOST_RELEASE_POLICY = Path(
     "/etc/n3w-t1-ota/homeassistant-release-source.json"
 )
