@@ -1,3 +1,19 @@
+## 2026-11-17 — U13B P1 Attempt 01 safe STOP / repair CI CLOSED_PASS / Attempt 02 handoff
+
+- PR #807 remains OPEN/DRAFT/unmerged. Default main remains `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`.
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference remains `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- P1 Attempt 01 package head was `a215818bf39dbf26ea2af4e5fe6f681ad5de58d2`; execution `u13b-p1-readonly01-20261117T114522Z` returned RC=2 / STOP before SSH.
+- Attempt 01 reason was local package-authority composition: the historical U13A live manifest was incorrectly revalidated against the current P1 head and rejected later legitimate `n3w_t1_core_updater_ha_usb.py` evolution.
+- Attempt 01 is a safe local STOP: `T1_ACCESS=false / T1_MUTATION=false / AUTHORIZATION_CLAIM=false / U13B_TRANSITION=false`.
+- P1 repair exact package authority is `e41723d8fa278021db95fc497426678a8a52d3c2`; it uses only the frozen historical U13A status-only dependency closure, excludes live transition source from the status plan, and preserves T1 access truth on remote STOP.
+- Repair exact-head CI is 16/16 SUCCESS. Key runs: HA target-binding `44077610483`, Manager A-to-B `44077610686`, Core Stack current authority `44077610747`; all SUCCESS.
+- Attempt 02 has not executed. Its exact execution package authority remains `e41723d8fa278021db95fc497426678a8a52d3c2`; any later docs-only archive commit is not an execution-package replacement.
+- Existing authorization permits only real-T1 read-only P1 access. `T1_MUTATION=false / USB_MUTATION=false / SERVICE_MUTATION=false / IMAGE_MUTATION=false / HA_DATA_MUTATION=false / U13B_LIVE_EXECUTION_AUTHORIZED=false / MERGE=false`.
+- V1.4 handoff: `docs/development/N3W_T1_U13B_P1_ATTEMPT01_SAFE_STOP_REPAIR_CI_PASS_TO_READONLY_ATTEMPT02_NEW_CHAT_HANDOFF_V1.0_20261117.md`.
+- Next gate remains `N3W_T1_U13B_REAL_T1_READONLY_BINDING_PREFLIGHT_20261117_01`, entering Attempt 02 after fresh rebind.
+
 ## 2026-11-17 — U13B read-only preexecution source CLOSED_PASS / physical acceptance preparation
 
 - PR #807 remains OPEN/DRAFT/unmerged; default main remains `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`.

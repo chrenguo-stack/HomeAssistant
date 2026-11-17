@@ -1,3 +1,73 @@
+## Latest authority — 2026-11-17 U13B P1 Attempt 01 safe STOP / repair CI CLOSED_PASS / Attempt 02 handoff
+
+```text
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+PR_BASE_HEAD=ab277001dc9b31dcccb4d36b1507cec5f26d5a1d
+
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+U13B_READONLY_PREEXECUTION_SOURCE_HEAD=c02335e728797c953e623cf439d314c0affc3d32
+U13B_P1_ATTEMPT01_PACKAGE_HEAD=a215818bf39dbf26ea2af4e5fe6f681ad5de58d2
+U13B_P1_REPAIR_EXACT_HEAD=e41723d8fa278021db95fc497426678a8a52d3c2
+U13B_P1_REPAIR_CI=16_OF_16_SUCCESS
+HA_TARGET_BINDING_RUN=44077610483
+MANAGER_A_TO_B_RUN=44077610686
+CORE_STACK_CURRENT_AUTHORITY_RUN=44077610747
+
+ATTEMPT01_EXECUTION_ID=u13b-p1-readonly01-20261117T114522Z
+ATTEMPT01_STATUS=STOP
+ATTEMPT01_RC=2
+ATTEMPT01_REASON=LOCAL_HISTORICAL_LIVE_MANIFEST_AUTHORITY_DRIFT
+ATTEMPT01_T1_ACCESS=false
+ATTEMPT01_T1_MUTATION=false
+ATTEMPT01_AUTHORIZATION_CLAIM=false
+ATTEMPT01_U13B_TRANSITION=false
+
+P1_REPAIR_WRAPPER_ONLY=true
+P1_REPAIR_PRODUCT_RUNTIME_SOURCE_CHANGED=false
+P1_REPAIR_PRODUCTION_CHECK_RELAXED=false
+P1_HISTORICAL_LIVE_MANIFEST_REVALIDATION=false
+P1_STATUS_PLAN_CONTAINS_LIVE_TRANSITION_SOURCE=false
+P1_T1_ACCESS_TRUTH_PRESERVED_ON_REMOTE_STOP=true
+
+ATTEMPT02_EXECUTED=false
+ATTEMPT02_EXECUTION_PACKAGE_AUTHORITY=e41723d8fa278021db95fc497426678a8a52d3c2
+T1_READONLY_ACCESS_AUTHORIZED=true
+T1_MUTATION=false
+USB_MUTATION=false
+SERVICE_MUTATION=false
+IMAGE_MUTATION=false
+HA_DATA_MUTATION=false
+U13B_LIVE_EXECUTION_AUTHORIZED=false
+NEW_CLEAN_OTA_MUTATION_AUTHORIZED=false
+CONTROLLED_ROLLBACK_MUTATION_AUTHORIZED=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_U13B_REAL_T1_READONLY_BINDING_PREFLIGHT_20261117_01
+NEXT_ATTEMPT=02
+```
+
+P1 Attempt 01 stopped locally before SSH because the initial wrapper invoked the historical U13A live CLI with the current P1 commit as its package authority. The historical U13A live manifest correctly retained its older transition-source blob, while later U13B development legitimately changed `tools/n3w_t1_core_updater_ha_usb.py`. That mismatch was therefore a local package-composition false blocker, not T1 drift and not a U13B runtime failure.
+
+Attempt 01 did not access T1 and performed no Host transaction, USB, service, image, HA-data, authorization or U13B mutation.
+
+The repaired P1 exact package authority is `e41723d8fa278021db95fc497426678a8a52d3c2`. It binds the historical U13A status-only dependency closure, constructs a status-only plan without live transition source, and preserves truthful `T1_ACCESS=true` on any future remote STOP after SSH is actually established. All 16 workflows on the repair head are SUCCESS.
+
+Attempt 02 has not executed. The next chat must fresh-rebind PR #807 and exact package authority `e41723d8...`; if unchanged and CI remains 16/16 SUCCESS, continue the already authorized real-T1 read-only P1 Attempt 02 only.
+
+Formal V1.4 handoff:
+`docs/development/N3W_T1_U13B_P1_ATTEMPT01_SAFE_STOP_REPAIR_CI_PASS_TO_READONLY_ATTEMPT02_NEW_CHAT_HANDOFF_V1.0_20261117.md`.
+
 ## Latest authority — 2026-11-17 U13B read-only preexecution source CLOSED_PASS / physical acceptance preparation
 
 ```text
