@@ -322,8 +322,11 @@ def test_u13b_restore_predecessor_rejects_runtime_identity_drift(tmp_path):
 
 def test_u13b_production_backend_reads_usb_metadata_without_mutation(tmp_path):
     mount = tmp_path / "usb"
-    transaction_dir = mount / "n3w-update" / "transaction"
+    update_dir = mount / "n3w-update"
+    transaction_dir = update_dir / "transaction"
     transaction_dir.mkdir(parents=True, mode=0o700)
+    update_dir.chmod(0o700)
+    transaction_dir.chmod(0o700)
     documents = {
         "manifest.json": {"schema": "manifest", "value": 1},
         "phase.json": {"schema": "phase", "value": 2},
