@@ -355,3 +355,26 @@ MERGE=false
 ```text
 NEXT_ONE_GATE=U13B_STAGE_D_D3_HOST_ONLY_RECONCILIATION_WRITER_SOURCE_IMPLEMENTATION
 ```
+
+
+## 13. Implementation review delta — serialization and RO mount lifetime
+
+D3 implementation review found two additional operational requirements.
+
+First, the normal U13B rollback controller must hold the same
+`HaUsbStateStore.lock()` as the Host-only reconciliation writer. Otherwise a
+normal rollback could advance Host between D3's final guard read and atomic Host
+replacement. The controller is therefore serialized through the shared
+root-directory flock without changing rollback phase semantics.
+
+Second, a D3 RO+noload mount cannot remain mounted after reconciliation because
+the next normal rollback step must persist new USB transaction metadata. D3
+therefore releases the product-owned reconciliation mount in a `finally` path
+for success, ALREADY_EXACT, and failure. It never remounts the USB read-write.
+
+```text
+ROLLBACK_CONTROLLER_SHARED_TRANSACTION_LOCK=true
+D3_RECONCILIATION_RO_MOUNT_TEMPORARY=true
+D3_RECONCILIATION_RO_MOUNT_RELEASE_FINALLY=true
+USB_REMOUNT_RW_BY_D3=false
+```

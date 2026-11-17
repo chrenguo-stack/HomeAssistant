@@ -70,10 +70,15 @@ class Backend:
         self.on_read = on_read
         self.reads = 0
         self.resolves = 0
+        self.releases = 0
 
     def resolve_transaction_media_for_reconciliation(self, transaction):
         self.resolves += 1
         return self.media
+
+    def release_transaction_media_for_reconciliation(self, media_value):
+        assert media_value is self.media
+        self.releases += 1
 
     def read_transaction_metadata(self, transaction, media_value):
         assert media_value is self.media
@@ -128,6 +133,7 @@ def test_d3_reconciles_all_six_legal_edges_host_only(tmp_path, index):
     assert store.writes == [new]
     assert store.lock_entries == 1
     assert backend.reads == 2
+    assert backend.releases == 1
     assert observer.calls == [(method, new["phase"])]
 
 

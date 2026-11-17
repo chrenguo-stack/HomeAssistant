@@ -61,7 +61,7 @@ def install_commands(monkeypatch, mount_path, *, already_mounted, options):
             "--source", "/dev/sdz1",
         ):
             return (options + "\n").encode()
-        if argv and argv[0] == "mount":
+        if argv and argv[0] in {"mount", "umount"}:
             return b""
         raise AssertionError(f"unexpected command: {argv!r}")
 
@@ -164,3 +164,28 @@ def test_reconciliation_resolver_rejects_existing_rw_mount(
     ):
         value.resolve_transaction_media_for_reconciliation(transaction)
     assert not any(call and call[0] == "mount" for call in calls)
+
+
+
+def test_reconciliation_release_unmounts_ro_product_mount(
+    tmp_path, monkeypatch
+):
+    transaction = origin_transaction(U9)
+    mount_path = (
+        tmp_path / "run" / "media"
+        / transaction["transaction_id_sha256"][:16]
+    )
+    mount_path.mkdir(parents=True, mode=0o700)
+    value = backend(tmp_path, disk(mount_path))
+    calls = install_commands(
+        monkeypatch,
+        mount_path,
+        already_mounted=True,
+        options="ro,nosuid,nodev,noexec,relatime",
+    )
+    observed = value.resolve_transaction_media_for_reconciliation(
+        transaction
+    )
+    assert observed is not None
+    value.release_transaction_media_for_reconciliation(observed)
+    assert ("umount", str(mount_path)) in calls
