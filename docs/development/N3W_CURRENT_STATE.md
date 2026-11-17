@@ -1,3 +1,51 @@
+## Latest authority — 2026-11-17 U13B read-only preexecution source CLOSED_PASS / physical acceptance preparation
+
+```text
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+PR_BASE_HEAD=ab277001dc9b31dcccb4d36b1507cec5f26d5a1d
+STAGE_D_SOURCE_HEAD=a47fc818eaea84a7357d158e2c4f92b2367d8d44
+READONLY_PREEXECUTION_EXACT_HEAD=c02335e728797c953e623cf439d314c0affc3d32
+READONLY_PREEXECUTION_CI=16_OF_16_SUCCESS
+HA_TARGET_BINDING_RUN=44042455343
+MANAGER_A_TO_B_RUN=44042455250
+CORE_STACK_CURRENT_AUTHORITY_RUN=44042455186
+
+STAGE_A_CLOSED_PASS=true
+STAGE_B_CLOSED_PASS=true
+STAGE_C_CLOSED_PASS=true
+STAGE_D_SOURCE_CLOSED=true
+READONLY_PREEXECUTION_SOURCE_DESIGN=true
+READONLY_PREEXECUTION_SOURCE_IMPLEMENTATION=true
+READONLY_PREEXECUTION_SOURCE_CLOSED_PASS=true
+
+LAST_PROVEN_LIVE_TRANSACTION_PHASE=U13A_COMMITTED
+NEXT_LIVE_FRESHNESS=UNKNOWN_FRESH
+SUCCESSFUL_U13A_TRANSACTION_REUSE_FOR_U13B_TEST=false
+FRESH_CLEAN_OTA_TRANSACTION_REQUIRED=true
+DISTINCT_TARGET_ARTIFACT_REQUIRED=true
+CONTROLLED_PHYSICAL_ACCEPTANCE_SCENARIO_DESIGNED=true
+
+REAL_T1_READONLY_PACKAGE_CREATED=false
+T1_ACCESS=false
+T1_MUTATION=false
+U13B_LIVE_EXECUTION_AUTHORIZED=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_U13B_REAL_T1_READONLY_BINDING_PREFLIGHT_20261117_01
+```
+
+The U13B repository-side read-only preexecution gate is now CLOSED_PASS at exact head `c02335e728797c953e623cf439d314c0affc3d32`. All 16 workflows on that exact head are SUCCESS, including Home Assistant target-binding, Manager A-to-B, and Core Stack current-authority checks.
+
+The previous HA target-binding failures were confined to test-fixture directory creation/permission setup exposed by the expanded complete U13B suite. The final repairs changed test fixtures only; production runtime/source permission enforcement was not weakened.
+
+The next stage is deliberately not live rollback. The last proven real-T1 transaction is the successful terminal `U13A_COMMITTED` transaction, and that transaction is forbidden as a U13B test fixture. Physical acceptance must use a fresh, independent clean OTA transaction with a distinct exact target authority. Before any rollback mutation, a separately authorized real-T1 read-only binding/preexecution gate must establish fresh Host/USB/recovery/runtime facts.
+
+Physical-acceptance design authority:
+`docs/development/N3W_T1_U13B_REAL_T1_PHYSICAL_ACCEPTANCE_AND_READONLY_PREEXECUTION_PLAN_20261117.md`.
+
 ## Latest authority — 2026-11-17 U13B Stage D source CLOSED_PASS / new-chat handoff to read-only preexecution design
 
 ```text

@@ -1,3 +1,17 @@
+## 2026-11-17 — U13B read-only preexecution source CLOSED_PASS / physical acceptance preparation
+
+- PR #807 remains OPEN/DRAFT/unmerged; default main remains `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`.
+- U13B read-only preexecution exact closure head is `c02335e728797c953e623cf439d314c0affc3d32`; exact-head CI is 16/16 SUCCESS.
+- Key CI runs: Home Assistant target-binding `44042455343`, Manager A-to-B `44042455250`, Core Stack current authority `44042455186`; all SUCCESS.
+- Stage A/B/C/D and the repository-side read-only preexecution source are CLOSED_PASS.
+- The final CI repairs after workflow expansion were test-fixture-only; production source permission enforcement was not relaxed.
+- Last proven live transaction remains the successful terminal `U13A_COMMITTED`; next live freshness is `UNKNOWN_FRESH`.
+- The successful U13A transaction must never be reused or mutated merely to exercise U13B.
+- Physical acceptance requires a fresh clean OTA transaction and a distinct exact target artifact/release authority.
+- No real-T1 package has yet been created and no T1 access, T1 mutation, U13B live rollback, board access or merge is authorized by this closure.
+- Physical-acceptance plan: `docs/development/N3W_T1_U13B_REAL_T1_PHYSICAL_ACCEPTANCE_AND_READONLY_PREEXECUTION_PLAN_20261117.md`.
+- Next gate: `N3W_T1_U13B_REAL_T1_READONLY_BINDING_PREFLIGHT_20261117_01`.
+
 ## 2026-11-17 — U13B Stage D source CLOSED_PASS / handoff to read-only preexecution design
 
 - PR #807 remains OPEN/DRAFT/unmerged; default main is `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`; PR base is `ab277001dc9b31dcccb4d36b1507cec5f26d5a1d`.
