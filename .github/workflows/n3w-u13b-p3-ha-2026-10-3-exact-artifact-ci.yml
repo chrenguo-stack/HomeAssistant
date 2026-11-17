@@ -274,7 +274,7 @@ jobs:
           digest = hashlib.sha256(archive.read_bytes()).hexdigest()
           assert digest == identity.archive_sha256
           assert archive.stat().st_size == identity.archive_size_bytes
-          assert binding["control_plane_head"] == os.environ["GITHUB_SHA"]
+          assert binding["control_plane_head"] == os.environ["CONTROL_HEAD"]
           assert binding["local_image"] == os.environ["LOCAL_IMAGE"]
           assert binding["archive_sha256"] == identity.archive_sha256
           assert binding["archive_size_bytes"] == identity.archive_size_bytes
