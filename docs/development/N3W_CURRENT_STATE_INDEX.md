@@ -1,5 +1,7 @@
 ## 2026-11-17 — U12 live acceptance CLOSED_PASS / durable U12 stop before U13
 
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`, repository Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, repository Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`; live upgrade accepted and deployment state remains `APPLIED_ACCEPTED`.
+- Historical clean reference remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
 - PR #807 U12 execution source head `dc5a5cce3d4b6221c0ea64b58bd5e5bd2d802e94` completed 16/16 CI SUCCESS before real-T1 execution.
 - Real-T1 execution `u12-live01-20261117T005801Z` returned RC=0 / `U12_LIVE_ACCEPTANCE_PASS`.
 - Fresh embedded U12 read-only preflight passed before claim; prestate was exact host/USB `U11_TARGET_INSTALLED_STARTED` with transaction SHA-256 `33350ba47e0af43b4f0e11fac990e24924f22057da60d980b26453b4e80e0471`.
