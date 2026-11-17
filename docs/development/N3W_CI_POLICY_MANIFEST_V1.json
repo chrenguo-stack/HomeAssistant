@@ -575,6 +575,11 @@
       "class": "EXACT",
       "draft_policy": "run",
       "exceptions": {}
+    },
+    "n3w-u13b-p3-acceptance-clean-ota-source-ci.yml": {
+      "class": "EXACT",
+      "draft_policy": "run",
+      "exceptions": {}
     }
   }
 }

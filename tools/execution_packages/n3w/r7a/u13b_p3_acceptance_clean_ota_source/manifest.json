@@ -1,0 +1,63 @@
+{
+  "schema": "gh.n3w-t1-u13b-p3-acceptance-clean-ota-source-manifest/1",
+  "gate_id": "N3W_T1_U13B_P3_ACCEPTANCE_CLEAN_OTA_SOURCE_PACKAGE_20261117_01",
+  "acceptance_release_identity": "homeassistant-2026.10.3-u13b-p3-acceptance",
+  "real_t1_access_authorized": false,
+  "live_execution_authorized": false,
+  "new_clean_ota_mutation_authorized": false,
+  "controlled_rollback_mutation_authorized": false,
+  "source_authority": {
+    "default_main_head": "3e7faf258d670c9eaf3be6ede9bbb02df2ac009d",
+    "pr": 807,
+    "p2_closed_pass": true,
+    "p3_exact_artifact_run": 44089585822,
+    "p3_exact_artifact_result": "SUCCESS",
+    "p3_target_binding_run": 44091564730,
+    "p3_target_binding_result": "SUCCESS",
+    "p3_target_binding_authority_head": "626507a0928cece777e65b54e6c449f0da9c189b"
+  },
+  "package_source_authority": {
+    "tools/execution_packages/n3w/r7a/u13b_p3_acceptance_clean_ota_source/executor.py": "bf7a54dfa474fa749cdcc26a673c21f5d24fd52a",
+    "tools/n3w_t1_core_updater_ha_ipc.py": "aaadf1858d39295a3639185b5faf6899096a19bc",
+    "tools/n3w_t1_core_updater_ha_usb_state.py": "f20f7c6e182aeb19ef47bdec595d85bd08729c9c",
+    "tools/n3w_t1_core_updater_ha_prepare.py": "c4973a9fa9f114b2d068db5f2166894a41ed2217",
+    "tools/n3w_t1_core_updater_v2_common.py": "b9c6561a1a8e33bdf586e6a4bd04d025f3c5d7e6",
+    "infra/n3w-t1/upgrades/homeassistant-2026.10.3-u13b-physical.json": "86f5c42b3227212e68cbeb98e115e2e96d244d8a",
+    "infra/n3w-t1/upgrades/homeassistant-2026.10.3-u13b-physical-compatibility-review.json": "96ab1b5f04854b86f8f0bfdd5e5e3248a532441e"
+  },
+  "acceptance_target": {
+    "target_image_ref": "local/n3w-homeassistant:2026.10.3-c2bb99de",
+    "expected_predecessor_image_ref": "local/n3w-homeassistant:2026.10.4-5881590f",
+    "target_archive_sha256": "d26ac92ceed7baf689e1db9f11550c1e51d36f6dc81cac995a3eaf7a3d13912d",
+    "target_archive_size_bytes": 835151232,
+    "artifact_identity": {
+      "artifact_id": 14330409226,
+      "artifact_digest_sha256": "a84ddb194ed72ddba6797a0141c1835ecdadfc369c84427303f02d3628d76200",
+      "artifact_name": "n3w-u13b-p3-homeassistant-2026.10.3-arm64-fd00f66d646053ae1c7d4bcf85921ca6bc2b20e3"
+    }
+  },
+  "execution_contract": {
+    "acceptance_only": true,
+    "manager_version_discovery_bypass_only": true,
+    "manager_version_rule_modified": false,
+    "product_host_ota_admission_required": true,
+    "product_ha_usb_ipc_executor_required": true,
+    "product_prepare_new_required": true,
+    "terminal_transaction_archive_required": true,
+    "fresh_transaction_required": true,
+    "product_usb_prepare_required": true,
+    "product_recovery_backup_required": true,
+    "product_u9_u10_u11_required": true,
+    "stop_before_u12": true,
+    "real_t1_access": false,
+    "t1_mutation": false,
+    "usb_mutation": false,
+    "service_mutation": false,
+    "image_mutation": false,
+    "ha_data_mutation": false,
+    "board_access": false,
+    "merge": false
+  },
+  "next_boundary": "SOURCE_AND_SIMULATION_CI",
+  "stop_boundary": "STOP_BEFORE_P3_REAL_T1_NEW_CLEAN_OTA_MUTATION"
+}
