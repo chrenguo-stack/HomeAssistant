@@ -1,0 +1,53 @@
+{
+  "schema": "gh.n3w-t1-u13b-real-t1-readonly-binding-preflight-manifest/1",
+  "gate_id": "N3W_T1_U13B_REAL_T1_READONLY_BINDING_PREFLIGHT_20261117_01",
+  "read_only_preflight": true,
+  "real_t1_readonly_execution_authorized": true,
+  "u13b_live_execution_authorized": false,
+  "new_clean_ota_mutation_authorized": false,
+  "controlled_rollback_mutation_authorized": false,
+  "source_authority": {
+    "main": "3e7faf258d670c9eaf3be6ede9bbb02df2ac009d",
+    "pr": 807,
+    "u13b_readonly_preexecution_source_head": "c02335e728797c953e623cf439d314c0affc3d32",
+    "physical_acceptance_plan_commit": "f4b5fdb7116fe1bcb9a389879fb31f4c5f3491e8",
+    "state_alignment_head": "7f7ca1f1c614e41306ca1e7208574cfc9106726b",
+    "state_alignment_ci": "16_OF_16_SUCCESS",
+    "design": "docs/development/N3W_T1_U13B_REAL_T1_PHYSICAL_ACCEPTANCE_AND_READONLY_PREEXECUTION_PLAN_20261117.md"
+  },
+  "package_source_authority": {
+    "tools/execution_packages/n3w/r7a/u13b_real_t1_readonly_binding_preflight/executor.py": "44b89d0b23f8c01b442684fcb7ee4091d309bb84",
+    "tools/execution_packages/n3w/r7a/u13a_live_commit/executor.py": "b55855e880f6b2cf17212b3b8172352771442ea9",
+    "tools/execution_packages/n3w/r7a/u13a_live_commit/manifest.json": "23a46203ddcbe2bfd07daa4d7d5f4d977ed27845",
+    "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7"
+  },
+  "expected_terminal_u13a": {
+    "transaction_phase": "U13A_COMMITTED",
+    "transaction_status": "COMMITTED",
+    "transaction_sha256": "06951ac4d8a8723ae808f25d955560052eee02f884ab78f5c6ffe0580e84b600",
+    "target_image": "local/n3w-homeassistant:2026.10.4-5881590f",
+    "target_runtime_image_id": "sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365",
+    "filesystem_uuid": "967cf065-abe5-49ee-8499-7c3f50d2c48f",
+    "transaction_id_sha256": "ca89774eb4254d0f861cc2aef136eee41e90fd6106559c0fd8d66e3ee00a3738"
+  },
+  "execution_contract": {
+    "delegate_existing_u13a_status_only": true,
+    "execute_mode_forbidden": true,
+    "fresh_t1_terminal_binding_required": true,
+    "historical_mutation_semantics_separated": true,
+    "current_probe_transaction_mutation": false,
+    "current_probe_usb_mutation": false,
+    "current_probe_service_mutation": false,
+    "current_probe_image_mutation": false,
+    "current_probe_ha_data_mutation": false,
+    "current_probe_authorization_claim": false,
+    "current_probe_u13a_transition": false,
+    "current_probe_u13b_transition": false,
+    "rollback_eligible_expected": false,
+    "new_clean_ota_required_after_pass": true,
+    "board_access": false,
+    "merge": false
+  },
+  "next_boundary": "FRESH_REAL_T1_READONLY_BINDING_ONLY",
+  "stop_boundary": "STOP_AFTER_FRESH_TERMINAL_U13A_BINDING_BEFORE_ANY_NEW_OTA_OR_U13B_MUTATION"
+}
