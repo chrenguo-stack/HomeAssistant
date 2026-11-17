@@ -119,9 +119,12 @@ def test_u13a_readonly_path_has_no_mutation_operations():
 def test_u13a_rechecks_runtime_mqtt_and_http_after_recovery_assets():
     executor = load_executor()
     source = executor.REMOTE_SCRIPT
-    recovery = source.index("recovery = verify_recovery_assets(")
-    runtime = source.index("runtime = verify_runtime_u11(plan)")
-    readiness = source.index("readiness = observe_acceptance_readiness(plan)")
+    start = source.index("def run_u13a_readonly(plan):")
+    end = source.index("\ndef main():", start)
+    u13a = source[start:end]
+    recovery = u13a.index("recovery = verify_recovery_assets(")
+    runtime = u13a.index("runtime = verify_runtime_u11(plan)")
+    readiness = u13a.index("readiness = observe_acceptance_readiness(plan)")
     assert recovery < runtime < readiness
 
 
