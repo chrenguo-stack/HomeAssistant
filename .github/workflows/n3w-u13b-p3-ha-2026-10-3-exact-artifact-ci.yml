@@ -1,0 +1,293 @@
+name: N3W U13B P3 Home Assistant 2026.10.3 exact artifact CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/n3w-u13b-p3-ha-2026-10-3-exact-artifact-ci.yml"
+      - "infra/n3w-t1/upgrades/homeassistant-2026.10.3-u13b-physical-compatibility-review.json"
+      - "tools/n3w_t1_portable_image_identity.py"
+      - "docs/development/N3W_T1_U13B_P3_DISTINCT_TARGET_2026_10_3_SOURCE_REVIEW_20261117.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  packages: read
+
+concurrency:
+  group: n3w-u13b-p3-ha-2026-10-3-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      target_present: ${{ steps.phase.outputs.target_present }}
+    env:
+      SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      COMPATIBILITY_REVIEW: infra/n3w-t1/upgrades/homeassistant-2026.10.3-u13b-physical-compatibility-review.json
+      COMPATIBILITY_REVIEW_CANONICAL_SHA256: e1e950bd76e1b8154c43d5ff50cdbceceee0fc51bb68e20022a6189f16546dd0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_HEAD }}
+          fetch-depth: 0
+
+      - name: Detect frozen target phase
+        id: phase
+        run: |
+          set -euo pipefail
+          if test -f infra/n3w-t1/upgrades/homeassistant-2026.10.3-u13b-physical.json; then
+            echo "target_present=true" >> "$GITHUB_OUTPUT"
+            echo "U13B_P3_TARGET_PHASE=FROZEN"
+          else
+            echo "target_present=false" >> "$GITHUB_OUTPUT"
+            echo "U13B_P3_TARGET_PHASE=BUILD_ALLOWED"
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate compatibility review
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_HEAD"
+          python - "$COMPATIBILITY_REVIEW" "$COMPATIBILITY_REVIEW_CANONICAL_SHA256" <<'PY'
+          import hashlib
+          import json
+          import sys
+          from pathlib import Path
+
+          path = Path(sys.argv[1])
+          expected = sys.argv[2]
+          document = json.loads(path.read_text(encoding="utf-8"))
+          canonical = json.dumps(
+              document,
+              sort_keys=True,
+              separators=(",", ":"),
+          ).encode()
+          assert hashlib.sha256(canonical).hexdigest() == expected
+          assert document["purpose"] == "U13B_P3_PHYSICAL_ACCEPTANCE_DISTINCT_TARGET"
+          assert document["mutation_profile"] == "IMAGE_ONLY_V1"
+          assert document["predecessor"]["version"] == "2026.10.4"
+          assert document["candidate"]["version"] == "2026.10.3"
+          assert document["candidate"]["upstream_source_commit"] == "1f214b8461dd1fbbd66e10765c6905f49d3c1d86"
+          assert document["persistent_schema_compatible"] is True
+          assert document["rollback_compatible_source_review"] is True
+          assert document["acceptance_only_distinct_target"] is True
+          assert document["same_image_reapply"] is False
+          assert document["new_clean_ota_authorized"] is False
+          assert document["u13b_live_rollback_authorized"] is False
+          print("U13B_P3_HA_2026_10_3_SOURCE_REVIEW=PASS")
+          PY
+
+  exact-artifact:
+    needs: source
+    if: needs.source.outputs.target_present != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CONTROL_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      UPSTREAM_REPOSITORY: ghcr.io/home-assistant/home-assistant
+      UPSTREAM_TAG: "2026.10.3"
+      PREDECESSOR_IMAGE: local/n3w-homeassistant:2026.10.4-5881590f
+      COMPATIBILITY_REVIEW: infra/n3w-t1/upgrades/homeassistant-2026.10.3-u13b-physical-compatibility-review.json
+      COMPATIBILITY_REVIEW_CANONICAL_SHA256: e1e950bd76e1b8154c43d5ff50cdbceceee0fc51bb68e20022a6189f16546dd0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CONTROL_HEAD }}
+          fetch-depth: 0
+
+      - name: Resolve exact linux arm64 upstream manifest
+        run: |
+          set -euo pipefail
+          docker buildx imagetools inspect "$UPSTREAM_REPOSITORY:$UPSTREAM_TAG" --raw > "$RUNNER_TEMP/upstream-index.json"
+          python - "$RUNNER_TEMP/upstream-index.json" "$GITHUB_ENV" <<'PY'
+          import hashlib
+          import json
+          import sys
+          from pathlib import Path
+
+          raw = Path(sys.argv[1]).read_bytes()
+          document = json.loads(raw)
+          assert document.get("schemaVersion") == 2
+          selected = [
+              item for item in document.get("manifests", [])
+              if isinstance(item, dict)
+              and isinstance(item.get("platform"), dict)
+              and item["platform"].get("os") == "linux"
+              and item["platform"].get("architecture") == "arm64"
+          ]
+          assert len(selected) == 1
+          descriptor = selected[0]
+          digest = descriptor["digest"]
+          size = descriptor["size"]
+          assert isinstance(digest, str) and digest.startswith("sha256:") and len(digest) == 71
+          assert isinstance(size, int) and size > 0
+          short = digest.removeprefix("sha256:")[:8]
+          local_image = f"local/n3w-homeassistant:2026.10.3-{short}"
+          with Path(sys.argv[2]).open("a", encoding="utf-8") as stream:
+              stream.write(f"UPSTREAM_INDEX_DIGEST=sha256:{hashlib.sha256(raw).hexdigest()}\n")
+              stream.write(f"UPSTREAM_MANIFEST_DIGEST={digest}\n")
+              stream.write(f"UPSTREAM_MANIFEST_SIZE={size}\n")
+              stream.write(f"LOCAL_IMAGE={local_image}\n")
+          PY
+
+      - name: Build and verify compressed transport archive
+        env:
+          PYTHONPATH: tools
+        run: |
+          set -euo pipefail
+          docker pull --platform linux/arm64 "$UPSTREAM_REPOSITORY@$UPSTREAM_MANIFEST_DIGEST"
+          docker tag "$UPSTREAM_REPOSITORY@$UPSTREAM_MANIFEST_DIGEST" "$LOCAL_IMAGE"
+          docker image inspect "$LOCAL_IMAGE" > "$RUNNER_TEMP/runtime-image-inspect.json"
+          mkdir "$RUNNER_TEMP/package"
+          docker save "$LOCAL_IMAGE" | gzip -1 > "$RUNNER_TEMP/package/homeassistant-arm64.tar.gz"
+          python - "$RUNNER_TEMP/package/homeassistant-arm64.tar.gz" "$RUNNER_TEMP/runtime-image-inspect.json" "$RUNNER_TEMP/package/portable-image-identity.json" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          import n3w_t1_portable_image_identity as portable
+
+          archive = Path(sys.argv[1])
+          runtime = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+          assert isinstance(runtime, list) and len(runtime) == 1
+          identity = portable.parse_image_archive(
+              archive,
+              expected_tag=__import__("os").environ["LOCAL_IMAGE"],
+              platform_os="linux",
+              platform_architecture="arm64",
+          )
+          assert portable.verify_runtime_document(identity, runtime[0]).status == "VERIFIED"
+          Path(sys.argv[3]).write_text(
+              json.dumps(identity.to_dict(), sort_keys=True, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          print(f"HA_ARCHIVE_SHA256={identity.archive_sha256}")
+          print(f"HA_ARCHIVE_SIZE_BYTES={identity.archive_size_bytes}")
+          PY
+          IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$LOCAL_IMAGE")"
+          docker image rm -f "$IMAGE_ID"
+          docker load -i "$RUNNER_TEMP/package/homeassistant-arm64.tar.gz"
+          docker image inspect "$LOCAL_IMAGE" > "$RUNNER_TEMP/runtime-image-reloaded.json"
+          python - "$RUNNER_TEMP/package/portable-image-identity.json" "$RUNNER_TEMP/runtime-image-reloaded.json" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          import n3w_t1_portable_image_identity as portable
+          identity = portable.identity_from_dict(json.loads(Path(sys.argv[1]).read_text()))
+          runtime = json.loads(Path(sys.argv[2]).read_text())
+          assert portable.verify_runtime_document(identity, runtime[0]).status == "VERIFIED"
+          print("HA_COMPRESSED_DOCKER_LOAD_SMOKE=PASS")
+          PY
+
+      - name: Freeze upstream artifact binding
+        run: |
+          set -euo pipefail
+          python - "$RUNNER_TEMP/package/homeassistant-arm64.tar.gz" "$RUNNER_TEMP/package/portable-image-identity.json" "$RUNNER_TEMP/package/upstream-binding.json" <<'PY'
+          import hashlib
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          archive = Path(sys.argv[1])
+          identity = json.loads(Path(sys.argv[2]).read_text())
+          review = json.loads(Path(os.environ["COMPATIBILITY_REVIEW"]).read_text())
+          canonical = json.dumps(review, sort_keys=True, separators=(",", ":")).encode()
+          assert hashlib.sha256(canonical).hexdigest() == os.environ["COMPATIBILITY_REVIEW_CANONICAL_SHA256"]
+          binding = {
+              "schema": "gh.n3w-t1-u13b-p3-homeassistant-upstream-artifact/1",
+              "control_plane_head": os.environ["CONTROL_HEAD"],
+              "component": "homeassistant",
+              "version": "2026.10.3",
+              "platform": "linux/arm64",
+              "upstream_repository": os.environ["UPSTREAM_REPOSITORY"],
+              "upstream_tag": os.environ["UPSTREAM_TAG"],
+              "upstream_index_digest": os.environ["UPSTREAM_INDEX_DIGEST"],
+              "upstream_manifest_digest": os.environ["UPSTREAM_MANIFEST_DIGEST"],
+              "upstream_manifest_size": int(os.environ["UPSTREAM_MANIFEST_SIZE"]),
+              "local_image": os.environ["LOCAL_IMAGE"],
+              "predecessor_image": os.environ["PREDECESSOR_IMAGE"],
+              "archive_name": archive.name,
+              "archive_sha256": identity["archive_sha256"],
+              "archive_size_bytes": identity["archive_size_bytes"],
+              "portable_config_digest": identity["config_digest"],
+              "portable_config_semantics_sha256": identity["config_semantics_sha256"],
+              "portable_rootfs_diff_ids_sha256": identity["rootfs_diff_ids_sha256"],
+              "compatibility_review_canonical_sha256": os.environ["COMPATIBILITY_REVIEW_CANONICAL_SHA256"],
+              "acceptance_only_distinct_target": True,
+              "t1_access": False,
+              "t1_mutation": False,
+              "new_clean_ota_authorized": False,
+              "u13b_live_rollback_authorized": False,
+          }
+          Path(sys.argv[3]).write_text(json.dumps(binding, sort_keys=True, indent=2) + "\n")
+          print(json.dumps(binding, sort_keys=True))
+          PY
+
+      - name: Upload exact U13B P3 HA 2026.10.3 ARM64 artifact
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: n3w-u13b-p3-homeassistant-2026.10.3-arm64-${{ env.CONTROL_HEAD }}
+          path: ${{ runner.temp }}/package/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Re-download and verify exact artifact
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ steps.upload.outputs.artifact-id }}
+          path: ${{ runner.temp }}/redownload
+          merge-multiple: true
+
+      - name: Close exact artifact byte binding
+        env:
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+          PYTHONPATH: tools
+        run: |
+          set -euo pipefail
+          python - "$RUNNER_TEMP/redownload" <<'PY'
+          import hashlib
+          import json
+          import os
+          import sys
+          from pathlib import Path
+          import n3w_t1_portable_image_identity as portable
+
+          root = Path(sys.argv[1])
+          assert {p.name for p in root.iterdir()} == {
+              "homeassistant-arm64.tar.gz",
+              "portable-image-identity.json",
+              "upstream-binding.json",
+          }
+          identity_doc = json.loads((root / "portable-image-identity.json").read_text())
+          binding = json.loads((root / "upstream-binding.json").read_text())
+          identity = portable.identity_from_dict(identity_doc)
+          archive = root / "homeassistant-arm64.tar.gz"
+          digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+          assert digest == identity.archive_sha256
+          assert archive.stat().st_size == identity.archive_size_bytes
+          assert binding["control_plane_head"] == os.environ["GITHUB_SHA"]
+          assert binding["local_image"] == os.environ["LOCAL_IMAGE"]
+          assert binding["archive_sha256"] == identity.archive_sha256
+          assert binding["archive_size_bytes"] == identity.archive_size_bytes
+          assert binding["t1_access"] is False
+          assert binding["t1_mutation"] is False
+          assert binding["new_clean_ota_authorized"] is False
+          assert binding["u13b_live_rollback_authorized"] is False
+          print(f"U13B_P3_ARTIFACT_ID={os.environ['ARTIFACT_ID']}")
+          print(f"U13B_P3_ARTIFACT_DIGEST={os.environ['ARTIFACT_DIGEST']}")
+          print(f"U13B_P3_ARCHIVE_SHA256={identity.archive_sha256}")
+          print(f"U13B_P3_ARCHIVE_SIZE_BYTES={identity.archive_size_bytes}")
+          print(f"U13B_P3_LOCAL_IMAGE={binding['local_image']}")
+          print(f"U13B_P3_UPSTREAM_INDEX_DIGEST={binding['upstream_index_digest']}")
+          print(f"U13B_P3_UPSTREAM_MANIFEST_DIGEST={binding['upstream_manifest_digest']}")
+          print("U13B_P3_HA_2026_10_3_EXACT_ARM64_ARTIFACT=PASS")
+          PY
