@@ -1,3 +1,66 @@
+## Latest authority — 2026-11-17 U13A live exact authorization bound / CI CLOSED_PASS / execution not started
+
+```text
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+MAIN_HEAD=ab277001dc9b31dcccb4d36b1507cec5f26d5a1d
+AUTHORIZED_PACKAGE_HEAD=b1d4ea98bc768ed26d626b895d494cd8ca38cc69
+AUTHORIZED_PACKAGE_CI=16_OF_16_SUCCESS
+
+U13A_READONLY_SOURCE_HEAD=fee2e1f4bb5d724e6821eb9e6534038e9646457d
+U13A_READONLY_RESULT=U13A_COMMIT_READONLY_PREFLIGHT_PASS
+U13A_READONLY_REMOTE_RC=0
+U13A_FORWARD_COMMIT_ELIGIBLE=true
+U13A_ROLLBACK_REQUIRED=false
+U13A_POWER_LOSS_REENTRY_CLASSIFICATION=FORWARD_COMMIT_ELIGIBLE
+
+LIVE_TRANSACTION_PHASE=U12_TARGET_ACCEPTANCE
+LIVE_TRANSACTION_SHA256=32a92edcd9fbdad1356b874a55d40f6e919518363c5740b495f9b5fa08a56071
+USB_TRANSACTION_PHASE=U12_TARGET_ACCEPTANCE
+USB_PHASE_SHA256=ca5cbcaa0d915f9a0fe590d2beeeace846ce7029bdf6dcb8b46331d205212283
+USB_MIRROR_EXACT=true
+
+U13A_LIVE_SOURCE_HEAD=e56eb75f02857b1b150accf371e91d852ee08709
+U13A_LIVE_SOURCE_CI=16_OF_16_SUCCESS
+U13A_PREAUTH_REVIEW_COMMIT=48393a389023d7e0413d3bbc9da544ff4738c130
+U13A_SOURCE_REVIEW=PASS
+U13A_NEW_BLOCKER_COUNT=0
+
+U13A_AUTHORIZATION_TEXT=EXECUTE_U13A_LIVE_COMMIT_YES
+U13A_AUTHORIZED_EXECUTOR_PATH=tools/execution_packages/n3w/r7a/u13a_live_commit_authorized/executor.py
+U13A_AUTHORIZED_MANIFEST_PATH=tools/execution_packages/n3w/r7a/u13a_live_commit_authorized/manifest.json
+U13A_LIVE_EXECUTION_AUTHORIZED=true
+U13A_AUTHORIZATION_GRANTED=true
+U13A_AUTHORIZATION_CLAIMED=false
+U13A_AUTHORIZATION_CONSUMED=false
+U13A_REPLAY_PERMITTED=false
+
+REAL_T1_U13A_EXECUTION_STARTED=false
+REAL_T1_U13A_MUTATION=false
+U13A_COMMITTED=false
+U13B_EXECUTED=false
+SERVICE_MUTATION=false
+IMAGE_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=REAL_T1_U13A_LIVE_COMMIT_ONCE_FROM_EXACT_AUTHORIZED_PACKAGE_AFTER_FRESH_REBIND
+STOPPED_FOR_NEW_CHAT_HANDOFF=true
+```
+
+The real-T1 U13A read-only preflight passed from durable U12 and reverified the exact recovery assets, USB mirror, target runtime, Manager/Home Assistant MQTT authentication and Home Assistant readiness. The current transaction remains unchanged at U12; no U13 terminal transition has occurred.
+
+The user explicitly granted `EXECUTE U13A LIVE COMMIT: YES`. That grant has been bound to a separate exact authorized package at `b1d4ea98bc768ed26d626b895d494cd8ca38cc69`; all 16 workflows on that exact head are SUCCESS. The authorization is granted but has not been claimed or consumed. Real-T1 U13A execution has not started.
+
+Next chat must fresh-rebind PR #807, main, the authorized package head and exact CI before execution. If authority has not drifted, execute the exact authorized U13A live commit once only. The executor itself performs the mandatory fresh U13A read-only preflight before claim. After any claim, replay is forbidden; transport ambiguity must be reconciled read-only from durable state.
+
+Public-safe evidence:
+- `docs/development/N3W_T1_U13A_COMMIT_READONLY_PREFLIGHT_CLOSURE_20261117.md`
+- `docs/development/N3W_T1_U13A_LIVE_COMMIT_SOURCE_DESIGN_20261117.md`
+- `docs/development/N3W_T1_U13A_LIVE_COMMIT_PREAUTHORIZATION_REVIEW_20261117.md`
+- PR #807 comments `6935032849`, `6935396787`, `6935523181`, `6935580153`, `6935639707`.
+
 ## Latest authority — 2026-11-17 U12 live acceptance CLOSED_PASS / durable U12 stop before U13
 
 ```text
