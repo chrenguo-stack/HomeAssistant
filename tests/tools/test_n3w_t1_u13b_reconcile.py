@@ -230,7 +230,8 @@ def test_d3_crash_after_atomic_host_write_is_idempotent_on_retry(tmp_path):
         old, phase=new["phase"], mirrored_transaction=new
     )
     store = Store(old, persist_then_raise=True)
-    backend = Backend(media(tmp_path), [snapshot, snapshot])
+    prepared_media = media(tmp_path)
+    backend = Backend(prepared_media, [snapshot, snapshot])
     observer = Observer()
 
     writer = U13BHostOnlyReconciliationWriter(
@@ -249,7 +250,7 @@ def test_d3_crash_after_atomic_host_write_is_idempotent_on_retry(tmp_path):
 
     retry = U13BHostOnlyReconciliationWriter(
         transaction_store=store,
-        backend=Backend(media(tmp_path), [snapshot]),
+        backend=Backend(prepared_media, [snapshot]),
         observer=Observer(),
     ).reconcile()
     assert retry.status == ALREADY_EXACT
