@@ -14,6 +14,7 @@ from n3w_t1_core_updater_ha_prepare import PreparedUsbMedia
 from n3w_t1_core_updater_ha_recovery import ImageRecoveryRecord
 from n3w_t1_core_updater_ha_u13b import (
     HaUsbU13BRollbackController,
+    U13BDataRestoreReadiness,
     U13BHealthEvidence,
     U13BPredecessorImageEvidence,
     U13BRuntimeEvidence,
@@ -224,6 +225,10 @@ class Runtime:
         self.steps.append("image")
         return U13BPredecessorImageEvidence(True)
 
+    def quiesce_for_data_restore(self, *, transaction):
+        self.steps.append("data_quiesce")
+        return U13BDataRestoreReadiness(True, True)
+
     def start_predecessor_runtime(self, *, transaction, predecessor):
         self.steps.append("runtime")
         return U13BRuntimeEvidence(True, True, True, True, True)
@@ -268,7 +273,13 @@ def test_u13b_controller_persists_usb_before_host_for_every_subphase(tmp_path):
         "U13B4_PREDECESSOR_RUNTIME_STARTED",
         "U13B_ROLLED_BACK",
     ]
-    assert runtime.steps == ["cleanup", "image", "runtime", "health"]
+    assert runtime.steps == [
+        "cleanup",
+        "image",
+        "data_quiesce",
+        "runtime",
+        "health",
+    ]
     assert backup.restores == 1
 
 
@@ -304,3 +315,4 @@ def test_u13b_controller_resumes_after_operation_level_interruption(tmp_path):
     assert result.transaction["phase"] == U13B
     assert backup.restores == 1
     assert runtime.steps[-2:] == ["runtime", "health"]
+    assert runtime.steps.count("data_quiesce") == 1

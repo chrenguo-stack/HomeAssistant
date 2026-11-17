@@ -187,6 +187,20 @@ def test_u13b_production_runtime_cleanup_is_homeassistant_only():
     assert host._runtime("broker")["container_id"] == "broker-id"
 
 
+def test_u13b_data_restore_requiesces_and_preserves_broker():
+    host = Host()
+    adapter = runtime(host)
+    evidence = adapter.quiesce_for_data_restore(
+        transaction={
+            "current_image_ref": CURRENT,
+            "target_image_ref": TARGET,
+        },
+    )
+    assert evidence.services_quiesced is True
+    assert evidence.broker_preserved is True
+    assert host._running_count("broker") == 1
+
+
 def test_u13b_predecessor_runtime_start_uses_ha_ota_path():
     host = Host()
     adapter = runtime(host)

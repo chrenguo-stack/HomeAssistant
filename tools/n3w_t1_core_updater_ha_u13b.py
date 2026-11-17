@@ -58,6 +58,17 @@ class U13BTargetCleanupEvidence:
 
 
 @dataclass(frozen=True, slots=True)
+class U13BDataRestoreReadiness:
+    services_quiesced: bool
+    broker_preserved: bool
+
+    def validate(self) -> "U13BDataRestoreReadiness":
+        if self.services_quiesced is not True or self.broker_preserved is not True:
+            raise UpdaterV2Error("u13b_data_restore_readiness_invalid")
+        return self
+
+
+@dataclass(frozen=True, slots=True)
 class U13BPredecessorImageEvidence:
     predecessor_image_exact_present: bool
 
@@ -160,6 +171,13 @@ class U13BRuntimeOwner(Protocol):
         media: PreparedUsbMedia,
         predecessor: ImageRecoveryRecord,
     ) -> U13BPredecessorImageEvidence:
+        ...
+
+    def quiesce_for_data_restore(
+        self,
+        *,
+        transaction: Mapping[str, Any],
+    ) -> U13BDataRestoreReadiness:
         ...
 
     def start_predecessor_runtime(
@@ -327,6 +345,9 @@ class HaUsbU13BRollbackController:
             )
 
         if current["phase"] == U13B2:
+            self.runtime_owner.quiesce_for_data_restore(
+                transaction=current,
+            ).validate()
             source_root = Path(media.mount_path) / "n3w-update" / "ha-data"
             restored = self.backup_provider.restore_preupgrade_backup(
                 backup,

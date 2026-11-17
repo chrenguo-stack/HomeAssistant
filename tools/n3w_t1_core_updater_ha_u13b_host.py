@@ -17,6 +17,7 @@ from n3w_t1_core_updater_ha_u11_host import (
     LocalU11RuntimeOwner,
 )
 from n3w_t1_core_updater_ha_u13b import (
+    U13BDataRestoreReadiness,
     U13BHealthEvidence,
     U13BPredecessorImageEvidence,
     U13BRuntimeEvidence,
@@ -282,6 +283,48 @@ class U13BProductionRuntime:
             predecessor_image_exact_present=(
                 self.host.image_id(predecessor.image_ref) == runtime_id
             )
+        ).validate()
+
+    def quiesce_for_data_restore(
+        self,
+        *,
+        transaction: Mapping[str, Any],
+    ) -> U13BDataRestoreReadiness:
+        self._require_overlay_contract()
+        broker_before = self.u11._exact_peer(
+            "broker",
+            expected_container_id=self.u11.expected_broker_container_id,
+            expected_image_ref=self.u11.expected_broker_image_ref,
+            expected_runtime_image_id=(
+                self.u11.expected_broker_runtime_image_id
+            ),
+        )
+        self.host.stop_services()
+        broker_after = self.u11._exact_peer(
+            "broker",
+            expected_container_id=self.u11.expected_broker_container_id,
+            expected_image_ref=self.u11.expected_broker_image_ref,
+            expected_runtime_image_id=(
+                self.u11.expected_broker_runtime_image_id
+            ),
+        )
+        counts = {
+            name: self.host._running_count(name)
+            for name in ("manager", "homeassistant", "broker")
+        }
+        return U13BDataRestoreReadiness(
+            services_quiesced=(
+                self.host._systemctl("is-active", SERVICES_UNIT)
+                in {"inactive", "failed"}
+                and counts == {
+                    "manager": 0,
+                    "homeassistant": 0,
+                    "broker": 1,
+                }
+            ),
+            broker_preserved=(
+                broker_after["container_id"] == broker_before["container_id"]
+            ),
         ).validate()
 
     def _running_predecessor_evidence(
