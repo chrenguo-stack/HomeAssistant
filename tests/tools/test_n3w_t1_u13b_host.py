@@ -9,6 +9,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
 from n3w_t1_core_updater_common import BROKER_UNIT, SERVICES_UNIT
+from n3w_t1_core_updater_ha_backup import HaDataBackupRecord
 from n3w_t1_core_updater_ha_prepare import PreparedUsbMedia
 from n3w_t1_core_updater_ha_recovery import ImageRecoveryRecord
 from n3w_t1_core_updater_ha_u13b_host import (
@@ -452,26 +453,62 @@ def test_readonly_production_data_observer_validates_exact_backup_without_restor
     tmp_path,
 ):
     host = Host()
-    backup = image("predecessor", CURRENT)
-    record = type("Record", (), {"public": lambda self: {"key": "value"}})()
-    provider = type("Provider", (), {
-        "verify_restored_preupgrade_backup_readonly":
-            lambda self, *args, **kwargs: record,
-    })()
+    record = HaDataBackupRecord(
+        archive_sha256="1" * 64,
+        archive_size_bytes=1024,
+        manifest_sha256="2" * 64,
+        verified=True,
+        fsynced=True,
+        consistent_preupgrade_point=True,
+        complete_production_config=True,
+        storage_integrity_verified=True,
+        ownership_metadata_present=True,
+        confidentiality_protected=True,
+        authenticity_protected=True,
+        unsupported_external_state=False,
+    )
+
+    class Provider:
+        def __init__(self):
+            self.calls = []
+
+        def verify_restored_preupgrade_backup_readonly(
+            self,
+            observed,
+            *,
+            transaction_id_sha256,
+            source_root,
+        ):
+            self.calls.append(
+                (observed.public(), transaction_id_sha256, source_root)
+            )
+            return observed
+
+    provider = Provider()
     adapter = U13BProductionReadOnlyObserver(
         runtime=runtime(host), backend=object(), backup_provider=provider,
     )
     tx = transaction()
     tx.update({
-        "ha_data_backup_identity": {"key": "value"},
+        "ha_data_backup_identity": record.public(),
         "transaction_id_sha256": "a" * 64,
     })
-    # Malformed identity fails closed before the read-only provider is invoked.
-    with pytest.raises(UpdaterV2Error):
-        adapter.observe_ha_data_restored(
-            transaction=tx,
-            media=type("Media", (), {"mount_path": str(tmp_path)})(),
-        )
+    observed_media = type(
+        "Media",
+        (),
+        {"mount_path": str(tmp_path)},
+    )()
+    before = (dict(host.images), list(host.residue), host.owner, host.binding)
+    assert adapter.observe_ha_data_restored(
+        transaction=tx,
+        media=observed_media,
+    ) is True
+    assert provider.calls == [(
+        record.public(),
+        "a" * 64,
+        tmp_path / "n3w-update" / "ha-data",
+    )]
+    assert before == (host.images, host.residue, host.owner, host.binding)
 
 
 def test_readonly_production_runtime_observer_does_not_start_services():
