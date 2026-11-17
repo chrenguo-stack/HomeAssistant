@@ -75,7 +75,7 @@ rollback_predecessor_runtime_started
 rollback_health_verified
 ```
 
-The state validator requires the exact cumulative evidence pattern for each U13B subphase. This deliberately prevents a future caller from bypassing the evidence helpers by invoking the generic transaction transition directly.
+The state validator requires the exact cumulative evidence pattern for each U13B subphase. The public generic `transition()` also rejects every U13B edge. U13B progression is routed through rollback domain helpers, and the internal rollback transition enforces an exact per-edge update-key contract. Matching boolean fields supplied to the generic transition are therefore not accepted as rollback evidence.
 
 During U13B0..U13B4:
 
@@ -241,7 +241,8 @@ PREDECESSOR_IMAGE_EVIDENCE_REQUIRED=true
 HA_DATA_RESTORE_EVIDENCE_REQUIRED=true
 PREDECESSOR_RUNTIME_EVIDENCE_REQUIRED=true
 FINAL_HEALTH_EVIDENCE_REQUIRED=true
-POWER_LOSS_RESUME_CLASSIFIABLE=true
+HOST_PHASE_POWER_LOSS_CLASSIFIABLE=true
+HOST_USB_SPLIT_WRITE_RECONCILIATION_PENDING=true
 U13B_LIVE_EXECUTION_AUTHORIZED=false
 ```
 
@@ -344,3 +345,23 @@ MERGE=false
 ```
 
 No live rollback package is created by Stage B.
+
+## 11. Independent-review Stage A repair — 2026-11-17
+
+Independent review rejected the earlier Stage A closure claim because the generic transaction API still accepted rollback-edge updates when a caller supplied expected evidence fields directly.
+
+The repaired contract is:
+
+```text
+PUBLIC_GENERIC_TRANSITION_U13B_EDGES=false
+ROLLBACK_DOMAIN_TRANSITION_REQUIRED=true
+PER_EDGE_UPDATE_KEY_ALLOWLIST=true
+SPOOFED_GENERIC_EVIDENCE_UPDATE_REJECTED=true
+ROLLBACK_BRANCH_LINEAR_RANK_ASSUMPTION=false
+```
+
+The public generic transition now rejects every U13B edge. Rollback helpers use a separate internal transition path and every phase edge has an exact update-key contract.
+
+Shared prerequisite checks no longer rank U13B0..U13B after U13A. The rollback branch is anchored at U9 for forward-path prerequisite semantics, so a future U10/U11/U12-only rule is not inherited merely because a rollback phase appears later in the phase tuple.
+
+The previous acceptance label `POWER_LOSS_RESUME_CLASSIFIABLE=true` was too broad. Only host-phase re-entry classification is closed at Stage A. USB-ahead/host-behind split-write reconciliation remains pending.

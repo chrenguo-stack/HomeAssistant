@@ -47,6 +47,7 @@ from n3w_t1_core_updater_ha_usb_state import (
     U13B3,
     U13B4,
     U13B,
+    _rollback_transition,
     compute_recovery_content_manifest_sha256,
     transition,
     validate_transaction_document,
@@ -293,7 +294,7 @@ def start_rollback(
     if validated_backup.public() != current["ha_data_backup_identity"]:
         raise UpdaterV2Error("ha_usb_rollback_backup_identity_mismatch")
 
-    return transition(
+    return _rollback_transition(
         current,
         U13B0,
         updates={
@@ -321,7 +322,7 @@ def record_rollback_target_cleanup(
         raise UpdaterV2Error("ha_usb_rollback_target_runtime_present")
     if target_image_absent is not True:
         raise UpdaterV2Error("ha_usb_rollback_target_image_present")
-    return transition(
+    return _rollback_transition(
         current,
         U13B1,
         updates={"rollback_target_cleanup_verified": True},
@@ -346,7 +347,7 @@ def record_rollback_predecessor_image_restored(
         raise UpdaterV2Error("ha_usb_rollback_predecessor_identity_mismatch")
     if predecessor_image_exact_present is not True:
         raise UpdaterV2Error("ha_usb_rollback_predecessor_not_restored")
-    return transition(
+    return _rollback_transition(
         current,
         U13B2,
         updates={"rollback_predecessor_image_restored": True},
@@ -367,7 +368,7 @@ def record_rollback_ha_data_restored(
         raise UpdaterV2Error("ha_usb_rollback_backup_identity_mismatch")
     if ha_data_backup_restored is not True:
         raise UpdaterV2Error("ha_usb_rollback_data_not_restored")
-    return transition(
+    return _rollback_transition(
         current,
         U13B3,
         updates={"rollback_ha_data_restored": True},
@@ -395,7 +396,7 @@ def record_rollback_predecessor_runtime_started(
     )
     if any(value is not True for value in evidence):
         raise UpdaterV2Error("ha_usb_rollback_runtime_not_started")
-    return transition(
+    return _rollback_transition(
         current,
         U13B4,
         updates={"rollback_predecessor_runtime_started": True},
@@ -421,7 +422,7 @@ def record_rollback_complete(
     )
     if any(value is not True for value in evidence):
         raise UpdaterV2Error("ha_usb_rollback_health_not_verified")
-    return transition(
+    return _rollback_transition(
         current,
         U13B,
         updates={"rollback_health_verified": True},
@@ -438,7 +439,7 @@ def classify_power_loss_reentry(
     if current["phase"] in {U13A, U13B}:
         return "TERMINAL"
 
-    if PHASE_INDEX[current["phase"]] < PHASE_INDEX[U9]:
+    if current["phase"] in {U0, U1, U2, U3, U4, U5, U6, U7, U8}:
         return "PRE_U9_PREDECESSOR_AUTHORITY"
 
     if (

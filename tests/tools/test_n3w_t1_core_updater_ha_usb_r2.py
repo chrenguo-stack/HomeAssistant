@@ -900,11 +900,15 @@ def test_r2_generic_transition_cannot_bypass_rollback_evidence(tmp_path):
     )
     assert tx["phase"] == U13B0
 
-    with pytest.raises(
-        UpdaterV2Error,
-        match="ha_usb_rollback_durable_evidence_invalid",
+    for updates in (
+        None,
+        {"rollback_target_cleanup_verified": True},
     ):
-        transition(tx, U13B1)
+        with pytest.raises(
+            UpdaterV2Error,
+            match="ha_usb_rollback_transition_requires_domain_helper",
+        ):
+            transition(tx, U13B1, updates=updates)
 
     tx = record_rollback_target_cleanup(
         tx,
@@ -933,9 +937,26 @@ def test_r2_generic_transition_cannot_bypass_rollback_evidence(tmp_path):
     assert tx["phase"] == U13B4
     with pytest.raises(
         UpdaterV2Error,
-        match="ha_usb_rollback_durable_evidence_invalid",
+        match="ha_usb_rollback_transition_requires_domain_helper",
     ):
-        transition(tx, U13B)
+        transition(
+            tx,
+            U13B,
+            updates={"rollback_health_verified": True},
+        )
+
+
+def test_r2_transition_rejects_foreign_update_keys(tmp_path):
+    tx, _media, _docker, _ha, _target = prepare_to_u4(tmp_path)
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_usb_transition_update_contract_invalid",
+    ):
+        transition(
+            tx,
+            U3,
+            updates={"rollback_health_verified": True},
+        )
 
 
 def test_r2_power_loss_before_u9_keeps_predecessor_authority(tmp_path):
