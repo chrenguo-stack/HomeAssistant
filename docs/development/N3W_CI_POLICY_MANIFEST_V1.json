@@ -585,6 +585,11 @@
       "class": "EXACT",
       "draft_policy": "run",
       "exceptions": {}
+    },
+    "n3w-u13b-p3-ha-2026-10-4-same-version-acceptance-artifact-ci.yml": {
+      "class": "EXACT",
+      "draft_policy": "run",
+      "exceptions": {}
     }
   }
 }

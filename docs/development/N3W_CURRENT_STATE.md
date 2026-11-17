@@ -1,3 +1,48 @@
+## Latest authority — 2026-11-17 U13B P3 physical target redesign to same-version distinct image
+
+```text
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+P3_2026_10_3_PHYSICAL_TARGET_SUPERSEDED=true
+SUPERSEDED_REASON=AVOID_HIGHER_TO_LOWER_HOMEASSISTANT_DATA_DIRECTORY_EXECUTION
+P3_SAME_VERSION_APPLICATION=2026.10.4
+P3_SAME_VERSION_PREDECESSOR_IMAGE=local/n3w-homeassistant:2026.10.4-5881590f
+P3_SAME_VERSION_PREDECESSOR_RUNTIME_IMAGE_ID=sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365
+P3_SAME_VERSION_TARGET_IMAGE=local/n3w-homeassistant:2026.10.4-u13b-acceptance-v1
+P3_SAME_VERSION_DERIVATION=LABEL_ONLY_FROM_FROZEN_PREDECESSOR_ARTIFACT
+
+BASE_ARTIFACT_RUN=41976542377
+BASE_ARTIFACT_ID=13391983948
+BASE_ARCHIVE_SHA256=eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973
+P3_SAME_VERSION_EXACT_ARTIFACT_READY=false
+
+REAL_T1_READONLY_PREFLIGHT_EXECUTED=false
+REAL_T1_ACCESS=false
+T1_MUTATION=false
+NEW_CLEAN_OTA_MUTATION_AUTHORIZED=false
+U13B_LIVE_EXECUTION_AUTHORIZED=false
+CONTROLLED_ROLLBACK_MUTATION_AUTHORIZED=false
+BOARD_ACCESS=false
+MERGE=false
+```
+
+The previously prepared 2026.10.3 P3 physical target is superseded for real physical acceptance. Its artifacts and source reviews remain historical evidence only and must not be granted live authority.
+
+The replacement target is derived only from the frozen exact 2026.10.4 predecessor artifact by adding one fixed Docker config label. CI must prove identical rootfs diff IDs and identical runtime configuration except Labels, while requiring a distinct Docker image ID.
+
+Design:
+`docs/development/N3W_T1_U13B_P3_SAME_VERSION_DISTINCT_IMAGE_TARGET_DESIGN_20261117.md`.
+
+Machine review:
+`infra/n3w-t1/upgrades/homeassistant-2026.10.4-u13b-same-version-acceptance-review.json`.
+
+Next gate is repository-only exact artifact production. Existing 2026.10.3-bound live/read-only source packages are not current physical execution authority and will be rebound only after the new exact artifact closes.
+
 ## Latest authority — 2026-11-17 U13B P3 acceptance-only clean OTA source package CLOSED_PASS
 
 ```text

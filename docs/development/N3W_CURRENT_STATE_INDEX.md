@@ -1,3 +1,16 @@
+## 2026-11-17 — U13B P3 physical target redesign: same-version distinct image
+
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- PR #807 remains OPEN/DRAFT/unmerged; default main remains `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`.
+- The 2026.10.3 candidate is now `SUPERSEDED_FOR_PHYSICAL_ACCEPTANCE`; it remains historical research evidence and must not receive live authority.
+- Replacement predecessor is the exact currently deployed `local/n3w-homeassistant:2026.10.4-5881590f`, runtime image ID `sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365`.
+- Replacement candidate application version is also 2026.10.4: `local/n3w-homeassistant:2026.10.4-u13b-acceptance-v1`.
+- Candidate derivation is label-only from frozen artifact run `41976542377`, artifact ID `13391983948`; no GHCR/registry pull is allowed.
+- CI invariants: identical rootfs diff IDs, identical runtime Config except Labels, distinct Docker image ID, exact portable identity and reload proof.
+- New exact same-version artifact is not yet closed; no target/live manifest has been rebound yet.
+- Real-T1 access/mutation, new clean OTA, U13B rollback, board access and merge remain unauthorized.
+- Design: `docs/development/N3W_T1_U13B_P3_SAME_VERSION_DISTINCT_IMAGE_TARGET_DESIGN_20261117.md`.
+
 ## 2026-11-17 — U13B P3 acceptance-only clean OTA source package CLOSED_PASS
 
 - PR #807 remains OPEN/DRAFT/unmerged; default main remains `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`.
