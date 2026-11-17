@@ -80,6 +80,7 @@ from n3w_t1_core_updater_ha_usb_state import (
     U13B,
     HaUsbStateStore,
     new_transaction,
+    transition,
 )
 from n3w_t1_core_updater_v2_common import UpdaterV2Error
 
@@ -724,6 +725,8 @@ def test_r2_failed_target_rollback_is_durable_and_staged(tmp_path):
     assert tx["status"] == "ACTIVE"
     assert tx["recovery_required"] is True
     assert tx["rollback_origin_phase"] == U11
+    assert tx["rollback_recovery_content_verified"] is True
+    assert tx["rollback_target_cleanup_verified"] is False
     assert classify_power_loss_reentry(
         tx,
         recovery_media_present=True,
@@ -739,6 +742,7 @@ def test_r2_failed_target_rollback_is_durable_and_staged(tmp_path):
         target_image_absent=(TARGET not in docker.images),
     )
     assert tx["phase"] == U13B1
+    assert tx["rollback_target_cleanup_verified"] is True
 
     docker.restore_predecessor(media, predecessor)
     tx = record_rollback_predecessor_image_restored(
@@ -747,6 +751,7 @@ def test_r2_failed_target_rollback_is_durable_and_staged(tmp_path):
         predecessor_image_exact_present=(docker.active == CURRENT),
     )
     assert tx["phase"] == U13B2
+    assert tx["rollback_predecessor_image_restored"] is True
 
     ha.restore_backup(media, backup)
     tx = record_rollback_ha_data_restored(
@@ -758,6 +763,7 @@ def test_r2_failed_target_rollback_is_durable_and_staged(tmp_path):
         ),
     )
     assert tx["phase"] == U13B3
+    assert tx["rollback_ha_data_restored"] is True
     assert ha.running is False
 
     ha.start_predecessor()
@@ -770,6 +776,7 @@ def test_r2_failed_target_rollback_is_durable_and_staged(tmp_path):
         homeassistant_running=ha.running,
     )
     assert tx["phase"] == U13B4
+    assert tx["rollback_predecessor_runtime_started"] is True
 
     tx = record_rollback_complete(
         tx,
@@ -781,6 +788,7 @@ def test_r2_failed_target_rollback_is_durable_and_staged(tmp_path):
     assert tx["phase"] == U13B
     assert tx["status"] == "ROLLED_BACK"
     assert tx["recovery_required"] is False
+    assert tx["rollback_health_verified"] is True
     assert docker.active == CURRENT
     assert TARGET not in docker.images
     assert not (ha.root / ".storage" / "r2-target-marker").exists()
@@ -878,6 +886,56 @@ def test_r2_rollback_cannot_skip_required_evidence(tmp_path):
             homeassistant_mqtt_authenticated=False,
             homeassistant_http_ready=True,
         )
+
+
+def test_r2_generic_transition_cannot_bypass_rollback_evidence(tmp_path):
+    tx, _media, _docker, _ha, target, predecessor, backup = drive_to_u8(tmp_path)
+    tx = claim_live_authorization(tx, AUTHORIZATION_ID)
+    tx = start_rollback(
+        tx,
+        failure_code="target_health_acceptance_failed",
+        target=target,
+        predecessor=predecessor,
+        backup=backup,
+    )
+    assert tx["phase"] == U13B0
+
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_usb_rollback_durable_evidence_invalid",
+    ):
+        transition(tx, U13B1)
+
+    tx = record_rollback_target_cleanup(
+        tx,
+        services_quiesced=True,
+        target_runtime_absent=True,
+        target_image_absent=True,
+    )
+    tx = record_rollback_predecessor_image_restored(
+        tx,
+        predecessor=predecessor,
+        predecessor_image_exact_present=True,
+    )
+    tx = record_rollback_ha_data_restored(
+        tx,
+        backup=backup,
+        ha_data_backup_restored=True,
+    )
+    tx = record_rollback_predecessor_runtime_started(
+        tx,
+        predecessor_runtime_started=True,
+        production_config_mounted=True,
+        manager_running=True,
+        broker_running=True,
+        homeassistant_running=True,
+    )
+    assert tx["phase"] == U13B4
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_usb_rollback_durable_evidence_invalid",
+    ):
+        transition(tx, U13B)
 
 
 def test_r2_power_loss_before_u9_keeps_predecessor_authority(tmp_path):

@@ -64,6 +64,19 @@ Public IPC maps U13B0..U13B4 to `ROLLBACK_IN_PROGRESS` and only the terminal pha
 The transaction records `rollback_origin_phase` when rollback starts. Valid origins are U9/U10/U11/U12 only.
 U13A is terminal and is deliberately not a U13B entry point.
 
+Each subphase also carries cumulative durable evidence flags:
+
+```text
+rollback_recovery_content_verified
+rollback_target_cleanup_verified
+rollback_predecessor_image_restored
+rollback_ha_data_restored
+rollback_predecessor_runtime_started
+rollback_health_verified
+```
+
+The state validator requires the exact cumulative evidence pattern for each U13B subphase. This deliberately prevents a future caller from bypassing the evidence helpers by invoking the generic transaction transition directly.
+
 During U13B0..U13B4:
 
 ```text

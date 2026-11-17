@@ -287,13 +287,52 @@ def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
         raise UpdaterV2Error("ha_usb_failure_code_invalid")
 
     rollback_origin_phase = document.get("rollback_origin_phase")
+    rollback_evidence = (
+        _bool(
+            document.get("rollback_recovery_content_verified", False),
+            "ha_usb_rollback_recovery_content_verified_invalid",
+        ),
+        _bool(
+            document.get("rollback_target_cleanup_verified", False),
+            "ha_usb_rollback_target_cleanup_verified_invalid",
+        ),
+        _bool(
+            document.get("rollback_predecessor_image_restored", False),
+            "ha_usb_rollback_predecessor_image_restored_invalid",
+        ),
+        _bool(
+            document.get("rollback_ha_data_restored", False),
+            "ha_usb_rollback_ha_data_restored_invalid",
+        ),
+        _bool(
+            document.get("rollback_predecessor_runtime_started", False),
+            "ha_usb_rollback_predecessor_runtime_started_invalid",
+        ),
+        _bool(
+            document.get("rollback_health_verified", False),
+            "ha_usb_rollback_health_verified_invalid",
+        ),
+    )
+    rollback_expected = {
+        U13B0: (True, False, False, False, False, False),
+        U13B1: (True, True, False, False, False, False),
+        U13B2: (True, True, True, False, False, False),
+        U13B3: (True, True, True, True, False, False),
+        U13B4: (True, True, True, True, True, False),
+        U13B: (True, True, True, True, True, True),
+    }
     if phase in U13B_PROGRESS_PHASES or phase == U13B:
         if rollback_origin_phase not in U13B_ENTRY_PHASES:
             raise UpdaterV2Error("ha_usb_rollback_origin_phase_invalid")
         if failure_code is None:
             raise UpdaterV2Error("ha_usb_rollback_failure_code_missing")
-    elif rollback_origin_phase is not None:
-        raise UpdaterV2Error("ha_usb_rollback_origin_phase_too_early")
+        if rollback_evidence != rollback_expected[phase]:
+            raise UpdaterV2Error("ha_usb_rollback_durable_evidence_invalid")
+    else:
+        if rollback_origin_phase is not None:
+            raise UpdaterV2Error("ha_usb_rollback_origin_phase_too_early")
+        if any(rollback_evidence):
+            raise UpdaterV2Error("ha_usb_rollback_evidence_too_early")
 
     if phase in U13B_PROGRESS_PHASES:
         if status != "ACTIVE" or recovery_required is not True:
@@ -453,6 +492,12 @@ def new_transaction(
         "failure_code": None,
         "recovery_required": False,
         "rollback_origin_phase": None,
+        "rollback_recovery_content_verified": False,
+        "rollback_target_cleanup_verified": False,
+        "rollback_predecessor_image_restored": False,
+        "rollback_ha_data_restored": False,
+        "rollback_predecessor_runtime_started": False,
+        "rollback_health_verified": False,
         "updated_at_unix": created,
     }
     return validate_transaction_document(document)

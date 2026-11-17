@@ -5,6 +5,7 @@
 - U13A remains terminal CLOSED_PASS at `U13A_COMMITTED`; its consumed authorization is not reused.
 - U13B architecture review found the existing direct U9/U10/U11/U12 -> terminal `U13B_ROLLED_BACK` transition insufficient for power-loss-safe production rollback.
 - Stage A introduces durable U13B0..U13B4 rollback-in-progress subphases, `rollback_origin_phase`, exact recovery-content revalidation before rollback, staged evidence contracts and IPC `ROLLBACK_IN_PROGRESS`.
+- Stage A source review found and closed a generic-transition bypass risk: cumulative durable rollback evidence is now required by the transaction validator for every U13B subphase and terminal `ROLLED_BACK`.
 - Stage A is repository-only: `T1_ACCESS=false / T1_MUTATION=false / U13B_LIVE_EXECUTION_AUTHORIZED=false / BOARD_ACCESS=false / MERGE=false`.
 - Production HA backup restore and exact predecessor runtime restore are intentionally deferred to Stage B source implementation.
 - Design: `docs/development/N3W_T1_U13B_AUTOMATIC_ROLLBACK_SOURCE_DESIGN_V1_20261117.md`.
