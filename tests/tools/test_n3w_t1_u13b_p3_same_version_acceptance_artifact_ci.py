@@ -90,6 +90,11 @@ def test_artifact_workflow_only_changes_labels_and_proves_distinct_identity():
     assert '"cross_store_runtime_id_rebound_required": True' in text
     assert '"live_target_runtime_id_must_differ_from_predecessor": True' in text
     assert '"live_predecessor_runtime_image_id": os.environ["BASE_RUNTIME_IMAGE_ID"]' in text
+    assert 'read_json_member("index.json")' in text
+    assert 'oci_manifest["config"]["digest"]' in text
+    assert 'descriptor["digest"]' in text
+    assert 'assert updated == 1' in text
+    assert 'add_bytes(target, "index.json", index_raw)' in text
 
 
 def test_artifact_workflow_has_no_live_authority():

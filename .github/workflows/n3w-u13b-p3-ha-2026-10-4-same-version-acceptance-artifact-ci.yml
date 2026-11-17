@@ -254,6 +254,59 @@ jobs:
                   new_manifest, sort_keys=True, separators=(",", ":")
               ).encode()
 
+              def encoded(document):
+                  return json.dumps(
+                      document, sort_keys=True, separators=(",", ":")
+                  ).encode()
+
+              def digest_path(payload):
+                  return "blobs/sha256/" + hashlib.sha256(payload).hexdigest()
+
+              def read_json_member(name):
+                  return json.loads(source.extractfile(name).read())
+
+              # Docker 29 archives contain both docker-save and OCI metadata.
+              # Rebind both representations to the same label-only config.
+              assert old_config_name == (
+                  hashlib.sha256(
+                      source.extractfile(old_config_name).read()
+                  ).hexdigest() + ".json"
+              )
+              index = read_json_member("index.json")
+              assert index["schemaVersion"] == 2
+              assert isinstance(index["manifests"], list)
+              updated = 0
+              new_blobs = {digest_path(config_raw): config_raw}
+              for descriptor in index["manifests"]:
+                  old_manifest_path = "blobs/sha256/" + descriptor["digest"].split(":")[1]
+                  oci_manifest = read_json_member(old_manifest_path)
+                  config_descriptor = oci_manifest["config"]
+                  old_oci_config_path = (
+                      "blobs/sha256/" + config_descriptor["digest"].split(":")[1]
+                  )
+                  old_oci_config = source.extractfile(old_oci_config_path).read()
+                  assert (
+                      hashlib.sha256(old_oci_config).hexdigest()
+                      == config_descriptor["digest"].split(":")[1]
+                  )
+                  if hashlib.sha256(old_oci_config).hexdigest() != old_config_name[:-5]:
+                      continue
+                  assert updated == 0
+                  assert old_oci_config == source.extractfile(old_config_name).read()
+                  oci_manifest["config"]["digest"] = (
+                      "sha256:" + hashlib.sha256(config_raw).hexdigest()
+                  )
+                  oci_manifest["config"]["size"] = len(config_raw)
+                  new_oci_manifest_raw = encoded(oci_manifest)
+                  new_blobs[digest_path(new_oci_manifest_raw)] = new_oci_manifest_raw
+                  descriptor["digest"] = (
+                      "sha256:" + hashlib.sha256(new_oci_manifest_raw).hexdigest()
+                  )
+                  descriptor["size"] = len(new_oci_manifest_raw)
+                  updated += 1
+              assert updated == 1
+              index_raw = encoded(index)
+
               def add_bytes(target, name, payload, mode=0o644):
                   info = tarfile.TarInfo(name)
                   info.size = len(payload)
@@ -265,10 +318,18 @@ jobs:
 
               with tarfile.open(target_tar, "w") as target:
                   add_bytes(target, "manifest.json", manifest_raw)
+                  add_bytes(target, "index.json", index_raw)
                   add_bytes(target, new_config_name, config_raw)
+                  for name, payload in sorted(new_blobs.items()):
+                      add_bytes(target, name, payload)
                   for member in source.getmembers():
-                      if member.name in {"manifest.json", old_config_name, "repositories"}:
+                      if member.name in {
+                          "manifest.json", "index.json",
+                          old_config_name, "repositories",
+                      }:
                           continue
+                      if member.name in new_blobs:
+                          raise AssertionError("new_oci_blob_already_exists")
                       fileobj = source.extractfile(member) if member.isfile() else None
                       target.addfile(member, fileobj)
 
