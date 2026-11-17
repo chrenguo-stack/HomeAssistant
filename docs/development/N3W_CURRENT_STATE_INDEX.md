@@ -1,6 +1,9 @@
 ## 2026-11-17 — U13B P3 physical target redesign: same-version distinct image
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference remains `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
 - PR #807 remains OPEN/DRAFT/unmerged; default main remains `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`.
 - The 2026.10.3 candidate is now `SUPERSEDED_FOR_PHYSICAL_ACCEPTANCE`; it remains historical research evidence and must not receive live authority.
 - Replacement predecessor is the exact currently deployed `local/n3w-homeassistant:2026.10.4-5881590f`, runtime image ID `sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365`.
