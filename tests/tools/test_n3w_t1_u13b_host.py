@@ -332,6 +332,7 @@ def test_u13b_production_backend_reads_usb_metadata_without_mutation(tmp_path):
         "phase.json": {"schema": "phase", "value": 2},
         "checksums.json": {"schema": "checksums", "value": 3},
         "content-authority.json": {"schema": "authority", "value": 4},
+        "host-transaction.json": {"schema": "host", "value": 5},
     }
     for name, document in documents.items():
         path = transaction_dir / name
@@ -356,6 +357,7 @@ def test_u13b_production_backend_reads_usb_metadata_without_mutation(tmp_path):
     assert snapshot.phase == documents["phase.json"]
     assert snapshot.checksums == documents["checksums.json"]
     assert snapshot.content_authority == documents["content-authority.json"]
+    assert snapshot.host_transaction == documents["host-transaction.json"]
     assert {name: (transaction_dir / name).read_bytes() for name in documents} == before
 
 

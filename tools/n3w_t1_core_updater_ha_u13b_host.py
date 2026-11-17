@@ -203,6 +203,9 @@ class U13BProductionBackend:
             content_authority=self._read_transaction_metadata_file(
                 transaction_dir / "content-authority.json"
             ),
+            host_transaction=self._read_transaction_metadata_file(
+                transaction_dir / "host-transaction.json"
+            ),
         )
 
     def sync_transaction_metadata(

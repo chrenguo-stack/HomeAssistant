@@ -34,6 +34,7 @@ from n3w_t1_core_updater_ha_usb_state import (
     USB_TX_CONTENT_AUTHORITY_SCHEMA,
     USB_TX_MANIFEST_SCHEMA,
     USB_TX_PHASE_SCHEMA,
+    validate_transaction_document,
 )
 from n3w_t1_core_updater_v2_common import (
     SHA256,
@@ -855,6 +856,7 @@ class SubprocessPrepareBackend:
         transaction: dict[str, Any],
         media: PreparedUsbMedia,
     ) -> None:
+        transaction = validate_transaction_document(transaction)
         media.validate()
         self._require_bound_media(media)
         transaction_id = transaction.get("transaction_id_sha256")
@@ -931,12 +933,19 @@ class SubprocessPrepareBackend:
             ),
         }
         self._atomic_json(transaction_dir / "manifest.json", manifest)
-        self._atomic_json(transaction_dir / "phase.json", phase_document)
         self._atomic_json(transaction_dir / "checksums.json", checksums)
         self._atomic_json(
             transaction_dir / "content-authority.json",
             content_authority,
         )
+        # Persist the exact public-safe host successor before the phase marker.
+        # phase.json is deliberately last so a visible successor phase always has
+        # the transaction mirror required for split-write reconciliation.
+        self._atomic_json(
+            transaction_dir / "host-transaction.json",
+            transaction,
+        )
+        self._atomic_json(transaction_dir / "phase.json", phase_document)
         self._fsync_directory(transaction_dir)
 
     def resolve_transaction_media(

@@ -469,3 +469,58 @@ T1_MUTATION=false
 BOARD_ACCESS=false
 MERGE=false
 ```
+
+
+## 16. Stage D design discovery and D1 transaction-mirror foundation
+
+Stage C closed the read-only phase classifier, but the next reconciliation design review found that the original four USB metadata files are insufficient to perform a safe host-only repair.
+
+A USB-one-phase-ahead result proves the durable phase ordering, but `phase.json` does not preserve the complete successor host transaction. The first rollback edge is the clearest example:
+
+```text
+U9/U10/U11/U12
+-> U13B0_ROLLBACK_IN_PROGRESS
+```
+
+That transition also persists `failure_code`, `rollback_origin_phase`, `recovery_required` and `rollback_recovery_content_verified`. Reconstructing those fields from the older host transaction after a crash would require guessing data that was already computed before the split.
+
+D1 therefore adds a fifth private USB metadata document:
+
+```text
+n3w-update/transaction/host-transaction.json
+```
+
+It is the exact validated, public-safe host successor transaction passed to USB synchronization. The USB write order is tightened to:
+
+```text
+static authority metadata
+-> exact host-transaction mirror
+-> phase.json
+-> fsync transaction directory
+-> host transaction durable write
+```
+
+`phase.json` is deliberately written last and acts as the USB-side commit marker. For an exact host/USB state, the mirror must equal the validated host transaction. For a USB-one-phase-ahead candidate, the mirror must be an exact legal one-edge successor: only the bounded rollback fields for that edge plus `updated_at_unix` may differ. Any other mirrored field drift fails closed.
+
+This D1 foundation still does not authorize host reconciliation. It only makes the already observed successor transaction recoverable and provable.
+
+The remaining Stage D work is intentionally separated:
+
+1. add read-only, per-edge real-world postcondition observers;
+2. require the observer for the specific USB successor phase to pass;
+3. only then permit a bounded host-only write of the exact mirrored successor transaction;
+4. never replay the rollback operation merely because USB is ahead.
+
+```text
+STAGE_C_CLOSED_PASS=true
+STAGE_D_D1_TRANSACTION_MIRROR=true
+USB_PHASE_IS_LAST_COMMIT_MARKER=true
+USB_AHEAD_EXACT_SUCCESSOR_PROVABLE=true
+USB_AHEAD_HOST_AUTO_WRITE=false
+USB_AHEAD_OPERATION_REPLAY=false
+U13B_LIVE_EXECUTION_AUTHORIZED=false
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+```

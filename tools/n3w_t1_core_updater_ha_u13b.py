@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import copy
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Protocol
@@ -66,6 +68,7 @@ class U13BUsbMetadataSnapshot:
     phase: Mapping[str, Any]
     checksums: Mapping[str, Any]
     content_authority: Mapping[str, Any]
+    host_transaction: Mapping[str, Any]
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +90,58 @@ def _metadata_shape(
         and document.get("schema") == schema
     )
 
+
+
+
+
+def _mirrored_successor_exact(
+    host: Mapping[str, Any],
+    mirrored_transaction: Mapping[str, Any],
+) -> bool:
+    try:
+        mirror = validate_transaction_document(dict(mirrored_transaction))
+    except UpdaterV2Error:
+        return False
+
+    host_phase = host["phase"]
+    successor = _U13B_USB_SUCCESSOR.get(host_phase)
+    if successor is None or mirror["phase"] != successor:
+        return False
+    if mirror["transaction_id_sha256"] != host["transaction_id_sha256"]:
+        return False
+
+    mirrored_updated_at = mirror.get("updated_at_unix")
+    if (
+        type(mirrored_updated_at) is not int
+        or mirrored_updated_at < int(host["updated_at_unix"])
+    ):
+        return False
+
+    expected = copy.deepcopy(dict(host))
+    expected["phase"] = successor
+    expected["updated_at_unix"] = mirrored_updated_at
+
+    if successor == U13B0:
+        expected["failure_code"] = mirror.get("failure_code")
+        expected["recovery_required"] = True
+        expected["rollback_origin_phase"] = host_phase
+        expected["rollback_recovery_content_verified"] = True
+    elif successor == U13B1:
+        expected["rollback_target_cleanup_verified"] = True
+    elif successor == U13B2:
+        expected["rollback_predecessor_image_restored"] = True
+    elif successor == U13B3:
+        expected["rollback_ha_data_restored"] = True
+    elif successor == U13B4:
+        expected["rollback_predecessor_runtime_started"] = True
+    elif successor == U13B:
+        expected["rollback_health_verified"] = True
+        expected["status"] = "ROLLED_BACK"
+        expected["recovery_required"] = False
+    else:
+        return False
+
+    return mirror == expected
 
 def classify_u13b_usb_host_split(
     host_transaction: Mapping[str, Any],
@@ -184,10 +239,23 @@ def classify_u13b_usb_host_split(
             usb_phase if isinstance(usb_phase, str) else None,
         )
     if usb_phase == host_phase:
+        try:
+            mirrored = validate_transaction_document(
+                dict(snapshot.host_transaction)
+            )
+        except UpdaterV2Error:
+            return stop("u13b_usb_host_transaction_mirror_invalid", usb_phase)
+        if mirrored != host:
+            return stop("u13b_usb_host_transaction_mirror_host_drift", usb_phase)
         return U13BSplitReconciliation(
             HOST_USB_EXACT, host_phase, usb_phase, "u13b_host_usb_exact"
         )
     if _U13B_USB_SUCCESSOR.get(host_phase) == usb_phase:
+        if not _mirrored_successor_exact(host, snapshot.host_transaction):
+            return stop(
+                "u13b_usb_host_transaction_mirror_successor_invalid",
+                usb_phase,
+            )
         return U13BSplitReconciliation(
             USB_ONE_PHASE_AHEAD_RECONCILABLE,
             host_phase,

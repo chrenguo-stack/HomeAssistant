@@ -204,7 +204,13 @@ def origin_transaction(phase):
     raise AssertionError("unsupported origin")
 
 
-def usb_snapshot(transaction, *, phase=None, authority_override=None):
+def usb_snapshot(
+    transaction,
+    *,
+    phase=None,
+    authority_override=None,
+    mirrored_transaction=None,
+):
     authority = {
         "schema": USB_TX_CONTENT_AUTHORITY_SCHEMA,
         "transaction_id_sha256": transaction["transaction_id_sha256"],
@@ -240,6 +246,11 @@ def usb_snapshot(transaction, *, phase=None, authority_override=None):
             "target_archive_size_bytes": transaction["target_archive_size"],
         },
         content_authority=authority,
+        host_transaction=(
+            transaction
+            if mirrored_transaction is None
+            else mirrored_transaction
+        ),
     )
 
 
@@ -498,10 +509,21 @@ def test_u13b_split_classifier_exact_and_usb_ahead(tmp_path):
     exact = classify_u13b_usb_host_split(host, observed_media, usb_snapshot(host))
     assert exact.classification == HOST_USB_EXACT
 
+    b0 = start_rollback(
+        host,
+        failure_code="target_health_acceptance_failed",
+        target=TARGET_RECORD,
+        predecessor=PREDECESSOR_RECORD,
+        backup=BACKUP_RECORD,
+    )
     ahead = classify_u13b_usb_host_split(
         host,
         observed_media,
-        usb_snapshot(host, phase="U13B0_ROLLBACK_IN_PROGRESS"),
+        usb_snapshot(
+            host,
+            phase=b0["phase"],
+            mirrored_transaction=b0,
+        ),
     )
     assert ahead.classification == USB_ONE_PHASE_AHEAD_RECONCILABLE
 
@@ -548,6 +570,36 @@ def test_u13b_split_classifier_rejects_recovery_authority_drift(tmp_path):
     assert result.classification == DIVERGENT_OR_UNKNOWN_STOP
     assert result.reason == "u13b_usb_transaction_or_recovery_authority_drift"
 
+
+
+
+def test_u13b_split_classifier_rejects_non_transition_transaction_mirror(
+    tmp_path,
+):
+    host = origin_transaction(U9)
+    b0 = start_rollback(
+        host,
+        failure_code="target_health_acceptance_failed",
+        target=TARGET_RECORD,
+        predecessor=PREDECESSOR_RECORD,
+        backup=BACKUP_RECORD,
+    )
+    tampered = dict(b0)
+    tampered["usb_device_identity_public_fingerprint"] = "f" * 64
+    result = classify_u13b_usb_host_split(
+        host,
+        media(tmp_path),
+        usb_snapshot(
+            host,
+            phase=b0["phase"],
+            mirrored_transaction=tampered,
+        ),
+    )
+    assert result.classification == DIVERGENT_OR_UNKNOWN_STOP
+    assert (
+        result.reason
+        == "u13b_usb_host_transaction_mirror_successor_invalid"
+    )
 
 def test_u13b_controller_stops_usb_ahead_before_blind_replay(tmp_path):
     store = Store(origin_transaction(U9))
