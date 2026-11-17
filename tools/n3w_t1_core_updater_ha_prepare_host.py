@@ -1242,6 +1242,37 @@ class SubprocessPrepareBackend:
             raise UpdaterV2Error("usb_measured_capacity_below_floor")
         return current
 
+    def release_transaction_media_for_reconciliation(
+        self,
+        media: PreparedUsbMedia,
+    ) -> None:
+        """Release the product-owned strict read-only reconciliation mount."""
+        media.validate()
+        source = self._require_bound_media(media)
+        options = _run(
+            (
+                "findmnt",
+                "--noheadings",
+                "--output",
+                "OPTIONS",
+                "--source",
+                source,
+            )
+        ).decode("utf-8", errors="strict").strip()
+        mount_options = {
+            item.strip() for item in options.split(",") if item.strip()
+        }
+        if "ro" not in mount_options or "rw" in mount_options:
+            raise UpdaterV2Error(
+                "usb_reconciliation_media_not_readonly"
+            )
+        mount_path = Path(media.mount_path)
+        _run(("umount", str(mount_path)))
+        try:
+            mount_path.rmdir()
+        except OSError:
+            pass
+
     def abort_prepared_media(self, media: PreparedUsbMedia) -> None:
         media.validate()
         mount_path = Path(media.mount_path)
