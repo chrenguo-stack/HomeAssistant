@@ -354,3 +354,30 @@ def test_u13b_production_backend_reads_usb_metadata_without_mutation(tmp_path):
     assert snapshot.checksums == documents["checksums.json"]
     assert snapshot.content_authority == documents["content-authority.json"]
     assert {name: (transaction_dir / name).read_bytes() for name in documents} == before
+
+
+
+def test_u13b_production_backend_rejects_symlinked_update_directory(tmp_path):
+    mount = tmp_path / "usb"
+    mount.mkdir()
+    outside = tmp_path / "outside"
+    (outside / "transaction").mkdir(parents=True, mode=0o700)
+    (mount / "n3w-update").symlink_to(outside, target_is_directory=True)
+
+    observed_media = PreparedUsbMedia(
+        locator="/dev/sdz",
+        public_fingerprint="a" * 64,
+        filesystem_uuid="12345678-1234-5678-1234-567812345678",
+        measured_usable_bytes=1024,
+        mount_path=str(mount),
+    ).validate()
+    backend = U13BProductionBackend(prepare_backend=object())
+
+    with pytest.raises(
+        UpdaterV2Error,
+        match="u13b_usb_transaction_directory_invalid",
+    ):
+        backend.read_transaction_metadata(
+            {"usb_filesystem_uuid": observed_media.filesystem_uuid},
+            observed_media,
+        )

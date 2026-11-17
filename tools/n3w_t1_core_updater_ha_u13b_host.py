@@ -178,14 +178,24 @@ class U13BProductionBackend:
         media.validate()
         if media.filesystem_uuid != transaction.get("usb_filesystem_uuid"):
             raise UpdaterV2Error("u13b_bound_media_uuid_drift")
-        transaction_dir = Path(media.mount_path) / "n3w-update" / "transaction"
-        if transaction_dir.is_symlink() or not transaction_dir.is_dir():
+        mount_path = Path(media.mount_path)
+        if mount_path.is_symlink() or not mount_path.is_dir():
             raise UpdaterV2Error("u13b_usb_transaction_directory_invalid")
-        metadata = transaction_dir.stat()
-        if metadata.st_uid != os.geteuid() or stat.S_IMODE(metadata.st_mode) & 0o077:
-            raise UpdaterV2Error(
-                "u13b_usb_transaction_directory_metadata_invalid"
-            )
+        update_dir = mount_path / "n3w-update"
+        transaction_dir = update_dir / "transaction"
+        for directory in (update_dir, transaction_dir):
+            if directory.is_symlink() or not directory.is_dir():
+                raise UpdaterV2Error(
+                    "u13b_usb_transaction_directory_invalid"
+                )
+            metadata = directory.stat()
+            if (
+                metadata.st_uid != os.geteuid()
+                or stat.S_IMODE(metadata.st_mode) & 0o077
+            ):
+                raise UpdaterV2Error(
+                    "u13b_usb_transaction_directory_metadata_invalid"
+                )
         return U13BUsbMetadataSnapshot(
             manifest=self._read_transaction_metadata_file(transaction_dir / "manifest.json"),
             phase=self._read_transaction_metadata_file(transaction_dir / "phase.json"),
