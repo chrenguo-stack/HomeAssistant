@@ -565,3 +565,129 @@ class U13BProductionRuntime:
             ),
             homeassistant_http_ready=http_status in {200, 401},
         ).validate()
+
+
+
+class U13BProductionReadOnlyObserver:
+    """Pure observation adapter. No rollback commands or metadata writes."""
+
+    def __init__(self, *, runtime: U13BProductionRuntime,
+                 backend: U13BProductionBackend, backup_provider: Any) -> None:
+        self.runtime = runtime
+        self.backend = backend
+        self.backup_provider = backup_provider
+
+    def _quiesced(self) -> bool:
+        runtime = self.runtime
+        runtime._require_overlay_contract()
+        runtime.u11._exact_peer(
+            "broker",
+            expected_container_id=runtime.u11.expected_broker_container_id,
+            expected_image_ref=runtime.u11.expected_broker_image_ref,
+            expected_runtime_image_id=runtime.u11.expected_broker_runtime_image_id,
+        )
+        return (
+            runtime.host._systemctl("is-active", SERVICES_UNIT)
+            in {"inactive", "failed"}
+            and {name: runtime.host._running_count(name)
+                 for name in ("manager", "homeassistant", "broker")}
+            == {"manager": 0, "homeassistant": 0, "broker": 1}
+        )
+
+    def _recovery_assets(self, transaction: Mapping[str, Any],
+                         media: PreparedUsbMedia):
+        from n3w_t1_core_updater_ha_backup import backup_record_from_document
+        from n3w_t1_core_updater_ha_recovery import validate_image_recovery_record
+
+        target = validate_image_recovery_record(
+            self.backend.verify_recovery_target(
+                transaction=transaction, media=media),
+            expected_kind="target",
+            expected_image_ref=transaction["target_image_ref"],
+            expected_archive_sha256=transaction["target_archive_sha256"],
+        )
+        predecessor = validate_image_recovery_record(
+            self.backend.verify_recovery_predecessor(
+                transaction=transaction, media=media),
+            expected_kind="predecessor",
+            expected_image_ref=transaction["current_image_ref"],
+        )
+        if (target.public() != transaction["target_artifact_identity"]
+            or predecessor.public()
+                != transaction["predecessor_recovery_identity"]):
+            raise UpdaterV2Error("u13b_readonly_recovery_identity_drift")
+        backup = backup_record_from_document(
+            transaction["ha_data_backup_identity"])
+        verified = self.backup_provider.verify_backup(
+            backup,
+            transaction_id_sha256=transaction["transaction_id_sha256"],
+            destination_root=Path(media.mount_path) / "n3w-update" / "ha-data",
+        )
+        if verified.public() != backup.public():
+            raise UpdaterV2Error("u13b_readonly_backup_identity_drift")
+        return target, predecessor, backup
+
+    def observe_rollback_entry(self, *, transaction, media) -> bool:
+        self._recovery_assets(transaction, media)
+        return True
+
+    def observe_target_cleanup(self, *, transaction, media) -> bool:
+        if not self._quiesced():
+            return False
+        host = self.runtime.host
+        return (
+            host.image_id(transaction["target_image_ref"]) is None
+            and not any(
+                item["image_ref"] == transaction["target_image_ref"]
+                for item in host.component_container_residue("homeassistant")
+            )
+        )
+
+    def observe_predecessor_image(self, *, transaction, media) -> bool:
+        if not self._quiesced():
+            return False
+        predecessor = self.backend.verify_recovery_predecessor(
+            transaction=transaction, media=media)
+        if predecessor.public() != transaction["predecessor_recovery_identity"]:
+            return False
+        return (
+            self.runtime.host.image_id(transaction["current_image_ref"])
+            == self.runtime._expected_predecessor_runtime_id(transaction)
+        )
+
+    def observe_ha_data_restored(self, *, transaction, media) -> bool:
+        # Exact archive-vs-current tree comparison must additionally reject
+        # unexpected extra paths and must not create SQLite sidecar files.
+        # Until that bounded verifier is implemented, refuse any PASS.
+        raise UpdaterV2Error(
+            "u13b_readonly_ha_data_exact_verifier_not_implemented"
+        )
+
+    def observe_predecessor_runtime(self, *, transaction, media) -> bool:
+        from n3w_t1_core_updater_ha_recovery import (
+            image_recovery_record_from_document,
+        )
+        predecessor = image_recovery_record_from_document(
+            transaction["predecessor_recovery_identity"],
+            expected_kind="predecessor",
+            expected_image_ref=transaction["current_image_ref"],
+        )
+        return self.runtime._running_predecessor_evidence(
+            transaction, predecessor) is not None
+
+    def observe_predecessor_health(self, *, transaction, media) -> bool:
+        from n3w_t1_core_updater_ha_recovery import (
+            image_recovery_record_from_document,
+        )
+        predecessor = image_recovery_record_from_document(
+            transaction["predecessor_recovery_identity"],
+            expected_kind="predecessor",
+            expected_image_ref=transaction["current_image_ref"],
+        )
+        return (
+            self.runtime.verify_predecessor_health(
+                transaction=transaction,
+                predecessor=predecessor,
+            ).validate()
+            is not None
+        )

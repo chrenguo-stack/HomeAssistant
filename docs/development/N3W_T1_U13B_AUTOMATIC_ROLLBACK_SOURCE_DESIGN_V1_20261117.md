@@ -524,3 +524,31 @@ T1_MUTATION=false
 BOARD_ACCESS=false
 MERGE=false
 ```
+
+
+## 17. D2 read-only postcondition observer development (partial)
+
+After D1 exact-head `16/16 SUCCESS`, repository-only D2 adds an independent read-only observer dispatcher and a production adapter. The dispatcher requires an exact USB-one-phase-ahead classification with a fully validated mirrored successor and a strict `is True` observation result. It does not call the rollback controller, USB metadata sync, or host transaction write.
+
+The production observer currently covers:
+
+- U13B0 rollback entry: exact target, predecessor and protected backup recovery authorities;
+- U13B1 cleanup: exact Broker preserved, owner quiesced, Manager/HA absent, target image and HA residues absent;
+- U13B2 predecessor image: exact predecessor archive identity, runtime image ID and quiesced services;
+- U13B4 predecessor runtime: existing strict predecessor binding/runtime observer with no start;
+- terminal U13B: existing predecessor health observer with no service mutation.
+
+**U13B3 HA-data-restored observation remains deliberately fail-closed.** Existing tar `--compare` is not enough to exclude additional live files. Existing SQLite read-only URI may create shared-memory sidecars in some modes; the exact tree+SQLite observer must be demonstrably non-mutating before it can return PASS. No reconciliation writer is enabled.
+
+```text
+D2_READONLY_DISPATCHER=true
+D2_PRODUCTION_OBSERVERS_PARTIAL=true
+D2_U13B3_EXACT_HA_DATA_VERIFIER=false
+D2_CLOSED_PASS=false
+HOST_ONLY_RECONCILIATION_WRITER=false
+U13B_LIVE_EXECUTION_AUTHORIZED=false
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+```

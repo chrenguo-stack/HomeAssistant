@@ -14,6 +14,7 @@ from n3w_t1_core_updater_ha_recovery import ImageRecoveryRecord
 from n3w_t1_core_updater_ha_u13b_host import (
     U13BProductionBackend,
     U13BProductionRuntime,
+    U13BProductionReadOnlyObserver,
 )
 from n3w_t1_core_updater_v2_common import UpdaterV2Error
 
@@ -385,4 +386,89 @@ def test_u13b_production_backend_rejects_symlinked_update_directory(tmp_path):
         backend.read_transaction_metadata(
             {"usb_filesystem_uuid": observed_media.filesystem_uuid},
             observed_media,
+        )
+
+
+def test_readonly_production_target_cleanup_observer_does_not_mutate():
+    host = Host()
+    host.owner = "inactive"
+    host.images.pop(TARGET)
+    host.residue.clear()
+    adapter = U13BProductionReadOnlyObserver(
+        runtime=runtime(host), backend=object(), backup_provider=object()
+    )
+    before = (dict(host.images), list(host.residue), host.owner, host.binding)
+    assert adapter.observe_target_cleanup(
+        transaction=transaction(), media=object()
+    ) is True
+    assert before == (host.images, host.residue, host.owner, host.binding)
+
+
+def test_readonly_production_target_cleanup_rejects_target_residue():
+    host = Host()
+    adapter = U13BProductionReadOnlyObserver(
+        runtime=runtime(host), backend=object(), backup_provider=object()
+    )
+    assert adapter.observe_target_cleanup(
+        transaction=transaction(), media=object()
+    ) is False
+
+
+def test_readonly_production_image_observer_requires_exact_id_without_load():
+    host = Host()
+    backend = type("Backend", (), {
+        "verify_recovery_predecessor": lambda self, **kwargs:
+            image("predecessor", CURRENT)
+    })()
+    adapter = U13BProductionReadOnlyObserver(
+        runtime=runtime(host), backend=backend, backup_provider=object()
+    )
+    tx = transaction()
+    tx["predecessor_recovery_identity"] = image(
+        "predecessor", CURRENT
+    ).public()
+    assert adapter.observe_predecessor_image(
+        transaction=tx, media=object()
+    ) is True
+    assert host.images[CURRENT] == "sha256:" + "b" * 64
+    host.images[CURRENT] = "sha256:" + "e" * 64
+    assert adapter.observe_predecessor_image(
+        transaction=tx, media=object()
+    ) is False
+
+
+def test_readonly_production_data_observer_fails_closed():
+    adapter = U13BProductionReadOnlyObserver(
+        runtime=runtime(Host()), backend=object(), backup_provider=object()
+    )
+    with pytest.raises(
+        UpdaterV2Error,
+        match="u13b_readonly_ha_data_exact_verifier_not_implemented",
+    ):
+        adapter.observe_ha_data_restored(
+            transaction=transaction(), media=object()
+        )
+
+
+def test_readonly_production_runtime_observer_does_not_start_services():
+    host = Host()
+    host.owner = "active"
+    host.binding = CURRENT
+    adapter = U13BProductionReadOnlyObserver(
+        runtime=runtime(host), backend=object(), backup_provider=object()
+    )
+    tx = transaction()
+    tx["predecessor_recovery_identity"] = image(
+        "predecessor", CURRENT
+    ).public()
+    assert adapter.observe_predecessor_runtime(
+        transaction=tx, media=object()
+    ) is True
+    assert host.started == 0
+    host.binding = TARGET
+    with pytest.raises(
+        UpdaterV2Error, match="u13b_homeassistant_binding_drift"
+    ):
+        adapter.observe_predecessor_runtime(
+            transaction=tx, media=object()
         )
