@@ -1,3 +1,65 @@
+## Latest authority — 2026-11-17 U13B Stage A/B independent-review source repair CI CLOSED_PASS / final independent review handoff
+
+```text
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+PR_BASE_HEAD=ab277001dc9b31dcccb4d36b1507cec5f26d5a1d
+SOURCE_REPAIR_HEAD=6475c06e831cd597d6680502b41ea6fde6642837
+SOURCE_REPAIR_CI=16_OF_16_SUCCESS
+HA_TARGET_BINDING_RUN=44011716167
+MANAGER_A_TO_B_RUN=44011716095
+
+U13A_CLOSED_PASS=true
+LIVE_TRANSACTION_PHASE=U13A_COMMITTED
+U13A_AUTHORIZATION_CONSUMED=true
+U13A_REPLAY_PERMITTED=false
+
+STAGE_A_PREVIOUS_CLOSURE_ACCEPTED=false
+STAGE_B_PREVIOUS_CLOSURE_ACCEPTED=false
+STAGE_A_B_SOURCE_REPAIR_IMPLEMENTED=true
+STAGE_A_B_SOURCE_REPAIR_CI_CLOSED_PASS=true
+
+GENERIC_U13B_TRANSITION_BYPASS_FIXED=true
+ROLLBACK_EDGE_UPDATE_ALLOWLIST=true
+ROLLBACK_BRANCH_LINEAR_RANK_ASSUMPTION=false
+PREDECESSOR_RUNTIME_IMAGE_ID_EXACT_REQUIRED=true
+PREDECESSOR_HA_RESTART_COUNT_ZERO_REQUIRED=true
+BROKER_OWNER_ACTIVE_REQUIRED=true
+BACKUP_VERIFY_MISSING_DIR_MUTATION=false
+ROLLBACK_ORIGINS_TESTED=U9,U10,U11,U12
+OPERATION_INTERRUPTION_TESTS=cleanup,image,data_quiesce,data_restore,runtime,health
+
+STAGE_A_CLOSED_PASS=false
+STAGE_B_CLOSED_PASS=false
+FINAL_INDEPENDENT_REVIEW_REQUIRED=true
+U13B_USB_HOST_SPLIT_RECONCILIATION_PENDING=true
+STAGE_C_STARTED=false
+
+T1_ACCESS=false
+T1_MUTATION=false
+U13B_LIVE_EXECUTION_AUTHORIZED=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=U13B_STAGE_A_STAGE_B_FINAL_INDEPENDENT_REVIEW_20261117_01
+```
+
+The earlier Stage A/Stage B completion claims were independently rejected. Source repair is now implemented at exact head `6475c06e831cd597d6680502b41ea6fde6642837` and all 16 workflows on that exact head are SUCCESS. This closes the source-repair CI gate, not the final Stage A/Stage B review.
+
+The next chat must first fresh-rebind repository/main/PR/source authority and independently review Stage A/Stage B again. It must not accept the repaired state solely because CI is green. If no new blocker is found, repository-only work may continue into the next Stage C source gate for USB/host split-write read-only reconciliation. If a blocker is found, Stage C remains stopped and the blocker must be repaired/verified first.
+
+Handoff: `docs/development/N3W_T1_U13B_STAGE_A_STAGE_B_SOURCE_REPAIR_CI_PASS_TO_FINAL_INDEPENDENT_REVIEW_NEW_CHAT_HANDOFF_V1.0_20261117.md`.
+
 ## Latest authority — 2026-11-17 U13B Stage A source design/development started
 
 ```text
