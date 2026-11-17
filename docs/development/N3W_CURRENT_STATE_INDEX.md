@@ -1,6 +1,9 @@
 ## 2026-11-17 — U13B P1 Attempt 02 real-T1 read-only binding CLOSED_PASS
 
 - PR #807 remains OPEN/DRAFT/unmerged; default main remains `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`.
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference remains `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
 - Exact Attempt 02 package authority remains `e41723d8fa278021db95fc497426678a8a52d3c2`, with 16/16 CI SUCCESS.
 - Real-T1 execution `u13b-p1-readonly02-20261117T122835Z` returned RC=0 / `U13B_REAL_T1_READONLY_BINDING_PASS`.
 - Fresh binding confirms durable `U13A_COMMITTED / COMMITTED`; transaction SHA-256 `06951ac4d8a8723ae808f25d955560052eee02f884ab78f5c6ffe0580e84b600`; USB phase SHA-256 `11d150bc3828a0e400a90670671a607a02f6d1a53350ef53b3366d95fcb64288`.
