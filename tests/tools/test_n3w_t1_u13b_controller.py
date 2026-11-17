@@ -111,7 +111,7 @@ def u9_transaction():
             public_fingerprint=FINGERPRINT,
             confirmation_verified=True,
             filesystem="ext4",
-            label="N3W-OTA",
+            label="N3W-UPDATE",
         ),
         filesystem_uuid=USB_UUID,
         measured_usable_bytes=20 * 1024**3,

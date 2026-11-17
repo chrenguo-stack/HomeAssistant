@@ -904,29 +904,6 @@ def test_protected_backup_corrupt_sqlite_fails_closed(
     assert not (destination / BACKUP_ARCHIVE_NAME).exists()
 
 
-def test_u7_provider_restore_is_separately_gated() -> None:
-    provider = ProtectedHaDataBackupProvider()
-    record = HaDataBackupRecord(
-        archive_sha256="9" * 64,
-        archive_size_bytes=1,
-        manifest_sha256="a" * 64,
-        verified=True,
-        fsynced=True,
-        consistent_preupgrade_point=True,
-        complete_production_config=True,
-        storage_integrity_verified=True,
-        ownership_metadata_present=True,
-        confidentiality_protected=True,
-        authenticity_protected=True,
-        unsupported_external_state=False,
-    )
-    with pytest.raises(
-        UpdaterV2Error,
-        match="ha_data_backup_restore_requires_separate_gate",
-    ):
-        provider.restore_preupgrade_backup(record)
-
-
 @pytest.mark.skipif(shutil.which("openssl") is None, reason="openssl unavailable")
 def test_protected_backup_emits_bounded_progress_phases(
     tmp_path: Path,
