@@ -54,6 +54,14 @@ class U13BProductionBackend:
             write_required=write_required,
         )
 
+    def resolve_transaction_media_for_reconciliation(
+        self,
+        transaction: Mapping[str, Any],
+    ) -> PreparedUsbMedia | None:
+        return self.prepare_backend.resolve_transaction_media_for_reconciliation(
+            dict(transaction)
+        )
+
     @staticmethod
     def archive_path(media: PreparedUsbMedia, kind: str) -> Path:
         if kind not in {"target", "predecessor"}:

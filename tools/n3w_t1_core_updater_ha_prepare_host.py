@@ -1079,6 +1079,169 @@ class SubprocessPrepareBackend:
             raise UpdaterV2Error("usb_measured_capacity_below_floor")
         return current
 
+    def resolve_transaction_media_for_reconciliation(
+        self,
+        transaction: dict[str, Any],
+    ) -> PreparedUsbMedia | None:
+        """Resolve bound USB using a strict non-journal-replaying read-only mount."""
+        transaction_id = transaction.get("transaction_id_sha256")
+        if (
+            not isinstance(transaction_id, str)
+            or SHA256.fullmatch(transaction_id) is None
+        ):
+            raise UpdaterV2Error("ha_usb_transaction_id_invalid")
+        expected_uuid = transaction.get("usb_filesystem_uuid")
+        if not isinstance(expected_uuid, str):
+            raise UpdaterV2Error("usb_filesystem_uuid_invalid")
+        validate_filesystem_uuid(expected_uuid)
+        expected_uuid = expected_uuid.lower()
+
+        root_major_minor = _run(
+            ("findmnt", "--noheadings", "--output", "MAJ:MIN", "/")
+        ).decode("utf-8", errors="strict").strip()
+        if not root_major_minor:
+            raise UpdaterV2Error("usb_root_device_unresolved")
+
+        _require_private_directory(
+            self.runtime_root,
+            allow_group_read_execute=True,
+        )
+        mount_root = self.runtime_root / "media"
+        _require_private_directory(mount_root, create=True)
+        mount_path = mount_root / transaction_id[:16]
+
+        matches: list[tuple[dict[str, Any], str, str]] = []
+        for disk in self._lsblk():
+            if disk.get("type") != "disk":
+                continue
+            path = disk.get("path")
+            if not isinstance(path, str) or not path.startswith("/dev/"):
+                continue
+            if (
+                str(disk.get("tran") or "").strip().lower() != "usb"
+                or not _boolish(disk.get("rm"))
+            ):
+                continue
+            descendants = _flatten_blocks([disk])
+            if root_major_minor in {
+                str(item.get("maj:min") or "").strip()
+                for item in descendants
+            }:
+                continue
+            partitions = [
+                item
+                for item in descendants
+                if item.get("type") == "part"
+                and isinstance(item.get("path"), str)
+            ]
+            if len(partitions) != 1:
+                continue
+            partition = str(partitions[0]["path"])
+            mounted_points = tuple(
+                point
+                for item in descendants
+                for point in _mountpoints(item)
+            )
+            if mounted_points and set(mounted_points) != {str(mount_path)}:
+                continue
+            fs_raw = _run_optional(
+                ("blkid", "-s", "TYPE", "-o", "value", partition)
+            )
+            label_raw = _run_optional(
+                ("blkid", "-s", "LABEL", "-o", "value", partition)
+            )
+            uuid_raw = _run_optional(
+                ("blkid", "-s", "UUID", "-o", "value", partition)
+            )
+            if fs_raw is None or label_raw is None or uuid_raw is None:
+                continue
+            filesystem_type = fs_raw.decode(
+                "utf-8", errors="strict"
+            ).strip()
+            label = label_raw.decode("utf-8", errors="strict").strip()
+            filesystem_uuid = uuid_raw.decode(
+                "utf-8", errors="strict"
+            ).strip().lower()
+            if (
+                filesystem_type != "ext4"
+                or label != USB_LABEL
+                or filesystem_uuid != expected_uuid
+            ):
+                continue
+            validate_filesystem_uuid(filesystem_uuid)
+            matches.append((disk, partition, filesystem_uuid))
+
+        if not matches:
+            return None
+        if len(matches) != 1:
+            raise UpdaterV2Error("usb_multiple_eligible_devices")
+
+        disk, partition, filesystem_uuid = matches[0]
+        raw_target = _run_optional(
+            (
+                "findmnt",
+                "--noheadings",
+                "--output",
+                "TARGET",
+                "--source",
+                partition,
+            )
+        )
+        if raw_target is None:
+            _require_private_directory(mount_path, create=True)
+            _run(
+                (
+                    "mount",
+                    "-o",
+                    "ro,noload,nodev,nosuid,noexec",
+                    partition,
+                    str(mount_path),
+                )
+            )
+        else:
+            target = raw_target.decode(
+                "utf-8", errors="strict"
+            ).strip()
+            if target != str(mount_path):
+                raise UpdaterV2Error(
+                    "usb_bound_partition_mounted_elsewhere"
+                )
+            if mount_path.is_symlink() or not mount_path.is_dir():
+                raise UpdaterV2Error("usb_mount_path_invalid")
+
+        options = _run(
+            (
+                "findmnt",
+                "--noheadings",
+                "--output",
+                "OPTIONS",
+                "--source",
+                partition,
+            )
+        ).decode("utf-8", errors="strict").strip()
+        mount_options = {
+            item.strip() for item in options.split(",") if item.strip()
+        }
+        if "ro" not in mount_options or "rw" in mount_options:
+            raise UpdaterV2Error(
+                "usb_reconciliation_media_not_readonly"
+            )
+
+        measured, _free = self._filesystem_space(mount_path)
+        current = PreparedUsbMedia(
+            locator=str(disk["path"]),
+            public_fingerprint=_stable_fingerprint(disk),
+            filesystem_uuid=filesystem_uuid,
+            measured_usable_bytes=measured,
+            mount_path=str(mount_path),
+        ).validate()
+        if current.filesystem_uuid != expected_uuid:
+            raise UpdaterV2Error("usb_filesystem_uuid_mismatch")
+        self._require_bound_media(current)
+        if measured < capacity.USB_MEASURED_USABLE_FLOOR_BYTES:
+            raise UpdaterV2Error("usb_measured_capacity_below_floor")
+        return current
+
     def abort_prepared_media(self, media: PreparedUsbMedia) -> None:
         media.validate()
         mount_path = Path(media.mount_path)
