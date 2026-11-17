@@ -3,6 +3,8 @@
 - PR #807 remains OPEN/DRAFT/unmerged; default main remains `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`.
 - U13B read-only preexecution exact closure head is `c02335e728797c953e623cf439d314c0affc3d32`; exact-head CI is 16/16 SUCCESS.
 - Key CI runs: Home Assistant target-binding `44042455343`, Manager A-to-B `44042455250`, Core Stack current authority `44042455186`; all SUCCESS.
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source is `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference remains `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`; `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
 - Stage A/B/C/D and the repository-side read-only preexecution source are CLOSED_PASS.
 - The final CI repairs after workflow expansion were test-fixture-only; production source permission enforcement was not relaxed.
 - Last proven live transaction remains the successful terminal `U13A_COMMITTED`; next live freshness is `UNKNOWN_FRESH`.
