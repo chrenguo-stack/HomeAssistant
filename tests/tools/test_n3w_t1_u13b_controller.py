@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 import sys
 from pathlib import Path
 
@@ -259,6 +260,12 @@ class Store:
         self.document = document
         self.writes = []
         self.fail_next_write = False
+        self.lock_entries = 0
+
+    @contextmanager
+    def lock(self):
+        self.lock_entries += 1
+        yield
 
     def read(self):
         return self.document
@@ -375,6 +382,7 @@ def test_u13b_controller_persists_usb_before_host_for_every_subphase(
     assert result.completed is True
     assert result.transaction["phase"] == U13B
     assert result.transaction["status"] == "ROLLED_BACK"
+    assert store.lock_entries == 1
     assert backend.syncs == store.writes == [
         "U13B0_ROLLBACK_IN_PROGRESS",
         "U13B1_TARGET_CLEANUP_COMPLETE",

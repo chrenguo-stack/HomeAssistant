@@ -521,6 +521,13 @@ class HaUsbU13BRollbackController:
         return target, predecessor, verified
 
     def rollback(self, *, failure_code: str) -> U13BRollbackResult:
+        # Serialize normal rollback and D3 host-only reconciliation through the
+        # same root-directory flock. Without this, a live rollback could advance
+        # Host between D3's final guard read and atomic Host replacement.
+        with self.transaction_store.lock():
+            return self._rollback_locked(failure_code=failure_code)
+
+    def _rollback_locked(self, *, failure_code: str) -> U13BRollbackResult:
         current = self._transaction()
         initial_phase = current["phase"]
         if current["phase"] == U13A:
