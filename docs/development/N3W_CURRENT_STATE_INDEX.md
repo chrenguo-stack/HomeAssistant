@@ -1,3 +1,18 @@
+## 2026-11-17 — U13B Stage D source CLOSED_PASS / handoff to read-only preexecution design
+
+- PR #807 remains OPEN/DRAFT/unmerged; default main is `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`; PR base is `ab277001dc9b31dcccb4d36b1507cec5f26d5a1d`.
+- Final Stage D product-source authority is `a47fc818eaea84a7357d158e2c4f92b2367d8d44`; exact-head CI is 16/16 SUCCESS.
+- Key final CI runs: Core Stack current authority `44035165912`, Manager A-to-B `44035165928`, Home Assistant target-binding `44035165909`; all SUCCESS.
+- Stage A/B/C and Stage D D1/D2/D3/D4 are all CLOSED_PASS at the source/CI/independent-review boundary; `STAGE_D_SOURCE_CLOSED=true`.
+- D3 provides strict RO USB reconciliation evidence and exact Host-only transaction repair under the shared transaction lock; it never rewrites USB metadata or replays a rollback operation during reconciliation.
+- Normal rollback now shares the same transaction lock. D4 invokes D3 reconciliation first, then releases the D3 lock/RO mount before the normal controller reacquires the lock and independently rereads/reclassifies state.
+- D4 construction fails closed unless writer and rollback controller share the exact same transaction store and backend objects.
+- Stage C/D source work performed no real T1, USB-content, service, image, board or production transaction mutation. `U13B_LIVE_EXECUTION_AUTHORIZED=false / T1_ACCESS=false / T1_MUTATION=false / BOARD_ACCESS=false / MERGE=false`.
+- Last proven live transaction remains the earlier durable `U13A_COMMITTED`; next-chat live freshness is `UNKNOWN_FRESH`.
+- Final closure PR comment: https://github.com/chrenguo-stack/HomeAssistant/pull/807#issuecomment-6941289833
+- Handoff: `docs/development/N3W_T1_U13B_STAGE_D_SOURCE_CLOSED_TO_READONLY_PREEXECUTION_DESIGN_NEW_CHAT_HANDOFF_V1.0_20261117.md`.
+- Next one gate: `U13B_STAGE_D_SOURCE_CLOSURE_AND_READONLY_PREEXECUTION_DESIGN`; Stage D source closure is already satisfied, so the new chat proceeds from fresh rebind into the read-only preexecution-design portion only.
+
 ## 2026-11-17 — U13B Stage C split-write read-only reconciliation source development
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.

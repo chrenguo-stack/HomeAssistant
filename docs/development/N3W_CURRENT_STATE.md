@@ -1,3 +1,59 @@
+## Latest authority — 2026-11-17 U13B Stage D source CLOSED_PASS / new-chat handoff to read-only preexecution design
+
+```text
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+PR_BASE_HEAD=ab277001dc9b31dcccb4d36b1507cec5f26d5a1d
+STAGE_D_SOURCE_HEAD=a47fc818eaea84a7357d158e2c4f92b2367d8d44
+STAGE_D_SOURCE_CI=16_OF_16_SUCCESS
+HA_TARGET_BINDING_RUN=44035165909
+MANAGER_A_TO_B_RUN=44035165928
+CORE_STACK_CURRENT_AUTHORITY_RUN=44035165912
+
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+LAST_PROVEN_LIVE_TRANSACTION_PHASE=U13A_COMMITTED
+NEXT_CHAT_LIVE_RUNTIME=UNKNOWN_FRESH
+
+STAGE_A_CLOSED_PASS=true
+STAGE_B_CLOSED_PASS=true
+STAGE_C_CLOSED_PASS=true
+STAGE_D_D1_CLOSED_PASS=true
+STAGE_D_D2_CLOSED_PASS=true
+STAGE_D_D3_CLOSED_PASS=true
+STAGE_D_D4_CLOSED_PASS=true
+STAGE_D_SOURCE_CLOSED=true
+
+HOST_ONLY_RECONCILIATION_WRITER=true
+STRICT_READONLY_USB_RESOLVER=true
+ROLLBACK_CONTROLLER_SHARED_TRANSACTION_LOCK=true
+AUTOMATIC_RECONCILIATION_ORCHESTRATION=true
+SAME_TRANSACTION_STORE_REQUIRED=true
+SAME_BACKEND_REQUIRED=true
+NORMAL_CONTROLLER_REVALIDATION_PRESERVED=true
+USB_METADATA_WRITE_DURING_RECONCILIATION=false
+ROLLBACK_OPERATION_REPLAY_DURING_RECONCILIATION=false
+
+T1_ACCESS=false
+T1_MUTATION=false
+U13B_LIVE_EXECUTION_AUTHORIZED=false
+BOARD_ACCESS=false
+MERGE=false
+STOPPED_FOR_NEW_CHAT_HANDOFF=true
+
+NEXT_ONE_GATE=U13B_STAGE_D_SOURCE_CLOSURE_AND_READONLY_PREEXECUTION_DESIGN
+```
+
+Stage D source work is fully closed at exact source head `a47fc818eaea84a7357d158e2c4f92b2367d8d44`. All 16 workflows on that exact head are SUCCESS and the final independent source review found no new runtime blocker.
+
+D1 persists the exact public-safe Host successor transaction on USB before the phase marker. D2 independently verifies the real-world postcondition for every legal one-phase USB-ahead rollback edge. D3 adds the locked Host-only reconciliation writer with strict read-only USB evidence, exact-mirror Host persistence, post-write readback/classification and temporary RO mount release. D4 adds the narrow automatic orchestration layer: D3 reconciliation completes first, then the existing rollback controller reacquires the shared transaction lock and independently rereads/reclassifies Host/USB before any normal rollback step.
+
+No real T1, USB-content, service, image, board or production transaction mutation was performed during Stage C/D source development. No U13B live execution or merge is authorized. The last proven live transaction remains the earlier durable `U13A_COMMITTED` result; the next chat must treat live freshness as `UNKNOWN_FRESH` until a separately authorized/read-only check is actually performed.
+
+Formal handoff: `docs/development/N3W_T1_U13B_STAGE_D_SOURCE_CLOSED_TO_READONLY_PREEXECUTION_DESIGN_NEW_CHAT_HANDOFF_V1.0_20261117.md`.
+
 ## Latest authority — 2026-11-17 U13B Stage C split-write read-only reconciliation source development
 
 ```text
