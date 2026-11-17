@@ -1,0 +1,192 @@
+# N3-W T1 U12 live acceptance closure — 2026-11-17
+
+## 1. Scope
+
+This record closes the authorized one-shot real-T1 U12 live target acceptance.
+
+It records the durable transition:
+
+```text
+U11_TARGET_INSTALLED_STARTED
+-> U12_TARGET_ACCEPTANCE
+```
+
+This closure does not enter U13, access boards, merge PR #807, replay R42, restart services, or mutate Docker images.
+
+## 2. Source and execution authority
+
+```text
+PR=807
+EXECUTION_SOURCE_HEAD=dc5a5cce3d4b6221c0ea64b58bd5e5bd2d802e94
+EXECUTION_SOURCE_CI=16_OF_16_SUCCESS
+EXECUTION_ID=u12-live01-20261117T005801Z
+RESULT_SCHEMA=gh.n3w-t1-u12-live-acceptance/1
+STATUS=U12_LIVE_ACCEPTANCE_PASS
+REMOTE_RETURNCODE=0
+STATUS_RECONCILIATION_ATTEMPTED=false
+SSH_MASTER_CLEANUP=true
+```
+
+## 3. Fresh preclaim verification
+
+The executor completed a fresh real-T1 U12 read-only preflight before claiming the live gate.
+
+```text
+FRESH_PREFLIGHT_PASS=true
+PRE_TRANSACTION_PHASE=U11_TARGET_INSTALLED_STARTED
+PRE_TRANSACTION_SHA256=33350ba47e0af43b4f0e11fac990e24924f22057da60d980b26453b4e80e0471
+PRE_USB_PHASE_SHA256=8f2ba37e93577452ffd2b6dfc1cc5febbf717d1bf8c3ed2de8ec57ccf69e6921
+PRE_R42_CLAIMED=true
+PRE_R42_CONSUMED=true
+PRE_R42_FAILURE_LEDGER_PRESENT=false
+PRE_R42_REPLAY_PERMITTED=false
+PRE_U12_ACCEPTANCE=false
+PRE_U13_PLUS=false
+```
+
+Fresh preflight total duration:
+
+```text
+PRE_PREFLIGHT_TOTAL_MS=2648
+PRE_ACCEPTANCE_READINESS_OBSERVATION_MS=1552
+PRE_INSTALLED_SOURCE_VERIFICATION_MS=72
+PRE_TRANSACTION_VERIFICATION_MS=354
+PRE_R42_LEDGER_VERIFICATION_MS=5
+PRE_USB_MIRROR_VERIFICATION_MS=99
+PRE_RUNTIME_IDENTITY_VERIFICATION_MS=560
+```
+
+## 4. One-shot authorization result
+
+```text
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+REPLAY_PERMITTED=false
+R42_REPLAY=false
+```
+
+The U12 live gate is consumed and must not be replayed.
+
+## 5. Durable U12 transaction result
+
+```text
+U12_ACCEPTANCE=true
+U12_TRANSITION=true
+TRANSACTION_MUTATION=true
+USB_MUTATION=true
+TRANSACTION_PHASE=U12_TARGET_ACCEPTANCE
+TRANSACTION_SHA256=32a92edcd9fbdad1356b874a55d40f6e919518363c5740b495f9b5fa08a56071
+U13_PLUS=false
+```
+
+USB mirror terminal hashes:
+
+```text
+MANIFEST_SHA256=3aa5e247636b1bb891aa151a8fb0219294d4803ea22dc7b66d821f6250d9e728
+PHASE_SHA256=ca5cbcaa0d915f9a0fe590d2beeeace846ce7029bdf6dcb8b46331d205212283
+CONTENT_AUTHORITY_SHA256=3da14eb03447beaf38579a3fa5e4e076d4f3e806f7a787cbc0bba6b2cb1b8727
+CHECKSUMS_SHA256=2a21aa2b8fb362242fa087a49a2ebfb93caf65d1dd8a6f9c6da44edbb9f8c7f2
+USB_MIRROR_EXACT=true
+```
+
+Only the phase document changed from U11 to U12; the manifest, content-authority and checksum documents remained byte-identical.
+
+## 6. Terminal runtime acceptance
+
+The post-U12 terminal verification proved:
+
+```text
+BROKER_RUNNING=true
+MANAGER_RUNNING=true
+HOMEASSISTANT_RUNNING=true
+SERVICES_OWNER_ACTIVE=true
+PRODUCTION_CONFIG_MOUNTED=true
+TARGET_RUNTIME_IMAGE_ID=sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365
+
+TCP_8883=1
+TCP_47110=1
+UDP_47111=1
+TCP_47112=0
+
+MANAGER_MQTT_AUTHENTICATED=true
+HOMEASSISTANT_MQTT_AUTHENTICATED=true
+HOMEASSISTANT_HTTP_STATUS=401
+```
+
+R42 continuity remained exact:
+
+```text
+R42_CLAIMED=true
+R42_CONSUMED=true
+R42_FAILURE_LEDGER_PRESENT=false
+R42_REPLAY_PERMITTED=false
+R42_SUCCESS_SHA256=a68199255967d63dd8f009aa71e254c16dee895649e57656d3da5c46ac011921
+```
+
+## 7. U12 live performance evidence
+
+```text
+U12_ACCEPTANCE_DURATION_MS=2648
+ACCEPTANCE_READINESS_DURATION_MS=1281
+BROKER_LISTENER_READINESS_MS=64
+MQTT_ACCEPTANCE_DURATION_MS=721
+HOMEASSISTANT_READINESS_DURATION_MS=9
+PERFORMANCE_TARGET_STATUS=U12_ACCEPTANCE_PHASE_ONLY_PASS
+USER_VISIBLE_DOWNTIME_MEASURED=false
+NORMAL_OTA_BASELINE_AVAILABLE=false
+```
+
+Post-transition terminal re-observation:
+
+```text
+POST_BROKER_LISTENER_READINESS_MS=67
+POST_MQTT_ACCEPTANCE_OBSERVATION_MS=786
+POST_HOMEASSISTANT_READINESS_OBSERVATION_MS=34
+```
+
+This is U12 acceptance-phase timing only. It is not a normal end-to-end OTA baseline and does not prove user-visible downtime.
+
+## 8. Mutation boundary proof
+
+```text
+TRANSACTION_MUTATION=true
+USB_MUTATION=true
+SERVICE_MUTATION=false
+IMAGE_MUTATION=false
+R42_REPLAY=false
+U13_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+```
+
+No service start/stop/restart or image load/delete was part of U12 live acceptance.
+
+## 9. Closure decision
+
+```text
+U11_DURABLE_PASS=true
+U12_LIVE_ACCEPTANCE=PASS
+U12_DURABLE_PASS=true
+LIVE_TRANSACTION_PHASE=U12_TARGET_ACCEPTANCE
+LIVE_TRANSACTION_SHA256=32a92edcd9fbdad1356b874a55d40f6e919518363c5740b495f9b5fa08a56071
+USB_TRANSACTION_PHASE=U12_TARGET_ACCEPTANCE
+USB_PHASE_SHA256=ca5cbcaa0d915f9a0fe590d2beeeace846ce7029bdf6dcb8b46331d205212283
+NORMAL_OTA_BASELINE_AVAILABLE=false
+U13_PLUS=false
+```
+
+U12 live acceptance is CLOSED_PASS.
+
+## 10. Stop point
+
+```text
+STOPPED_AFTER_DURABLE_U12=true
+STOPPED_BEFORE_U13_PLUS=true
+U12_LIVE_AUTHORIZATION_CONSUMED=true
+U12_LIVE_REPLAY_PERMITTED=false
+U13_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+```
+
+Any U13 commit/rollback work is a separate later gate.
