@@ -70,7 +70,7 @@ Terminal verification proved:
 - `recovery_required=false`;
 - host transaction SHA-256 `06951ac4d8a8723ae808f25d955560052eee02f884ab78f5c6ffe0580e84b600`;
 - USB mirror exact at `U13A_COMMITTED`;
-- USB phase SHA-256 `11d150bc3828a0e400a90670671a607a02f6d1a53350efb3366d95fcb64288`;
+- USB phase SHA-256 `11d150bc3828a0e400a90670671a607a02f6d1a53350ef53b3366d95fcb64288`;
 - USB manifest SHA-256 `3aa5e247636b1bb891aa151a8fb0219294d4803ea22dc7b66d821f6250d9e728`;
 - USB content-authority SHA-256 `3da14eb03447beaf38579a3fa5e4e076d4f3e806f7a787cbc0bba6b2cb1b8727`;
 - USB checksums SHA-256 `2a21aa2b8fb362242fa087a49a2ebfb93caf65d1dd8a6f9c6da44edbb9f8c7f2`;
