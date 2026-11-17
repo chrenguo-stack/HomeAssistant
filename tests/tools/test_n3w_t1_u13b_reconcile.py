@@ -14,8 +14,17 @@ from n3w_t1_core_updater_ha_u13b_reconcile import (
     U13BHostOnlyReconciliationWriter,
 )
 from n3w_t1_core_updater_v2_common import UpdaterV2Error
-from test_n3w_t1_u13b_controller import media, usb_snapshot
+from test_n3w_t1_u13b_controller import (
+    BACKUP_RECORD,
+    PREDECESSOR_RECORD,
+    TARGET_RECORD,
+    media,
+    origin_transaction,
+    usb_snapshot,
+)
 from test_n3w_t1_u13b_postcondition import successors
+from n3w_t1_core_updater_ha_usb import start_rollback
+from n3w_t1_core_updater_ha_usb_state import U9, U10, U11, U12
 
 
 class Store:
@@ -55,9 +64,10 @@ class Store:
 
 
 class Backend:
-    def __init__(self, observed_media, snapshots):
+    def __init__(self, observed_media, snapshots, *, on_read=None):
         self.media = observed_media
         self.snapshots = list(snapshots)
+        self.on_read = on_read
         self.reads = 0
         self.resolves = 0
 
@@ -69,7 +79,10 @@ class Backend:
         assert media_value is self.media
         index = min(self.reads, len(self.snapshots) - 1)
         self.reads += 1
-        return self.snapshots[index]
+        observed = self.snapshots[index]
+        if self.on_read is not None:
+            self.on_read(self.reads)
+        return observed
 
     def sync_transaction_metadata(self, *args, **kwargs):
         raise AssertionError("D3 must never write USB metadata")
@@ -235,3 +248,105 @@ def test_d3_crash_after_atomic_host_write_is_idempotent_on_retry(tmp_path):
     ).reconcile()
     assert retry.status == ALREADY_EXACT
     assert store.writes == [new]
+
+
+
+@pytest.mark.parametrize("origin_phase", [U9, U10, U11, U12])
+def test_d3_reconciles_every_rollback_entry_origin_to_exact_b0(
+    tmp_path, origin_phase
+):
+    old = origin_transaction(origin_phase)
+    new = start_rollback(
+        old,
+        failure_code="target_health_acceptance_failed",
+        target=TARGET_RECORD,
+        predecessor=PREDECESSOR_RECORD,
+        backup=BACKUP_RECORD,
+    )
+    snapshot = usb_snapshot(
+        old, phase=new["phase"], mirrored_transaction=new
+    )
+    store = Store(old)
+    observer = Observer()
+    result = U13BHostOnlyReconciliationWriter(
+        transaction_store=store,
+        backend=Backend(media(tmp_path), [snapshot, snapshot]),
+        observer=observer,
+    ).reconcile()
+    assert result.status == RECONCILED
+    assert store.document == new
+    assert len(store.writes) == 1
+    assert observer.calls == [
+        ("observe_rollback_entry", new["phase"])
+    ]
+
+
+def test_d3_host_one_phase_ahead_stops_without_write(tmp_path):
+    old, new, _method = successors()[1]
+    snapshot = usb_snapshot(
+        new, phase=old["phase"], mirrored_transaction=old
+    )
+    store = Store(new)
+    observer = Observer()
+    with pytest.raises(
+        UpdaterV2Error,
+        match="u13b_reconciliation_host_ahead_stop",
+    ):
+        U13BHostOnlyReconciliationWriter(
+            transaction_store=store,
+            backend=Backend(media(tmp_path), [snapshot]),
+            observer=observer,
+        ).reconcile()
+    assert store.writes == []
+    assert observer.calls == []
+
+
+def test_d3_multi_phase_usb_ahead_stops_without_write(tmp_path):
+    b0 = successors()[1][0]
+    b2 = successors()[2][1]
+    snapshot = usb_snapshot(
+        b0, phase=b2["phase"], mirrored_transaction=b2
+    )
+    store = Store(b0)
+    observer = Observer()
+    with pytest.raises(
+        UpdaterV2Error,
+        match="u13b_reconciliation_divergent_stop",
+    ):
+        U13BHostOnlyReconciliationWriter(
+            transaction_store=store,
+            backend=Backend(media(tmp_path), [snapshot]),
+            observer=observer,
+        ).reconcile()
+    assert store.writes == []
+    assert observer.calls == []
+
+
+def test_d3_out_of_band_host_change_before_write_fails_closed(tmp_path):
+    old, new, method = successors()[1]
+    snapshot = usb_snapshot(
+        old, phase=new["phase"], mirrored_transaction=new
+    )
+    store = Store(old)
+
+    def drift_after_second_usb_read(read_count):
+        if read_count == 2:
+            store.document = new
+
+    observer = Observer()
+    with pytest.raises(
+        UpdaterV2Error,
+        match="u13b_reconciliation_host_state_drift",
+    ):
+        U13BHostOnlyReconciliationWriter(
+            transaction_store=store,
+            backend=Backend(
+                media(tmp_path),
+                [snapshot, snapshot],
+                on_read=drift_after_second_usb_read,
+            ),
+            observer=observer,
+        ).reconcile()
+    assert store.writes == []
+    assert store.document == new
+    assert observer.calls == [(method, new["phase"])]
