@@ -41,6 +41,11 @@ from n3w_t1_core_updater_ha_usb_state import (
     U11,
     U12,
     U13A,
+    U13B0,
+    U13B1,
+    U13B2,
+    U13B3,
+    U13B4,
     U13B,
     compute_recovery_content_manifest_sha256,
     transition,
@@ -245,18 +250,19 @@ def record_commit(document: dict[str, Any]) -> dict[str, Any]:
     return transition(current, U13A)
 
 
-def record_rollback_complete(
+def start_rollback(
     document: dict[str, Any],
     *,
+    failure_code: str,
     target: ImageRecoveryRecord,
     predecessor: ImageRecoveryRecord,
     backup: HaDataBackupRecord,
-    predecessor_image_restored: bool,
-    ha_data_backup_restored: bool,
 ) -> dict[str, Any]:
     current = validate_transaction_document(document)
     if current["phase"] not in {U9, U10, U11, U12}:
         raise UpdaterV2Error("ha_usb_rollback_phase_invalid")
+    if not destructive_cutover_allowed(current):
+        raise UpdaterV2Error("ha_usb_rollback_not_allowed")
 
     validated_target = validate_image_recovery_record(
         target,
@@ -275,9 +281,10 @@ def record_rollback_complete(
     observed["target_artifact_identity"] = validated_target.public()
     observed["predecessor_recovery_identity"] = validated_predecessor.public()
     observed["ha_data_backup_identity"] = validated_backup.public()
-    observed_manifest = compute_recovery_content_manifest_sha256(observed)
-    expected_manifest = current["recovery_content_manifest_sha256"]
-    if observed_manifest != expected_manifest:
+    if (
+        compute_recovery_content_manifest_sha256(observed)
+        != current["recovery_content_manifest_sha256"]
+    ):
         raise UpdaterV2Error("ha_usb_recovery_content_manifest_mismatch")
     if validated_target.public() != current["target_artifact_identity"]:
         raise UpdaterV2Error("ha_usb_rollback_target_identity_mismatch")
@@ -285,10 +292,118 @@ def record_rollback_complete(
         raise UpdaterV2Error("ha_usb_rollback_predecessor_identity_mismatch")
     if validated_backup.public() != current["ha_data_backup_identity"]:
         raise UpdaterV2Error("ha_usb_rollback_backup_identity_mismatch")
-    if predecessor_image_restored is not True:
+
+    return transition(
+        current,
+        U13B0,
+        updates={
+            "failure_code": failure_code,
+            "recovery_required": True,
+            "rollback_origin_phase": current["phase"],
+        },
+    )
+
+
+def record_rollback_target_cleanup(
+    document: dict[str, Any],
+    *,
+    services_quiesced: bool,
+    target_runtime_absent: bool,
+    target_image_absent: bool,
+) -> dict[str, Any]:
+    current = validate_transaction_document(document)
+    if current["phase"] != U13B0:
+        raise UpdaterV2Error("ha_usb_rollback_cleanup_phase_invalid")
+    if services_quiesced is not True:
+        raise UpdaterV2Error("ha_usb_rollback_services_not_quiesced")
+    if target_runtime_absent is not True:
+        raise UpdaterV2Error("ha_usb_rollback_target_runtime_present")
+    if target_image_absent is not True:
+        raise UpdaterV2Error("ha_usb_rollback_target_image_present")
+    return transition(current, U13B1)
+
+
+def record_rollback_predecessor_image_restored(
+    document: dict[str, Any],
+    *,
+    predecessor: ImageRecoveryRecord,
+    predecessor_image_exact_present: bool,
+) -> dict[str, Any]:
+    current = validate_transaction_document(document)
+    if current["phase"] != U13B1:
+        raise UpdaterV2Error("ha_usb_rollback_predecessor_phase_invalid")
+    validated = validate_image_recovery_record(
+        predecessor,
+        expected_kind="predecessor",
+        expected_image_ref=current["current_image_ref"],
+    )
+    if validated.public() != current["predecessor_recovery_identity"]:
+        raise UpdaterV2Error("ha_usb_rollback_predecessor_identity_mismatch")
+    if predecessor_image_exact_present is not True:
         raise UpdaterV2Error("ha_usb_rollback_predecessor_not_restored")
+    return transition(current, U13B2)
+
+
+def record_rollback_ha_data_restored(
+    document: dict[str, Any],
+    *,
+    backup: HaDataBackupRecord,
+    ha_data_backup_restored: bool,
+) -> dict[str, Any]:
+    current = validate_transaction_document(document)
+    if current["phase"] != U13B2:
+        raise UpdaterV2Error("ha_usb_rollback_data_phase_invalid")
+    validated = validate_backup_record(backup)
+    if validated.public() != current["ha_data_backup_identity"]:
+        raise UpdaterV2Error("ha_usb_rollback_backup_identity_mismatch")
     if ha_data_backup_restored is not True:
         raise UpdaterV2Error("ha_usb_rollback_data_not_restored")
+    return transition(current, U13B3)
+
+
+def record_rollback_predecessor_runtime_started(
+    document: dict[str, Any],
+    *,
+    predecessor_runtime_started: bool,
+    production_config_mounted: bool,
+    manager_running: bool,
+    broker_running: bool,
+    homeassistant_running: bool,
+) -> dict[str, Any]:
+    current = validate_transaction_document(document)
+    if current["phase"] != U13B3:
+        raise UpdaterV2Error("ha_usb_rollback_runtime_phase_invalid")
+    evidence = (
+        predecessor_runtime_started,
+        production_config_mounted,
+        manager_running,
+        broker_running,
+        homeassistant_running,
+    )
+    if any(value is not True for value in evidence):
+        raise UpdaterV2Error("ha_usb_rollback_runtime_not_started")
+    return transition(current, U13B4)
+
+
+def record_rollback_complete(
+    document: dict[str, Any],
+    *,
+    predecessor_health_verified: bool,
+    manager_mqtt_authenticated: bool,
+    homeassistant_mqtt_authenticated: bool,
+    homeassistant_http_ready: bool,
+) -> dict[str, Any]:
+    current = validate_transaction_document(document)
+    if current["phase"] != U13B4:
+        raise UpdaterV2Error("ha_usb_rollback_health_phase_invalid")
+    evidence = (
+        predecessor_health_verified,
+        manager_mqtt_authenticated,
+        homeassistant_mqtt_authenticated,
+        homeassistant_http_ready,
+    )
+    if any(value is not True for value in evidence):
+        raise UpdaterV2Error("ha_usb_rollback_health_not_verified")
     return transition(current, U13B)
 
 

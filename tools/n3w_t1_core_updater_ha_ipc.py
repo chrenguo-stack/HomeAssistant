@@ -29,6 +29,11 @@ from n3w_t1_core_updater_ha_usb_state import (
     U11,
     U12,
     U13A,
+    U13B0,
+    U13B1,
+    U13B2,
+    U13B3,
+    U13B4,
     U13B,
     HaUsbStateStore,
     new_transaction,
@@ -77,6 +82,11 @@ _PHASE_MAP = {
     U11: "TARGET_INSTALLED_STARTED",
     U12: "TARGET_ACCEPTANCE",
     U13A: "COMMITTED",
+    U13B0: "ROLLBACK_IN_PROGRESS",
+    U13B1: "ROLLBACK_IN_PROGRESS",
+    U13B2: "ROLLBACK_IN_PROGRESS",
+    U13B3: "ROLLBACK_IN_PROGRESS",
+    U13B4: "ROLLBACK_IN_PROGRESS",
     U13B: "ROLLED_BACK",
 }
 

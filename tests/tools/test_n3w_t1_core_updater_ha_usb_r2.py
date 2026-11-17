@@ -34,6 +34,11 @@ from n3w_t1_core_updater_ha_usb import (
     record_predecessor_recovery_and_ha_quiesced,
     record_recovery_admission,
     record_rollback_complete,
+    record_rollback_ha_data_restored,
+    record_rollback_predecessor_image_restored,
+    record_rollback_predecessor_runtime_started,
+    record_rollback_target_cleanup,
+    start_rollback,
     record_target_accepted,
     record_target_ready,
     record_target_started,
@@ -67,6 +72,11 @@ from n3w_t1_core_updater_ha_usb_state import (
     U11,
     U12,
     U13A,
+    U13B0,
+    U13B1,
+    U13B2,
+    U13B3,
+    U13B4,
     U13B,
     HaUsbStateStore,
     new_transaction,
@@ -260,6 +270,12 @@ class SyntheticDockerHost:
         self.identities[TARGET] = TARGET_IDENTITY
         self.active = TARGET
 
+    def cleanup_target(self) -> None:
+        self.images.pop(TARGET, None)
+        self.identities.pop(TARGET, None)
+        if self.active == TARGET:
+            self.active = None
+
     def restore_predecessor(
         self,
         media: SyntheticUsb,
@@ -399,6 +415,10 @@ class SyntheticHaData:
                 base64.b64decode(entry["payload"].encode("ascii"), validate=True)
             )
             os.chmod(destination, entry["mode"])
+        self.running = False
+
+    def start_predecessor(self) -> None:
+        assert self.running is False
         self.running = True
 
 
@@ -677,7 +697,7 @@ def test_r2_success_keeps_target_migrated_config(tmp_path):
     assert backup is not None
 
 
-def test_r2_failed_target_restores_predecessor_and_preupgrade_data(tmp_path):
+def test_r2_failed_target_rollback_is_durable_and_staged(tmp_path):
     tx, media, docker, ha, target, predecessor, backup = drive_to_u8(tmp_path)
     tx = claim_live_authorization(tx, AUTHORIZATION_ID)
     docker.remove_predecessor(predecessor)
@@ -693,58 +713,171 @@ def test_r2_failed_target_restores_predecessor_and_preupgrade_data(tmp_path):
     assert tx["phase"] == U11
     assert (ha.root / ".storage" / "r2-target-marker").exists()
 
-    docker.restore_predecessor(media, predecessor)
-    ha.restore_backup(media, backup)
-    tx = record_rollback_complete(
+    tx = start_rollback(
         tx,
+        failure_code="target_health_acceptance_failed",
+        target=target,
         predecessor=predecessor,
         backup=backup,
-        target=target,
-        predecessor_image_restored=(docker.active == CURRENT),
+    )
+    assert tx["phase"] == U13B0
+    assert tx["status"] == "ACTIVE"
+    assert tx["recovery_required"] is True
+    assert tx["rollback_origin_phase"] == U11
+    assert classify_power_loss_reentry(
+        tx,
+        recovery_media_present=True,
+        exact_recovery_content_verified=True,
+    ) == "ROLLBACK_REQUIRED"
+
+    ha.quiesce()
+    docker.cleanup_target()
+    tx = record_rollback_target_cleanup(
+        tx,
+        services_quiesced=(ha.running is False),
+        target_runtime_absent=(docker.active is None),
+        target_image_absent=(TARGET not in docker.images),
+    )
+    assert tx["phase"] == U13B1
+
+    docker.restore_predecessor(media, predecessor)
+    tx = record_rollback_predecessor_image_restored(
+        tx,
+        predecessor=predecessor,
+        predecessor_image_exact_present=(docker.active == CURRENT),
+    )
+    assert tx["phase"] == U13B2
+
+    ha.restore_backup(media, backup)
+    tx = record_rollback_ha_data_restored(
+        tx,
+        backup=backup,
         ha_data_backup_restored=(
             "preupgrade"
             in (ha.root / ".storage" / "core.config").read_text(encoding="utf-8")
         ),
     )
+    assert tx["phase"] == U13B3
+    assert ha.running is False
+
+    ha.start_predecessor()
+    tx = record_rollback_predecessor_runtime_started(
+        tx,
+        predecessor_runtime_started=(docker.active == CURRENT),
+        production_config_mounted=True,
+        manager_running=True,
+        broker_running=True,
+        homeassistant_running=ha.running,
+    )
+    assert tx["phase"] == U13B4
+
+    tx = record_rollback_complete(
+        tx,
+        predecessor_health_verified=True,
+        manager_mqtt_authenticated=True,
+        homeassistant_mqtt_authenticated=True,
+        homeassistant_http_ready=True,
+    )
     assert tx["phase"] == U13B
     assert tx["status"] == "ROLLED_BACK"
+    assert tx["recovery_required"] is False
     assert docker.active == CURRENT
-    assert TARGET in docker.images
+    assert TARGET not in docker.images
     assert not (ha.root / ".storage" / "r2-target-marker").exists()
     assert ha.running is True
 
 
-def test_r2_rollback_requires_both_image_and_data_restore(tmp_path):
-    tx, media, docker, ha, target, predecessor, backup = drive_to_u8(tmp_path)
+def test_r2_rollback_cannot_skip_required_evidence(tmp_path):
+    tx, _media, _docker, _ha, target, predecessor, backup = drive_to_u8(tmp_path)
     tx = claim_live_authorization(tx, AUTHORIZATION_ID)
+    tx = start_rollback(
+        tx,
+        failure_code="postclaim_failure",
+        target=target,
+        predecessor=predecessor,
+        backup=backup,
+    )
+    assert tx["phase"] == U13B0
+
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_usb_rollback_services_not_quiesced",
+    ):
+        record_rollback_target_cleanup(
+            tx,
+            services_quiesced=False,
+            target_runtime_absent=True,
+            target_image_absent=True,
+        )
+
+    tx = record_rollback_target_cleanup(
+        tx,
+        services_quiesced=True,
+        target_runtime_absent=True,
+        target_image_absent=True,
+    )
     with pytest.raises(
         UpdaterV2Error,
         match="ha_usb_rollback_predecessor_not_restored",
     ):
-        record_rollback_complete(
+        record_rollback_predecessor_image_restored(
             tx,
             predecessor=predecessor,
-            backup=backup,
-            target=target,
-            predecessor_image_restored=False,
-            ha_data_backup_restored=True,
+            predecessor_image_exact_present=False,
         )
+
+    tx = record_rollback_predecessor_image_restored(
+        tx,
+        predecessor=predecessor,
+        predecessor_image_exact_present=True,
+    )
     with pytest.raises(
         UpdaterV2Error,
         match="ha_usb_rollback_data_not_restored",
     ):
-        record_rollback_complete(
+        record_rollback_ha_data_restored(
             tx,
-            target=target,
-            predecessor=predecessor,
             backup=backup,
-            predecessor_image_restored=True,
             ha_data_backup_restored=False,
         )
-    assert predecessor is not None
-    assert backup is not None
-    assert docker.active == CURRENT
-    assert ha.running is False
+
+    tx = record_rollback_ha_data_restored(
+        tx,
+        backup=backup,
+        ha_data_backup_restored=True,
+    )
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_usb_rollback_runtime_not_started",
+    ):
+        record_rollback_predecessor_runtime_started(
+            tx,
+            predecessor_runtime_started=True,
+            production_config_mounted=True,
+            manager_running=True,
+            broker_running=True,
+            homeassistant_running=False,
+        )
+
+    tx = record_rollback_predecessor_runtime_started(
+        tx,
+        predecessor_runtime_started=True,
+        production_config_mounted=True,
+        manager_running=True,
+        broker_running=True,
+        homeassistant_running=True,
+    )
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_usb_rollback_health_not_verified",
+    ):
+        record_rollback_complete(
+            tx,
+            predecessor_health_verified=True,
+            manager_mqtt_authenticated=True,
+            homeassistant_mqtt_authenticated=False,
+            homeassistant_http_ready=True,
+        )
 
 
 def test_r2_power_loss_before_u9_keeps_predecessor_authority(tmp_path):
@@ -998,13 +1131,12 @@ def test_r2_rollback_rejects_wrong_recovery_content(tmp_path):
         UpdaterV2Error,
         match="ha_usb_recovery_content_manifest_mismatch",
     ):
-        record_rollback_complete(
+        start_rollback(
             tx,
+            failure_code="target_health_acceptance_failed",
             target=wrong_target,
             predecessor=predecessor,
             backup=backup,
-            predecessor_image_restored=True,
-            ha_data_backup_restored=True,
         )
 
 

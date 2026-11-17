@@ -1,3 +1,15 @@
+## 2026-11-17 — U13B Stage A source design/development started
+
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`, Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`; Live upgrade accepted.
+- Historical clean reference remains `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- U13A remains terminal CLOSED_PASS at `U13A_COMMITTED`; its consumed authorization is not reused.
+- U13B architecture review found the existing direct U9/U10/U11/U12 -> terminal `U13B_ROLLED_BACK` transition insufficient for power-loss-safe production rollback.
+- Stage A introduces durable U13B0..U13B4 rollback-in-progress subphases, `rollback_origin_phase`, exact recovery-content revalidation before rollback, staged evidence contracts and IPC `ROLLBACK_IN_PROGRESS`.
+- Stage A is repository-only: `T1_ACCESS=false / T1_MUTATION=false / U13B_LIVE_EXECUTION_AUTHORIZED=false / BOARD_ACCESS=false / MERGE=false`.
+- Production HA backup restore and exact predecessor runtime restore are intentionally deferred to Stage B source implementation.
+- Design: `docs/development/N3W_T1_U13B_AUTOMATIC_ROLLBACK_SOURCE_DESIGN_V1_20261117.md`.
+- Next gate: `U13B_STAGE_A_SOURCE_CI_AND_REVIEW`.
+
 ## 2026-11-17 — U13A live commit CLOSED_PASS / durable terminal commit
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`, Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`; Live upgrade accepted and deployment state remains `APPLIED_ACCEPTED`.

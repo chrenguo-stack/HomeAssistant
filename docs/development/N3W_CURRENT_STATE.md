@@ -1,3 +1,42 @@
+## Latest authority — 2026-11-17 U13B Stage A source design/development started
+
+```text
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+U13A_CLOSED_PASS=true
+LIVE_TRANSACTION_PHASE=U13A_COMMITTED
+
+U13B_STAGE_A_SOURCE_DESIGN=true
+U13B_STAGE_A_SOURCE_DEVELOPMENT=true
+U13B_DURABLE_SUBPHASES=true
+U13B_PRODUCTION_RESTORE_BACKEND=false
+U13B_READONLY_PREFLIGHT=false
+U13B_LIVE_EXECUTION_AUTHORIZED=false
+U13B_LIVE_EXECUTION=false
+
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=U13B_STAGE_A_SOURCE_CI_AND_REVIEW
+```
+
+U13B development has started from the closed U13A boundary. Stage A removes the unsafe direct U9/U10/U11/U12 -> terminal U13B model and introduces durable rollback-in-progress subphases with evidence gates for target cleanup, predecessor image restore, HA data restore, predecessor runtime activation and final health.
+
+The successful live U13A transaction remains untouched and terminal. No real rollback is authorized. Production backup restore and predecessor runtime restoration remain the next source implementation gate after Stage A CI/review.
+
+Design authority: `docs/development/N3W_T1_U13B_AUTOMATIC_ROLLBACK_SOURCE_DESIGN_V1_20261117.md`.
+
 ## Latest authority — 2026-11-17 U13A live commit CLOSED_PASS / durable terminal commit
 
 ```text

@@ -46,7 +46,15 @@ U10 = "U10_INTERNAL_PREDECESSOR_CAPACITY_RELEASED"
 U11 = "U11_TARGET_INSTALLED_STARTED"
 U12 = "U12_TARGET_ACCEPTANCE"
 U13A = "U13A_COMMITTED"
+U13B0 = "U13B0_ROLLBACK_IN_PROGRESS"
+U13B1 = "U13B1_TARGET_CLEANUP_COMPLETE"
+U13B2 = "U13B2_PREDECESSOR_IMAGE_RESTORED"
+U13B3 = "U13B3_HA_DATA_RESTORED"
+U13B4 = "U13B4_PREDECESSOR_RUNTIME_STARTED"
 U13B = "U13B_ROLLED_BACK"
+
+U13B_ENTRY_PHASES = frozenset({U9, U10, U11, U12})
+U13B_PROGRESS_PHASES = frozenset({U13B0, U13B1, U13B2, U13B3, U13B4})
 
 PHASES = (
     U0,
@@ -63,6 +71,11 @@ PHASES = (
     U11,
     U12,
     U13A,
+    U13B0,
+    U13B1,
+    U13B2,
+    U13B3,
+    U13B4,
     U13B,
 )
 PHASE_INDEX = {phase: index for index, phase in enumerate(PHASES)}
@@ -76,11 +89,16 @@ _ALLOWED_TRANSITIONS = {
     U6: frozenset({U7}),
     U7: frozenset({U8}),
     U8: frozenset({U9}),
-    U9: frozenset({U10, U13B}),
-    U10: frozenset({U11, U13B}),
-    U11: frozenset({U12, U13B}),
-    U12: frozenset({U13A, U13B}),
+    U9: frozenset({U10, U13B0}),
+    U10: frozenset({U11, U13B0}),
+    U11: frozenset({U12, U13B0}),
+    U12: frozenset({U13A, U13B0}),
     U13A: frozenset(),
+    U13B0: frozenset({U13B1}),
+    U13B1: frozenset({U13B2}),
+    U13B2: frozenset({U13B3}),
+    U13B3: frozenset({U13B4}),
+    U13B4: frozenset({U13B}),
     U13B: frozenset(),
 }
 
@@ -268,6 +286,19 @@ def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
     ):
         raise UpdaterV2Error("ha_usb_failure_code_invalid")
 
+    rollback_origin_phase = document.get("rollback_origin_phase")
+    if phase in U13B_PROGRESS_PHASES or phase == U13B:
+        if rollback_origin_phase not in U13B_ENTRY_PHASES:
+            raise UpdaterV2Error("ha_usb_rollback_origin_phase_invalid")
+        if failure_code is None:
+            raise UpdaterV2Error("ha_usb_rollback_failure_code_missing")
+    elif rollback_origin_phase is not None:
+        raise UpdaterV2Error("ha_usb_rollback_origin_phase_too_early")
+
+    if phase in U13B_PROGRESS_PHASES:
+        if status != "ACTIVE" or recovery_required is not True:
+            raise UpdaterV2Error("ha_usb_rollback_progress_state_invalid")
+
     if _phase_at_or_after(phase, U2):
         fingerprint = document.get("usb_device_identity_public_fingerprint")
         if not isinstance(fingerprint, str) or SHA256.fullmatch(fingerprint) is None:
@@ -421,6 +452,7 @@ def new_transaction(
         "authorization_consumed": False,
         "failure_code": None,
         "recovery_required": False,
+        "rollback_origin_phase": None,
         "updated_at_unix": created,
     }
     return validate_transaction_document(document)
@@ -465,6 +497,9 @@ def transition(
     if next_phase == U13A:
         result["status"] = "COMMITTED"
         result["recovery_required"] = False
+    elif next_phase in U13B_PROGRESS_PHASES:
+        result["status"] = "ACTIVE"
+        result["recovery_required"] = True
     elif next_phase == U13B:
         result["status"] = "ROLLED_BACK"
         result["recovery_required"] = False
