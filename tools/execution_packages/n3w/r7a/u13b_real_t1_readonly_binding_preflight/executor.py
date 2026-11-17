@@ -144,10 +144,15 @@ def normalize_status(
             delegated.get("authorization_consumed") is True
         ),
         "historical_u13a_replay_permitted": False,
-        "historical_u13a_transaction_mutation": bool(
+        "historical_u13a_terminal_transition_previously_occurred": True,
+        "historical_u13a_transaction_was_mutated": True,
+        "historical_u13a_usb_metadata_was_mutated": True,
+        "delegated_status_reported_transaction_mutation": bool(
             delegated.get("transaction_mutation")
         ),
-        "historical_u13a_usb_mutation": bool(delegated.get("usb_mutation")),
+        "delegated_status_reported_usb_mutation": bool(
+            delegated.get("usb_mutation")
+        ),
         "current_probe_transaction_mutation": False,
         "current_probe_usb_mutation": False,
         "current_probe_service_mutation": False,

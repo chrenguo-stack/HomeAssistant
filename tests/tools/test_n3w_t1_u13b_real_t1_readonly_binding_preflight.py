@@ -90,8 +90,14 @@ def test_normalize_separates_historical_u13a_mutation_from_current_probe():
     }
     result = executor.normalize_status(delegated, expected)
     assert result["status"] == "U13B_REAL_T1_READONLY_BINDING_PASS"
-    assert result["historical_u13a_transaction_mutation"] is True
-    assert result["historical_u13a_usb_mutation"] is True
+    assert (
+        result["historical_u13a_terminal_transition_previously_occurred"]
+        is True
+    )
+    assert result["historical_u13a_transaction_was_mutated"] is True
+    assert result["historical_u13a_usb_metadata_was_mutated"] is True
+    assert result["delegated_status_reported_transaction_mutation"] is True
+    assert result["delegated_status_reported_usb_mutation"] is True
     assert result["current_probe_transaction_mutation"] is False
     assert result["current_probe_usb_mutation"] is False
     assert result["current_probe_service_mutation"] is False
