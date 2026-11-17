@@ -25,6 +25,7 @@ from n3w_t1_core_updater_ha_u13b import (
 )
 from n3w_t1_core_updater_host import EXPECTED_LISTENERS, LocalHost
 from n3w_t1_core_updater_v2_common import (
+    SHA256,
     UpdaterV2Error,
     canonical,
     sha256_bytes,
@@ -160,6 +161,32 @@ class U13BProductionRuntime:
             host=self.host,
         )
 
+    @staticmethod
+    def _expected_predecessor_runtime_id(
+        transaction: Mapping[str, Any],
+    ) -> str:
+        identity = transaction.get("current_image_identity")
+        runtime_id = (
+            identity.get("runtime_image_id")
+            if isinstance(identity, Mapping)
+            else None
+        )
+        platform = (
+            identity.get("platform")
+            if isinstance(identity, Mapping)
+            else None
+        )
+        if (
+            not isinstance(runtime_id, str)
+            or not runtime_id.startswith("sha256:")
+            or SHA256.fullmatch(runtime_id[7:]) is None
+            or platform != "linux/arm64"
+        ):
+            raise UpdaterV2Error(
+                "u13b_predecessor_transaction_identity_invalid"
+            )
+        return runtime_id
+
     def _require_overlay_contract(self) -> None:
         self.host._activation_env()
         self.host._service_unit(
@@ -279,9 +306,17 @@ class U13BProductionRuntime:
             archive,
             predecessor.archive_sha256,
         )
+        expected_runtime_id = self._expected_predecessor_runtime_id(
+            transaction
+        )
+        if runtime_id != expected_runtime_id:
+            raise UpdaterV2Error(
+                "u13b_predecessor_runtime_image_identity_drift"
+            )
         return U13BPredecessorImageEvidence(
             predecessor_image_exact_present=(
-                self.host.image_id(predecessor.image_ref) == runtime_id
+                self.host.image_id(predecessor.image_ref)
+                == expected_runtime_id
             )
         ).validate()
 
@@ -329,10 +364,13 @@ class U13BProductionRuntime:
 
     def _running_predecessor_evidence(
         self,
+        transaction: Mapping[str, Any],
         predecessor: ImageRecoveryRecord,
     ) -> U13BRuntimeEvidence | None:
         if self.host._systemctl("is-active", SERVICES_UNIT) != "active":
             return None
+        if self.host._systemctl("is-active", BROKER_UNIT) != "active":
+            raise UpdaterV2Error("u13b_broker_owner_not_active")
         counts = {
             name: self.host._running_count(name)
             for name in ("manager", "homeassistant", "broker")
@@ -358,8 +396,13 @@ class U13BProductionRuntime:
         )
         ha = self.host._runtime("homeassistant")
         container_id = ha["container_id"]
+        expected_runtime_id = self._expected_predecessor_runtime_id(
+            transaction
+        )
         if (
             ha["image_ref"] != predecessor.image_ref
+            or ha["image_id"] != expected_runtime_id
+            or ha.get("restart_count") != 0
             or not self.u11._production_config_mounted(container_id)
         ):
             raise UpdaterV2Error("u13b_predecessor_runtime_identity_drift")
@@ -381,16 +424,26 @@ class U13BProductionRuntime:
         elif binding != predecessor.image_ref:
             raise UpdaterV2Error("u13b_homeassistant_binding_drift")
 
-        existing = self._running_predecessor_evidence(predecessor)
+        existing = self._running_predecessor_evidence(
+            transaction,
+            predecessor,
+        )
         if existing is not None:
             return existing.validate()
 
         runtime_id = self.host.image_id(predecessor.image_ref)
+        expected_runtime_id = self._expected_predecessor_runtime_id(
+            transaction
+        )
         if runtime_id is None:
             raise UpdaterV2Error("u13b_predecessor_image_missing")
+        if runtime_id != expected_runtime_id:
+            raise UpdaterV2Error(
+                "u13b_predecessor_runtime_image_identity_drift"
+            )
         evidence = self.u11.start_target_owner(
             target_image_ref=predecessor.image_ref,
-            target_runtime_image_id=runtime_id,
+            target_runtime_image_id=expected_runtime_id,
         )
         return U13BRuntimeEvidence(
             predecessor_runtime_started=(
@@ -409,7 +462,10 @@ class U13BProductionRuntime:
         transaction: Mapping[str, Any],
         predecessor: ImageRecoveryRecord,
     ) -> U13BHealthEvidence:
-        runtime = self._running_predecessor_evidence(predecessor)
+        runtime = self._running_predecessor_evidence(
+            transaction,
+            predecessor,
+        )
         if runtime is None:
             raise UpdaterV2Error("u13b_predecessor_runtime_not_running")
         if self.host._listener_snapshot() != EXPECTED_LISTENERS:

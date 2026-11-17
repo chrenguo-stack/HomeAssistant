@@ -365,3 +365,30 @@ The public generic transition now rejects every U13B edge. Rollback helpers use 
 Shared prerequisite checks no longer rank U13B0..U13B after U13A. The rollback branch is anchored at U9 for forward-path prerequisite semantics, so a future U10/U11/U12-only rule is not inherited merely because a rollback phase appears later in the phase tuple.
 
 The previous acceptance label `POWER_LOSS_RESUME_CLASSIFIABLE=true` was too broad. Only host-phase re-entry classification is closed at Stage A. USB-ahead/host-behind split-write reconciliation remains pending.
+
+## 12. Independent-review Stage B repair — 2026-11-17
+
+Independent review rejected the earlier Stage B closure for three reasons: terminal predecessor health was weaker than U12 target acceptance, backup verification could create a missing recovery directory, and production/synthetic rollback coverage was incomplete.
+
+The repaired source contract requires:
+
+```text
+PREDECESSOR_RUNTIME_IMAGE_ID_EXACT=true
+PREDECESSOR_HA_RESTART_COUNT_ZERO=true
+BROKER_OWNER_ACTIVE=true
+MANAGER_BROKER_EXACT_PEERS=true
+PRODUCTION_CONFIG_MOUNT_EXACT=true
+
+BACKUP_VERIFY_MISSING_DIRECTORY_MUTATION=false
+BACKUP_CREATE_AND_VERIFY_DIRECTORY_SEMANTICS_SPLIT=true
+
+ROLLBACK_ORIGINS_TESTED=U9,U10,U11,U12
+OPERATION_LEVEL_INTERRUPTION_POINTS_TESTED=
+  cleanup,image,data_quiesce,data_restore,runtime,health
+```
+
+The exact predecessor runtime image ID is derived from the durable transaction's `current_image_identity.runtime_image_id`, not merely from a Docker tag. The USB predecessor archive restore must resolve to that same runtime ID. B3/B4 re-entry validates the running Home Assistant container against that ID and requires `RestartCount==0`.
+
+Backup verification now requires the recovery directory to already exist with private ownership/mode; it never creates a missing directory. Directory creation remains confined to the U7 backup-production path.
+
+This repair still does not close USB-ahead/host-behind durable split-write reconciliation. That remains a later gate after Stage A/B source closure.

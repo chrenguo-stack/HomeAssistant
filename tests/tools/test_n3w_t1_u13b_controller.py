@@ -3,6 +3,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
 from n3w_t1_core_updater_ha_backup import HaDataBackupRecord
@@ -23,10 +25,13 @@ from n3w_t1_core_updater_ha_u13b import (
 from n3w_t1_core_updater_ha_usb import (
     claim_live_authorization,
     record_ha_data_backup_verified,
+    record_predecessor_capacity_released,
     record_media_bound,
     record_predecessor_recovery_and_ha_quiesced,
     record_recovery_admission,
+    record_target_accepted,
     record_target_ready,
+    record_target_started,
     request_install,
     request_prepare,
     start_predecessor_recovery,
@@ -37,7 +42,14 @@ from n3w_t1_core_updater_ha_usb_media import (
     UsbCapacityInputs,
     assess_capacity,
 )
-from n3w_t1_core_updater_ha_usb_state import U13B, new_transaction
+from n3w_t1_core_updater_ha_usb_state import (
+    U9,
+    U10,
+    U11,
+    U12,
+    U13B,
+    new_transaction,
+)
 
 
 CURRENT = "local/n3w-homeassistant:2026.10.0-aaaaaaaa"
@@ -157,6 +169,27 @@ def u9_transaction():
     )
 
 
+def origin_transaction(phase):
+    tx = u9_transaction()
+    if phase == U9:
+        return tx
+    tx = record_predecessor_capacity_released(
+        tx,
+        predecessor_runtime_released=True,
+        predecessor_image_released=True,
+        target_internal_image_absent=True,
+    )
+    if phase == U10:
+        return tx
+    tx = record_target_started(tx)
+    if phase == U11:
+        return tx
+    tx = record_target_accepted(tx)
+    if phase == U12:
+        return tx
+    raise AssertionError("unsupported origin")
+
+
 class Store:
     def __init__(self, document):
         self.document = document
@@ -250,8 +283,12 @@ def media(tmp_path):
     ).validate()
 
 
-def test_u13b_controller_persists_usb_before_host_for_every_subphase(tmp_path):
-    store = Store(u9_transaction())
+@pytest.mark.parametrize("origin_phase", [U9, U10, U11, U12])
+def test_u13b_controller_persists_usb_before_host_for_every_subphase(
+    tmp_path,
+    origin_phase,
+):
+    store = Store(origin_transaction(origin_phase))
     backend = Backend(media(tmp_path))
     runtime = Runtime()
     backup = Backup()
@@ -316,3 +353,77 @@ def test_u13b_controller_resumes_after_operation_level_interruption(tmp_path):
     assert backup.restores == 1
     assert runtime.steps[-2:] == ["runtime", "health"]
     assert runtime.steps.count("data_quiesce") == 1
+
+
+@pytest.mark.parametrize(
+    ("step", "durable_phase"),
+    [
+        ("cleanup", "U13B0_ROLLBACK_IN_PROGRESS"),
+        ("image", "U13B1_TARGET_CLEANUP_COMPLETE"),
+        ("data_quiesce", "U13B2_PREDECESSOR_IMAGE_RESTORED"),
+        ("data_restore", "U13B2_PREDECESSOR_IMAGE_RESTORED"),
+        ("runtime", "U13B3_HA_DATA_RESTORED"),
+        ("health", "U13B4_PREDECESSOR_RUNTIME_STARTED"),
+    ],
+)
+def test_u13b_controller_resumes_from_each_operation_level_interruption(
+    tmp_path,
+    step,
+    durable_phase,
+):
+    store = Store(u9_transaction())
+    backend = Backend(media(tmp_path))
+    runtime = Runtime()
+    backup = Backup()
+    controller = HaUsbU13BRollbackController(
+        transaction_store=store,
+        backend=backend,
+        runtime_owner=runtime,
+        backup_provider=backup,
+    )
+
+    if step == "cleanup":
+        original = runtime.cleanup_failed_target
+        def fail_once(**kwargs):
+            runtime.cleanup_failed_target = original
+            raise RuntimeError("synthetic_power_loss")
+        runtime.cleanup_failed_target = fail_once
+    elif step == "image":
+        original = runtime.restore_predecessor_image
+        def fail_once(**kwargs):
+            runtime.restore_predecessor_image = original
+            raise RuntimeError("synthetic_power_loss")
+        runtime.restore_predecessor_image = fail_once
+    elif step == "data_quiesce":
+        original = runtime.quiesce_for_data_restore
+        def fail_once(**kwargs):
+            runtime.quiesce_for_data_restore = original
+            raise RuntimeError("synthetic_power_loss")
+        runtime.quiesce_for_data_restore = fail_once
+    elif step == "data_restore":
+        original = backup.restore_preupgrade_backup
+        def fail_once(*args, **kwargs):
+            backup.restore_preupgrade_backup = original
+            raise RuntimeError("synthetic_power_loss")
+        backup.restore_preupgrade_backup = fail_once
+    elif step == "runtime":
+        original = runtime.start_predecessor_runtime
+        def fail_once(**kwargs):
+            runtime.start_predecessor_runtime = original
+            raise RuntimeError("synthetic_power_loss")
+        runtime.start_predecessor_runtime = fail_once
+    else:
+        original = runtime.verify_predecessor_health
+        def fail_once(**kwargs):
+            runtime.verify_predecessor_health = original
+            raise RuntimeError("synthetic_power_loss")
+        runtime.verify_predecessor_health = fail_once
+
+    with pytest.raises(RuntimeError, match="synthetic_power_loss"):
+        controller.rollback(
+            failure_code="target_health_acceptance_failed",
+        )
+    assert store.document["phase"] == durable_phase
+
+    result = controller.rollback(failure_code="resume")
+    assert result.transaction["phase"] == U13B

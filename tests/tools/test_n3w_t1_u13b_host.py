@@ -3,10 +3,14 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
+from n3w_t1_core_updater_common import BROKER_UNIT, SERVICES_UNIT
 from n3w_t1_core_updater_ha_recovery import ImageRecoveryRecord
 from n3w_t1_core_updater_ha_u13b_host import U13BProductionRuntime
+from n3w_t1_core_updater_v2_common import UpdaterV2Error
 
 
 CURRENT = "local/n3w-homeassistant:2026.10.0-aaaaaaaa"
@@ -29,6 +33,9 @@ def image(kind, ref):
 class Host:
     def __init__(self):
         self.binding = TARGET
+        self.ha_restart_count = 0
+        self.ha_runtime_image_id_override = None
+        self.broker_owner_active = True
         self.images = {
             TARGET: "sha256:" + "a" * 64,
             CURRENT: "sha256:" + "b" * 64,
@@ -71,12 +78,21 @@ class Host:
         return {
             "container_id": "ha-id",
             "image_ref": CURRENT,
-            "image_id": self.images[CURRENT],
-            "restart_count": 0,
+            "image_id": (
+                self.ha_runtime_image_id_override
+                or self.images[CURRENT]
+            ),
+            "restart_count": self.ha_restart_count,
         }
 
     def _systemctl(self, action, unit):
-        return self.owner if action == "is-active" else ""
+        if action != "is-active":
+            return ""
+        if unit == BROKER_UNIT:
+            return "active" if self.broker_owner_active else "inactive"
+        if unit == SERVICES_UNIT:
+            return self.owner
+        return "unknown"
 
     def stop_services(self):
         self.owner = "inactive"
@@ -146,6 +162,17 @@ class Host:
         return 401
 
 
+def transaction():
+    return {
+        "current_image_ref": CURRENT,
+        "current_image_identity": {
+            "runtime_image_id": "sha256:" + "b" * 64,
+            "platform": "linux/arm64",
+        },
+        "target_image_ref": TARGET,
+    }
+
+
 def runtime(host):
     value = U13BProductionRuntime(
         expected_manager_container_id="manager-id",
@@ -175,10 +202,7 @@ def test_u13b_production_runtime_cleanup_is_homeassistant_only():
     host = Host()
     adapter = runtime(host)
     cleanup = adapter.cleanup_failed_target(
-        transaction={
-            "current_image_ref": CURRENT,
-            "target_image_ref": TARGET,
-        },
+        transaction=transaction(),
         target=image("target", TARGET),
     )
     assert cleanup.target_image_absent is True
@@ -191,10 +215,7 @@ def test_u13b_data_restore_requiesces_and_preserves_broker():
     host = Host()
     adapter = runtime(host)
     evidence = adapter.quiesce_for_data_restore(
-        transaction={
-            "current_image_ref": CURRENT,
-            "target_image_ref": TARGET,
-        },
+        transaction=transaction(),
     )
     assert evidence.services_quiesced is True
     assert evidence.broker_preserved is True
@@ -205,11 +226,73 @@ def test_u13b_predecessor_runtime_start_uses_ha_ota_path():
     host = Host()
     adapter = runtime(host)
     evidence = adapter.start_predecessor_runtime(
-        transaction={
-            "current_image_ref": CURRENT,
-            "target_image_ref": TARGET,
-        },
+        transaction=transaction(),
         predecessor=image("predecessor", CURRENT),
     )
     assert evidence.predecessor_runtime_started is True
     assert host.binding == CURRENT
+
+
+def test_u13b_predecessor_health_rejects_wrong_runtime_image_id():
+    host = Host()
+    host.owner = "active"
+    host.ha_runtime_image_id_override = "sha256:" + "e" * 64
+    adapter = runtime(host)
+    with pytest.raises(
+        UpdaterV2Error,
+        match="u13b_predecessor_runtime_identity_drift",
+    ):
+        adapter.verify_predecessor_health(
+            transaction=transaction(),
+            predecessor=image("predecessor", CURRENT),
+        )
+
+
+def test_u13b_predecessor_health_rejects_restart_loop_evidence():
+    host = Host()
+    host.owner = "active"
+    host.ha_restart_count = 1
+    adapter = runtime(host)
+    with pytest.raises(
+        UpdaterV2Error,
+        match="u13b_predecessor_runtime_identity_drift",
+    ):
+        adapter.verify_predecessor_health(
+            transaction=transaction(),
+            predecessor=image("predecessor", CURRENT),
+        )
+
+
+def test_u13b_predecessor_health_requires_broker_owner_active():
+    host = Host()
+    host.owner = "active"
+    host.broker_owner_active = False
+    adapter = runtime(host)
+    with pytest.raises(
+        UpdaterV2Error,
+        match="u13b_broker_owner_not_active",
+    ):
+        adapter.verify_predecessor_health(
+            transaction=transaction(),
+            predecessor=image("predecessor", CURRENT),
+        )
+
+
+def test_u13b_restore_predecessor_rejects_runtime_identity_drift(tmp_path):
+    host = Host()
+    host.images[CURRENT] = "sha256:" + "e" * 64
+    adapter = runtime(host)
+    media = type(
+        "Media",
+        (),
+        {"mount_path": str(tmp_path)},
+    )()
+    with pytest.raises(
+        UpdaterV2Error,
+        match="u13b_predecessor_runtime_image_identity_drift",
+    ):
+        adapter.restore_predecessor_image(
+            transaction=transaction(),
+            media=media,
+            predecessor=image("predecessor", CURRENT),
+        )

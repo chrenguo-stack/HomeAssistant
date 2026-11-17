@@ -606,6 +606,19 @@ class ProtectedHaDataBackupProvider:
             )
 
     @staticmethod
+    def _require_private_destination(path: Path) -> None:
+        if path.is_symlink() or not path.is_dir():
+            raise UpdaterV2Error("ha_data_backup_directory_invalid")
+        metadata = path.stat()
+        if (
+            metadata.st_uid != os.geteuid()
+            or stat.S_IMODE(metadata.st_mode) & 0o077
+        ):
+            raise UpdaterV2Error(
+                "ha_data_backup_directory_metadata_invalid"
+            )
+
+    @staticmethod
     def _write_metadata(
         path: Path,
         document: dict[str, object],
@@ -778,7 +791,7 @@ class ProtectedHaDataBackupProvider:
         destination_root: Path,
     ) -> HaDataBackupRecord:
         validated = validate_backup_record(record)
-        self._private_destination(destination_root)
+        self._require_private_destination(destination_root)
         metadata = self._metadata(
             transaction_id_sha256=transaction_id_sha256,
             destination_root=destination_root,

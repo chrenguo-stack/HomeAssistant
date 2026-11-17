@@ -577,6 +577,50 @@ def test_protected_backup_restore_tamper_fails_before_data_mutation(
     ) == "must-survive-stop"
 
 
+def test_protected_backup_verify_missing_directory_is_read_only(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "ha"
+    source.mkdir(mode=0o700)
+    (source / "configuration.yaml").write_text(
+        "default_config:\n",
+        encoding="utf-8",
+    )
+    root_key = tmp_path / "system-root.key"
+    root_key.write_bytes(os.urandom(32))
+    root_key.chmod(0o600)
+    provider = ProtectedHaDataBackupProvider(
+        ha_data_root=source,
+        system_root_key=root_key,
+        product_config=source / "configuration.yaml",
+    )
+    missing = tmp_path / "missing-backup"
+    record = HaDataBackupRecord(
+        archive_sha256="1" * 64,
+        archive_size_bytes=1,
+        manifest_sha256="2" * 64,
+        verified=True,
+        fsynced=True,
+        consistent_preupgrade_point=True,
+        complete_production_config=True,
+        storage_integrity_verified=True,
+        ownership_metadata_present=True,
+        confidentiality_protected=True,
+        authenticity_protected=True,
+        unsupported_external_state=False,
+    )
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_data_backup_directory_invalid",
+    ):
+        provider.verify_backup(
+            record,
+            transaction_id_sha256="3" * 64,
+            destination_root=missing,
+        )
+    assert not missing.exists()
+
+
 def test_protected_backup_tamper_fails_hash(
     tmp_path: Path,
 ) -> None:
