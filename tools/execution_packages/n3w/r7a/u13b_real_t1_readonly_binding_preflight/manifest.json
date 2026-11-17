@@ -16,10 +16,13 @@
     "design": "docs/development/N3W_T1_U13B_REAL_T1_PHYSICAL_ACCEPTANCE_AND_READONLY_PREEXECUTION_PLAN_20261117.md"
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/u13b_real_t1_readonly_binding_preflight/executor.py": "9003a82ac34b9e12e6e8dd9ef8dd22b50cdb7d76",
+    "tools/execution_packages/n3w/r7a/u13b_real_t1_readonly_binding_preflight/executor.py": "a57c4dad7718fb3ffb37b221ed928309e3e98e89",
     "tools/execution_packages/n3w/r7a/u13a_live_commit/executor.py": "b55855e880f6b2cf17212b3b8172352771442ea9",
     "tools/execution_packages/n3w/r7a/u13a_live_commit/manifest.json": "23a46203ddcbe2bfd07daa4d7d5f4d977ed27845",
-    "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7"
+    "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
+    "tools/execution_packages/n3w/r7a/u13a_commit_readonly_preflight/executor.py": "e41aae8f9dcb72978a911d4ddea6a8ea00eecd3f",
+    "tools/execution_packages/n3w/r7a/u12_target_acceptance_readonly_preflight/executor.py": "e1dc98c589879ffb1a6f7e99ec7641f1c0119137",
+    "tools/execution_packages/n3w/r7a/u10_predecessor_capacity_release_readonly_preflight_r37/executor.py": "392564926eeba6e5d38cbca9c8a43e5a0ae5f51a"
   },
   "expected_terminal_u13a": {
     "transaction_phase": "U13A_COMMITTED",
@@ -46,8 +49,18 @@
     "rollback_eligible_expected": false,
     "new_clean_ota_required_after_pass": true,
     "board_access": false,
-    "merge": false
+    "merge": false,
+    "historical_live_manifest_revalidation": false,
+    "current_u13b_transition_source_required": false,
+    "status_plan_contains_live_transition_source": false
   },
   "next_boundary": "FRESH_REAL_T1_READONLY_BINDING_ONLY",
-  "stop_boundary": "STOP_AFTER_FRESH_TERMINAL_U13A_BINDING_BEFORE_ANY_NEW_OTA_OR_U13B_MUTATION"
+  "stop_boundary": "STOP_AFTER_FRESH_TERMINAL_U13A_BINDING_BEFORE_ANY_NEW_OTA_OR_U13B_MUTATION",
+  "attempt_01_stop": {
+    "execution_id": "u13b-p1-readonly01-20261117T114522Z",
+    "status": "STOP",
+    "reason": "historical_u13a_live_manifest_revalidated_against_current_head",
+    "t1_access": false,
+    "t1_mutation": false
+  }
 }

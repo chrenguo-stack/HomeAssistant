@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import re
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +20,8 @@ U13A_STATUS_EXECUTOR = (
     / "u13a_live_commit"
     / "executor.py"
 )
+U13A_STATUS_MANIFEST = U13A_STATUS_EXECUTOR.with_name("manifest.json")
+SSH_TRANSPORT_SOURCE = ROOT / "tools" / "n3w_t1_ssh_transport.py"
 
 GATE_ID = "N3W_T1_U13B_REAL_T1_READONLY_BINDING_PREFLIGHT_20261117_01"
 MANIFEST_SCHEMA = "gh.n3w-t1-u13b-real-t1-readonly-binding-preflight-manifest/1"
@@ -43,6 +45,15 @@ def git_text(*args: str) -> str:
     if completed.returncode != 0:
         raise Stop("git_command_failed:" + args[0])
     return completed.stdout.strip()
+
+
+def load_module(path: Path, name: str):
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise Stop("module_load_failed:" + path.name)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def read_manifest(expected_commit: str) -> dict[str, Any]:
@@ -83,17 +94,68 @@ def prepare_evidence_root(path: Path) -> Path:
     return root
 
 
-def parse_last_json(stdout: str) -> dict[str, Any]:
-    lines = [line.strip() for line in stdout.splitlines() if line.strip()]
-    if not lines:
-        raise Stop("delegated_status_result_missing")
-    try:
-        value = json.loads(lines[-1])
-    except Exception as error:
-        raise Stop("delegated_status_result_invalid_json") from error
-    if not isinstance(value, dict):
-        raise Stop("delegated_status_result_invalid")
-    return value
+def write_private_text(path: Path, value: str) -> None:
+    path.write_text(value, encoding="utf-8")
+    os.chmod(path, 0o600)
+
+
+def write_private_json(path: Path, value: dict[str, Any]) -> None:
+    raw = json.dumps(value, sort_keys=True, indent=2) + "\n"
+    write_private_text(path, raw)
+
+
+def load_historical_status_authority() -> tuple[Any, dict[str, Any]]:
+    executor = load_module(U13A_STATUS_EXECUTOR, "n3w_u13b_p1_u13a_status")
+    historical = json.loads(U13A_STATUS_MANIFEST.read_text(encoding="utf-8"))
+    if (
+        historical.get("schema") != executor.MANIFEST_SCHEMA
+        or historical.get("gate_id") != executor.GATE_ID
+        or historical.get("authorization_id") != executor.AUTHORIZATION_ID
+        or historical.get("confirmation") != executor.CONFIRMATION
+    ):
+        raise Stop("historical_u13a_status_authority_invalid")
+    return executor, historical
+
+
+def build_status_plan(
+    executor: Any,
+    historical: dict[str, Any],
+    execution_id: str,
+) -> dict[str, Any]:
+    plan = dict(historical["expected_u12_entry"])
+    plan.update(
+        {
+            "gate_id": executor.GATE_ID,
+            "authorization_id": executor.AUTHORIZATION_ID,
+            "confirmation": executor.CONFIRMATION,
+            "execution_id": execution_id,
+            "u13a_live_execution_authorized": historical[
+                "u13a_live_execution_authorized"
+            ],
+            "authorization_state": historical["authorization_state"],
+            "mount_target": historical["mount_target"],
+            "u12_live_state_root": historical["u12_live"]["state_root"],
+            "u12_live_gate_id": historical["u12_live"]["gate_id"],
+            "u12_live_authorization_id": historical["u12_live"][
+                "authorization_id"
+            ],
+            "u12_live_execution_id": historical["u12_live"]["execution_id"],
+            "u12_acceptance_duration_ms": historical["u12_live"][
+                "u12_acceptance_duration_ms"
+            ],
+            "u13a_state_root": historical["u13a_state_root"],
+            "installed_source_sha256": historical["installed_source_sha256"],
+            "predecessor_identity": historical["recovery_authority"][
+                "predecessor_identity"
+            ],
+            "backup_identity": historical["recovery_authority"][
+                "backup_identity"
+            ],
+        }
+    )
+    if "transition_source_b64" in plan or "transition_source_sha256" in plan:
+        raise Stop("status_plan_contains_live_transition_source")
+    return plan
 
 
 def normalize_status(
@@ -174,53 +236,57 @@ def normalize_status(
 
 def run_status_only(
     *,
-    expected_commit: str,
     execution_id: str,
     evidence_root: Path,
     t1_ssh_target: str,
     known_hosts: Path,
     expected_host_key_sha256: str,
     expected_terminal: dict[str, Any],
-) -> tuple[subprocess.CompletedProcess[str], dict[str, Any]]:
-    delegated_root = evidence_root / "u13a-terminal-status"
-    command = [
-        sys.executable,
-        str(U13A_STATUS_EXECUTOR),
-        "--expected-package-commit",
-        expected_commit,
-        "--execution-id",
+) -> tuple[subprocess.CompletedProcess[str], dict[str, Any], bool]:
+    executor, historical = load_historical_status_authority()
+    plan = build_status_plan(
+        executor,
+        historical,
         execution_id + "-u13a-terminal-status",
-        "--evidence-root",
-        str(delegated_root),
-        "--t1-ssh-target",
-        t1_ssh_target,
-        "--known-hosts",
-        str(known_hosts.expanduser()),
-        "--expected-host-key-sha256",
-        expected_host_key_sha256,
-        "--status-only",
-    ]
-    completed = subprocess.run(
-        command,
-        cwd=ROOT,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        timeout=300,
-        check=False,
     )
-    delegated = parse_last_json(completed.stdout)
+    transport_type = load_module(
+        SSH_TRANSPORT_SOURCE,
+        "n3w_u13b_p1_ssh_transport",
+    ).SSHTransport
+    transport = transport_type(
+        target=t1_ssh_target,
+        known_hosts=known_hosts.expanduser(),
+        expected_host_key_sha256=expected_host_key_sha256,
+    )
+    accessed = False
+    try:
+        transport.start_epoch()
+        accessed = True
+        completed, delegated = executor.remote_mode(
+            transport,
+            plan,
+            "status",
+            timeout=120,
+        )
+    finally:
+        transport.close_epoch()
+
+    write_private_text(
+        evidence_root / "u13a_status_stdout.txt",
+        completed.stdout,
+    )
+    write_private_text(
+        evidence_root / "u13a_status_stderr.txt",
+        completed.stderr,
+    )
+    write_private_json(
+        evidence_root / "u13a_status.json",
+        delegated,
+    )
     if completed.returncode != 0:
         reason = delegated.get("reason", "delegated_status_nonzero")
         raise Stop("delegated_u13a_status_failed:" + str(reason)[:220])
-    return completed, normalize_status(delegated, expected_terminal)
-
-
-def write_private_json(path: Path, value: dict[str, Any]) -> None:
-    raw = json.dumps(value, sort_keys=True, indent=2) + "\n"
-    path.write_text(raw, encoding="utf-8")
-    os.chmod(path, 0o600)
+    return completed, normalize_status(delegated, expected_terminal), accessed
 
 
 def main() -> int:
@@ -260,8 +326,7 @@ def main() -> int:
     try:
         manifest = read_manifest(args.expected_package_commit)
         evidence = prepare_evidence_root(args.evidence_root)
-        _, normalized = run_status_only(
-            expected_commit=args.expected_package_commit,
+        _, normalized, accessed = run_status_only(
             execution_id=args.execution_id,
             evidence_root=evidence,
             t1_ssh_target=args.t1_ssh_target,
@@ -270,6 +335,7 @@ def main() -> int:
             expected_terminal=manifest["expected_terminal_u13a"],
         )
         result.update(normalized)
+        result["t1_access"] = accessed
         result["local_evidence_write"] = True
         return_code = 0
     except Exception as error:

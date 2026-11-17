@@ -41,6 +41,9 @@ def test_manifest_authorizes_only_real_t1_readonly_binding():
     contract = value["execution_contract"]
     assert contract["delegate_existing_u13a_status_only"] is True
     assert contract["execute_mode_forbidden"] is True
+    assert contract["historical_live_manifest_revalidation"] is False
+    assert contract["current_u13b_transition_source_required"] is False
+    assert contract["status_plan_contains_live_transition_source"] is False
     assert contract["current_probe_transaction_mutation"] is False
     assert contract["current_probe_usb_mutation"] is False
     assert contract["current_probe_service_mutation"] is False
@@ -48,17 +51,61 @@ def test_manifest_authorizes_only_real_t1_readonly_binding():
     assert contract["current_probe_ha_data_mutation"] is False
     assert contract["current_probe_authorization_claim"] is False
     assert contract["current_probe_u13b_transition"] is False
+    assert value["attempt_01_stop"]["t1_access"] is False
     assert value["stop_boundary"].startswith(
         "STOP_AFTER_FRESH_TERMINAL_U13A_BINDING"
     )
 
 
-def test_wrapper_has_no_execute_or_authorization_arguments():
+def test_wrapper_has_no_live_execution_arguments_or_delegated_cli():
     source = EXECUTOR.read_text(encoding="utf-8")
     assert 'parser.add_argument("--execute"' not in source
     assert 'parser.add_argument("--authorization-id"' not in source
     assert 'parser.add_argument("--confirm"' not in source
-    assert '"--status-only"' in source
+    assert '"--status-only"' not in source
+    assert "executor.read_manifest(" not in source
+    assert "executor.build_plan(" not in source
+    assert 'executor.remote_mode(' in source
+    assert '"status",' in source
+
+
+def test_status_plan_excludes_live_transition_source():
+    executor = load_executor()
+
+    class Fake:
+        GATE_ID = "u13a"
+        AUTHORIZATION_ID = "auth"
+        CONFIRMATION = "yes"
+
+    historical = {
+        "expected_u12_entry": {"transaction_id_sha256": "a" * 64},
+        "u13a_live_execution_authorized": False,
+        "authorization_state": {
+            "granted": False,
+            "claimed": False,
+            "consumed": False,
+            "replay_permitted": False,
+        },
+        "mount_target": "/run/example",
+        "u12_live": {
+            "state_root": "/state/u12",
+            "gate_id": "u12",
+            "authorization_id": "u12-auth",
+            "execution_id": "u12-exec",
+            "u12_acceptance_duration_ms": 1,
+        },
+        "u13a_state_root": "/state/u13a",
+        "installed_source_sha256": {},
+        "recovery_authority": {
+            "predecessor_identity": {"kind": "predecessor"},
+            "backup_identity": {"verified": True},
+        },
+    }
+    plan = executor.build_status_plan(Fake, historical, "p1")
+    assert "transition_source_b64" not in plan
+    assert "transition_source_sha256" not in plan
+    assert plan["gate_id"] == "u13a"
+    assert plan["execution_id"] == "p1"
 
 
 def test_normalize_separates_historical_u13a_mutation_from_current_probe():
@@ -76,8 +123,8 @@ def test_normalize_separates_historical_u13a_mutation_from_current_probe():
         "authorization_claimed": True,
         "authorization_consumed": True,
         "replay_permitted": False,
-        "transaction_mutation": True,
-        "usb_mutation": True,
+        "transaction_mutation": False,
+        "usb_mutation": False,
         "u13b_transition": False,
         "post": {
             "transaction_phase": "U13A_COMMITTED",
@@ -96,8 +143,8 @@ def test_normalize_separates_historical_u13a_mutation_from_current_probe():
     )
     assert result["historical_u13a_transaction_was_mutated"] is True
     assert result["historical_u13a_usb_metadata_was_mutated"] is True
-    assert result["delegated_status_reported_transaction_mutation"] is True
-    assert result["delegated_status_reported_usb_mutation"] is True
+    assert result["delegated_status_reported_transaction_mutation"] is False
+    assert result["delegated_status_reported_usb_mutation"] is False
     assert result["current_probe_transaction_mutation"] is False
     assert result["current_probe_usb_mutation"] is False
     assert result["current_probe_service_mutation"] is False
@@ -136,46 +183,111 @@ def test_normalize_fails_closed_on_terminal_drift():
         executor.normalize_status(delegated, expected)
 
 
-def test_run_status_only_delegates_only_status_mode(monkeypatch, tmp_path):
+def test_run_status_only_calls_remote_status_without_live_manifest_gate(
+    monkeypatch,
+    tmp_path,
+):
     executor = load_executor()
     observed = {}
 
-    def fake_run(command, **kwargs):
-        observed["command"] = command
-        delegated = {
-            "status": "U13A_LIVE_COMMIT_PASS_RECONCILED",
-            "terminal": True,
-            "reconciled_from_durable_u13a": True,
-            "authorization_claimed": True,
-            "authorization_consumed": True,
-            "replay_permitted": False,
-            "transaction_mutation": True,
-            "usb_mutation": True,
-            "u13b_transition": False,
-            "post": {
-                "transaction_phase": "U13A_COMMITTED",
-                "transaction_status": "COMMITTED",
-                "recovery_required": False,
-                "transaction_sha256": "a" * 64,
-                "usb_mirror": {
-                    "exact": True,
-                    "sha256": {"phase": "c" * 64},
-                },
-                "runtime": {
-                    "target_runtime_image_id": "sha256:" + "b" * 64,
-                },
-            },
-        }
-        return subprocess.CompletedProcess(
-            command,
-            0,
-            stdout=json.dumps(delegated) + "\n",
-            stderr="",
-        )
+    class FakeTransport:
+        def __init__(self, **kwargs):
+            observed["transport_kwargs"] = kwargs
 
-    monkeypatch.setattr(executor.subprocess, "run", fake_run)
-    _, result = executor.run_status_only(
-        expected_commit="d" * 40,
+        def start_epoch(self):
+            observed["started"] = True
+
+        def close_epoch(self):
+            observed["closed"] = True
+
+    class FakeStatus:
+        MANIFEST_SCHEMA = "schema"
+        GATE_ID = "u13a"
+        AUTHORIZATION_ID = "auth"
+        CONFIRMATION = "yes"
+
+        @staticmethod
+        def remote_mode(transport, plan, mode, timeout):
+            observed["mode"] = mode
+            observed["plan"] = plan
+            delegated = {
+                "status": "U13A_LIVE_COMMIT_PASS_RECONCILED",
+                "terminal": True,
+                "reconciled_from_durable_u13a": True,
+                "authorization_claimed": True,
+                "authorization_consumed": True,
+                "replay_permitted": False,
+                "transaction_mutation": False,
+                "usb_mutation": False,
+                "u13b_transition": False,
+                "post": {
+                    "transaction_phase": "U13A_COMMITTED",
+                    "transaction_status": "COMMITTED",
+                    "recovery_required": False,
+                    "transaction_sha256": "a" * 64,
+                    "usb_mirror": {
+                        "exact": True,
+                        "sha256": {"phase": "c" * 64},
+                    },
+                    "runtime": {
+                        "target_runtime_image_id": "sha256:" + "b" * 64,
+                    },
+                },
+            }
+            return subprocess.CompletedProcess(
+                ["ssh"],
+                0,
+                stdout=json.dumps(delegated) + "\n",
+                stderr="",
+            ), delegated
+
+    historical = {
+        "schema": "schema",
+        "gate_id": "u13a",
+        "authorization_id": "auth",
+        "confirmation": "yes",
+        "expected_u12_entry": {"transaction_id_sha256": "d" * 64},
+        "u13a_live_execution_authorized": False,
+        "authorization_state": {
+            "granted": False,
+            "claimed": False,
+            "consumed": False,
+            "replay_permitted": False,
+        },
+        "mount_target": "/run/example",
+        "u12_live": {
+            "state_root": "/state/u12",
+            "gate_id": "u12",
+            "authorization_id": "u12-auth",
+            "execution_id": "u12-exec",
+            "u12_acceptance_duration_ms": 1,
+        },
+        "u13a_state_root": "/state/u13a",
+        "installed_source_sha256": {},
+        "recovery_authority": {
+            "predecessor_identity": {"kind": "predecessor"},
+            "backup_identity": {"verified": True},
+        },
+    }
+
+    monkeypatch.setattr(
+        executor,
+        "load_historical_status_authority",
+        lambda: (FakeStatus, historical),
+    )
+
+    original_load = executor.load_module
+
+    def fake_load(path, name):
+        if path == executor.SSH_TRANSPORT_SOURCE:
+            class TransportModule:
+                SSHTransport = FakeTransport
+            return TransportModule
+        return original_load(path, name)
+
+    monkeypatch.setattr(executor, "load_module", fake_load)
+
+    _, result, accessed = executor.run_status_only(
         execution_id="p1-test",
         evidence_root=tmp_path,
         t1_ssh_target="operator@t1",
@@ -188,9 +300,10 @@ def test_run_status_only_delegates_only_status_mode(monkeypatch, tmp_path):
             "target_runtime_image_id": "sha256:" + "b" * 64,
         },
     )
-    command = observed["command"]
-    assert "--status-only" in command
-    assert "--execute" not in command
-    assert "--authorization-id" not in command
-    assert "--confirm" not in command
+    assert observed["mode"] == "status"
+    assert observed["started"] is True
+    assert observed["closed"] is True
+    assert "transition_source_b64" not in observed["plan"]
+    assert "transition_source_sha256" not in observed["plan"]
+    assert accessed is True
     assert result["current_probe_transaction_mutation"] is False
