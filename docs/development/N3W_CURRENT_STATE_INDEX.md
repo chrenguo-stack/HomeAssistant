@@ -1,5 +1,7 @@
 ## 2026-11-17 — U13A live commit CLOSED_PASS / durable terminal commit
 
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`, Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`; Live upgrade accepted and deployment state remains `APPLIED_ACCEPTED`.
+- Historical clean reference remains immutable at `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
 - Exact authorized package head `b1d4ea98bc768ed26d626b895d494cd8ca38cc69` had 16/16 CI SUCCESS before execution.
 - Real-T1 execution `u13a-live01-20261117T022518Z` returned RC=0 / `U13A_LIVE_COMMIT_PASS`; remote execute result was observed directly and no status reconciliation was needed.
 - Embedded fresh U13A read-only preflight PASSed before claim with `FORWARD_COMMIT_ELIGIBLE=true` and `rollback_required=false`.
