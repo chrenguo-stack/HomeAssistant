@@ -2,6 +2,9 @@
 
 - PR #807 remains OPEN/DRAFT/unmerged; default main is `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`; PR base is `ab277001dc9b31dcccb4d36b1507cec5f26d5a1d`.
 - Final Stage D product-source authority is `a47fc818eaea84a7357d158e2c4f92b2367d8d44`; exact-head CI is 16/16 SUCCESS.
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source is `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference remains `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
 - Key final CI runs: Core Stack current authority `44035165912`, Manager A-to-B `44035165928`, Home Assistant target-binding `44035165909`; all SUCCESS.
 - Stage A/B/C and Stage D D1/D2/D3/D4 are all CLOSED_PASS at the source/CI/independent-review boundary; `STAGE_D_SOURCE_CLOSED=true`.
 - D3 provides strict RO USB reconciliation evidence and exact Host-only transaction repair under the shared transaction lock; it never rewrites USB metadata or replays a rollback operation during reconciliation.
