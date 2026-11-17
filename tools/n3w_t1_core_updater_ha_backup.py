@@ -5,6 +5,7 @@ import hmac
 import json
 import os
 import re
+import shutil
 import sqlite3
 import stat
 import subprocess
@@ -74,7 +75,10 @@ class HaDataBackupProvider(Protocol):
     def restore_preupgrade_backup(
         self,
         record: HaDataBackupRecord,
-    ) -> None:
+        *,
+        transaction_id_sha256: str,
+        source_root: Path,
+    ) -> HaDataBackupRecord:
         ...
 
 
@@ -835,11 +839,127 @@ class ProtectedHaDataBackupProvider:
         self._report("verified", validated.archive_size_bytes)
         return validated
 
+    def _validate_restore_target_tree(self) -> None:
+        root = self.ha_data_root
+        if root.is_symlink() or not root.is_dir():
+            raise UpdaterV2Error("ha_data_restore_target_invalid")
+        try:
+            root_device = root.stat().st_dev
+        except OSError as error:
+            raise UpdaterV2Error("ha_data_restore_target_invalid") from error
+        for directory, names, files in os.walk(root, followlinks=False):
+            base = Path(directory)
+            for name in names + files:
+                path = base / name
+                try:
+                    metadata = path.lstat()
+                except OSError as error:
+                    raise UpdaterV2Error(
+                        "ha_data_restore_target_scan_failed"
+                    ) from error
+                if stat.S_ISLNK(metadata.st_mode):
+                    continue
+                if metadata.st_dev != root_device:
+                    raise UpdaterV2Error(
+                        "ha_data_restore_external_state_unsupported"
+                    )
+
+    def _clear_restore_target(self) -> None:
+        self._validate_restore_target_tree()
+        for item in tuple(self.ha_data_root.iterdir()):
+            try:
+                metadata = item.lstat()
+                if stat.S_ISDIR(metadata.st_mode) and not stat.S_ISLNK(
+                    metadata.st_mode
+                ):
+                    shutil.rmtree(item)
+                else:
+                    item.unlink()
+            except OSError as error:
+                raise UpdaterV2Error(
+                    "ha_data_restore_target_cleanup_failed"
+                ) from error
+        _fsync_directory(self.ha_data_root)
+
+    def _fsync_restored_tree(self) -> None:
+        directories: list[Path] = []
+        for directory, names, files in os.walk(
+            self.ha_data_root,
+            topdown=False,
+            followlinks=False,
+        ):
+            base = Path(directory)
+            directories.append(base)
+            for name in files:
+                path = base / name
+                metadata = path.lstat()
+                if stat.S_ISREG(metadata.st_mode):
+                    descriptor = os.open(path, os.O_RDONLY)
+                    try:
+                        os.fsync(descriptor)
+                    finally:
+                        os.close(descriptor)
+            for name in names:
+                path = base / name
+                metadata = path.lstat()
+                if stat.S_ISDIR(metadata.st_mode):
+                    directories.append(path)
+        seen: set[Path] = set()
+        for directory in directories:
+            if directory in seen:
+                continue
+            seen.add(directory)
+            _fsync_directory(directory)
+
     def restore_preupgrade_backup(
         self,
         record: HaDataBackupRecord,
-    ) -> None:
-        validate_backup_record(record)
-        raise UpdaterV2Error(
-            "ha_data_backup_restore_requires_separate_gate"
+        *,
+        transaction_id_sha256: str,
+        source_root: Path,
+    ) -> HaDataBackupRecord:
+        validated = self.verify_backup(
+            record,
+            transaction_id_sha256=transaction_id_sha256,
+            destination_root=source_root,
         )
+        passphrase, _ = self._keys(transaction_id_sha256)
+        archive_path = source_root / BACKUP_ARCHIVE_NAME
+
+        self._report("restore_target_safety")
+        self._validate_restore_target_tree()
+        self._report("restore_clear_current")
+        self._clear_restore_target()
+        self._report("restore_extract")
+        tar_args = [
+            "--extract",
+            "--numeric-owner",
+            (
+                "--same-owner"
+                if os.geteuid() == 0
+                else "--no-same-owner"
+            ),
+            "--same-permissions",
+            "--delay-directory-restore",
+            "--gzip",
+            "--file=-",
+            "--directory",
+            str(self.ha_data_root),
+        ]
+        self._decrypt_to_tar(
+            archive_path=archive_path,
+            passphrase=passphrase,
+            tar_args=tar_args,
+            capture_stdout=False,
+        )
+        self._report("restore_validate")
+        self._validate_source_tree()
+        self._verify_sqlite()
+        self._compare_with_quiesced_source(
+            archive_path=archive_path,
+            passphrase=passphrase,
+        )
+        self._report("restore_fsync")
+        self._fsync_restored_tree()
+        self._report("restored", validated.archive_size_bytes)
+        return validated

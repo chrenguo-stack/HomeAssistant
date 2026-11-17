@@ -464,6 +464,119 @@ def test_protected_backup_encrypts_authenticates_and_verifies(
 
 
 @pytest.mark.skipif(shutil.which("openssl") is None, reason="openssl unavailable")
+@pytest.mark.skipif(shutil.which("openssl") is None, reason="openssl unavailable")
+def test_protected_backup_restore_is_verified_and_repeatable(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "ha"
+    source.mkdir(mode=0o700)
+    (source / ".storage").mkdir(mode=0o700)
+    (source / ".storage" / "core.config").write_text(
+        "preupgrade",
+        encoding="utf-8",
+    )
+    database = sqlite3.connect(source / "home-assistant_v2.db")
+    database.execute("CREATE TABLE state(id INTEGER PRIMARY KEY, value TEXT)")
+    database.execute("INSERT INTO state(value) VALUES ('preupgrade')")
+    database.commit()
+    database.close()
+
+    root_key = tmp_path / "system-root.key"
+    root_key.write_bytes(os.urandom(32))
+    root_key.chmod(0o600)
+    product_config = tmp_path / "configuration.yaml"
+    product_config.write_text("default_config:\n", encoding="utf-8")
+    destination = tmp_path / "backup"
+    destination.mkdir(mode=0o700)
+    provider = ProtectedHaDataBackupProvider(
+        ha_data_root=source,
+        system_root_key=root_key,
+        product_config=product_config,
+    )
+    transaction_id = "e" * 64
+    record = provider.create_consistent_backup(
+        transaction_id_sha256=transaction_id,
+        destination_root=destination,
+    )
+
+    (source / ".storage" / "core.config").write_text(
+        "target-migrated",
+        encoding="utf-8",
+    )
+    (source / ".storage" / "target-only").write_text(
+        "remove-me",
+        encoding="utf-8",
+    )
+    assert provider.restore_preupgrade_backup(
+        record,
+        transaction_id_sha256=transaction_id,
+        source_root=destination,
+    ) == record
+    assert (source / ".storage" / "core.config").read_text(
+        encoding="utf-8"
+    ) == "preupgrade"
+    assert not (source / ".storage" / "target-only").exists()
+
+    (source / ".storage" / "target-only-2").write_text(
+        "remove-me-again",
+        encoding="utf-8",
+    )
+    assert provider.restore_preupgrade_backup(
+        record,
+        transaction_id_sha256=transaction_id,
+        source_root=destination,
+    ) == record
+    assert not (source / ".storage" / "target-only-2").exists()
+
+
+@pytest.mark.skipif(shutil.which("openssl") is None, reason="openssl unavailable")
+def test_protected_backup_restore_tamper_fails_before_data_mutation(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "ha"
+    source.mkdir(mode=0o700)
+    (source / "configuration.yaml").write_text(
+        "default_config:\n",
+        encoding="utf-8",
+    )
+    root_key = tmp_path / "system-root.key"
+    root_key.write_bytes(os.urandom(32))
+    root_key.chmod(0o600)
+    destination = tmp_path / "backup"
+    destination.mkdir(mode=0o700)
+    provider = ProtectedHaDataBackupProvider(
+        ha_data_root=source,
+        system_root_key=root_key,
+        product_config=source / "configuration.yaml",
+    )
+    transaction_id = "f" * 64
+    record = provider.create_consistent_backup(
+        transaction_id_sha256=transaction_id,
+        destination_root=destination,
+    )
+    (source / "target-state").write_text(
+        "must-survive-stop",
+        encoding="utf-8",
+    )
+    archive = destination / BACKUP_ARCHIVE_NAME
+    payload = bytearray(archive.read_bytes())
+    payload[-1] ^= 0x01
+    archive.write_bytes(payload)
+
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_data_backup_archive_hash_mismatch",
+    ):
+        provider.restore_preupgrade_backup(
+            record,
+            transaction_id_sha256=transaction_id,
+            source_root=destination,
+        )
+    assert (source / "target-state").read_text(
+        encoding="utf-8"
+    ) == "must-survive-stop"
+
+
 def test_protected_backup_tamper_fails_hash(
     tmp_path: Path,
 ) -> None:
