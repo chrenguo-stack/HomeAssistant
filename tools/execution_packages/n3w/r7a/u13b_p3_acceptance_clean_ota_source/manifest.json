@@ -1,7 +1,7 @@
 {
   "schema": "gh.n3w-t1-u13b-p3-acceptance-clean-ota-source-manifest/1",
   "gate_id": "N3W_T1_U13B_P3_ACCEPTANCE_CLEAN_OTA_SOURCE_PACKAGE_20261117_01",
-  "acceptance_release_identity": "homeassistant-2026.10.3-u13b-p3-acceptance",
+  "acceptance_release_identity": "homeassistant-2026.10.4-u13b-p3-same-version-acceptance-v1",
   "real_t1_access_authorized": false,
   "live_execution_authorized": false,
   "new_clean_ota_mutation_authorized": false,
@@ -10,30 +10,34 @@
     "default_main_head": "3e7faf258d670c9eaf3be6ede9bbb02df2ac009d",
     "pr": 807,
     "p2_closed_pass": true,
-    "p3_exact_artifact_run": 44089585822,
+    "p3_exact_artifact_run": 44199389702,
     "p3_exact_artifact_result": "SUCCESS",
-    "p3_target_binding_run": 44091564730,
+    "p3_target_binding_run": 44199389702,
     "p3_target_binding_result": "SUCCESS",
-    "p3_target_binding_authority_head": "626507a0928cece777e65b54e6c449f0da9c189b"
+    "p3_target_binding_authority_head": "d8446485557eb8e02bdb1460e84fe23984047f5b",
+    "p3_same_version_artifact_id": 14381710716
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/u13b_p3_acceptance_clean_ota_source/executor.py": "bf7a54dfa474fa749cdcc26a673c21f5d24fd52a",
+    "tools/execution_packages/n3w/r7a/u13b_p3_acceptance_clean_ota_source/executor.py": "360c2587b92e7a390547875ce7e404c40e2e38bf",
     "tools/n3w_t1_core_updater_ha_ipc.py": "aaadf1858d39295a3639185b5faf6899096a19bc",
     "tools/n3w_t1_core_updater_ha_usb_state.py": "f20f7c6e182aeb19ef47bdec595d85bd08729c9c",
     "tools/n3w_t1_core_updater_ha_prepare.py": "c4973a9fa9f114b2d068db5f2166894a41ed2217",
     "tools/n3w_t1_core_updater_v2_common.py": "b9c6561a1a8e33bdf586e6a4bd04d025f3c5d7e6",
-    "infra/n3w-t1/upgrades/homeassistant-2026.10.3-u13b-physical.json": "86f5c42b3227212e68cbeb98e115e2e96d244d8a",
-    "infra/n3w-t1/upgrades/homeassistant-2026.10.3-u13b-physical-compatibility-review.json": "96ab1b5f04854b86f8f0bfdd5e5e3248a532441e"
+    "infra/n3w-t1/upgrades/homeassistant-2026.10.4-u13b-same-version-acceptance.json": "d22a38aa3b34590cda3df39a8fb48cf61a01ec59",
+    "infra/n3w-t1/upgrades/homeassistant-2026.10.4-u13b-same-version-acceptance-review.json": "3b930c142ebad83f4e6511b46b13e63d8cb955e4"
   },
   "acceptance_target": {
-    "target_image_ref": "local/n3w-homeassistant:2026.10.3-c2bb99de",
+    "target_image_ref": "local/n3w-homeassistant:2026.10.4-u13b-acceptance-v1",
     "expected_predecessor_image_ref": "local/n3w-homeassistant:2026.10.4-5881590f",
-    "target_archive_sha256": "d26ac92ceed7baf689e1db9f11550c1e51d36f6dc81cac995a3eaf7a3d13912d",
-    "target_archive_size_bytes": 835151232,
+    "target_archive_sha256": "be30c4778bf537258d9e3825524c79532f20e8eb7a82136f560110d8f44b418d",
+    "target_archive_size_bytes": 835299595,
+    "target_ci_runtime_image_id": "sha256:59b51fc720f83eac91881937337e439e2a2a1a8bb58c9e760cbdf95ce8653fbc",
+    "cross_store_runtime_id_rebound_required": true,
+    "live_target_runtime_id_must_differ_from_predecessor": true,
     "artifact_identity": {
-      "artifact_id": 14330409226,
-      "artifact_digest_sha256": "a84ddb194ed72ddba6797a0141c1835ecdadfc369c84427303f02d3628d76200",
-      "artifact_name": "n3w-u13b-p3-homeassistant-2026.10.3-arm64-fd00f66d646053ae1c7d4bcf85921ca6bc2b20e3"
+      "artifact_id": 14381710716,
+      "artifact_digest_sha256": "22b36b6141eb5b50f976341725c7d56f46eccd9817b241844a22a4a276df6092",
+      "artifact_name": "n3w-u13b-p3-homeassistant-2026.10.4-same-version-acceptance-d8446485557eb8e02bdb1460e84fe23984047f5b"
     }
   },
   "execution_contract": {

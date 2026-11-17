@@ -53,14 +53,14 @@ def test_acceptance_admission_binds_distinct_exact_target():
         current_image_ref="local/n3w-homeassistant:2026.10.4-5881590f",
         current_runtime_image_id="sha256:" + "2" * 64,
     )
-    assert admission.release_identity == "homeassistant-2026.10.3-u13b-p3-acceptance"
+    assert admission.release_identity == "homeassistant-2026.10.4-u13b-p3-same-version-acceptance-v1"
     assert admission.current_image_ref == "local/n3w-homeassistant:2026.10.4-5881590f"
-    assert admission.target_image_ref == "local/n3w-homeassistant:2026.10.3-c2bb99de"
+    assert admission.target_image_ref == "local/n3w-homeassistant:2026.10.4-u13b-acceptance-v1"
     assert admission.current_image_ref != admission.target_image_ref
     assert admission.target_archive_sha256 == (
-        "d26ac92ceed7baf689e1db9f11550c1e51d36f6dc81cac995a3eaf7a3d13912d"
+        "be30c4778bf537258d9e3825524c79532f20e8eb7a82136f560110d8f44b418d"
     )
-    assert admission.target_archive_size == 835151232
+    assert admission.target_archive_size == 835299595
 
 
 def test_acceptance_admission_fails_closed_on_predecessor_or_runtime_drift():

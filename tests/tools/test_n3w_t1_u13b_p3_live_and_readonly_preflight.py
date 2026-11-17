@@ -105,6 +105,11 @@ def test_live_manifest_is_source_only_not_authorized():
     assert contract["stop_at_u11_before_u12"] is True
     assert contract["record_target_accepted_forbidden"] is True
     assert contract["record_commit_forbidden"] is True
+    target = value["acceptance_target"]
+    assert target["target_image_ref"] == "local/n3w-homeassistant:2026.10.4-u13b-acceptance-v1"
+    assert target["target_ci_runtime_image_id"] == "sha256:59b51fc720f83eac91881937337e439e2a2a1a8bb58c9e760cbdf95ce8653fbc"
+    assert target["cross_store_runtime_id_rebound_required"] is True
+    assert target["live_target_runtime_id_must_differ_from_predecessor"] is True
 
 
 def test_live_remote_compiles_and_stops_at_u11():
@@ -128,6 +133,8 @@ def test_live_remote_compiles_and_stops_at_u11():
     assert "U12_TARGET_ACCEPTANCE" not in remote
     assert '"u12_plus": False' in remote
     assert '"U11_TARGET_INSTALLED_STARTED"' in remote
+    assert "u11_target_runtime_id_not_distinct_from_predecessor" in remote
+    assert "target_runtime_image_id_rebound=True" in remote
 
 
 def test_live_revalidates_same_fresh_usb_before_outer_claim():

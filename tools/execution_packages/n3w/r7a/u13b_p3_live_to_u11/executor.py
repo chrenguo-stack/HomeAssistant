@@ -23,7 +23,7 @@ PREFLIGHT_EXECUTOR = (
 SSH_TRANSPORT_SOURCE = ROOT / "tools" / "n3w_t1_ssh_transport.py"
 TARGET_MANIFEST = (
     ROOT / "infra" / "n3w-t1" / "upgrades"
-    / "homeassistant-2026.10.3-u13b-physical.json"
+    / "homeassistant-2026.10.4-u13b-same-version-acceptance.json"
 )
 
 GATE_ID = "N3W_T1_U13B_P3_ACCEPTANCE_CLEAN_OTA_TO_U11_LIVE_20261117_01"
@@ -820,6 +820,9 @@ def execute(plan):
             runtime_owner=owner,
         )
         installed = u11.install()
+        predecessor_runtime_id = claim["peers"]["homeassistant"]["runtime_image_id"]
+        if installed.target_runtime_image_id == predecessor_runtime_id:
+            raise Stop("u11_target_runtime_id_not_distinct_from_predecessor")
         final = store.read()
         if (
             final is None
@@ -843,6 +846,8 @@ def execute(plan):
             transaction_sha256=sha_file(store.path),
             usb_filesystem_uuid=final["usb_filesystem_uuid"],
             target_runtime_image_id=installed.target_runtime_image_id,
+            target_runtime_image_id_rebound=True,
+            target_runtime_image_id_distinct_from_predecessor=True,
             recovery_content_manifest_sha256=final[
                 "recovery_content_manifest_sha256"
             ],
@@ -1024,6 +1029,17 @@ def source_check(manifest: dict[str, Any]) -> dict[str, Any]:
         raise Stop("target_not_distinct")
     if manifest["execution_contract"]["stop_at_u11_before_u12"] is not True:
         raise Stop("u11_stop_contract_missing")
+    if (
+        target.get("cross_store_runtime_id_rebound_required") is not True
+        or target.get("live_target_runtime_id_must_differ_from_predecessor") is not True
+    ):
+        raise Stop("cross_store_target_rebind_contract_missing")
+    ci_runtime_id = target.get("target_ci_runtime_image_id")
+    if (
+        not isinstance(ci_runtime_id, str)
+        or re.fullmatch(r"sha256:[0-9a-f]{64}", ci_runtime_id) is None
+    ):
+        raise Stop("target_ci_runtime_image_id_invalid")
     return {
         "schema": RESULT_SCHEMA,
         "gate_id": GATE_ID,

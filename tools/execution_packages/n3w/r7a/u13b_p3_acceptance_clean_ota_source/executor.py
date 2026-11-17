@@ -14,7 +14,7 @@ TARGET_PATH = (
     / "infra"
     / "n3w-t1"
     / "upgrades"
-    / "homeassistant-2026.10.3-u13b-physical.json"
+    / "homeassistant-2026.10.4-u13b-same-version-acceptance.json"
 )
 
 GATE_ID = "N3W_T1_U13B_P3_ACCEPTANCE_CLEAN_OTA_SOURCE_PACKAGE_20261117_01"
