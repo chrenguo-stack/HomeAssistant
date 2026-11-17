@@ -20,7 +20,11 @@ U13B_STAGE_A_SOURCE_DEVELOPMENT=true
 U13B_DURABLE_SUBPHASES=true
 U13B_DURABLE_EVIDENCE_GUARDS=true
 U13B_DIRECT_GENERIC_TRANSITION_BYPASS_BLOCKED=true
-U13B_PRODUCTION_RESTORE_BACKEND=false
+U13B_PRODUCTION_RESTORE_BACKEND=true
+U13B_COMMAND_FREE_CONTROLLER=true
+U13B_PROTECTED_DATA_RESTORE=true
+U13B_OPERATION_RESUME_SAFE=true
+U13B_USB_HOST_SPLIT_RECONCILIATION_PENDING=true
 U13B_READONLY_PREFLIGHT=false
 U13B_LIVE_EXECUTION_AUTHORIZED=false
 U13B_LIVE_EXECUTION=false
@@ -30,12 +34,12 @@ T1_MUTATION=false
 BOARD_ACCESS=false
 MERGE=false
 
-NEXT_ONE_GATE=U13B_STAGE_A_SOURCE_CI_AND_REVIEW
+NEXT_ONE_GATE=U13B_STAGE_B_SOURCE_CI_AND_REVIEW
 ```
 
 U13B development has started from the closed U13A boundary. Stage A removes the unsafe direct U9/U10/U11/U12 -> terminal U13B model and introduces durable rollback-in-progress subphases with evidence gates for target cleanup, predecessor image restore, HA data restore, predecessor runtime activation and final health.
 
-The successful live U13A transaction remains untouched and terminal. No real rollback is authorized. Production backup restore and predecessor runtime restoration remain the next source implementation gate after Stage A CI/review.
+The successful live U13A transaction remains untouched and terminal. No real rollback is authorized. Stage B now contains the protected backup restore, command-free rollback controller and HA-OTA overlay-aware production runtime/media adapters. It remains source-only. USB-ahead/host-behind split durable-write reconciliation is explicitly deferred to Stage C before any live executor can be considered.
 
 Design authority: `docs/development/N3W_T1_U13B_AUTOMATIC_ROLLBACK_SOURCE_DESIGN_V1_20261117.md`.
 

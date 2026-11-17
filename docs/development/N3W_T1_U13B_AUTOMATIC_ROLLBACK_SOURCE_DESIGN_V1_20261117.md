@@ -244,3 +244,103 @@ FINAL_HEALTH_EVIDENCE_REQUIRED=true
 POWER_LOSS_RESUME_CLASSIFIABLE=true
 U13B_LIVE_EXECUTION_AUTHORIZED=false
 ```
+
+## 10. Stage B production rollback backend
+
+Stage B materializes production rollback primitives without creating or authorizing a live U13B executor.
+
+### 10.1 Protected Home Assistant data restore
+
+`ProtectedHaDataBackupProvider.restore_preupgrade_backup()` now requires the exact transaction identity and bound USB backup root.
+
+The restore order is:
+
+```text
+verify encrypted archive hash
+-> verify HMAC authenticity
+-> verify plaintext manifest
+-> validate live /config target tree
+-> clear only the HA data-root contents
+-> decrypt/extract pre-upgrade data
+-> validate restored tree
+-> SQLite quick_check
+-> exact archive/source compare
+-> fsync restored files/directories
+```
+
+Authentication and integrity verification happen before current HA data is deleted. A tampered backup therefore fails before live data mutation.
+
+If extraction is interrupted, the host transaction remains at U13B2. Re-entry may safely clear the partial HA data tree and repeat restoration from the same authenticated archive.
+
+### 10.2 Command-free controller
+
+`tools/n3w_t1_core_updater_ha_u13b.py` owns transaction orchestration only. It executes no Docker/systemd commands.
+
+For each subphase it follows:
+
+```text
+verify exact recovery authorities
+-> perform/reconcile one bounded operation
+-> verify postcondition
+-> sync USB transaction metadata
+-> persist host transaction
+```
+
+It resumes from the durable host U13B0..U13B4 phase without deliberately replaying already completed earlier operations.
+
+### 10.3 Production media/runtime adapter
+
+`tools/n3w_t1_core_updater_ha_u13b_host.py` reuses existing production primitives:
+
+- `SubprocessPrepareBackend` for bound-media resolution and USB transaction metadata;
+- portable image identity for exact target/predecessor archive validation;
+- `LocalHost` for exact HA container/image cleanup;
+- the already live-proven `LocalU11RuntimeOwner` HA-OTA overlay contract for predecessor runtime start;
+- current listener/MQTT/HTTP readiness checks for terminal predecessor health.
+
+The durable cross-session media authority is filesystem UUID plus exact recovery content. The session-scoped public USB fingerprint is not promoted to a cross-session recovery authority.
+
+Target cleanup is restricted to Home Assistant target residues/image. Broker and unrelated images are not pruned.
+
+### 10.4 Resume boundary still open for Stage C
+
+Stage B closes operation-level restartability, but it does not claim that every split durable-write point is automatically reconciled.
+
+The required write order remains:
+
+```text
+USB metadata durable
+-> host transaction durable
+```
+
+A crash after USB persistence but before the corresponding host write can therefore leave `USB_PHASE = host successor` while `HOST_PHASE = predecessor`.
+
+That state must not be resolved by blind execution replay.
+
+Stage C must add a read-only reconciliation contract that can classify at minimum:
+
+```text
+HOST_USB_EXACT
+USB_ONE_PHASE_AHEAD_RECONCILABLE
+HOST_ONE_PHASE_AHEAD_STOP
+DIVERGENT_OR_UNKNOWN_STOP
+```
+
+and prove that an observed USB-ahead phase is the exact allowed successor with matching transaction/recovery authority before host reconciliation is considered.
+
+### 10.5 Stage B boundary
+
+```text
+U13B_PRODUCTION_RESTORE_BACKEND=true
+U13B_COMMAND_FREE_CONTROLLER=true
+U13B_OPERATION_RESUME_SAFE=true
+U13B_USB_HOST_SPLIT_RECONCILIATION_PENDING=true
+U13B_READONLY_PREFLIGHT=false
+U13B_LIVE_EXECUTION_AUTHORIZED=false
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+```
+
+No live rollback package is created by Stage B.

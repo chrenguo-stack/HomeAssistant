@@ -7,9 +7,11 @@
 - Stage A introduces durable U13B0..U13B4 rollback-in-progress subphases, `rollback_origin_phase`, exact recovery-content revalidation before rollback, staged evidence contracts and IPC `ROLLBACK_IN_PROGRESS`.
 - Stage A source review found and closed a generic-transition bypass risk: cumulative durable rollback evidence is now required by the transaction validator for every U13B subphase and terminal `ROLLED_BACK`.
 - Stage A is repository-only: `T1_ACCESS=false / T1_MUTATION=false / U13B_LIVE_EXECUTION_AUTHORIZED=false / BOARD_ACCESS=false / MERGE=false`.
-- Production HA backup restore and exact predecessor runtime restore are intentionally deferred to Stage B source implementation.
+- Stage B production backend is implemented in source: authenticated pre-upgrade HA data restore, command-free staged rollback controller, exact HA-only target cleanup, exact predecessor archive restoration, HA-OTA overlay-aware predecessor start and final MQTT/HTTP health verification.
+- Operation-level resume from durable U13B0..U13B4 is supported; USB-ahead/host-behind split-write reconciliation remains explicitly pending for Stage C and must not be handled by blind replay.
+- Stage B remains source-only: `T1_ACCESS=false / T1_MUTATION=false / U13B_LIVE_EXECUTION_AUTHORIZED=false / BOARD_ACCESS=false / MERGE=false`.
 - Design: `docs/development/N3W_T1_U13B_AUTOMATIC_ROLLBACK_SOURCE_DESIGN_V1_20261117.md`.
-- Next gate: `U13B_STAGE_A_SOURCE_CI_AND_REVIEW`.
+- Next gate: `U13B_STAGE_B_SOURCE_CI_AND_REVIEW`.
 
 ## 2026-11-17 — U13A live commit CLOSED_PASS / durable terminal commit
 

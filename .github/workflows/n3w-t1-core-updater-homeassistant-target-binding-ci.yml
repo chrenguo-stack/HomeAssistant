@@ -204,6 +204,8 @@ jobs:
             tools/n3w_t1_core_updater_ha_install.py \
             tools/n3w_t1_core_updater_ha_u11.py \
             tools/n3w_t1_core_updater_ha_u11_host.py \
+            tools/n3w_t1_core_updater_ha_u13b.py \
+            tools/n3w_t1_core_updater_ha_u13b_host.py \
             tools/n3w_t1_core_updater_ha_recovery_encoding.py \
             tools/n3w_t1_core_updater_ha_prepare.py \
             tools/n3w_t1_core_updater_ha_prepare_host.py \
@@ -348,6 +350,8 @@ jobs:
             tests/tools/test_n3w_t1_core_updater_ha_p5_reapply_live_apply.py \
             tests/tools/test_n3w_t1_core_updater_ha_storage_policy_review.py \
             tests/tools/test_n3w_t1_core_updater_ha_backup_u7.py \
+            tests/tools/test_n3w_t1_u13b_controller.py \
+            tests/tools/test_n3w_t1_u13b_host.py \
             tests/tools/test_n3w_t1_core_updater_ha_target_binding_ci_contract.py
 
   exact-binding:
