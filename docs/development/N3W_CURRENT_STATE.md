@@ -1,3 +1,30 @@
+## Latest authority — 2026-11-17 U13B final independent review KF-163 source repair / CI retry pending
+
+```text
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+KF163_STATUS=SOURCE_REPAIR_IMPLEMENTED_CI_RETRY_PENDING
+KF163_SOURCE_REPAIR_HEAD=b9eb9bf1c8eddeb52943dc586f3b88c8ad8bc112
+KF163_ROOT_CAUSE=U13B_TERMINAL_HEALTH_DID_NOT_RECHECK_PERSISTENT_HA_BINDING
+STAGE_A_REVIEW=PASS_NO_NEW_BLOCKER_OBSERVED
+STAGE_B_REVIEW=BLOCKED_BY_KF163_UNTIL_REPAIR_CI
+NEW_BLOCKER_COUNT=1
+SOURCE_REPAIR_REQUIRED=true
+STAGE_A_CLOSED_PASS=false
+STAGE_B_CLOSED_PASS=false
+STAGE_C_ENTRY_ALLOWED=false
+T1_ACCESS=false
+T1_MUTATION=false
+U13B_LIVE_EXECUTION_AUTHORIZED=false
+BOARD_ACCESS=false
+MERGE=false
+NEXT_ONE_GATE=KF163_EXACT_HEAD_CI_AND_FINAL_REREVIEW
+```
+
+Final independent review found KF-163: a resumed `U13B4_PREDECESSOR_RUNTIME_STARTED` state could prove the predecessor container healthy while the persistent Home Assistant image binding had drifted back to the target, allowing a false terminal `U13B_ROLLED_BACK`. The source repair now rechecks the persistent binding inside the shared running-predecessor evidence path and adds a regression for healthy predecessor runtime plus wrong binding.
+
+The first repair CI round reached 13/16 SUCCESS, with two failures caused by the existing current-state index omitting the Core Stack current-authority link (`index_authority_link_missing`) and one workflow still queued. This is a repository-document consistency failure, not a U13B runtime-test failure. The index link is repaired in the following docs-only successor commit; Stage C remains stopped until the successor exact-head CI is green and the final review is repeated.
 ## Latest authority — 2026-11-17 U13B Stage A/B independent-review source repair CI CLOSED_PASS / final independent review handoff
 
 ```text

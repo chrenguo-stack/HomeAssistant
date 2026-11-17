@@ -1,5 +1,6 @@
 ## 2026-11-17 — U13B Stage A/B independent-review source repair CI CLOSED_PASS / final review required
 
+- Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
 - PR #807 remains OPEN/DRAFT/unmerged; default main is `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`, PR base is `ab277001dc9b31dcccb4d36b1507cec5f26d5a1d`.
 - Exact source-repair head is `6475c06e831cd597d6680502b41ea6fde6642837`; all 16 workflows are SUCCESS.
 - Critical CI evidence: HA target-binding run `44011716167` SUCCESS; Manager A-to-B run `44011716095` SUCCESS.
