@@ -86,3 +86,17 @@ After source CI and independent review:
 ```text
 NEXT_ONE_GATE=U13B_STAGE_D_SOURCE_CLOSURE_AND_READONLY_PREEXECUTION_DESIGN
 ```
+
+
+## 8. Independent review repair — component authority binding
+
+The coordinator must not permit a D3 writer and normal rollback controller to
+refer to different durable transaction stores or different backend instances.
+Construction now fails closed unless both components share the exact same
+`transaction_store` object and backend object.
+
+```text
+SAME_TRANSACTION_STORE_REQUIRED=true
+SAME_BACKEND_REQUIRED=true
+MISMATCHED_COMPONENT_BINDING=STOP
+```

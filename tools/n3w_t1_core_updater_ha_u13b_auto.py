@@ -14,10 +14,14 @@ from n3w_t1_core_updater_v2_common import UpdaterV2Error
 
 
 class U13BReconciliationWriter(Protocol):
+    transaction_store: object
+    backend: object
     def reconcile(self) -> U13BHostOnlyReconciliationResult: ...
 
 
 class U13BRollbackController(Protocol):
+    transaction_store: object
+    backend: object
     def rollback(self, *, failure_code: str) -> U13BRollbackResult: ...
 
 
@@ -43,6 +47,17 @@ class U13BAutomaticRollbackCoordinator:
         reconciliation_writer: U13BReconciliationWriter,
         rollback_controller: U13BRollbackController,
     ) -> None:
+        if (
+            reconciliation_writer.transaction_store
+            is not rollback_controller.transaction_store
+        ):
+            raise UpdaterV2Error(
+                "u13b_automatic_transaction_store_binding_invalid"
+            )
+        if reconciliation_writer.backend is not rollback_controller.backend:
+            raise UpdaterV2Error(
+                "u13b_automatic_backend_binding_invalid"
+            )
         self.reconciliation_writer = reconciliation_writer
         self.rollback_controller = rollback_controller
 
