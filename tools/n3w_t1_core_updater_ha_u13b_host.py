@@ -656,12 +656,18 @@ class U13BProductionReadOnlyObserver:
         )
 
     def observe_ha_data_restored(self, *, transaction, media) -> bool:
-        # Exact archive-vs-current tree comparison must additionally reject
-        # unexpected extra paths and must not create SQLite sidecar files.
-        # Until that bounded verifier is implemented, refuse any PASS.
-        raise UpdaterV2Error(
-            "u13b_readonly_ha_data_exact_verifier_not_implemented"
+        from n3w_t1_core_updater_ha_backup import backup_record_from_document
+        if not self._quiesced():
+            return False
+        backup = backup_record_from_document(
+            transaction["ha_data_backup_identity"]
         )
+        verified = self.backup_provider.verify_restored_preupgrade_backup_readonly(
+            backup,
+            transaction_id_sha256=transaction["transaction_id_sha256"],
+            source_root=Path(media.mount_path) / "n3w-update" / "ha-data",
+        )
+        return verified.public() == backup.public()
 
     def observe_predecessor_runtime(self, *, transaction, media) -> bool:
         from n3w_t1_core_updater_ha_recovery import (

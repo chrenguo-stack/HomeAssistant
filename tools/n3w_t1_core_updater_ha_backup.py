@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import hashlib
 import hmac
 import json
@@ -923,6 +924,107 @@ class ProtectedHaDataBackupProvider:
                 continue
             seen.add(directory)
             _fsync_directory(directory)
+
+    def verify_restored_preupgrade_backup_readonly(
+        self,
+        record: HaDataBackupRecord,
+        *,
+        transaction_id_sha256: str,
+        source_root: Path,
+    ) -> HaDataBackupRecord:
+        """Check exact recovered HA tree without clearing/extracting/fsyncing.
+
+        GNU tar comparison alone does not detect unexpected extra live files,
+        so additionally compare the full archive member name set against the
+        current filesystem. Reject WAL sidecars before immutable SQLite check.
+        """
+        validated = self.verify_backup(
+            record,
+            transaction_id_sha256=transaction_id_sha256,
+            destination_root=source_root,
+        )
+        self._validate_restore_target_tree()
+        self._validate_source_tree()
+        archive_path = source_root / BACKUP_ARCHIVE_NAME
+        passphrase, _ = self._keys(transaction_id_sha256)
+        archive_names = self._decrypt_to_tar(
+            archive_path=archive_path,
+            passphrase=passphrase,
+            tar_args=[
+                "--list",
+                "--quoting-style=c",
+                "--gzip",
+                "--file=-",
+            ],
+            capture_stdout=True,
+        ).decode("utf-8", errors="strict")
+
+        def normalize(name: str) -> str | None:
+            if not isinstance(name, str) or not name.startswith("./"):
+                raise UpdaterV2Error("u13b_ha_restore_member_invalid")
+            parts = name[2:].rstrip("/").split("/")
+            if parts == [""]:
+                return None
+            if any(part in {"", ".", ".."} for part in parts):
+                raise UpdaterV2Error("u13b_ha_restore_member_invalid")
+            return "/".join(parts)
+
+        archive_members: set[str] = set()
+        for line in archive_names.splitlines():
+            try:
+                decoded = ast.literal_eval(line)
+                member = normalize(decoded)
+            except (SyntaxError, ValueError, TypeError) as error:
+                raise UpdaterV2Error(
+                    "u13b_ha_restore_member_invalid"
+                ) from error
+            if member is not None:
+                if member in archive_members:
+                    raise UpdaterV2Error("u13b_ha_restore_member_duplicate")
+                archive_members.add(member)
+
+        actual_members: set[str] = set()
+        for directory, names, files in os.walk(
+            self.ha_data_root, followlinks=False
+        ):
+            for name in names + files:
+                member = (Path(directory) / name).relative_to(
+                    self.ha_data_root
+                ).as_posix()
+                actual_members.add(member)
+        if archive_members != actual_members:
+            raise UpdaterV2Error("u13b_ha_restore_tree_members_drift")
+        self._compare_with_quiesced_source(
+            archive_path=archive_path,
+            passphrase=passphrase,
+        )
+        database = self.ha_data_root / "home-assistant_v2.db"
+        if any(
+            (self.ha_data_root / ("home-assistant_v2.db" + suffix)).exists()
+            for suffix in ("-wal", "-shm", "-journal")
+        ):
+            raise UpdaterV2Error("u13b_ha_restore_sqlite_sidecar_present")
+        if database.exists():
+            if database.is_symlink() or not database.is_file():
+                raise UpdaterV2Error("u13b_ha_restore_sqlite_invalid")
+            try:
+                # SQLite immutable URI prevents lock or -shm creation.
+                connection = sqlite3.connect(
+                    f"file:{database}?mode=ro&immutable=1",
+                    uri=True,
+                    timeout=10.0,
+                )
+                try:
+                    checks = tuple(connection.execute("PRAGMA quick_check"))
+                finally:
+                    connection.close()
+            except sqlite3.Error as error:
+                raise UpdaterV2Error(
+                    "u13b_ha_restore_sqlite_check_failed"
+                ) from error
+            if checks != (("ok",),):
+                raise UpdaterV2Error("u13b_ha_restore_sqlite_check_failed")
+        return validated
 
     def restore_preupgrade_backup(
         self,

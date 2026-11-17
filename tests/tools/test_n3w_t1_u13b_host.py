@@ -437,16 +437,40 @@ def test_readonly_production_image_observer_requires_exact_id_without_load():
     ) is False
 
 
-def test_readonly_production_data_observer_fails_closed():
+def test_readonly_production_data_observer_fails_closed_without_quiescence():
+    host = Host()
+    host.owner = "active"
     adapter = U13BProductionReadOnlyObserver(
-        runtime=runtime(Host()), backend=object(), backup_provider=object()
+        runtime=runtime(host), backend=object(), backup_provider=object()
     )
-    with pytest.raises(
-        UpdaterV2Error,
-        match="u13b_readonly_ha_data_exact_verifier_not_implemented",
-    ):
+    assert adapter.observe_ha_data_restored(
+        transaction=transaction(), media=object()
+    ) is False
+
+
+def test_readonly_production_data_observer_validates_exact_backup_without_restore(
+    tmp_path,
+):
+    host = Host()
+    backup = image("predecessor", CURRENT)
+    record = type("Record", (), {"public": lambda self: {"key": "value"}})()
+    provider = type("Provider", (), {
+        "verify_restored_preupgrade_backup_readonly":
+            lambda self, *args, **kwargs: record,
+    })()
+    adapter = U13BProductionReadOnlyObserver(
+        runtime=runtime(host), backend=object(), backup_provider=provider,
+    )
+    tx = transaction()
+    tx.update({
+        "ha_data_backup_identity": {"key": "value"},
+        "transaction_id_sha256": "a" * 64,
+    })
+    # Malformed identity fails closed before the read-only provider is invoked.
+    with pytest.raises(UpdaterV2Error):
         adapter.observe_ha_data_restored(
-            transaction=transaction(), media=object()
+            transaction=tx,
+            media=type("Media", (), {"mount_path": str(tmp_path)})(),
         )
 
 

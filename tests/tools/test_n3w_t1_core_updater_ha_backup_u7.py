@@ -516,6 +516,24 @@ def test_protected_backup_restore_is_verified_and_repeatable(
         encoding="utf-8"
     ) == "preupgrade"
     assert not (source / ".storage" / "target-only").exists()
+    assert provider.verify_restored_preupgrade_backup_readonly(
+        record,
+        transaction_id_sha256=transaction_id,
+        source_root=destination,
+    ) == record
+
+    (source / ".storage" / "extraneous-file").write_text(
+        "must-fail", encoding="utf-8"
+    )
+    with pytest.raises(
+        UpdaterV2Error, match="u13b_ha_restore_tree_members_drift"
+    ):
+        provider.verify_restored_preupgrade_backup_readonly(
+            record,
+            transaction_id_sha256=transaction_id,
+            source_root=destination,
+        )
+    (source / ".storage" / "extraneous-file").unlink()
 
     (source / ".storage" / "target-only-2").write_text(
         "remove-me-again",

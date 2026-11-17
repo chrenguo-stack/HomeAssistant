@@ -552,3 +552,23 @@ T1_MUTATION=false
 BOARD_ACCESS=false
 MERGE=false
 ```
+
+
+## 18. D2 HA data readonly exact-tree observer implementation
+
+The dedicated post-restore verifier now reuses authenticated USB backup verification but never executes data clearing, extraction or fsync. It compares archive member paths to every current HA data path (including extra files), checks archived contents with GNU tar comparison, and performs SQLite `quick_check` in immutable read-only mode. WAL, SHM and journal sidecars fail closed rather than risking implicit SQLite writes or inconsistent snapshots. The production U13B3 observer first requires the service owner quiesced and Broker preserved.
+
+The D2 observer dispatcher still only reports eligibility for a **later separately reviewed** host-only reconciliation. No host transaction writer, USB rewrite, rollback operation replay or real-T1 executor has been enabled.
+
+```text
+D2_U13B3_EXACT_HA_DATA_VERIFIER_SOURCE=true
+D2_READONLY_OBSERVERS_SOURCE=true
+D2_SOURCE_CI_PENDING=true
+STAGE_D_CLOSED_PASS=false
+HOST_ONLY_RECONCILIATION_WRITER=false
+U13B_LIVE_EXECUTION_AUTHORIZED=false
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+```
