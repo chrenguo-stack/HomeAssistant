@@ -205,7 +205,7 @@ def test_usb_snapshot_drift_after_observation_fails_closed(tmp_path):
 
 
 def test_host_ahead_or_divergent_state_never_becomes_pass(tmp_path):
-    host, predecessor, _method = successors()[2]
+    predecessor, host, _method = successors()[2]
     snapshot = usb_snapshot(
         host,
         phase=predecessor["phase"],
