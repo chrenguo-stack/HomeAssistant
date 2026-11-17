@@ -171,8 +171,39 @@ jobs:
           assert identity.to_dict() == frozen.to_dict()
           PY
           docker load -i "$RUNNER_TEMP/base/homeassistant-arm64.tar.gz"
-          test "$(docker image inspect --format '{{.Id}}' "$BASE_IMAGE")" = "$BASE_RUNTIME_IMAGE_ID"
           docker image inspect "$BASE_IMAGE" > "$RUNNER_TEMP/base-inspect.json"
+          python - "$RUNNER_TEMP/base/portable-image-identity.json" "$RUNNER_TEMP/base-inspect.json" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+          import n3w_t1_portable_image_identity as portable
+
+          identity = portable.identity_from_dict(
+              json.loads(Path(sys.argv[1]).read_text())
+          )
+          base = json.loads(Path(sys.argv[2]).read_text())[0]
+          verdict = portable.verify_runtime_document(identity, base)
+          assert verdict.status == "VERIFIED"
+          runtime_id = base.get("Id")
+          assert (
+              isinstance(runtime_id, str)
+              and runtime_id.startswith("sha256:")
+              and len(runtime_id) == 71
+          )
+          live_predecessor_runtime_id = os.environ["BASE_RUNTIME_IMAGE_ID"]
+          assert (
+              live_predecessor_runtime_id.startswith("sha256:")
+              and len(live_predecessor_runtime_id) == 71
+          )
+          print("U13B_P3_BASE_CI_RUNTIME_PORTABLE_IDENTITY=PASS")
+          print("U13B_P3_BASE_CI_RUNTIME_IMAGE_ID=" + runtime_id)
+          print("U13B_P3_BASE_PORTABLE_CONFIG_DIGEST=" + identity.config_digest)
+          print(
+              "U13B_P3_LIVE_PREDECESSOR_RUNTIME_IMAGE_ID="
+              + live_predecessor_runtime_id
+          )
+          PY
 
       - name: Derive metadata-only same-version acceptance image
         env:
@@ -286,7 +317,16 @@ jobs:
           target = json.loads(Path(sys.argv[2]).read_text())[0]
           identity = portable.identity_from_dict(json.loads(Path(sys.argv[3]).read_text()))
 
-          assert base["Id"] == os.environ["BASE_RUNTIME_IMAGE_ID"]
+          live_predecessor_runtime_id = os.environ["BASE_RUNTIME_IMAGE_ID"]
+          assert (
+              isinstance(base["Id"], str)
+              and base["Id"].startswith("sha256:")
+              and len(base["Id"]) == 71
+          )
+          assert (
+              live_predecessor_runtime_id.startswith("sha256:")
+              and len(live_predecessor_runtime_id) == 71
+          )
           assert target["Id"] != base["Id"]
           assert base["Os"] == target["Os"] == "linux"
           assert base["Architecture"] == target["Architecture"] == "arm64"
@@ -315,7 +355,7 @@ jobs:
       - name: Freeze same-version acceptance binding
         run: |
           set -euo pipefail
-          python - "$RUNNER_TEMP/base-inspect.json" "$RUNNER_TEMP/target-inspect.json" "$RUNNER_TEMP/package/portable-image-identity.json" "$RUNNER_TEMP/package/same-version-binding.json" <<'PY'
+          python - "$RUNNER_TEMP/base-inspect.json" "$RUNNER_TEMP/target-inspect.json" "$RUNNER_TEMP/base/portable-image-identity.json" "$RUNNER_TEMP/package/portable-image-identity.json" "$RUNNER_TEMP/package/same-version-binding.json" <<'PY'
           import json
           import os
           import sys
@@ -323,7 +363,8 @@ jobs:
 
           base = json.loads(Path(sys.argv[1]).read_text())[0]
           target = json.loads(Path(sys.argv[2]).read_text())[0]
-          identity = json.loads(Path(sys.argv[3]).read_text())
+          base_identity = json.loads(Path(sys.argv[3]).read_text())
+          identity = json.loads(Path(sys.argv[4]).read_text())
           binding = {
               "schema": "gh.n3w-t1-u13b-p3-same-version-artifact/1",
               "control_plane_head": os.environ["CONTROL_HEAD"],
@@ -335,8 +376,11 @@ jobs:
               "base_artifact_digest_sha256": os.environ["BASE_ARTIFACT_DIGEST_SHA256"],
               "base_archive_sha256": os.environ["BASE_ARCHIVE_SHA256"],
               "base_image_ref": os.environ["BASE_IMAGE"],
-              "base_runtime_image_id": base["Id"],
+              "base_ci_runtime_image_id": base["Id"],
+              "base_portable_config_digest": base_identity["config_digest"],
+              "live_predecessor_runtime_image_id": os.environ["BASE_RUNTIME_IMAGE_ID"],
               "target_image_ref": os.environ["TARGET_IMAGE"],
+              "target_ci_runtime_image_id": target["Id"],
               "target_runtime_image_id": target["Id"],
               "target_archive_sha256": identity["archive_sha256"],
               "target_archive_size_bytes": identity["archive_size_bytes"],
@@ -348,13 +392,15 @@ jobs:
               "rootfs_diff_ids_identical": True,
               "runtime_config_except_labels_identical": True,
               "target_runtime_image_id_distinct": True,
+              "cross_store_runtime_id_rebound_required": True,
+              "live_target_runtime_id_must_differ_from_predecessor": True,
               "registry_pull_used": False,
               "t1_access": False,
               "t1_mutation": False,
               "new_clean_ota_authorized": False,
               "u13b_live_rollback_authorized": False,
           }
-          Path(sys.argv[4]).write_text(
+          Path(sys.argv[5]).write_text(
               json.dumps(binding, sort_keys=True, indent=2) + "\n",
               encoding="utf-8",
           )
@@ -412,7 +458,10 @@ jobs:
           assert archive.stat().st_size == identity.archive_size_bytes
           assert binding["target_archive_sha256"] == identity.archive_sha256
           assert binding["target_archive_size_bytes"] == identity.archive_size_bytes
-          assert binding["target_runtime_image_id"] != binding["base_runtime_image_id"]
+          assert binding["target_ci_runtime_image_id"] != binding["base_ci_runtime_image_id"]
+          assert binding["target_runtime_image_id"] == binding["target_ci_runtime_image_id"]
+          assert binding["cross_store_runtime_id_rebound_required"] is True
+          assert binding["live_target_runtime_id_must_differ_from_predecessor"] is True
           assert binding["rootfs_diff_ids_identical"] is True
           assert binding["runtime_config_except_labels_identical"] is True
           assert binding["registry_pull_used"] is False

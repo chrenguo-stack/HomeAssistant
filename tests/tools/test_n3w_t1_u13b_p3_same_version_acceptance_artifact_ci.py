@@ -85,6 +85,11 @@ def test_artifact_workflow_only_changes_labels_and_proves_distinct_identity():
     assert '"runtime_config_except_labels_identical": True' in text
     assert '"target_runtime_image_id_distinct": True' in text
     assert '"registry_pull_used": False' in text
+    assert "U13B_P3_BASE_CI_RUNTIME_PORTABLE_IDENTITY=PASS" in text
+    assert 'assert base["Id"] == os.environ["BASE_RUNTIME_IMAGE_ID"]' not in text
+    assert '"cross_store_runtime_id_rebound_required": True' in text
+    assert '"live_target_runtime_id_must_differ_from_predecessor": True' in text
+    assert '"live_predecessor_runtime_image_id": os.environ["BASE_RUNTIME_IMAGE_ID"]' in text
 
 
 def test_artifact_workflow_has_no_live_authority():
