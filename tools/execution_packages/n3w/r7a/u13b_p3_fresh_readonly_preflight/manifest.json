@@ -25,7 +25,7 @@
     "p3_single_usb_reuse_authorized": true
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/executor.py": "70623e524da000c4200651f0ad905357f08a003f",
+    "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/executor.py": "46f4ef06558d3f8e78f892061ba2f33b60663b11",
     "tools/execution_packages/n3w/r7a/u13b_real_t1_readonly_binding_preflight/executor.py": "d4370a3962558f156db722dc9370154e0800fb23",
     "tools/execution_packages/n3w/r7a/u13b_real_t1_readonly_binding_preflight/manifest.json": "081b92c7e15e6b98147fdbc4014e5b686491e121",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",

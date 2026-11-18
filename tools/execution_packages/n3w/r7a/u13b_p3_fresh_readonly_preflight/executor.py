@@ -431,15 +431,8 @@ def run_readonly(
 ) -> dict[str, Any]:
     reuse = manifest.get("single_usb_reuse_after_reset") or {}
     reuse_authorized = reuse.get("authorized") is True
-    if reuse_authorized:
-        binding = {
-            "status": "POST_RESET_HOST_TERMINAL_REVALIDATION",
-            "fresh_binding": True,
-            "historical_transaction_sha256": manifest[
-                "expected_terminal_u13a"
-            ]["transaction_sha256"],
-        }
-    else:
+    expected_terminal = manifest["expected_terminal_u13a"]
+    if not reuse_authorized:
         p1 = load_module(P1_EXECUTOR, "n3w_u13b_p3_p1_binding")
         _, binding = p1.run_status_only(
             execution_id=execution_id + "-terminal-binding",
@@ -447,9 +440,14 @@ def run_readonly(
             t1_ssh_target=t1_ssh_target,
             known_hosts=known_hosts,
             expected_host_key_sha256=expected_host_key_sha256,
-            expected_terminal=manifest["expected_terminal_u13a"],
+            expected_terminal=expected_terminal,
             access_state=access_state,
         )
+        if (
+            binding.get("status") != "U13B_REAL_T1_READONLY_BINDING_PASS"
+            or binding.get("fresh_binding") is not True
+        ):
+            raise Stop("p3_fresh_readonly_composite_drift")
     probe = remote_probe(
         manifest=manifest,
         t1_ssh_target=t1_ssh_target,
@@ -458,8 +456,11 @@ def run_readonly(
         access_state=access_state,
     )
     if (
-        binding.get("status") != "U13B_REAL_T1_READONLY_BINDING_PASS"
-        or binding.get("fresh_binding") is not True
+        probe.get("historical_transaction_phase") != expected_terminal["transaction_phase"]
+        or probe.get("historical_transaction_status") != expected_terminal["transaction_status"]
+        or probe.get("historical_transaction_sha256") != expected_terminal["transaction_sha256"]
+        or probe.get("historical_transaction_id_sha256")
+        != expected_terminal["transaction_id_sha256"]
         or probe.get("prepare_new_admissible") is not True
         or probe.get("fresh_usb_candidate_count") != 1
         or (
@@ -488,7 +489,7 @@ def run_readonly(
         "single_usb_reuse_after_reset": probe.get(
             "single_usb_reuse_after_reset", False
         ),
-        "historical_transaction_sha256": binding[
+        "historical_transaction_sha256": probe[
             "historical_transaction_sha256"
         ],
         "historical_transaction_id_sha256": probe[

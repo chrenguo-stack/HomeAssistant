@@ -4,6 +4,8 @@ import importlib.util
 import json
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]
 PREFLIGHT_EXECUTOR = (
     ROOT / "tools" / "execution_packages" / "n3w" / "r7a"
@@ -96,6 +98,68 @@ def test_fresh_readonly_execute_mode_requires_true_manifest_authority():
     source_check = source.index("if not execute:")
     evidence = source.index("evidence = prepare_evidence_root", source_check)
     assert source_check < evidence
+
+
+@pytest.mark.parametrize(
+    "drift",
+    [
+        {},
+        {"historical_transaction_phase": "U11_TARGET_INSTALLED_STARTED"},
+        {"historical_transaction_status": "ACTIVE"},
+        {"historical_transaction_sha256": "0" * 64},
+        {"historical_transaction_id_sha256": "0" * 64},
+        {"single_usb_reuse_after_reset": False},
+    ],
+)
+def test_post_reset_readonly_binds_current_host_terminal(
+    drift, monkeypatch, tmp_path
+):
+    module = load(PREFLIGHT_EXECUTOR, "p3_post_reset_readonly")
+    value = manifest(PREFLIGHT_MANIFEST)
+    terminal = value["expected_terminal_u13a"]
+    probe = {
+        "prepare_new_admissible": True,
+        "fresh_usb_candidate_count": 1,
+        "fresh_usb_candidate": {"display_model": "test-usb"},
+        "single_usb_reuse_after_reset": True,
+        "historical_transaction_phase": terminal["transaction_phase"],
+        "historical_transaction_status": terminal["transaction_status"],
+        "historical_transaction_sha256": terminal["transaction_sha256"],
+        "historical_transaction_id_sha256": terminal["transaction_id_sha256"],
+        "historical_usb_filesystem_uuid": terminal["filesystem_uuid"],
+        "historical_usb_public_fingerprint": "1" * 64,
+        "current_homeassistant_image": terminal["target_image"],
+        "current_homeassistant_runtime_image_id": terminal["target_runtime_image_id"],
+    }
+    probe.update(drift)
+
+    def reject_historical_usb_read(*args):
+        pytest.fail("post-reset preflight must not read the old USB mirror")
+
+    monkeypatch.setattr(module, "load_module", reject_historical_usb_read)
+    monkeypatch.setattr(module, "remote_probe", lambda **kwargs: probe)
+    arguments = {
+        "manifest": value,
+        "execution_id": "test-post-reset-readonly",
+        "evidence_root": tmp_path,
+        "t1_ssh_target": "test",
+        "known_hosts": tmp_path / "known_hosts",
+        "expected_host_key_sha256": "2" * 64,
+        "access_state": {},
+    }
+    evidence = tmp_path / "p3_fresh_readonly_result.json"
+    if drift:
+        with pytest.raises(module.Stop, match="p3_fresh_readonly_composite_drift"):
+            module.run_readonly(**arguments)
+        assert not evidence.exists()
+        return
+
+    result = module.run_readonly(**arguments)
+    assert result["status"] == "P3_FRESH_REAL_T1_READONLY_PREFLIGHT_PASS"
+    assert result["fresh_terminal_binding"] is True
+    assert result["single_usb_reuse_after_reset"] is True
+    assert result["historical_transaction_sha256"] == terminal["transaction_sha256"]
+    assert manifest(evidence) == result
 
 
 def test_live_manifest_is_source_only_not_authorized():
