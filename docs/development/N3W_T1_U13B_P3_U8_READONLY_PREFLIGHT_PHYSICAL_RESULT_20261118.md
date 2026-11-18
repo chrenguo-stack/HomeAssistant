@@ -69,7 +69,7 @@ READ_ONLY=true
 Operator-local raw evidence:
 
 ```text
-EVIDENCE_ROOT=/Users/chenrenguo/n3w-p3-u8-evidence-20261118-211826
+EVIDENCE_ROOT=<operator-private-evidence-root>
 RECEIPT_FILE=p3-u8-result.json
 RECEIPT_SHA256=ac15a39fb9266fdaf89805c03a7be92f70e096c822100de1504088bf1020ce84
 ```
