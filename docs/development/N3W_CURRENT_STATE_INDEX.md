@@ -1,3 +1,10 @@
+## 2026-11-18 — U13B P3 protected HA backup and U7 checkpoint independently verified
+
+- The U7 one-shot at grant `cb7f0fb5757b2d744dd272895e4923242ead2191` returned `STOP_POSTCLAIM` at the final wrapper quiescence check. The grant was consumed and cannot replay.
+- Read-only reconciliation at `f0fbe73c6944388cd8420308eb08733872274548` returned `P3_U7_POSTCLAIM_EVIDENCE_VERIFIED / EXIT_CODE=0`; receipt SHA-256 `27739cf29a883c4ee58d8cc6094099f4fd4e36a056dd94acfeb28d29bb203e73`.
+- Host and USB agree at `U7_HA_QUIESCED_DATA_BACKUP_PREPARING`; transaction SHA-256 `2f45f6eee5fa59d0dafe53cedc23c11d62de35e949fb645ea8fd74b3d8d861a2`. Protected backup verified and matches the quiesced HA source.
+- Home Assistant and Manager are stopped, and the original MQTT Broker container is still running. Stop before U8. [U7 physical checkpoint](./N3W_T1_U13B_P3_U7_READONLY_PREFLIGHT_20261118.md#u7-实机停点确认)
+
 ## 2026-11-18 — U13B P3 predecessor recovery verified at U6
 
 - Core Stack repository authority is `infra/n3w-t1/production/t1-core-stack-current.json` at product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`. Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, and Broker `local/n3w-mosquitto:2.1.2-3184566d`.

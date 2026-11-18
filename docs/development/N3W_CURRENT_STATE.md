@@ -1,3 +1,32 @@
+## Latest authority — 2026-11-18 U13B P3 HA-data backup verified at U7
+
+The U7 one-shot run stopped at its wrapper's final application-unit check after the product controller verified the backup. Independent read-only reconciliation verified the protected backup against the quiesced source and confirmed the U7 checkpoint. The original execution receipt is preserved as a stop.
+
+```text
+PR=807
+DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+P3_U7_CANDIDATE_HEAD=879f951e543a585a0c35aa0b1677557b741f62f9
+P3_U7_GRANT_HEAD=cb7f0fb5757b2d744dd272895e4923242ead2191
+P3_U7_AUTHORIZATION=CONSUMED_NO_REPLAY
+P3_U7_ORIGINAL_EXECUTION=STOP_POSTCLAIM
+P3_U7_ORIGINAL_SUCCESS_RECEIPT_PRESENT=false
+P3_U7_READONLY_HEAD=f0fbe73c6944388cd8420308eb08733872274548
+P3_U7_READONLY_RESULT=P3_U7_POSTCLAIM_EVIDENCE_VERIFIED
+P3_U7_READONLY_EXIT_CODE=0
+P3_U7_READONLY_RECEIPT_SHA256=27739cf29a883c4ee58d8cc6094099f4fd4e36a056dd94acfeb28d29bb203e73
+TRANSACTION_PHASE=U7_HA_QUIESCED_DATA_BACKUP_PREPARING
+TRANSACTION_SHA256=2f45f6eee5fa59d0dafe53cedc23c11d62de35e949fb645ea8fd74b3d8d861a2
+USB_METADATA_MATCHES=true
+BACKUP_ARCHIVE_SIZE_BYTES=2090112
+BACKUP_ARCHIVE_SHA256=b6f7ad3803c1ae954d2d946562b5ae1db8725786e4c457db8a1deff7b10623e2
+BACKUP_MATCHES_QUIESCED_SOURCE=true
+HA_AND_MANAGER_STOPPED=true
+BROKER_RUNNING_SAME_CONTAINER=true
+U8_PLUS=false
+```
+
+P3 stopped at U7 with application services quiesced. Any transition to U8 is a separate gate. [U7 physical checkpoint](./N3W_T1_U13B_P3_U7_READONLY_PREFLIGHT_20261118.md#u7-实机停点确认)
+
 ## Latest authority — 2026-11-18 U13B P3 predecessor recovery verified at U6
 
 The operator executed the separately authorized P3 predecessor export. Host and USB metadata agree at U6, the OTA IPC reported the U6 phase, and the verified, fsynced predecessor archive is available on the bound USB.

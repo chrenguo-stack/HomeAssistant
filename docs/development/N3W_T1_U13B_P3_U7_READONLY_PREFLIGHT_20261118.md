@@ -47,3 +47,21 @@
 P3 执行器原先只接受 `inactive`。冻结产品的停止合同及历史 KF-158/R32 也接受经证实完全停止的 `failed`。补验要求单元主进程已退出、重启次数为零、两项应用容器均已退出且身份不变、Broker 单元和容器保持原身份。使用同一笔 U7 失败回执、主机和 USB 的 U7 状态及旧镜像验证回执作为绑定，再核对目标和旧镜像的摘要，以冻结产品代码验证备份的哈希、认证值、解密清单及与当前静止数据的对应关系。 [KF-158 记录](./KNOWN_FAILURES_AND_REGRESSION_GUARDS.md)
 
 `ha_backup.py --mode status` 在这一笔失败回执匹配且独立补验通过时返回 `P3_U7_POSTCLAIM_EVIDENCE_VERIFIED`，并记录原执行成功回执不存在。该入口只读，原失败回执保持原样，实机补验结果待获取。
+
+## U7 实机停点确认
+
+操作者使用提交 `f0fbe73c6944388cd8420308eb08733872274548` 运行只读补验，返回 `P3_U7_POSTCLAIM_EVIDENCE_VERIFIED / EXIT_CODE=0`。回执已用终端 JSON 复算，完整回执留在 Mac。 [补验源码 CI](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44299182636)
+
+| 证据 | 值 |
+| --- | --- |
+| 补验回执 SHA-256 | `27739cf29a883c4ee58d8cc6094099f4fd4e36a056dd94acfeb28d29bb203e73` |
+| 主机和 USB 事务阶段 | `U7_HA_QUIESCED_DATA_BACKUP_PREPARING` |
+| 事务 SHA-256 | `2f45f6eee5fa59d0dafe53cedc23c11d62de35e949fb645ea8fd74b3d8d861a2` |
+| 加密备份字节数 | `2090112` |
+| 加密备份 SHA-256 | `b6f7ad3803c1ae954d2d946562b5ae1db8725786e4c457db8a1deff7b10623e2` |
+| 备份清单 SHA-256 | `1cf39dad34b36b8901c24151cc7d4b3ec6fa09b25264f6812c3a9e51569409ac` |
+| 备份元数据 SHA-256 | `b0eb4545d5058f1fbb056f9032eef81ff755d24fe36a914f804392a20fcaf033` |
+
+加密备份已落盘，验证了完整性、认证、解密清单及与停止后的源数据一致性。主机和 USB 的事务元数据一致，目标和旧镜像归档复核通过。应用服务单元为 `failed/exit-code`，退出码 130，`MainPID=0`、`NRestarts=0`。Home Assistant 与温室管理容器均已退出，MQTT Broker 仍为原容器并保持运行。现场证实原执行器把这个完全停止的状态误判为失败。此次只读补验没有发起服务停止或恢复，保留原失败回执，原成功回执为空。
+
+U7 实机停点由独立补验证据确认通过。U7 授权已消费，禁止重放。到 U7 停止，未进入 U8。

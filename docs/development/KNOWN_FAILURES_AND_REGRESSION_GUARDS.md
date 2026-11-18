@@ -341,6 +341,12 @@ Regression authority retained:
 - R32 authorization is consumed/no-replay and must never be retried;
 - U7 physical closure does not authorize U8.
 
+### 2026-11-18 KF-158 P3 wrapper postcheck recurrence — U7 VERIFIED BY READ-ONLY RECONCILIATION
+
+- **Symptom.** The P3 one-shot reached the final wrapper postcheck and returned `STOP_POSTCLAIM / u7_application_owner_not_inactive`. Subsequent read-only evidence showed the application owner `failed/exit-code`, exit status 130, `MainPID=0`, `NRestarts=0`, both application containers exited, and the original MQTT Broker running.
+- **Cause.** The P3 wrapper required `inactive` even though the frozen product controller accepts `failed` when complete quiescence is proven.
+- **Guard.** Accept the expected stopped systemd states only with no owner process or restarts, both original application containers exited, and exact Broker continuity. Tests cover a live owner PID and a running application. The independent read-only verifier binds the consumed grant and original failure digest, verifies host/USB agreement and backup authenticity, and compares with the quiesced HA source. The original stop is retained and U8 was not entered. [P3 U7 physical checkpoint](./N3W_T1_U13B_P3_U7_READONLY_PREFLIGHT_20261118.md#u7-实机停点确认)
+
 ### 2026-11-15 KF-157 R30 read-only preflight timeout/orphan + repeated portable revalidation — ATTEMPT03_CLOSED_PASS / RESOLVED
 
 ```text
