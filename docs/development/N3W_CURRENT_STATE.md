@@ -1,3 +1,57 @@
+## Latest authority — 2026-11-19 U13B P3 U10 read-only Attempt 05 PASS / KF-167 physically closed / destructive U10 still blocked
+
+Attempt 05 used exact candidate 4bca19ff857239c4e86e8417cf61e076c686f834 and passed the real-T1 U10 read-only preflight. Durable U9, the path-specific historical U9 claim compatibility reader, exact transaction, bound USB mirror, predecessor recovery package, protected HA data backup, target archive, stopped application-owner state and Broker continuity all revalidated. The probe projected U10 in memory only; it did not delete predecessor runtime/image, load the target, mutate services, transition U10, or enter U11+.
+
+PR=807
+DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+CURRENT_LIVE_STAGE=U9_LIVE_AUTHORIZATION_CLAIMED
+U9_TRANSACTION_SHA256=2b3812af093c1f73a95744413e238f1ca3763407241f889c0646b9495e35a84b
+U9_AUTHORIZATION=CONSUMED_NO_REPLAY
+
+ATTEMPT05_EXACT_CANDIDATE=4bca19ff857239c4e86e8417cf61e076c686f834
+ATTEMPT05_RESULT=P3_U10_READONLY_PREFLIGHT_PASS
+ATTEMPT05_STAGE=u9_verified_for_u10
+ATTEMPT05_U9_SUBSTAGE=durable_u9_verified
+ATTEMPT05_EXIT_CODE=0
+ATTEMPT05_RECEIPT_SHA256=e4a08d555656d20d3ef5bd3bc9a36929ca4b4ee9daa3ff138d7d9232bb9e5126
+ATTEMPT05_READ_ONLY=true
+ATTEMPT05_DESTRUCTIVE_CUTOVER=false
+ATTEMPT05_DESTRUCTIVE_CUTOVER_ELIGIBLE=true
+ATTEMPT05_PROJECTED_PHASE=U10_INTERNAL_PREDECESSOR_CAPACITY_RELEASED
+ATTEMPT05_U10_TRANSITION=false
+ATTEMPT05_U11_PLUS=false
+ATTEMPT05_PREDECESSOR_RUNTIME_DELETE=false
+ATTEMPT05_PREDECESSOR_IMAGE_DELETE=false
+ATTEMPT05_TARGET_IMAGE_LOAD=false
+ATTEMPT05_SERVICE_MUTATION=false
+
+ATTEMPT05_TARGET_ARCHIVE_SHA256=be30c4778bf537258d9e3825524c79532f20e8eb7a82136f560110d8f44b418d
+ATTEMPT05_PREDECESSOR_ARCHIVE_SHA256=31108a725e6b6530c68834218d9e41579055d7fe2718b3f42902b71237dc8e5f
+ATTEMPT05_BACKUP_ARCHIVE_SHA256=b6f7ad3803c1ae954d2d946562b5ae1db8725786e4c457db8a1deff7b10623e2
+ATTEMPT05_BACKUP_VERIFIED=true
+ATTEMPT05_CAPACITY_PASS=true
+ATTEMPT05_USB_FREE_BYTES=28132188160
+ATTEMPT05_REQUIRED_FREE_AFTER_RECOVERY_ASSETS_BYTES=1610612736
+ATTEMPT05_USB_METADATA_MATCHES=true
+ATTEMPT05_BROKER_CONTINUITY_VERIFIED=true
+ATTEMPT05_APPLICATION_SERVICES_STOPPED=true
+
+KF167_STATUS=CLOSED_PASS_PHYSICALLY_VALIDATED
+U10_DESTRUCTIVE_AUTHORIZATION=false
+U11_PLUS_AUTHORIZATION=false
+NEXT_ONE_GATE=N3W_T1_U9_PLUS_BOUNDED_RECOVERY_PRE_U10_GATE
+
+DESTRUCTIVE_CUTOVER_ELIGIBLE=true is technical eligibility only. The current engineering sequence has deliberately paused between phases and therefore cannot establish the customer downtime budget. Before destructive U10, the product must close the separate U9+ bounded-recovery gate.
+
 ## Latest authority — 2026-11-18 U13B P3 U10 read-only Attempt 05 authorized / exact compatibility-repair candidate frozen
 
 The operator explicitly authorized one new real-T1 read-only Attempt 05 after exact repair candidate `4bca19ff857239c4e86e8417cf61e076c686f834` reached 22/22 workflow SUCCESS. This candidate contains the path-specific U10 fix that rereads the historical U9 `claim.json` through `u9.read_ledger_object()` instead of the strict generic reader. Global private-file policy remains unchanged.

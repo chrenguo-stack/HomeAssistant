@@ -1,3 +1,14 @@
+## 2026-11-19 — U13B P3 U10 Attempt 05 read-only PASS / KF-167 physically closed
+
+- Core Stack authority remains infra/n3w-t1/production/t1-core-stack-current.json at product source 5b32e1ae82104a42f9e4e6907fe44d9172e87615.
+- Attempt 05 exact candidate 4bca19ff857239c4e86e8417cf61e076c686f834 returned P3_U10_READONLY_PREFLIGHT_PASS / EXIT_CODE=0; receipt SHA-256 e4a08d555656d20d3ef5bd3bc9a36929ca4b4ee9daa3ff138d7d9232bb9e5126.
+- Durable U9 and u9_substage=durable_u9_verified passed. Target archive, predecessor recovery archive, protected HA data backup, USB metadata, capacity and Broker continuity all revalidated on the real T1.
+- The preflight remained read-only: u10_transition=false, u11_plus=false, no predecessor runtime/image delete, target load or service mutation. destructive_cutover_eligible=true is only an in-memory eligibility result.
+- KF-167 is now physically closed. U9 remains consumed/non-replayable.
+- Destructive U10 remains blocked by a separate product requirement: prove U9+ bounded recovery and customer-visible recovery timing. This long engineering sequence cannot be used as a customer downtime measurement.
+- Attempt 05 physical closure: N3W_T1_U13B_P3_U10_READONLY_ATTEMPT05_PHYSICAL_CLOSURE_20261119.md
+- Pre-U10 bounded recovery gate: N3W_T1_U9_PLUS_BOUNDED_RECOVERY_PRE_U10_GATE_20261119.md
+
 ## 2026-11-18 — U13B P3 U10 read-only Attempt 05 authorized / exact compatibility-repair candidate
 
 - Core Stack repository authority remains `infra/n3w-t1/production/t1-core-stack-current.json` at product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`. Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, and Broker `local/n3w-mosquitto:2.1.2-3184566d`.

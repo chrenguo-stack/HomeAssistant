@@ -1,4 +1,4 @@
-### 2026-11-18 KF-167 U13B P3 U10 read-only durable-U9 status compatibility — OPEN / ATTEMPT04_ROOT_CAUSE_PROVEN
+### 2026-11-19 KF-167 U13B P3 U10 read-only durable-U9 status compatibility — CLOSED_PASS / PHYSICALLY_VALIDATED
 
 ```text
 ATTEMPT02_CANDIDATE=c288303a638947fedb7ee504874f7a14a147bf87
@@ -31,6 +31,11 @@ Required guards:
 - Attempt 04 proved `u9_substage=durable_u9_verified` and then stopped at U10 `verify_u9_authority_ledgers`. U9's own compatibility reader, base ledger, host transaction, U7 ledger, USB mirror, backup/service checks and success ledger all passed.
 - U10 then repeats `preflight.bind_ledger(plan)`, `u8.bind_u7_ledger(plan)`, and finally strictly rereads `u9/claim.json`. The first two had already passed in the same process; the final U9 claim reread is the only newly strict legacy record and matches the known Attempt 01 incompatibility.
 - Repair U10 to use `u9.read_ledger_object(u9.ledger_root() / "claim.json")` for this exact historical authority. Keep all unrelated strict readers unchanged.
+- Source repair 4bca19ff857239c4e86e8417cf61e076c686f834 completed 22/22 workflow SUCCESS.
+- Attempt 05 on that exact candidate returned P3_U10_READONLY_PREFLIGHT_PASS / EXIT_CODE=0, stage=u9_verified_for_u10, u9_substage=durable_u9_verified, receipt SHA-256 e4a08d555656d20d3ef5bd3bc9a36929ca4b4ee9daa3ff138d7d9232bb9e5126.
+- The physical PASS revalidated the exact U9 transaction, recovery-content manifest, bound USB metadata, target archive, predecessor recovery archive, protected HA data backup, capacity, stopped application owner and Broker continuity without any U10 transition or destructive mutation.
+- KF-167 is closed. This closure does not authorize destructive U10; customer bounded-recovery acceptance is a separate gate.
+
 
 
 
