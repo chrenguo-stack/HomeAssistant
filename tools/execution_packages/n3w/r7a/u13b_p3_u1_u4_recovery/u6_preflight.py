@@ -165,6 +165,11 @@ def inspect(plan, result):
                   usb_free_bytes=capacity.observed_usb_free_bytes,
                   usb_required_remaining_bytes=capacity.required_remaining_bytes,
                   ipc_phase=phase, predecessor_binding_verified=True, runtime_continuity_verified=True)
+    return {
+        "transaction": tx, "original_claim": claim, "owner_units": units,
+        "mount": mount, "usb_binding": media, "daemon": daemon, "runtime_admission": deployed,
+        "target_path": target, "target_stat": identity,
+    }
 
 
 def remote_main(encoded):

@@ -957,3 +957,127 @@ def test_p3_u6_readonly_checks_snapshot_before_reporting_pass(p3_u6, monkeypatch
         assert result["transaction_phase"] == module.install_intent.U5
         assert result["capacity_pass"] is True
         assert events == ["mirror", "ipc", "mirror"]
+
+
+@pytest.fixture
+def p3_u6_recovery(p3_u6, monkeypatch):
+    monkeypatch.setitem(sys.modules, "u6_preflight", p3_u6)
+    return load(RECOVERY_EXECUTOR.with_name("u6_recovery.py"), "p3_u6_recovery")
+
+
+def test_p3_u6_execute_requires_u6_only_grant_before_preflight(p3_u6_recovery, monkeypatch):
+    module = p3_u6_recovery
+    plan = {"candidate_commit": "a" * 40, "target": {"target_archive_sha256": "b" * 64}}
+    monkeypatch.setattr(module.time, "time", lambda: 1000)
+    monkeypatch.setattr(module.u6_preflight, "inspect", lambda *_: pytest.fail("authorization precedes probing"))
+    grant = {**module.binding(plan), "authorized": True, "expires_at_unix": 1001}
+    for invalid, reason in (
+        (None, "u6_grant_required"),
+        ({**grant, "maximum_phase": "U7"}, "u6_grant_binding_drift"),
+        ({**grant, "preflight_receipt_sha256": "0" * 64}, "u6_grant_binding_drift"),
+        ({**grant, "expires_at_unix": 1000}, "u6_grant_expired"),
+    ):
+        with pytest.raises(module.recovery.Stop, match=reason):
+            module.execute({**plan, "grant": invalid}, {})
+    module.validate_grant({**plan, "grant": grant})
+
+
+@pytest.mark.parametrize("fail_export", [False, True])
+def test_p3_u6_execution_stops_at_u6_and_status_reconciles(
+    p3_u6_recovery, monkeypatch, tmp_path, fail_export
+):
+    from dataclasses import replace
+    from test_n3w_t1_core_updater_ha_u6_predecessor import FakeBackend, predecessor_record, u5_transaction
+    from n3w_t1_core_updater_ha_prepare_host import SubprocessPrepareBackend
+    from n3w_t1_core_updater_ha_usb_state import HaUsbStateStore
+
+    module = p3_u6_recovery
+    state = tmp_path / "host"
+    mount = tmp_path / "usb"
+    mount.mkdir(mode=0o700)
+    store = HaUsbStateStore(state)
+    u5 = u5_transaction()
+    store.write(u5)
+    expected_u5 = module.install_intent.digest_bytes(store.path.read_bytes())
+    monkeypatch.setattr(module.u6_preflight, "U5_SHA", expected_u5)
+    monkeypatch.setattr(module.recovery, "STATE", state)
+    monkeypatch.setattr(module.recovery, "private_path", lambda *args, **kwargs: None)
+    monkeypatch.setattr(module, "os", SimpleNamespace(
+        geteuid=lambda: 0, umask=lambda _: None, path=module.os.path,
+    ))
+
+    mirror_backend = SubprocessPrepareBackend()
+    monkeypatch.setattr(mirror_backend, "_require_bound_media", lambda _: "/dev/test")
+    archive_bytes = b"predecessor archive"
+    record = replace(predecessor_record(), archive_sha256=module.install_intent.digest_bytes(archive_bytes),
+                     archive_size_bytes=len(archive_bytes))
+
+    class LocalBackend(FakeBackend):
+        def __init__(self):
+            super().__init__(fail_export=fail_export)
+            self.media = replace(self.media, mount_path=str(mount))
+
+        def sync_transaction_metadata(self, transaction, media):
+            super().sync_transaction_metadata(transaction, media)
+            mirror_backend.sync_transaction_metadata(transaction, media)
+
+        def prepare_predecessor_recovery(self, *, transaction, media):
+            assert store.read()["phase"] == module.U6
+            module.preflight.bind_mirror(mount, transaction)
+            assert manifest(module.ledger_root() / "claim.json")["consumed"] is True
+            super().prepare_predecessor_recovery(transaction=transaction, media=media)
+            archive = mount / "n3w-update" / "predecessor" / "homeassistant-predecessor.tar.gz"
+            archive.parent.mkdir()
+            archive.write_bytes(archive_bytes)
+            return record
+
+        def verify_prepared_predecessor(self, *, transaction, media):
+            return record
+
+    backend = LocalBackend()
+    mirror_backend.sync_transaction_metadata(u5, backend.media)
+    plan = {"candidate_commit": "a" * 40, "target": {"target_archive_sha256": u5["target_archive_sha256"]},
+            "predecessor_version": "2026.10.4"}
+    plan["grant"] = {**module.binding(plan), "authorized": True, "expires_at_unix": int(module.time.time()) + 120}
+
+    def inspect_preflight(_, result):
+        result["status"] = module.u6_preflight.PASS
+        return {"transaction": u5, "mount": mount, "original_claim": {"peers": {"manager": {"container_id": "m"}}}}
+
+    def read_private(path, *, size=None):
+        payload = path.read_bytes()
+        if size is None:
+            return payload
+        assert size == len(payload)
+        return module.install_intent.digest_bytes(payload)
+
+    monkeypatch.setattr(module, "bound_backend", lambda *_: backend)
+    monkeypatch.setattr(module, "check_binding", lambda *args: None)
+    monkeypatch.setattr(module.u6_preflight, "inspect", inspect_preflight)
+    monkeypatch.setattr(module.u6_preflight, "validate_capacity", lambda *args: None)
+    monkeypatch.setattr(module.preflight, "read_private", read_private)
+    monkeypatch.setattr(module.preflight, "bind_ledger", lambda _: None)
+    monkeypatch.setattr(module.preflight, "service_binding", lambda: (1, {}))
+    monkeypatch.setattr(module.preflight, "bind_media", lambda *args: (mount, {}))
+    monkeypatch.setattr(module.preflight, "ipc_status", lambda *args, expected_phase: expected_phase)
+    result = {}
+    if fail_export:
+        with pytest.raises(RuntimeError, match="synthetic_export_failed"):
+            module.execute(plan, result)
+        assert result["status"] == "STOP_POSTCLAIM"
+        assert (module.ledger_root() / "failure.json").is_file()
+    else:
+        module.execute(plan, result)
+        assert result["status"] == module.PASS
+        assert result["predecessor"] == record.public()
+        assert (module.ledger_root() / "success.json").is_file()
+    assert store.read()["phase"] == module.U6
+    assert store.read()["authorization_claimed"] is False
+    assert backend.synced_phases == [module.U6]
+
+    status = {}
+    module.inspect(plan, status)
+    assert status["status"] == ("P3_U6_NO_DURABLE_PASS" if fail_export else "P3_U6_DURABLE_PASS_VERIFIED")
+    with pytest.raises(module.recovery.Stop, match="u6_ledger_exists_never_replay"):
+        module.execute(plan, {})
+    assert backend.synced_phases == [module.U6]

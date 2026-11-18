@@ -22,3 +22,16 @@
 取得并归档本笔只读回执后，续跑入口绑定该证据，复用冻结的 `HaUsbU6PredecessorController` 和 P3 发布参数。历史 R26 实机通过能验证产品动作和超时取证方式。对应的历史执行包绑定了另一笔事务和授权。 [R26 实机归档](./N3W_T1_U6_R26_LIVE_PREDECESSOR_RECOVERY_CLOSURE_20261114.md)
 
 另行授权后，U6 的通过条件为主机和 USB 同步到 `U6_PREDECESSOR_RECOVERY_PREPARING`，并持久记录已校验的旧镜像恢复归档、运行连续性及阶段停点。SSH 等待超时以远端持久账本和只读状态为准。U7 的停服务和数据备份另行处理。
+
+## U6 实机只读回执
+
+- 预检提交 `44d75ca98da09c56b49ead86f979e5acf2026969`，结果 `P3_U6_READONLY_PREFLIGHT_PASS / EXIT_CODE=0`。
+- 回执 SHA-256 为 `e9472f04e73e01c46556ce08c8d8d8fa7c1bf905ccb9a52e520eaae70f73f7fb`，以报告的 JSON 复算一致。主机和 USB 的事务 SHA-256 仍为本文记录的 U5 摘要，目标归档和旧镜像的绑定通过。
+- USB 可用空间为 `28877352960` 字节，按当前预算至少需要 `4026531840` 字节。运行连续性通过，`u6_transition=false`。 [PR #807 回执归档](https://github.com/chrenguo-stack/HomeAssistant/pull/807#issuecomment-6972368079)
+
+## U6 执行候选
+
+- `u6_recovery.py` 复用本笔 P3 冻结的旧镜像恢复控制器及发布参数。进入写入前会重跑上述预检，在事务锁下复核 U5 摘要、挂载、服务、容量和未消费的 U6 授权。
+- 执行范围限于 U6 专用账本、主机和 USB 上的 U6 事务状态，以及 USB 上已核验的旧镜像归档。沿用当前已核验的挂载。到 `U6_PREDECESSOR_RECOVERY_PREPARING` 并核对归档后即停，且记录 OTA IPC、容器和服务连续性。
+- 新的一次性授权编号为 `N3W_T1_U13B_P3_U6_PREDECESSOR_RECOVERY_20261118_01`。实际执行要求候选之上的独立授权提交 `u6_recovery_grant.json`，绑定候选提交、U5 摘要、此次预检回执、目标归档、U6 上限和有效期。当前仅准备候选及测试，实机授权和执行待定。
+- 远端在导出旧镜像前持久记录授权和 U6 事务状态。SSH 超时或导出失败时，`--mode status` 可核对主机、USB 和持久账本。只有存在完整成功回执且旧镜像归档重新校验一致时，才报告实机通过。U6 授权领取后禁止重放。
