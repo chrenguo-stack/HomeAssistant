@@ -8,6 +8,7 @@ import base64
 import json
 import os
 import re
+import stat
 import sys
 import time
 from pathlib import Path
@@ -37,6 +38,40 @@ require = recovery.require
 
 def ledger_root():
     return recovery.STATE / "u13b-p3-u9-live-authorization-20261118-01"
+
+
+def read_ledger_object(path):
+    recovery.private_path(path.parent, directory=True)
+    descriptor = os.open(
+        path,
+        os.O_RDONLY | os.O_NOFOLLOW | os.O_NOATIME | os.O_NONBLOCK,
+    )
+    with os.fdopen(descriptor, "rb") as stream:
+        info = os.fstat(stream.fileno())
+        require(
+            stat.S_ISREG(info.st_mode)
+            and info.st_uid == 0
+            and not info.st_mode & 0o022,
+            "u9_ledger_file_metadata_invalid",
+        )
+        limit = 256 * 1024
+        data = stream.read(limit + 1)
+        require(
+            0 < len(data) <= limit and len(data) == info.st_size,
+            "u9_ledger_record_size_invalid",
+        )
+
+    def reject_duplicates(pairs):
+        value = dict(pairs)
+        require(
+            len(value) == len(pairs),
+            "u9_ledger_record_duplicate_field",
+        )
+        return value
+
+    value = json.loads(data, object_pairs_hook=reject_duplicates)
+    require(isinstance(value, dict), "u9_ledger_record_invalid")
+    return value
 
 
 def binding(plan):
@@ -407,7 +442,7 @@ def inspect(plan, result):
     ledger = ledger_root()
     require(os.path.lexists(ledger), "u9_ledger_absent")
     recovery.private_path(ledger, directory=True)
-    claim = preflight.read_object(ledger / "claim.json")
+    claim = read_ledger_object(ledger / "claim.json")
     candidate = claim.get("candidate_commit", "")
     fingerprint = claim.get("write_session_fingerprint", "")
     require(
@@ -478,7 +513,7 @@ def inspect(plan, result):
         )
         return
 
-    success = preflight.read_object(success_path)
+    success = read_ledger_object(success_path)
     require(
         not failure_present
         and tx["phase"] == U9
@@ -520,6 +555,7 @@ PASS_FOR_MODE = {
 
 
 def remote_main(mode, encoded):
+    os.umask(0o077)
     result = {
         "schema": SCHEMA,
         "status": "STOP",
