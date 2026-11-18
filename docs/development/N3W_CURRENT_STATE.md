@@ -1,3 +1,43 @@
+## Latest authority — 2026-11-18 U13B P3 U9 live authorization PASS
+
+The separately authorized one-shot P3 U9 write completed successfully on the real T1. Host and bound USB metadata both reached durable U9. The U9 authorization is consumed and cannot replay.
+
+```text
+PR=807
+DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+P3_U9_CANDIDATE_HEAD=816cf5f2f55c895b6112edbd563cf71df8b7be93
+P3_U9_GRANT_HEAD=31a7c5daed754db4a189c1d27b81795ef60abc0b
+P3_U9_AUTHORIZATION_ID=N3W_T1_CORE_UPDATER_HOMEASSISTANT_USB_P3_U9_20261118_01
+P3_U9_AUTHORIZATION=CONSUMED_NO_REPLAY
+P3_U9_RESULT=P3_U9_LIVE_AUTHORIZATION_CLAIM_PASS
+P3_U9_EXIT_CODE=0
+TRANSACTION_PHASE=U9_LIVE_AUTHORIZATION_CLAIMED
+TRANSACTION_SHA256=2b3812af093c1f73a95744413e238f1ca3763407241f889c0646b9495e35a84b
+RECOVERY_CONTENT_MANIFEST_SHA256=d534be84e38817b10eab8a2f8a47c6dae3fd0946da9eba1e1d7f12090e23e9d3
+USB_U9_VERIFIED=true
+APPLICATION_SERVICES_STOPPED=true
+BROKER_CONTINUITY_VERIFIED=true
+BACKUP_VERIFIED=true
+USB_METADATA_MATCHES=true
+U9_TRANSITION=true
+U10_PLUS=false
+DESTRUCTIVE_CUTOVER=false
+PREDECESSOR_IMAGE_DELETE=false
+TARGET_IMAGE_LOAD=false
+SERVICE_MUTATION=false
+LOCAL_RECEIPT_SHA256=f752ba02a58084baf9232b8af67e3fad4ec91048f11d516040bd3749e8755e53
+```
+
+U9 is now a closed durable checkpoint and must never be replayed. U10 remains a separate destructive capacity-release boundary and is not authorized. Next source gate is a P3-specific U10 read-only preflight/binding review. See [U9 live physical closure](./N3W_T1_U13B_P3_U9_LIVE_AUTHORIZATION_PHYSICAL_CLOSURE_20261118.md).
+
 ## Latest authority — 2026-11-18 U13B P3 U9 live authorization granted / execution pending
 
 The operator explicitly approved the one-shot U9 live-authorization write after the successful read-only preflight. An isolated single-file grant commit now exists directly on the frozen U9 candidate. No T1 U9 execute has run yet.
