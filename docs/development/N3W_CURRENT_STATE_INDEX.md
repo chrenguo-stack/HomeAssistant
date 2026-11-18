@@ -1,3 +1,13 @@
+## 2026-11-18 — U13B P3 U10 read-only Attempt 02 safe STOP / ModuleNotFoundError
+
+- Exact Attempt 02 candidate `c288303a638947fedb7ee504874f7a14a147bf87` returned `STOP / ModuleNotFoundError` at `bind_durable_u9`, `EXIT_CODE=2`.
+- Operator-local receipt SHA-256: `8f2275e25a1b5be8dfa6fa104ad2d2c529162a0c581585006c00c172d073b9ca`; raw evidence remains private.
+- The receipt is read-only: no destructive cutover, U10/U11 transition, predecessor deletion, target load or service mutation occurred.
+- U9 remains `U9_LIVE_AUTHORIZATION_CLAIMED` and consumed/non-replayable.
+- Root cause: isolated U10 bootstrap invokes `u9.inspect()`; its first product-module import occurs before `preflight.bind_ledger(plan)` loads the frozen exact-tools path. Attempt 01 stopped before reaching this import.
+- New regression item: KF-167. Source/test/CI repair may proceed; destructive U10 remains unauthorized.
+- [Attempt 02 safe-STOP archive](./N3W_T1_U13B_P3_U10_READONLY_PREFLIGHT_ATTEMPT02_MODULE_IMPORT_STOP_20261118.md)
+
 ## 2026-11-18 — U13B P3 U10 read-only Attempt 02 ready / handoff stop
 
 - Live T1 remains durably at `U9_LIVE_AUTHORIZATION_CLAIMED`; transaction SHA-256 `2b3812af093c1f73a95744413e238f1ca3763407241f889c0646b9495e35a84b`.

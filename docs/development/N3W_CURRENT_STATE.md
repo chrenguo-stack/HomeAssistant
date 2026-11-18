@@ -1,3 +1,37 @@
+## Latest authority — 2026-11-18 U13B P3 U10 read-only Attempt 02 safe STOP / repair required
+
+The operator executed the exact read-only Attempt 02 candidate `c288303a638947fedb7ee504874f7a14a147bf87`. It safe-stopped at `bind_durable_u9` with `ModuleNotFoundError`. No U10 mutation occurred. U9 remains the durable live checkpoint and must not be replayed.
+
+```text
+PR=807
+DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+ATTEMPT02_EXECUTION_CANDIDATE=c288303a638947fedb7ee504874f7a14a147bf87
+
+CURRENT_LIVE_STAGE=U9_LIVE_AUTHORIZATION_CLAIMED
+U9_TRANSACTION_SHA256=2b3812af093c1f73a95744413e238f1ca3763407241f889c0646b9495e35a84b
+U9_AUTHORIZATION=CONSUMED_NO_REPLAY
+
+U10_ATTEMPT02_RESULT=STOP
+U10_ATTEMPT02_REASON=ModuleNotFoundError
+U10_ATTEMPT02_STAGE=bind_durable_u9
+U10_ATTEMPT02_EXIT_CODE=2
+U10_ATTEMPT02_LOCAL_RECEIPT_SHA256=8f2275e25a1b5be8dfa6fa104ad2d2c529162a0c581585006c00c172d073b9ca
+U10_ATTEMPT02_READ_ONLY=true
+U10_ATTEMPT02_DESTRUCTIVE_CUTOVER=false
+U10_ATTEMPT02_U10_TRANSITION=false
+U10_ATTEMPT02_U11_PLUS=false
+U10_ATTEMPT02_PREDECESSOR_RUNTIME_DELETE=false
+U10_ATTEMPT02_PREDECESSOR_IMAGE_DELETE=false
+U10_ATTEMPT02_TARGET_IMAGE_LOAD=false
+U10_ATTEMPT02_SERVICE_MUTATION=false
+
+KF167_STATUS=OPEN_ROOT_CAUSE_PROVEN
+U10_DESTRUCTIVE_AUTHORIZATION=false
+NEXT_ONE_GATE=N3W_T1_U13B_P3_U10_READONLY_ATTEMPT02_MODULE_IMPORT_SOURCE_REPAIR
+```
+
+Root cause is source-ordering in the isolated remote bootstrap: `u9.inspect()` reaches its first product-module import before `preflight.bind_ledger(plan)` loads the exact frozen tools directory into `sys.path`. Attempt 01 had stopped earlier on legacy ledger metadata, so this latent defect was not reached. The repair is source/test/CI only. Do not replay U9, do not execute destructive U10, and do not enter U11+.
+
 ## Latest authority — 2026-11-18 U13B P3 U10 read-only Attempt 02 ready / handoff stop
 
 U10 read-only Attempt 01 safe-stopped at durable-U9 binding with `private_file_metadata_invalid`. Root cause was a legacy U9 ledger file mode created without a forced remote `umask 077`; no U10 mutation occurred. The source-only compatibility repair is CI-verified. The operator will execute/read back Attempt 02 in the next chat.
