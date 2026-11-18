@@ -1,5 +1,8 @@
 ## 2026-11-18 — U13B P3 U10 read-only Attempt 02 safe STOP / ModuleNotFoundError
 
+- Core Stack repository authority remains `infra/n3w-t1/production/t1-core-stack-current.json` at product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`. Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, and Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference `24382caae4a1f5d459297f86e8d18f10a848ca64` has Manager `local/greenhouse-manager:fresh-24382caae4a1`. Live upgrade accepted.
+
 - Exact Attempt 02 candidate `c288303a638947fedb7ee504874f7a14a147bf87` returned `STOP / ModuleNotFoundError` at `bind_durable_u9`, `EXIT_CODE=2`.
 - Operator-local receipt SHA-256: `8f2275e25a1b5be8dfa6fa104ad2d2c529162a0c581585006c00c172d073b9ca`; raw evidence remains private.
 - The receipt is read-only: no destructive cutover, U10/U11 transition, predecessor deletion, target load or service mutation occurred.
