@@ -213,7 +213,12 @@ def project_u10(tx):
 def inspect(plan, result):
     result["stage"] = "bind_durable_u9"
     u9_result = {}
-    u9.inspect(plan, u9_result)
+    try:
+        u9.inspect(plan, u9_result)
+    except Exception:
+        result["u9_substage"] = u9_result.get("stage", "u9_stage_unknown")
+        raise
+    result["u9_substage"] = u9_result.get("stage")
     require(
         u9_result.get("status") == u9.STATUS_PASS
         and u9_result.get("transaction_phase") == U9
@@ -227,6 +232,7 @@ def inspect(plan, result):
         validate_transaction_document,
     )
 
+    result["stage"] = "verify_u9_transaction"
     tx_path = recovery.STATE / preflight.TX_NAME
     raw = preflight.read_private(tx_path)
     require(
@@ -247,6 +253,7 @@ def inspect(plan, result):
         "u10_u9_transaction_invalid",
     )
 
+    result["stage"] = "verify_u9_authority_ledgers"
     original = preflight.bind_ledger(plan)
     broker = u8.bind_u7_ledger(plan)
     u9_claim = preflight.read_object(u9.ledger_root() / "claim.json")
@@ -256,10 +263,12 @@ def inspect(plan, result):
         and re.fullmatch(r"[0-9a-f]{64}", write_fingerprint),
         "u10_u9_write_fingerprint_invalid",
     )
+    result["stage"] = "verify_u9_runtime_and_usb"
     pid, daemon = preflight.service_binding()
     mount, media = preflight.bind_media(
         tx, pid, include_fingerprint=True
     )
+    result["stage"] = "verify_u9_usb_mirror"
     preflight.bind_mirror(
         mount,
         tx,

@@ -166,3 +166,26 @@ def test_u9_inspect_loads_exact_tools_before_first_product_import() -> None:
     assert bind < product_import
     assert block.count("original = preflight.bind_ledger(plan)") == 1
 
+
+
+def test_u9_inspect_marks_bounded_substages_before_strict_reads() -> None:
+    text = source()
+    start = text.index("def inspect(")
+    end = text.index("MODES =", start)
+    block = text[start:end]
+    expected = [
+        '"u9_ledger_claim"',
+        '"u9_base_ledger_and_exact_tools"',
+        '"u9_host_transaction"',
+        '"u9_u7_ledger"',
+        '"u9_service_binding"',
+        '"u9_usb_binding"',
+        '"u9_usb_mirror"',
+        '"u9_quiesced_owner"',
+        '"u9_predecessor_image"',
+        '"u9_installed_sources"',
+        '"u9_continuity_recheck"',
+        '"u9_success_ledger"',
+    ]
+    positions = [block.index(marker) for marker in expected]
+    assert positions == sorted(positions)

@@ -104,3 +104,28 @@ def test_usb_mirror_uses_u9_write_fingerprint_not_current_session() -> None:
     assert 'write_fingerprint = u9_claim.get("write_session_fingerprint")' in text
     assert "manifest_fingerprint=write_fingerprint" in text
     assert 'manifest_fingerprint=media["session_fingerprint"]' not in text
+
+
+def test_u10_preserves_delegated_u9_substage_on_failure() -> None:
+    text = source()
+    start = text.index("def inspect(")
+    end = text.index("def remote_main", start)
+    block = text[start:end]
+    assert "try:" in block
+    assert "u9.inspect(plan, u9_result)" in block
+    assert 'except Exception:' in block
+    assert 'result["u9_substage"] = u9_result.get("stage", "u9_stage_unknown")' in block
+
+
+def test_u10_marks_own_strict_read_stages_after_u9_pass() -> None:
+    text = source()
+    start = text.index("def inspect(")
+    end = text.index("def remote_main", start)
+    block = text[start:end]
+    for marker in (
+        '"verify_u9_transaction"',
+        '"verify_u9_authority_ledgers"',
+        '"verify_u9_runtime_and_usb"',
+        '"verify_u9_usb_mirror"',
+    ):
+        assert marker in block

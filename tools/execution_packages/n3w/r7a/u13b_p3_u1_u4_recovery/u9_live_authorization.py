@@ -439,6 +439,7 @@ def execute(plan, result):
 
 
 def inspect(plan, result):
+    result["stage"] = "u9_ledger_claim"
     ledger = ledger_root()
     require(os.path.lexists(ledger), "u9_ledger_absent")
     recovery.private_path(ledger, directory=True)
@@ -462,10 +463,12 @@ def inspect(plan, result):
         authorization_claimed=True,
         authorization_consumed=True,
     )
+    result["stage"] = "u9_base_ledger_and_exact_tools"
     original = preflight.bind_ledger(plan)
 
     from n3w_t1_core_updater_ha_usb_state import validate_transaction_document
 
+    result["stage"] = "u9_host_transaction"
     tx_path = recovery.STATE / preflight.TX_NAME
     raw = preflight.read_private(tx_path)
     tx = validate_transaction_document(json.loads(raw))
@@ -477,17 +480,24 @@ def inspect(plan, result):
     )
     require(tx["phase"] in {U8, U9}, "u9_status_outside_boundary")
 
+    result["stage"] = "u9_u7_ledger"
     broker = u8.bind_u7_ledger(plan)
+    result["stage"] = "u9_service_binding"
     pid, daemon = preflight.service_binding()
+    result["stage"] = "u9_usb_binding"
     mount, media = preflight.bind_media(
         tx, pid, include_fingerprint=True
     )
     expected_fingerprint = fingerprint if tx["phase"] == U9 else None
+    result["stage"] = "u9_usb_mirror"
     preflight.bind_mirror(
         mount, tx, manifest_fingerprint=expected_fingerprint
     )
+    result["stage"] = "u9_quiesced_owner"
     owner = ha_backup.verify_quiesced(original, broker)
+    result["stage"] = "u9_predecessor_image"
     u6_preflight.image_binding(tx)
+    result["stage"] = "u9_installed_sources"
     require(
         preflight.installed_binding(plan, tx)[
             "installed_matches_prior_reference"
@@ -495,12 +505,14 @@ def inspect(plan, result):
         is True,
         "u9_status_installed_sources_drift",
     )
+    result["stage"] = "u9_continuity_recheck"
     require(
         preflight.read_private(tx_path) == raw
         and preflight.service_binding() == (pid, daemon),
         "u9_status_binding_changed",
     )
 
+    result["stage"] = "u9_success_ledger"
     success_path = ledger / "success.json"
     failure_present = os.path.lexists(ledger / "failure.json")
     if not os.path.lexists(success_path):
