@@ -1,4 +1,4 @@
-## Latest authority — 2026-11-18 U13B P3 single-USB reuse reset physical PASS
+## Latest authority — 2026-11-18 U13B P3 single-USB reset and post-reset preflight physical PASS
 
 ```text
 PR=807
@@ -33,7 +33,33 @@ P3_LIVE_EXECUTION_AUTHORIZED=false
 
 The operator's real-T1 executor result confirms fresh historical U13A binding, exact product-owned unmount, and removal of the historical filesystem signature. The former filesystem UUID was verified absent. Evidence is operator-local executor stdout, 926 bytes, SHA-256 `264aa44f2e00ad6c6981c54f28764d573ada0b28a544a16e8be968fac33eda35`. The raw evidence remains private. [PR #807 execution record](https://github.com/chrenguo-stack/HomeAssistant/pull/807#issuecomment-6967094341).
 
-The reset gate is terminal. Stop after result archival. The next entry point is a fresh post-reset single-USB read-only preflight. It has not been run at this boundary.
+The reset gate is terminal. The subsequent real-T1 read-only preflight passed on the same eligible USB. The host U13A terminal transaction was freshly verified, and the probe confirmed that the historical filesystem UUID was absent and the device was unmounted.
+
+```text
+PREFLIGHT_GATE=N3W_T1_U13B_P3_FRESH_REAL_T1_READONLY_PREFLIGHT_20261117_01
+PREFLIGHT_EXECUTION_HEAD=141fb922ca9a2b6f473cc0b8c6e8f81a619a69ee
+PREFLIGHT_REPAIR_SOURCE_HEAD=e7c6722811ba87b8c219f2f1505e5086afa8b105
+PREFLIGHT_STATUS=P3_FRESH_REAL_T1_READONLY_PREFLIGHT_PASS
+PREFLIGHT_EXIT_CODE=0
+PREFLIGHT_T1_ACCESS=true
+PREFLIGHT_READ_ONLY=true
+FRESH_TERMINAL_BINDING=true
+FRESH_USB_CANDIDATE_COUNT=1
+SINGLE_USB_REUSE_AFTER_RESET=true
+PREPARE_NEW_ADMISSIBLE=true
+PREFLIGHT_TRANSACTION_MUTATION=false
+PREFLIGHT_USB_MUTATION=false
+PREFLIGHT_SERVICE_MUTATION=false
+PREFLIGHT_IMAGE_MUTATION=false
+PREFLIGHT_HA_DATA_MUTATION=false
+PREFLIGHT_AUTHORIZATION_CLAIM=false
+U13B_LIVE_EXECUTION_AUTHORIZED=false
+KF164_STATUS=CLOSED_PASS
+```
+
+Private preflight evidence is the operator-local executor stdout, 1481 bytes, SHA-256 `30e3acae69f7c34c7601845c88f51469e6582f3e6ec751b2f26c5d5826ab0d11`. The raw evidence remains on the Mac. [PR #807 preflight result](https://github.com/chrenguo-stack/HomeAssistant/pull/807#issuecomment-6967344595).
+
+Stop after read-only preflight archival. P3 live has not run. Any later live execution requires separate authorization and fresh binding.
 
 ## Latest authority — 2026-11-18 U13B P3 single-USB reuse source CLOSED_PASS / destructive reset boundary
 

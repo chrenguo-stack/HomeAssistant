@@ -1,4 +1,4 @@
-## 2026-11-18 — U13B P3 single-USB reuse reset physical PASS
+## 2026-11-18 — U13B P3 single-USB reset and post-reset preflight physical PASS
 
 - Core Stack repository authority remains `infra/n3w-t1/production/t1-core-stack-current.json` at product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`. Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, and Broker `local/n3w-mosquitto:2.1.2-3184566d`.
 - Historical clean reference `24382caae4a1f5d459297f86e8d18f10a848ca64` has Manager `local/greenhouse-manager:fresh-24382caae4a1`. Live upgrade accepted.
@@ -6,7 +6,9 @@
 - Real-T1 result is `EXIT_CODE=0 / P3_SINGLE_USB_REUSE_RESET_PASS`. Historical U13A binding passed, the exact historical USB mount was unmounted, and the historical filesystem UUID was verified absent after signature erase.
 - Transaction, services, images and HA data were unchanged per the executor result. No P3 live authorization was claimed and P3 live did not run.
 - SHA-256 of the operator-local 926-byte executor stdout is `264aa44f2e00ad6c6981c54f28764d573ada0b28a544a16e8be968fac33eda35`. [PR #807 execution record](https://github.com/chrenguo-stack/HomeAssistant/pull/807#issuecomment-6967094341).
-- Stop after reset archival. The next entry point is a fresh post-reset single-USB read-only preflight.
+- Post-reset preflight on `141fb922ca9a2b6f473cc0b8c6e8f81a619a69ee` returned `EXIT_CODE=0 / P3_FRESH_REAL_T1_READONLY_PREFLIGHT_PASS`. Fresh U13A host binding passed, exactly one reused USB was eligible, and fresh transaction preparation was admissible.
+- The read-only preflight made no USB, transaction, service, image or HA-data changes and claimed no authorization. KF-164 is CLOSED_PASS. The operator-local 1481-byte stdout SHA-256 is `30e3acae69f7c34c7601845c88f51469e6582f3e6ec751b2f26c5d5826ab0d11`. [PR #807 preflight result](https://github.com/chrenguo-stack/HomeAssistant/pull/807#issuecomment-6967344595).
+- Stop after read-only preflight archival. P3 live remains unauthorized and has not run.
 
 ## 2026-11-18 — U13B P3 single-USB reuse source CLOSED_PASS / USB reset boundary
 
