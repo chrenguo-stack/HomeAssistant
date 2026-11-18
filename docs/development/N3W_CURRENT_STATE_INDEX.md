@@ -1,3 +1,15 @@
+## 2026-11-18 — U13B P3 U9 live authorization granted / execute pending
+
+- Core Stack repository authority remains `infra/n3w-t1/production/t1-core-stack-current.json` at product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`. Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, and Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference `24382caae4a1f5d459297f86e8d18f10a848ca64` has Manager `local/greenhouse-manager:fresh-24382caae4a1`. Live upgrade accepted.
+- Operator explicitly approved one-shot P3 U9 live authorization after the successful read-only preflight.
+- Frozen U9 candidate: `816cf5f2f55c895b6112edbd563cf71df8b7be93`.
+- Isolated grant head: `31a7c5daed754db4a189c1d27b81795ef60abc0b`; direct parent is the frozen candidate; exactly one file was added.
+- Authorization ID: `N3W_T1_CORE_UPDATER_HOMEASSISTANT_USB_P3_U9_20261118_01`; grant expires at Unix `1795132799`.
+- Current live transaction remains U8 at SHA-256 `c9210a75ba4496b42fd080ca4ef261cf669a56452f99531066f921a5fcbe4908`; no U9 execute has run yet.
+- The grant permits one U8 -> U9 claim only. It does not authorize U10+, service restart, predecessor-image deletion, target-image load, merge or replay.
+- Next action: execute once from the exact grant head. If claim/consume occurs and execution later stops, execute must not be replayed; use status reconciliation only.
+
 ## 2026-11-18 — U13B P3 U9 read-only preflight PASS
 
 - Core Stack repository authority is `infra/n3w-t1/production/t1-core-stack-current.json` at product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`. Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, and Broker `local/n3w-mosquitto:2.1.2-3184566d`.
