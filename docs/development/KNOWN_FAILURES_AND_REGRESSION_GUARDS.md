@@ -1,4 +1,4 @@
-### 2026-11-18 KF-167 U13B P3 U10 read-only durable-U9 status compatibility / observability — OPEN / ATTEMPT03_SAFE_STOP
+### 2026-11-18 KF-167 U13B P3 U10 read-only durable-U9 status compatibility — OPEN / ATTEMPT04_ROOT_CAUSE_PROVEN
 
 ```text
 ATTEMPT02_CANDIDATE=c288303a638947fedb7ee504874f7a14a147bf87
@@ -28,6 +28,10 @@ Required guards:
 - physical closure requires a later separately operator-run read-only attempt; source/CI closure alone does not authorize destructive U10.
 - Attempt 03 on exact candidate `c7c51917d09cc774b5e97e5b7d0f9bcacfe64ea9` safely stopped with `private_file_metadata_invalid` after the module-import repair. The outer U10 wrapper retained only `bind_durable_u9` and discarded the delegated U9 substage on exception.
 - The next repair must improve read-only observability first: preserve the delegated U9 substage and mark bounded strict-read phases. Do not globally weaken `preflight.read_private()` or the 0600/private-file contract based on this generic reason.
+- Attempt 04 proved `u9_substage=durable_u9_verified` and then stopped at U10 `verify_u9_authority_ledgers`. U9's own compatibility reader, base ledger, host transaction, U7 ledger, USB mirror, backup/service checks and success ledger all passed.
+- U10 then repeats `preflight.bind_ledger(plan)`, `u8.bind_u7_ledger(plan)`, and finally strictly rereads `u9/claim.json`. The first two had already passed in the same process; the final U9 claim reread is the only newly strict legacy record and matches the known Attempt 01 incompatibility.
+- Repair U10 to use `u9.read_ledger_object(u9.ledger_root() / "claim.json")` for this exact historical authority. Keep all unrelated strict readers unchanged.
+
 
 
 ### 2026-11-18 KF-166 U13B P3 USB partition prepare stopped after claim — OPEN / PHYSICALLY RECOVERED TO U4

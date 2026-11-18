@@ -1,3 +1,14 @@
+## 2026-11-18 — U13B P3 U10 Attempt 04 safe STOP / exact root cause proven
+
+- Core Stack repository authority remains `infra/n3w-t1/production/t1-core-stack-current.json` at product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`. Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, and Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference `24382caae4a1f5d459297f86e8d18f10a848ca64` has Manager `local/greenhouse-manager:fresh-24382caae4a1`. Live upgrade accepted.
+- Attempt 04 exact candidate `3a3cceb57167882c1f0cbaf32c77ee21779bc213` returned `STOP / private_file_metadata_invalid`, stage `verify_u9_authority_ledgers`, `u9_substage=durable_u9_verified`, EXIT_CODE=2.
+- Receipt SHA-256: `4783adc3ca22752914353fbbb933004894fb93e820231825db72a9047b11ae76`; raw evidence remains operator-local/private.
+- The probe was read-only: no destructive cutover, U10/U11 transition, predecessor deletion, target load or service mutation.
+- Exact root cause is now source-proven: U9 durable inspection passes its path-specific compatibility reader; U10 then rereads the same U9 `claim.json` with strict `preflight.read_object()`, reintroducing the legacy-mode false STOP. The two preceding authority reads in that stage had already passed inside the same U9 inspection.
+- Required repair is local and unambiguous: use the existing U9 ledger-specific reader for that U10 U9-claim reread; do not weaken global private-file checks.
+- [Attempt 04 closure](./N3W_T1_U13B_P3_U10_READONLY_ATTEMPT04_EXACT_ROOT_CAUSE_20261118.md)
+
 ## 2026-11-18 — U13B P3 U10 read-only Attempt 04 authorized / exact observability candidate
 
 - Core Stack repository authority remains `infra/n3w-t1/production/t1-core-stack-current.json` at product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`. Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, and Broker `local/n3w-mosquitto:2.1.2-3184566d`.

@@ -1,3 +1,50 @@
+## Latest authority — 2026-11-18 U13B P3 U10 read-only Attempt 04 exact root cause proven
+
+Attempt 04 used exact candidate `3a3cceb57167882c1f0cbaf32c77ee21779bc213` and safe-stopped read-only with `private_file_metadata_invalid`. The new observability fields prove durable U9 inspection itself completed successfully (`u9_substage=durable_u9_verified`), and U10 also passed its independent U9 transaction read before stopping in `verify_u9_authority_ledgers`.
+
+Within that U10 stage, `preflight.bind_ledger(plan)` and `u8.bind_u7_ledger(plan)` had already passed moments earlier inside the same `u9.inspect()` call. The only newly introduced strict private-file read is `preflight.read_object(u9.ledger_root() / "claim.json")`. That file is the same legacy U9 claim authority for which KF-167 already introduced the path-specific compatibility reader `u9.read_ledger_object()`. Therefore the remaining false STOP is a duplicate strict-reader regression in U10, not live-state corruption.
+
+```text
+PR=807
+DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+CURRENT_LIVE_STAGE=U9_LIVE_AUTHORIZATION_CLAIMED
+U9_TRANSACTION_SHA256=2b3812af093c1f73a95744413e238f1ca3763407241f889c0646b9495e35a84b
+U9_AUTHORIZATION=CONSUMED_NO_REPLAY
+
+ATTEMPT04_EXACT_CANDIDATE=3a3cceb57167882c1f0cbaf32c77ee21779bc213
+ATTEMPT04_RESULT=STOP
+ATTEMPT04_REASON=private_file_metadata_invalid
+ATTEMPT04_STAGE=verify_u9_authority_ledgers
+ATTEMPT04_U9_SUBSTAGE=durable_u9_verified
+ATTEMPT04_EXIT_CODE=2
+ATTEMPT04_RECEIPT_SHA256=4783adc3ca22752914353fbbb933004894fb93e820231825db72a9047b11ae76
+ATTEMPT04_READ_ONLY=true
+ATTEMPT04_DESTRUCTIVE_CUTOVER=false
+ATTEMPT04_DESTRUCTIVE_CUTOVER_ELIGIBLE=false
+ATTEMPT04_U10_TRANSITION=false
+ATTEMPT04_U11_PLUS=false
+ATTEMPT04_PREDECESSOR_RUNTIME_DELETE=false
+ATTEMPT04_PREDECESSOR_IMAGE_DELETE=false
+ATTEMPT04_TARGET_IMAGE_LOAD=false
+ATTEMPT04_SERVICE_MUTATION=false
+
+KF167_STATUS=OPEN_ATTEMPT04_ROOT_CAUSE_PROVEN
+U10_DESTRUCTIVE_AUTHORIZATION=false
+U11_PLUS_AUTHORIZATION=false
+NEXT_ONE_GATE=N3W_T1_U13B_P3_U10_U9_CLAIM_COMPATIBILITY_READER_SOURCE_REPAIR
+```
+
+The repair must be path-specific: U10 should use `u9.read_ledger_object()` for the already-known legacy U9 claim authority, while retaining global strict private-file policy everywhere else. No U9 replay and no destructive U10 are authorized.
+
 ## Latest authority — 2026-11-18 U13B P3 U10 read-only Attempt 04 authorized / exact observability candidate frozen
 
 The operator explicitly authorized one new real-T1 read-only Attempt 04 after exact candidate `3a3cceb57167882c1f0cbaf32c77ee21779bc213` reached full CI SUCCESS. This candidate contains the U9/U10 internal-stage observability repair and differs from repair head `c2c8a7aabe721097ba9f2bb2122ac416d0aee989` only by the Current State Index authority-field restoration. Attempt 04 is diagnostic/read-only only and must stop before destructive U10.
