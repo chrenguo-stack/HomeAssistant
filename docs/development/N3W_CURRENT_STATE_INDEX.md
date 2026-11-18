@@ -1,3 +1,16 @@
+## 2026-11-18 — U13B P3 U9 live authorization PASS
+
+- Core Stack repository authority remains `infra/n3w-t1/production/t1-core-stack-current.json` at product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`. Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, and Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference `24382caae4a1f5d459297f86e8d18f10a848ca64` has Manager `local/greenhouse-manager:fresh-24382caae4a1`. Live upgrade accepted.
+- Frozen U9 candidate `816cf5f2f55c895b6112edbd563cf71df8b7be93`; isolated grant head `31a7c5daed754db4a189c1d27b81795ef60abc0b`.
+- Real-T1 result: `P3_U9_LIVE_AUTHORIZATION_CLAIM_PASS / EXIT_CODE=0`.
+- Host and USB reached `U9_LIVE_AUTHORIZATION_CLAIMED`; transaction SHA-256 `2b3812af093c1f73a95744413e238f1ca3763407241f889c0646b9495e35a84b`.
+- U9 authorization is claimed + consumed + non-replayable; USB U9 metadata is verified.
+- Manager and Home Assistant remain quiesced; Broker continuity, protected backup and USB metadata remain verified.
+- No U10 transition occurred; no destructive cutover, predecessor-image deletion, target-image load or service mutation occurred.
+- Operator-local receipt SHA-256: `f752ba02a58084baf9232b8af67e3fad4ec91048f11d516040bd3749e8755e53`; raw evidence remains private.
+- U10 is not authorized. Next source gate is P3 U10 read-only preflight/binding review. [U9 live physical closure](./N3W_T1_U13B_P3_U9_LIVE_AUTHORIZATION_PHYSICAL_CLOSURE_20261118.md)
+
 ## 2026-11-18 — U13B P3 U9 live authorization granted / execute pending
 
 - Core Stack repository authority remains `infra/n3w-t1/production/t1-core-stack-current.json` at product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`. Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, and Broker `local/n3w-mosquitto:2.1.2-3184566d`.
