@@ -1,3 +1,35 @@
+## Latest authority — 2026-11-18 U13B P3 U8 recovery admission live PASS
+
+The separately authorized one-shot U8 write completed successfully on the current T1. Host transaction and bound USB recovery metadata both reached the durable U8 checkpoint. The U8 grant is consumed and cannot replay.
+
+```text
+PR=807
+P3_U8_CANDIDATE_HEAD=e78b80642f7e71a88ae086f3d7b6c54c34defb99
+P3_U8_GRANT_HEAD=525f18ca2c38a792826f885f43132cefdea29f6d
+P3_U8_AUTHORIZATION_ID=N3W_T1_U13B_P3_U8_RECOVERY_ADMISSION_20261118_01
+P3_U8_AUTHORIZATION=CONSUMED_NO_REPLAY
+P3_U8_RESULT=P3_U8_RECOVERY_ADMISSION_PASS
+P3_U8_EXIT_CODE=0
+TRANSACTION_PHASE=U8_RECOVERY_ADMISSION_COMPLETE
+TRANSACTION_SHA256=c9210a75ba4496b42fd080ca4ef261cf669a56452f99531066f921a5fcbe4908
+RECOVERY_CONTENT_MANIFEST_SHA256=d534be84e38817b10eab8a2f8a47c6dae3fd0946da9eba1e1d7f12090e23e9d3
+USB_U8_VERIFIED=true
+USB_METADATA_MATCHES=true
+BACKUP_VERIFIED=true
+HA_AND_MANAGER_STOPPED=true
+BROKER_CONTINUITY_VERIFIED=true
+APPLICATION_OWNER_ACTIVE_STATE=failed
+APPLICATION_OWNER_EXEC_MAIN_STATUS=130
+APPLICATION_OWNER_MAIN_PID=0
+APPLICATION_OWNER_NRESTARTS=0
+U8_TRANSITION=true
+U9_PLUS=false
+REPLAY_PERMITTED=false
+LOCAL_RECEIPT_SHA256=8340d0b4a5be925c954932113b8c593668e83b5f60d1271714f2ce91d521a63a
+```
+
+The raw receipt remains on the operator Mac. U8 is now the live durable checkpoint. The next source gate is a P3-specific U9 live-authorization package plus fresh read-only preclaim verification. U9 has not been authorized. The historical generic R36 U9 package is reference evidence only and must not be replayed against this P3 transaction. Spare-T1 pre-cutover recovery physical validation remains deferred by operator decision because that T1 contains data that must not be modified. See [U8 live closure](./N3W_T1_U13B_P3_U8_RECOVERY_ADMISSION_LIVE_CLOSURE_20261118.md).
+
 ## Latest authority — 2026-11-18 U13B P3 HA-data backup verified at U7
 
 The U7 one-shot run stopped at its wrapper's final application-unit check after the product controller verified the backup. Independent read-only reconciliation verified the protected backup against the quiesced source and confirmed the U7 checkpoint. The original execution receipt is preserved as a stop.
