@@ -1,4 +1,28 @@
-## Latest authority — 2026-11-18 U13B P3 single-USB reset and post-reset preflight physical PASS
+## Latest authority — 2026-11-18 U13B P3 recovery verified at U4
+
+The original P3 live attempt stopped after claim at U1. The separately authorized recovery first stopped before claim with USB exclusive-read `EBUSY`. The historical U13A ext4 mount was still visible in the Manager container mount namespace. The operator's exact ordinary unmount released both the disk and the partition. The post-unmount signature scan was empty, and the services and U1 state matched across the operation.
+
+```text
+PR=807
+DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+RECOVERY_EXECUTION_HEAD=d54e2794a590208c7a9f57ac00bb6ee2017a94ff
+RECOVERY_AUTHORIZATION_ID=N3W_T1_U13B_P3_U1_TO_U4_USB_RECOVERY_20261118_01
+RECOVERY_AUTHORIZATION=CONSUMED_NO_REPLAY
+ORIGINAL_P3_LIVE_AUTHORIZATION=CONSUMED_NO_REPLAY
+RECOVERY_RESULT=U4_RECOVERY_PASS
+EXIT_CODE=0
+TRANSACTION_PHASE=U4_READY_TO_INSTALL
+TRANSACTION_STATUS=ACTIVE
+TRANSACTION_SHA256=00167d489d785af6a458cd09826b9293dc29ec6c85b02ac75772017633d6f154
+TARGET_ARCHIVE_SHA256=be30c4778bf537258d9e3825524c79532f20e8eb7a82136f560110d8f44b418d
+NEW_FILESYSTEM_UUID_VERIFIED=true
+RUNTIME_CONTAINERS_UNCHANGED=true
+STOP_BEFORE_U5=true
+```
+
+The recovery verified the P3 acceptance archive on the newly prepared USB. The receipt is from the operator's Mac and the raw evidence stays there. The U4 transaction is the handoff point for any separately authorized continuation. [PR #807 recovery receipt](https://github.com/chrenguo-stack/HomeAssistant/pull/807#issuecomment-6968950587).
+
+## 2026-11-18 — U13B P3 single-USB reset and post-reset preflight physical PASS
 
 ```text
 PR=807
@@ -33,7 +57,7 @@ P3_LIVE_EXECUTION_AUTHORIZED=false
 
 The operator's real-T1 executor result confirms fresh historical U13A binding, exact product-owned unmount, and removal of the historical filesystem signature. The former filesystem UUID was verified absent. Evidence is operator-local executor stdout, 926 bytes, SHA-256 `264aa44f2e00ad6c6981c54f28764d573ada0b28a544a16e8be968fac33eda35`. The raw evidence remains private. [PR #807 execution record](https://github.com/chrenguo-stack/HomeAssistant/pull/807#issuecomment-6967094341).
 
-The reset gate is terminal. The subsequent real-T1 read-only preflight passed on the same eligible USB. The host U13A terminal transaction was freshly verified, and the probe confirmed that the historical filesystem UUID was absent and the device was unmounted.
+The reset gate is terminal. The subsequent real-T1 read-only preflight passed on the same eligible USB. The host U13A terminal transaction was freshly verified, and the probe confirmed that the historical filesystem UUID was absent and it saw no mount in the host view. The later recovery found the retained Manager namespace mount recorded above.
 
 ```text
 PREFLIGHT_GATE=N3W_T1_U13B_P3_FRESH_REAL_T1_READONLY_PREFLIGHT_20261117_01
