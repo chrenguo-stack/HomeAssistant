@@ -133,3 +133,36 @@ MERGE=false
 
 Next boundary after source/simulation CI is a separately authorized fresh real-T1
 read-only preflight. This source rebind grants no real-T1 authority.
+
+
+## Single-USB hardware constraint and controlled reuse reset
+
+Physical T1 hardware has one USB host interface and the operator currently has no second USB storage device. Therefore P3 cannot require the historical U13A recovery USB and a different fresh USB to be online simultaneously.
+
+The historical medium currently bound to U13A is:
+
+```text
+MODEL=Extreme
+CAPACITY_BYTES=32017047552
+PUBLIC_FINGERPRINT=4014f1fb36f2c2bdff9d1af4f918a8324506c3df4e7d0720977ad9421a9de021
+FILESYSTEM_UUID=967cf065-abe5-49ee-8499-7c3f50d2c48f
+MOUNT_TARGET=/run/n3w-t1-ota/media/ca89774eb4254d0f
+```
+
+The operator explicitly authorized destruction/reuse of this historical USB on 2026-11-18. A dedicated gate is introduced at:
+
+`tools/execution_packages/n3w/r7a/u13b_p3_single_usb_reuse_reset/`
+
+This gate is intentionally narrower than the later product prepare flow. It must verify the exact terminal U13A transaction, exact running predecessor image, exactly one USB device, exact current media fingerprint/model/capacity, exact historical filesystem UUID and exact product-owned mount. Only after all checks pass may it:
+
+```text
+unmount exact historical product mount
+-> remove filesystem signatures from the historical partition
+-> verify old filesystem UUID is absent
+-> verify the same USB disk is now unmounted and eligible
+-> STOP
+```
+
+It does **not** repartition, run mkfs, create a new OTA transaction, mutate services/images/HA data, claim P3 live authorization, or enter U13B. Standard GPT recreation and ext4 formatting remain owned by the production `confirm_and_prepare()` path in the later separately authorized P3 live stage.
+
+Safety rationale: destroying the old recovery medium occurs while the currently running predecessor remains unchanged. No production service/image/HA-data mutation is allowed until the later flow rebuilds target, predecessor recovery and HA-data backup on the reused USB and passes recovery admission. The reset gate therefore closes the single-USB hardware gap without weakening the ordering of U6/U7/U8 before U9+ production mutation.

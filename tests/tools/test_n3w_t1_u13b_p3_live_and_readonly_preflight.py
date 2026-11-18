@@ -15,6 +15,11 @@ LIVE_EXECUTOR = (
     / "u13b_p3_live_to_u11" / "executor.py"
 )
 LIVE_MANIFEST = LIVE_EXECUTOR.with_name("manifest.json")
+RESET_EXECUTOR = (
+    ROOT / "tools" / "execution_packages" / "n3w" / "r7a"
+    / "u13b_p3_single_usb_reuse_reset" / "executor.py"
+)
+RESET_MANIFEST = RESET_EXECUTOR.with_name("manifest.json")
 
 
 def load(path: Path, name: str):
@@ -197,3 +202,50 @@ def test_live_reports_authorization_truth_from_manifest():
         'result["new_clean_ota_mutation_authorized"] = manifest['
         in source
     )
+
+
+def test_single_usb_reuse_reset_manifest_is_narrow_and_authorized():
+    value = manifest(RESET_MANIFEST)
+    assert value["destructive_usb_reset_authorized"] is True
+    assert value["transaction_mutation_authorized"] is False
+    assert value["service_mutation_authorized"] is False
+    assert value["image_mutation_authorized"] is False
+    assert value["ha_data_mutation_authorized"] is False
+    assert value["p3_live_execution_authorized"] is False
+    assert value["expected_historical_media"]["filesystem_uuid"] == (
+        value["expected_terminal_u13a"]["filesystem_uuid"]
+    )
+    contract = value["execution_contract"]
+    assert contract["unmount_exact_historical_mount"] is True
+    assert contract["remove_historical_filesystem_signature"] is True
+    assert contract["repartition"] is False
+    assert contract["mkfs"] is False
+    assert contract["transaction_write"] is False
+
+
+def test_single_usb_reuse_reset_remote_is_usb_only_and_fail_closed():
+    module = load(RESET_EXECUTOR, "p3_single_usb_reuse_reset")
+    compile(module.REMOTE_SCRIPT, "<p3-single-usb-reuse-reset>", "exec")
+    remote = module.REMOTE_SCRIPT
+    assert 'run(["umount", media["mount_target"]])' in remote
+    assert 'run(["wipefs", "--all", "--force", partition_path])' in remote
+    assert 'run(["udevadm", "settle"])' in remote
+    assert "mkfs" not in remote
+    assert "sfdisk" not in remote
+    forbidden = (
+        ".write(",
+        "systemctl",
+        '"docker", "rm"',
+        '"docker", "image", "rm"',
+        "record_recovery_admission(",
+        "claim_live_authorization(",
+        "record_predecessor_capacity_released(",
+        "record_target_started(",
+        "record_target_accepted(",
+        "record_commit(",
+    )
+    for token in forbidden:
+        assert token not in remote
+    assert "single_usb_historical_uuid_drift" in remote
+    assert "single_usb_historical_mount_drift" in remote
+    assert "single_usb_historical_uuid_still_present" in remote
