@@ -1,3 +1,49 @@
+## Latest authority — 2026-11-18 U13B P3 U10 read-only KF-167 source/CI closed / Attempt 03 candidate frozen
+
+Attempt 02 safe-stopped read-only at durable-U9 binding with `ModuleNotFoundError`. KF-167 root cause is repaired: durable U9 inspection now loads and validates the exact frozen tools authority before the first product-module import. The exact repaired candidate `c7c51917d09cc774b5e97e5b7d0f9bcacfe64ea9` has completed all currently associated GitHub workflows successfully. Physical read-only revalidation is still pending; no U10 destructive authorization is granted.
+
+```text
+PR=807
+DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+CURRENT_LIVE_STAGE=U9_LIVE_AUTHORIZATION_CLAIMED
+U9_TRANSACTION_SHA256=2b3812af093c1f73a95744413e238f1ca3763407241f889c0646b9495e35a84b
+RECOVERY_CONTENT_MANIFEST_SHA256=d534be84e38817b10eab8a2f8a47c6dae3fd0946da9eba1e1d7f12090e23e9d3
+U9_AUTHORIZATION=CONSUMED_NO_REPLAY
+
+U10_ATTEMPT02_RESULT=STOP
+U10_ATTEMPT02_REASON=ModuleNotFoundError
+U10_ATTEMPT02_RECEIPT_SHA256=8f2275e25a1b5be8dfa6fa104ad2d2c529162a0c581585006c00c172d073b9ca
+U10_ATTEMPT02_MUTATION=false
+
+KF167_SOURCE_REPAIR_HEAD=b80c7a66af713516f1ca32b6b4417b7f8cb01dd1
+U10_ATTEMPT03_EXACT_CANDIDATE=c7c51917d09cc774b5e97e5b7d0f9bcacfe64ea9
+KF167_STATUS=SOURCE_CI_CLOSED_PHYSICAL_RETRY_PENDING
+
+CI_P3_LIVE_READONLY_SOURCE_RUN=44335289581 SUCCESS
+CI_CORE_STACK_AUTHORITY_RUN=44335289659 SUCCESS
+CI_MANAGER_A_TO_B_RUN=44335289799 SUCCESS
+CI_HA_2026_10_4_TARGET_BINDING_RUN=44335289530 SUCCESS
+CI_PUBLIC_SAFETY_RUN=44335290118 SUCCESS
+CI_FAST_SOURCE_EXACT_CLOSURE_RUN=44335289469 SUCCESS
+CI_SAME_VERSION_ACCEPTANCE_ARTIFACT_RUN=44335289680 SUCCESS
+
+U10_ATTEMPT03_READONLY_AUTHORIZATION=NOT_GRANTED_BY_ARCHIVE
+U10_DESTRUCTIVE_AUTHORIZATION=false
+U11_PLUS_AUTHORIZATION=false
+NEXT_ONE_GATE=N3W_T1_U13B_P3_U10_READONLY_ATTEMPT03_PHYSICAL_REVALIDATION
+```
+
+Later documentation-only branch heads do not replace `c7c51917d09cc774b5e97e5b7d0f9bcacfe64ea9` as the Attempt 03 execution source. U9 remains consumed/non-replayable. Attempt 03, when separately operator-approved and executed, must remain read-only and stop before destructive U10. A PASS proves only read-only eligibility; customer bounded-recovery acceptance and a new explicit destructive authorization remain separate prerequisites.
+
 ## Latest authority — 2026-11-18 U13B P3 U10 read-only Attempt 02 safe STOP / repair required
 
 The operator executed the exact read-only Attempt 02 candidate `c288303a638947fedb7ee504874f7a14a147bf87`. It safe-stopped at `bind_durable_u9` with `ModuleNotFoundError`. No U10 mutation occurred. U9 remains the durable live checkpoint and must not be replayed.

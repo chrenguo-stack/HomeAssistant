@@ -1,4 +1,4 @@
-### 2026-11-18 KF-167 U13B P3 U10 read-only isolated-bootstrap product import ordering — OPEN / ROOT_CAUSE_PROVEN
+### 2026-11-18 KF-167 U13B P3 U10 read-only isolated-bootstrap product import ordering — OPEN / SOURCE_CI_CLOSED_PHYSICAL_RETRY_PENDING
 
 ```text
 ATTEMPT02_CANDIDATE=c288303a638947fedb7ee504874f7a14a147bf87

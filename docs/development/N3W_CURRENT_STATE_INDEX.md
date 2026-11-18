@@ -1,3 +1,12 @@
+## 2026-11-18 — U13B P3 U10 KF-167 source/CI closed / Attempt 03 candidate frozen
+
+- Attempt 02 remained a safe read-only STOP: `ModuleNotFoundError` at `bind_durable_u9`, receipt SHA-256 `8f2275e25a1b5be8dfa6fa104ad2d2c529162a0c581585006c00c172d073b9ca`, with zero U10/destructive mutation.
+- KF-167 repair head `b80c7a66af713516f1ca32b6b4417b7f8cb01dd1` loads exact frozen tools before the first U9 status product import and preserves the existing U8 ledger binding.
+- Exact Attempt 03 candidate is `c7c51917d09cc774b5e97e5b7d0f9bcacfe64ea9`. Its associated workflows are all SUCCESS, including P3 live/read-only source `44335289581`, Core Stack authority `44335289659`, Manager A-to-B `44335289799`, HA 2026.10.4 target binding `44335289530`, public safety `44335290118`, fast source/exact closure `44335289469`, and same-version acceptance artifact `44335289680`.
+- Live T1 remains durable U9; U9 is consumed/non-replayable. No destructive U10, predecessor deletion, target load/start, service restart, U11+, spare-T1 mutation or PR merge is authorized.
+- Physical closure of KF-167 requires a later operator-approved U10 read-only Attempt 03. A PASS still does not authorize destructive U10.
+- [KF-167 source/CI closure](./N3W_T1_U13B_P3_U10_READONLY_KF167_SOURCE_CI_CLOSURE_20261118.md)
+
 ## 2026-11-18 — U13B P3 U10 read-only Attempt 02 safe STOP / ModuleNotFoundError
 
 - Core Stack repository authority remains `infra/n3w-t1/production/t1-core-stack-current.json` at product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`. Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, and Broker `local/n3w-mosquitto:2.1.2-3184566d`.
