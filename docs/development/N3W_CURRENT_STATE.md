@@ -1,3 +1,34 @@
+## Latest authority — 2026-11-18 U13B P3 installation intent verified at U5
+
+The operator executed the separately authorized P3 U4-to-U5 intent from the exact grant commit. The executor verified the same transaction on the host and USB and observed the U5 phase via OTA IPC.
+
+```text
+PR=807
+DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+P3_U5_CANDIDATE_HEAD=63e2c470eace97bfb15c0e7ff9ad7380e6884668
+P3_U5_GRANT_HEAD=974b2fadba200a769b18ddbb6d1a2beb33decab7
+P3_U5_AUTHORIZATION_ID=N3W_T1_U13B_P3_U4_TO_U5_INSTALL_INTENT_20261118_01
+P3_U5_AUTHORIZATION=CONSUMED_NO_REPLAY
+P3_U5_RESULT=P3_U5_INSTALL_INTENT_PASS
+EXIT_CODE=0
+TRANSACTION_PHASE=U5_INSTALL_REQUESTED_REVALIDATING
+TRANSACTION_SHA256=53141824bb5bd89f0911e217900ad50acee44cf6ef0ead891e867042a89dfe12
+IPC_PHASE=INSTALL_REQUESTED_REVALIDATING
+USB_METADATA_MATCHES=true
+U6_PLUS=false
+RECEIPT_SHA256=cfef0e884513b93defb184bee46b46bb17268ab789a3b9abdbf3656604ea9577
+```
+
+P3 stopped at U5. The next authorized preparation can reuse the existing U6–U11 source against this exact U5 transaction after read-only rebind. Any U6+ live action requires its own authorization. The repository Core Stack references above describe the accepted product authority, and the P3 acceptance target remains separately bound. See [N3W_T1_U13B_P3_U5_READONLY_PREFLIGHT_20261118.md](./N3W_T1_U13B_P3_U5_READONLY_PREFLIGHT_20261118.md#u5-实机执行回执) for the operator result.
+
 ## Latest authority — 2026-11-18 U13B P3 recovery verified at U4
 
 The original P3 live attempt stopped after claim at U1. The separately authorized recovery first stopped before claim with USB exclusive-read `EBUSY`. The historical U13A ext4 mount was still visible in the Manager container mount namespace. The operator's exact ordinary unmount released both the disk and the partition. The post-unmount signature scan was empty, and the services and U1 state matched across the operation.
@@ -28,9 +59,9 @@ RUNTIME_CONTAINERS_UNCHANGED=true
 STOP_BEFORE_U5=true
 ```
 
-The recovery verified the P3 acceptance archive on the newly prepared USB. The receipt is from the operator's Mac and the raw evidence stays there. The U4 transaction is the handoff point for any separately authorized continuation. [PR #807 recovery receipt](https://github.com/chrenguo-stack/HomeAssistant/pull/807#issuecomment-6968950587).
+The recovery verified the P3 acceptance archive on the newly prepared USB. The receipt is from the operator's Mac and the raw evidence stays there. That U4 transaction was the input for the separately authorized U5 continuation. [PR #807 recovery receipt](https://github.com/chrenguo-stack/HomeAssistant/pull/807#issuecomment-6968950587).
 
-The Core Stack fields above preserve the accepted repository authority. The P3 acceptance transaction has its own predecessor and target bindings. See the [U4 recovery to U5 handoff](N3W_T1_U13B_P3_U4_RECOVERY_PASS_TO_U5_NEW_CHAT_HANDOFF_V1.0_20261118.md) for the current stop point and next read-only gate.
+The Core Stack fields above preserve the accepted repository authority. The P3 acceptance transaction has its own predecessor and target bindings. See the [U4 recovery to U5 handoff](N3W_T1_U13B_P3_U4_RECOVERY_PASS_TO_U5_NEW_CHAT_HANDOFF_V1.0_20261118.md) for the preceding handoff and the U5 read-only gate.
 
 ## 2026-11-18 — U13B P3 single-USB reset and post-reset preflight physical PASS
 

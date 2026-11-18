@@ -1,11 +1,19 @@
+## 2026-11-18 — U13B P3 installation intent verified at U5
+
+- Core Stack repository authority is `infra/n3w-t1/production/t1-core-stack-current.json` at product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`. Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, and Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference `24382caae4a1f5d459297f86e8d18f10a848ca64` has Manager `local/greenhouse-manager:fresh-24382caae4a1`. Live upgrade accepted.
+- Exact grant commit `974b2fadba200a769b18ddbb6d1a2beb33decab7` on PR #807 returned `P3_U5_INSTALL_INTENT_PASS / EXIT_CODE=0`.
+- Host and USB agree on `U5_INSTALL_REQUESTED_REVALIDATING` at SHA-256 `53141824bb5bd89f0911e217900ad50acee44cf6ef0ead891e867042a89dfe12`. OTA IPC observed the U5 phase. The grant is consumed and cannot replay.
+- Stop before U6. The next live action requires separate authorization. See [N3W_T1_U13B_P3_U5_READONLY_PREFLIGHT_20261118.md](./N3W_T1_U13B_P3_U5_READONLY_PREFLIGHT_20261118.md#u5-实机执行回执).
+
 ## 2026-11-18 — U13B P3 recovery verified at U4
 
 - Core Stack repository authority is `infra/n3w-t1/production/t1-core-stack-current.json` at product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`. Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, and Broker `local/n3w-mosquitto:2.1.2-3184566d`.
 - Historical clean reference `24382caae4a1f5d459297f86e8d18f10a848ca64` has Manager `local/greenhouse-manager:fresh-24382caae4a1`. Live upgrade accepted.
 - The original live attempt stopped at U1 after claim. The recovery initially safe-stopped on USB `EBUSY` before claim. The exact unmount of the historical Manager namespace mount restored exclusive read access to the disk and partition.
 - Recovery authority `d54e2794a590208c7a9f57ac00bb6ee2017a94ff` returned `EXIT_CODE=0 / U4_RECOVERY_PASS`. Active U4 transaction SHA-256 is `00167d489d785af6a458cd09826b9293dc29ec6c85b02ac75772017633d6f154`.
-- The new filesystem UUID and the exact USB acceptance archive were verified. Runtime containers stayed on the baseline. Both execution grants are consumed. The current stop point is before U5. [PR #807 recovery receipt](https://github.com/chrenguo-stack/HomeAssistant/pull/807#issuecomment-6968950587).
-- Next chat starts from the [U4 recovery to U5 handoff](N3W_T1_U13B_P3_U4_RECOVERY_PASS_TO_U5_NEW_CHAT_HANDOFF_V1.0_20261118.md).
+- The new filesystem UUID and the exact USB acceptance archive were verified. Runtime containers stayed on the baseline. Both execution grants are consumed. This recovery checkpoint stopped before U5. [PR #807 recovery receipt](https://github.com/chrenguo-stack/HomeAssistant/pull/807#issuecomment-6968950587).
+- Preceding [U4 recovery to U5 handoff](N3W_T1_U13B_P3_U4_RECOVERY_PASS_TO_U5_NEW_CHAT_HANDOFF_V1.0_20261118.md).
 
 ## 2026-11-18 — U13B P3 single-USB reset and post-reset preflight physical PASS
 
