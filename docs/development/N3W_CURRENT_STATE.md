@@ -1,3 +1,50 @@
+## Latest authority — 2026-11-18 U13B P3 U10 read-only Attempt 04 authorized / exact observability candidate frozen
+
+The operator explicitly authorized one new real-T1 read-only Attempt 04 after exact candidate `3a3cceb57167882c1f0cbaf32c77ee21779bc213` reached full CI SUCCESS. This candidate contains the U9/U10 internal-stage observability repair and differs from repair head `c2c8a7aabe721097ba9f2bb2122ac416d0aee989` only by the Current State Index authority-field restoration. Attempt 04 is diagnostic/read-only only and must stop before destructive U10.
+
+```text
+PR=807
+DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+CURRENT_LIVE_STAGE=U9_LIVE_AUTHORIZATION_CLAIMED
+U9_TRANSACTION_SHA256=2b3812af093c1f73a95744413e238f1ca3763407241f889c0646b9495e35a84b
+U9_AUTHORIZATION=CONSUMED_NO_REPLAY
+
+ATTEMPT04_EXACT_CANDIDATE=3a3cceb57167882c1f0cbaf32c77ee21779bc213
+ATTEMPT04_AUTHORIZED=true
+ATTEMPT04_MAX_COUNT=1
+ATTEMPT04_SCOPE=READ_ONLY_DIAGNOSTIC_ONLY
+
+CI_P3_LIVE_READONLY_SOURCE_RUN=44339005998 SUCCESS
+CI_CORE_STACK_AUTHORITY_RUN=44339005953 SUCCESS
+CI_MANAGER_A_TO_B_RUN=44339005721 SUCCESS
+CI_HA_2026_10_4_TARGET_BINDING_RUN=44339005713 SUCCESS
+CI_PUBLIC_SAFETY_RUN=44339008707 SUCCESS
+CI_FAST_SOURCE_EXACT_CLOSURE_RUN=44339005408 SUCCESS
+CI_SAME_VERSION_ACCEPTANCE_ARTIFACT_RUN=44339005674 SUCCESS
+
+U9_REPLAY=false
+U10_DESTRUCTIVE_AUTHORIZATION=false
+PREDECESSOR_RUNTIME_DELETE=false
+PREDECESSOR_IMAGE_DELETE=false
+TARGET_IMAGE_LOAD=false
+SERVICE_MUTATION=false
+U11_PLUS=false
+PR807_MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_U13B_P3_U10_READONLY_ATTEMPT04_RESULT_RECONCILIATION
+```
+
+The expected diagnostic value of Attempt 04 is the new `u9_substage`/stage evidence if the private metadata stop persists. A PASS still does not authorize destructive U10.
+
 ## Latest authority — 2026-11-18 U13B P3 U10 read-only Attempt 03 safe STOP / internal-stage observability repair required
 
 Attempt 03 used exact candidate `c7c51917d09cc774b5e97e5b7d0f9bcacfe64ea9` and returned a safe read-only `STOP / private_file_metadata_invalid` while the outer U10 stage still reported `bind_durable_u9`. The receipt confirms zero U10/destructive mutation. Because U10 currently discards the delegated U9 substage when `u9.inspect()` raises, the exact strict private-file check cannot be identified from this receipt alone. Do not relax the global 0600/private-file policy without a path-specific proof.

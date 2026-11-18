@@ -1,3 +1,11 @@
+## 2026-11-18 — U13B P3 U10 read-only Attempt 04 authorized / exact observability candidate
+
+- Core Stack repository authority remains `infra/n3w-t1/production/t1-core-stack-current.json` at product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`. Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, and Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference `24382caae4a1f5d459297f86e8d18f10a848ca64` has Manager `local/greenhouse-manager:fresh-24382caae4a1`. Live upgrade accepted.
+- Exact Attempt 04 candidate `3a3cceb57167882c1f0cbaf32c77ee21779bc213` has 22/22 current workflow SUCCESS, including P3 live/read-only source `44339005998`, Core Stack authority `44339005953`, Manager A-to-B `44339005721`, HA 2026.10.4 target binding `44339005713`, public safety `44339008707`, fast source/exact closure `44339005408`, and same-version acceptance artifact `44339005674`.
+- User explicitly authorized exactly one real-T1 Attempt 04. Scope is read-only diagnostic only; U9 replay, destructive U10, predecessor deletion, target load/start, service mutation, U11+, spare-T1 mutation and PR merge remain forbidden.
+- Attempt 04 should preserve `u9_substage` on delegated U9 failure so the exact strict private-file phase can be classified.
+
 ## 2026-11-18 — U13B P3 U10 read-only Attempt 03 safe STOP / observability repair required
 
 - Core Stack repository authority remains `infra/n3w-t1/production/t1-core-stack-current.json` at product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`. Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, and Broker `local/n3w-mosquitto:2.1.2-3184566d`.
