@@ -256,7 +256,7 @@ def inspect(plan, result):
     result["stage"] = "verify_u9_authority_ledgers"
     original = preflight.bind_ledger(plan)
     broker = u8.bind_u7_ledger(plan)
-    u9_claim = preflight.read_object(u9.ledger_root() / "claim.json")
+    u9_claim = u9.read_ledger_object(u9.ledger_root() / "claim.json")
     write_fingerprint = u9_claim.get("write_session_fingerprint")
     require(
         isinstance(write_fingerprint, str)

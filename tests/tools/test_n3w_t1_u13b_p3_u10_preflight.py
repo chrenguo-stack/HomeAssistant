@@ -100,7 +100,8 @@ def test_receipt_stops_before_u10_and_u11() -> None:
 
 def test_usb_mirror_uses_u9_write_fingerprint_not_current_session() -> None:
     text = source()
-    assert 'u9.ledger_root() / "claim.json"' in text
+    assert 'u9_claim = u9.read_ledger_object(u9.ledger_root() / "claim.json")' in text
+    assert 'u9_claim = preflight.read_object(u9.ledger_root() / "claim.json")' not in text
     assert 'write_fingerprint = u9_claim.get("write_session_fingerprint")' in text
     assert "manifest_fingerprint=write_fingerprint" in text
     assert 'manifest_fingerprint=media["session_fingerprint"]' not in text
