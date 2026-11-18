@@ -139,10 +139,10 @@ def check_continuity(plan, snapshot, tx):
 
 
 def verify_prestate(plan, result):
-    from n3w_t1_core_updater_ha_usb_state import validate_transaction_document
-
     result["stage"] = "bind_durable_u7"
     original = preflight.bind_ledger(plan)
+    from n3w_t1_core_updater_ha_usb_state import validate_transaction_document
+
     broker = bind_u7_ledger(plan)
     tx_path = recovery.STATE / preflight.TX_NAME
     raw = preflight.read_private(tx_path)
@@ -237,8 +237,6 @@ def execute(plan, result):
 
 
 def inspect(plan, result):
-    from n3w_t1_core_updater_ha_usb_state import validate_transaction_document
-
     ledger = ledger_root()
     require(os.path.lexists(ledger), "u8_ledger_absent")
     recovery.private_path(ledger, directory=True)
@@ -252,6 +250,8 @@ def inspect(plan, result):
             }, "u8_claim_ledger_drift")
     result.update(authorization_claimed=True, authorization_consumed=True)
     original = preflight.bind_ledger(plan)
+    from n3w_t1_core_updater_ha_usb_state import validate_transaction_document
+
     broker = bind_u7_ledger(plan)
     tx_path = recovery.STATE / preflight.TX_NAME
     raw = preflight.read_private(tx_path)

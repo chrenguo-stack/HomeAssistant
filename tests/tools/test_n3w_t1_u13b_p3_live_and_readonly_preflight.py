@@ -1540,3 +1540,23 @@ def test_p3_u8_remote_entry_denies_execution_without_exact_grant(p3_u8):
     )
     assert completed.returncode == 2, completed.stderr
     assert json.loads(completed.stdout)["reason"] in {"u8_grant_required", "target_root_required"}
+
+
+
+def test_p3_u8_loads_frozen_product_before_importing_transaction_schema(p3_u8, monkeypatch, tmp_path):
+    module = p3_u8
+    attempted = []
+
+    def bind_frozen(_):
+        attempted.append("frozen")
+        raise module.recovery.Stop("synthetic_frozen_binding_failed")
+
+    monkeypatch.setattr(module.preflight, "bind_ledger", bind_frozen)
+    monkeypatch.setitem(sys.modules, "n3w_t1_core_updater_ha_usb_state", None)
+    with pytest.raises(module.recovery.Stop, match="synthetic_frozen_binding_failed"):
+        module.verify_prestate({}, {})
+    assert attempted == ["frozen"]
+
+    monkeypatch.setattr(module, "ledger_root", lambda: tmp_path / "missing")
+    with pytest.raises(module.recovery.Stop, match="u8_ledger_absent"):
+        module.inspect({}, {})
