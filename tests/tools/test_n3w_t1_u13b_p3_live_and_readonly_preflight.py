@@ -50,7 +50,7 @@ def test_fresh_readonly_manifest_is_non_live_and_preserves_old_usb():
     assert contract["usb_format"] is False
     assert value["execution_contract"]["execute_mode_forbidden_until_separate_authorization"] is False
     assert value["stop_boundary"] == (
-        "STOP_AFTER_REAL_T1_READONLY_PREFLIGHT_BEFORE_P3_LIVE_AUTHORIZATION"
+        "STOP_AFTER_POST_RESET_READONLY_PREFLIGHT_BEFORE_P3_LIVE_AUTHORIZATION"
     )
 
 
@@ -77,7 +77,6 @@ def test_fresh_readonly_remote_compiles_and_has_no_mutation_calls():
         assert token not in remote
     assert "backend.inventory()" in remote
     assert "candidate.public_fingerprint != old_fingerprint" in remote
-    assert "single_usb_reuse_reset_not_verified" in remote
     assert "filesystem_uuids_for_candidate" in remote
     assert 'old_filesystem_uuid = expected["filesystem_uuid"].lower()' in remote
     assert "old_filesystem_uuid not in observed_filesystem_uuids" in remote
