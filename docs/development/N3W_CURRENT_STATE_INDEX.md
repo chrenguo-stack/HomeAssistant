@@ -1,5 +1,7 @@
 ## 2026-11-18 — U13B P3 U8 recovery admission live PASS
 
+- Core Stack repository authority is `infra/n3w-t1/production/t1-core-stack-current.json` at product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`. Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, and Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference `24382caae4a1f5d459297f86e8d18f10a848ca64` has Manager `local/greenhouse-manager:fresh-24382caae4a1`. Live upgrade accepted.
 - Exact U8 candidate `e78b80642f7e71a88ae086f3d7b6c54c34defb99`; isolated one-shot grant `525f18ca2c38a792826f885f43132cefdea29f6d`.
 - Real-T1 result: `P3_U8_RECOVERY_ADMISSION_PASS / EXIT_CODE=0`.
 - Host and USB reached `U8_RECOVERY_ADMISSION_COMPLETE`; transaction SHA-256 `c9210a75ba4496b42fd080ca4ef261cf669a56452f99531066f921a5fcbe4908`.
