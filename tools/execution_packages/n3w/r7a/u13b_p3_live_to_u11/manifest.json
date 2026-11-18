@@ -4,12 +4,12 @@
   "authorization_id": "N3W_T1_U13B_P3_NEW_CLEAN_OTA_20261117_01",
   "product_u9_authorization_id": "N3W_T1_U13B_P3_PRODUCT_U9_20261117_01",
   "confirmation": "EXECUTE P3 CLEAN OTA TO U11: YES",
-  "live_execution_authorized": false,
-  "new_clean_ota_mutation_authorized": false,
+  "live_execution_authorized": true,
+  "new_clean_ota_mutation_authorized": true,
   "u13b_live_execution_authorized": false,
   "controlled_rollback_mutation_authorized": false,
   "authorization_state": {
-    "granted": false,
+    "granted": true,
     "claimed": false,
     "consumed": false,
     "replay_permitted": false
@@ -30,10 +30,14 @@
     "p3_fresh_readonly_authorized_date": "2026-11-18",
     "p3_historical_usb_uuid_guard_repair": "HISTORICAL_USB_FILESYSTEM_UUID_GUARD_V1",
     "p3_single_usb_reuse_reset_gate": "N3W_T1_U13B_P3_SINGLE_USB_REUSE_RESET_20261118_01",
-    "p3_single_usb_reuse_authorized": true
+    "p3_single_usb_reuse_authorized": true,
+    "p3_live_authorized_date": "2026-11-18",
+    "p3_live_grant_base_head": "0ce881a39661fee2bd0e1744c0b4d60612f6715e",
+    "p3_post_reset_readonly_execution_head": "141fb922ca9a2b6f473cc0b8c6e8f81a619a69ee",
+    "p3_post_reset_readonly_receipt_pr_comment_id": 6967344595
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/u13b_p3_live_to_u11/executor.py": "e0cbfa9cc259b043d95882953ea3f09957b4933b",
+    "tools/execution_packages/n3w/r7a/u13b_p3_live_to_u11/executor.py": "ddf13aa13574b66b245164ed61b5c306e0d60ed2",
     "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/executor.py": "46f4ef06558d3f8e78f892061ba2f33b60663b11",
     "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/manifest.json": "b72cae3223d131fca159df2933624ba09e9c9bbe",
     "tools/execution_packages/n3w/r7a/u13b_p3_acceptance_clean_ota_source/executor.py": "360c2587b92e7a390547875ce7e404c40e2e38bf",
@@ -227,6 +231,7 @@
     "historical_usb_reuse_without_destructive_reset_forbidden": true,
     "single_usb_reuse_after_destructive_reset_required": true
   },
-  "next_boundary": "SOURCE_AND_SIMULATION_CI",
-  "stop_boundary": "STOP_BEFORE_P3_REAL_T1_READONLY_OR_LIVE_AUTHORIZATION"
+  "next_boundary": "EXECUTE_EXACT_AUTHORIZED_P3_ONCE_AFTER_SOURCE_CI",
+  "stop_boundary": "STOP_AT_U11_BEFORE_U12",
+  "authorized_execution_id": "u13b-p3-live-to-u11-20261118-01"
 }

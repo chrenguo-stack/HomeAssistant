@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -162,18 +163,21 @@ def test_post_reset_readonly_binds_current_host_terminal(
     assert manifest(evidence) == result
 
 
-def test_live_manifest_is_source_only_not_authorized():
+def test_live_manifest_authorization_is_narrow_and_consistent():
     value = manifest(LIVE_MANIFEST)
-    assert value["live_execution_authorized"] is False
-    assert value["new_clean_ota_mutation_authorized"] is False
+    granted = value["live_execution_authorized"]
+    assert type(granted) is bool
+    assert value["new_clean_ota_mutation_authorized"] is granted
     assert value["authorization_state"] == {
-        "granted": False,
+        "granted": granted,
         "claimed": False,
         "consumed": False,
         "replay_permitted": False,
     }
     assert value["u13b_live_execution_authorized"] is False
     assert value["controlled_rollback_mutation_authorized"] is False
+    if granted:
+        assert value["authorized_execution_id"] == "u13b-p3-live-to-u11-20261118-01"
     contract = value["execution_contract"]
     assert contract["fresh_real_t1_readonly_preflight_required"] is True
     assert contract["historical_usb_reuse_forbidden"] is False
@@ -220,12 +224,127 @@ def test_live_remote_compiles_and_stops_at_u11():
 def test_live_revalidates_same_fresh_usb_before_outer_claim():
     module = load(LIVE_EXECUTOR, "p3_live_usb_recheck")
     remote = module.REMOTE_SCRIPT
-    fresh_check = remote.index('expected_fresh = plan["preflight"]["fresh_usb_public_fingerprint"]')
-    drift_stop = remote.index('raise Stop("preclaim_fresh_usb_candidate_drift")')
+    fresh_check = remote.index("revalidate_reset_usb(plan, SubprocessPrepareBackend(), classify_candidate)", remote.index("def init_claim("))
     state_root = remote.index("root.mkdir(mode=0o700)", fresh_check)
     claim_write = remote.index('durable_json_once(root / "authorization_claim.json", claim)')
-    assert fresh_check < drift_stop < state_root < claim_write
-    assert "candidate.public_fingerprint != old_fingerprint" in remote
+    assert fresh_check < state_root < claim_write
+    assert 'candidate.public_fingerprint == expected_fingerprint' in remote
+    assert 'candidate.get("public_fingerprint") != expected_fingerprint' in remote
+
+
+@pytest.mark.parametrize(
+    ("observed", "uuids", "reason"),
+    [
+        (("same-usb",), "", None),
+        (("other-usb",), "", "preclaim_fresh_usb_candidate_drift"),
+        (("same-usb", "other-usb"), "", "preclaim_fresh_usb_candidate_drift"),
+        (("same-usb",), "old-uuid", "historical_usb_filesystem_uuid_present"),
+    ],
+)
+def test_live_usb_revalidation_after_reset(observed, uuids, reason):
+    module = load(LIVE_EXECUTOR, "p3_live_usb_revalidation")
+    namespace = {}
+    exec(module.REMOTE_SCRIPT.rsplit("\nmain()", 1)[0], namespace)
+    namespace["run"] = lambda argv, timeout: SimpleNamespace(stdout=uuids)
+    backend = SimpleNamespace(
+        inventory=lambda: [
+            SimpleNamespace(
+                public_fingerprint=fingerprint,
+                locator="/dev/test",
+                as_media_candidate=lambda: None,
+            )
+            for fingerprint in observed
+        ]
+    )
+    plan = {
+        "preflight": {
+            "single_usb_reuse_after_reset": True,
+            "fresh_usb_public_fingerprint": "same-usb",
+        },
+        "expected_terminal_u13a": {"filesystem_uuid": "old-uuid"},
+    }
+    revalidate = namespace["revalidate_reset_usb"]
+    if reason:
+        with pytest.raises(namespace["Stop"], match=reason):
+            revalidate(plan, backend, lambda candidate: ())
+    else:
+        revalidate(plan, backend, lambda candidate: ())
+
+
+def test_live_rejects_a_different_execution_id_before_artifact_or_ssh():
+    module = load(LIVE_EXECUTOR, "p3_live_fixed_execution_id")
+    args = SimpleNamespace(
+        authorization_id=module.AUTHORIZATION_ID,
+        confirm=module.CONFIRMATION,
+        execution_id="different-id",
+    )
+    with pytest.raises(module.Stop, match="authorized_execution_id_mismatch"):
+        module.execute_live(args, {"authorized_execution_id": "bound-id"}, {})
+
+
+@pytest.mark.parametrize("init_acknowledged", [True, False])
+def test_live_preserves_claim_truth_when_transport_fails(
+    init_acknowledged, monkeypatch, tmp_path
+):
+    module = load(LIVE_EXECUTOR, "p3_live_claim_transport")
+    args = SimpleNamespace(
+        authorization_id=module.AUTHORIZATION_ID,
+        confirm=module.CONFIRMATION,
+        execution_id="bound-id",
+        target_archive=tmp_path / "target",
+        evidence_root=tmp_path,
+        known_hosts=tmp_path / "known_hosts",
+        t1_ssh_target="test",
+        expected_host_key_sha256="0" * 64,
+    )
+    preflight = {
+        "status": "P3_FRESH_REAL_T1_READONLY_PREFLIGHT_PASS",
+        "prepare_new_admissible": True,
+        "fresh_usb_candidate_count": 1,
+        "single_usb_reuse_after_reset": True,
+    }
+
+    def disconnected(*args, **kwargs):
+        raise RuntimeError("connection_lost")
+
+    transport = SimpleNamespace(
+        start_epoch=lambda: None, scp_to=disconnected, close_epoch=lambda: None
+    )
+    preflight_module = SimpleNamespace(
+        prepare_evidence_root=lambda path: path, run_readonly=lambda **kwargs: preflight
+    )
+
+    def load_dependency(path, name):
+        if path == module.PREFLIGHT_EXECUTOR:
+            return preflight_module
+        return SimpleNamespace(SSHTransport=lambda **kwargs: transport)
+
+    calls = []
+
+    def remote_mode(transport, mode, *args, **kwargs):
+        calls.append(mode)
+        if mode == "init" and init_acknowledged:
+            return SimpleNamespace(returncode=0), {
+                "status": "P3_LIVE_AUTHORIZATION_CLAIMED",
+                "authorization_claimed": True,
+                "authorization_consumed": True,
+            }
+        disconnected()
+
+    monkeypatch.setattr(module, "load_module", load_dependency)
+    monkeypatch.setattr(module, "verify_local_target_archive", lambda *args: None)
+    monkeypatch.setattr(module, "build_source_bundle", lambda *args: (tmp_path, {}))
+    monkeypatch.setattr(module, "build_plan", lambda *args, **kwargs: {"state_root": "/test"})
+    monkeypatch.setattr(module, "remote_mode", remote_mode)
+
+    state = {}
+    value = {"authorized_execution_id": "bound-id", "embedded_preflight_manifest": {}}
+    with pytest.raises(module.Stop, match="remote_status_unavailable_after_init_attempt"):
+        module.execute_live(args, value, state)
+    assert calls == ["init", "status"]
+    expected = True if init_acknowledged else None
+    assert state["authorization_claimed"] is expected
+    assert state["authorization_consumed"] is expected
 
 
 def test_live_uses_staged_exact_artifact_without_network_fetch():
@@ -253,12 +372,12 @@ def test_live_source_bundle_and_authorization_fail_closed():
     assert "source_bundle_sha256" in source
     assert "product_source_sha256" in source
     assert "source_bundle_member_hash_drift" in source
-    assert 'value.get("live_execution_authorized") is not require_authorized' in source
+    assert "granted is not require_authorized" in source
     assert (
         'value.get("new_clean_ota_mutation_authorized")'
         in source
     )
-    assert '"granted": bool(require_authorized)' in source
+    assert '"granted": granted' in source
     assert 'result["t1_access"] = True' not in source
 
 

@@ -70,7 +70,9 @@ def sha_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def read_manifest(expected_commit: str, *, require_authorized: bool) -> dict[str, Any]:
+def read_manifest(
+    expected_commit: str, *, require_authorized: bool | None
+) -> dict[str, Any]:
     if re.fullmatch(r"[0-9a-f]{40}", expected_commit or "") is None:
         raise Stop("expected_commit_invalid")
     if git_text("rev-parse", "HEAD") != expected_commit:
@@ -78,8 +80,9 @@ def read_manifest(expected_commit: str, *, require_authorized: bool) -> dict[str
     if git_text("status", "--porcelain", "--untracked-files=no"):
         raise Stop("tracked_worktree_dirty")
     value = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    granted = value.get("live_execution_authorized")
     expected_state = {
-        "granted": bool(require_authorized),
+        "granted": granted,
         "claimed": False,
         "consumed": False,
         "replay_permitted": False,
@@ -91,9 +94,16 @@ def read_manifest(expected_commit: str, *, require_authorized: bool) -> dict[str
         or value.get("product_u9_authorization_id")
         != PRODUCT_U9_AUTHORIZATION_ID
         or value.get("confirmation") != CONFIRMATION
-        or value.get("live_execution_authorized") is not require_authorized
-        or value.get("new_clean_ota_mutation_authorized")
-        is not require_authorized
+        or type(granted) is not bool
+        or (require_authorized is not None and granted is not require_authorized)
+        or value.get("new_clean_ota_mutation_authorized") is not granted
+        or (
+            granted
+            and re.fullmatch(
+                r"[a-z0-9][a-z0-9-]{0,63}",
+                str(value.get("authorized_execution_id", "")),
+            ) is None
+        )
         or value.get("authorization_state") != expected_state
         or value.get("u13b_live_execution_authorized") is not False
         or value.get("controlled_rollback_mutation_authorized") is not False
@@ -273,10 +283,33 @@ def validate_claim(plan):
     return root, claim
 
 
+def revalidate_reset_usb(plan, backend, classify_candidate):
+    preflight = plan["preflight"]
+    if preflight.get("single_usb_reuse_after_reset") is not True:
+        raise Stop("single_usb_reuse_reset_not_verified")
+    eligible = [
+        candidate
+        for candidate in backend.inventory()
+        if not classify_candidate(candidate.as_media_candidate())
+    ]
+    if (
+        len(eligible) != 1
+        or eligible[0].public_fingerprint != preflight["fresh_usb_public_fingerprint"]
+    ):
+        raise Stop("preclaim_fresh_usb_candidate_drift")
+    uuids = run(
+        ["lsblk", "--list", "--noheadings", "--output", "UUID", eligible[0].locator],
+        timeout=30,
+    ).stdout.lower().split()
+    if plan["expected_terminal_u13a"]["filesystem_uuid"].lower() in uuids:
+        raise Stop("historical_usb_filesystem_uuid_present")
+
+
 def init_claim(plan, authorization_id, confirmation):
     if (
         authorization_id != plan["authorization_id"]
         or confirmation != plan["confirmation"]
+        or plan["execution_id"] != plan["authorized_execution_id"]
         or plan.get("live_execution_authorized") is not True
         or plan.get("new_clean_ota_mutation_authorized") is not True
         or plan.get("authorization_state")
@@ -330,19 +363,7 @@ def init_claim(plan, authorization_id, confirmation):
     if not isinstance(old_fingerprint, str) or len(old_fingerprint) != 64:
         raise Stop("historical_usb_fingerprint_invalid")
 
-    fresh = []
-    for candidate in SubprocessPrepareBackend().inventory():
-        reasons = classify_candidate(candidate.as_media_candidate())
-        if not reasons and candidate.public_fingerprint != old_fingerprint:
-            fresh.append(candidate)
-    expected_fresh = plan["preflight"]["fresh_usb_public_fingerprint"]
-    if plan["preflight"].get("single_usb_reuse_after_reset") is not True:
-        raise Stop("single_usb_reuse_reset_not_verified")
-    if (
-        len(fresh) != 1
-        or fresh[0].public_fingerprint != expected_fresh
-    ):
-        raise Stop("preclaim_fresh_usb_candidate_drift")
+    revalidate_reset_usb(plan, SubprocessPrepareBackend(), classify_candidate)
 
     root.mkdir(mode=0o700)
     os.chown(root, 0, 0)
@@ -505,7 +526,7 @@ def execute(plan):
                 raise Stop("acceptance_policy_binding_drift")
             return value
 
-    old_fingerprint = claim["historical_usb_public_fingerprint"]
+    expected_fingerprint = plan["preflight"]["fresh_usb_public_fingerprint"]
 
     class StagedArtifactBackend(SubprocessPrepareBackend):
         def __init__(self):
@@ -515,7 +536,7 @@ def execute(plan):
             return tuple(
                 candidate
                 for candidate in super().inventory()
-                if candidate.public_fingerprint != old_fingerprint
+                if candidate.public_fingerprint == expected_fingerprint
             )
 
         def prepare_target(self, *, transaction, media):
@@ -632,6 +653,7 @@ def execute(plan):
     }
 
     try:
+        revalidate_reset_usb(plan, SubprocessPrepareBackend(), classify_candidate)
         backend = StagedArtifactBackend()
         progress("prepare_new")
         resolver = StaticResolver(admission)
@@ -665,11 +687,12 @@ def execute(plan):
             status.get("phase") != "USB_REQUIRED_CONFIRMATION"
             or status.get("usb_confirmation_required") is not True
             or not isinstance(candidate, dict)
-            or candidate.get("public_fingerprint") == old_fingerprint
+            or candidate.get("public_fingerprint") != expected_fingerprint
         ):
             raise Stop("fresh_usb_candidate_not_ready")
 
         progress("fresh_usb_format_and_target_prepare")
+        revalidate_reset_usb(plan, SubprocessPrepareBackend(), classify_candidate)
         prepare.confirm_and_prepare()
         current = store.read()
         if current is None or current.get("phase") != "U4_READY_TO_INSTALL":
@@ -991,6 +1014,7 @@ def build_plan(
         "product_u9_authorization_id": PRODUCT_U9_AUTHORIZATION_ID,
         "confirmation": CONFIRMATION,
         "execution_id": execution_id,
+        "authorized_execution_id": manifest["authorized_execution_id"],
         "state_root": manifest["state_root_prefix"] + execution_id,
         "live_execution_authorized": manifest["live_execution_authorized"],
         "new_clean_ota_mutation_authorized": manifest[
@@ -1049,8 +1073,8 @@ def source_check(manifest: dict[str, Any]) -> dict[str, Any]:
         "schema": RESULT_SCHEMA,
         "gate_id": GATE_ID,
         "status": "P3_LIVE_TO_U11_SOURCE_READY",
-        "live_execution_authorized": False,
-        "new_clean_ota_mutation_authorized": False,
+        "live_execution_authorized": manifest["live_execution_authorized"],
+        "new_clean_ota_mutation_authorized": manifest["new_clean_ota_mutation_authorized"],
         "fresh_readonly_preflight_required": True,
         "fresh_usb_required": True,
         "historical_usb_reuse_forbidden": False,
@@ -1073,6 +1097,8 @@ def execute_live(
 ) -> dict[str, Any]:
     if args.authorization_id != AUTHORIZATION_ID or args.confirm != CONFIRMATION:
         raise Stop("local_authorization_invalid")
+    if args.execution_id != manifest["authorized_execution_id"]:
+        raise Stop("authorized_execution_id_mismatch")
     target_archive = args.target_archive.expanduser()
     verify_local_target_archive(target_archive, manifest)
 
@@ -1122,6 +1148,7 @@ def execute_live(
         )
         transport.start_epoch()
         try:
+            access_state.update(authorization_claimed=None, authorization_consumed=None)
             init_completed, init_value = remote_mode(
                 transport,
                 "init",
@@ -1133,8 +1160,11 @@ def execute_live(
             if (
                 init_completed.returncode != 0
                 or init_value.get("status") != "P3_LIVE_AUTHORIZATION_CLAIMED"
+                or init_value.get("authorization_claimed") is not True
+                or init_value.get("authorization_consumed") is not True
             ):
                 raise Stop("remote_claim_failed:" + str(init_value.get("reason", "unknown"))[:220])
+            access_state.update(authorization_claimed=True, authorization_consumed=True)
             remote_root = plan["state_root"] + "/staging/"
             transport.scp_to(
                 source_bundle,
@@ -1146,6 +1176,7 @@ def execute_live(
                 remote_root + "homeassistant-arm64.tar.gz",
                 timeout=3600,
             )
+            access_state["u11_reached"] = None
             completed, value = remote_mode(
                 transport,
                 "execute",
@@ -1154,18 +1185,23 @@ def execute_live(
             )
             if completed.returncode == 0 and value.get("status") == "P3_CLEAN_OTA_TO_U11_PASS":
                 return value
-            status_completed, status_value = remote_mode(
-                transport,
-                "status",
-                plan,
-                timeout=180,
-            )
-            if status_completed.returncode == 0 and status_value.get("status") == "P3_CLEAN_OTA_TO_U11_PASS":
-                return status_value
             raise Stop(
                 "live_execute_failed:"
-                + str(value.get("reason", status_value.get("reason", "unknown")))[:240]
+                + str(value.get("reason", "unknown"))[:240]
             )
+        except Exception:
+            try:
+                completed, status_value = remote_mode(
+                    transport, "status", plan, timeout=180
+                )
+            except Exception:
+                raise Stop("remote_status_unavailable_after_init_attempt") from None
+            if completed.returncode == 0:
+                if status_value.get("status") == "P3_CLEAN_OTA_TO_U11_PASS":
+                    return status_value
+                if status_value.get("authorization_claimed") is True:
+                    access_state.update(status_value)
+            raise
         finally:
             transport.close_epoch()
 
@@ -1205,7 +1241,7 @@ def main() -> int:
         execute = args.mode == "execute"
         manifest = read_manifest(
             args.expected_package_commit,
-            require_authorized=execute,
+            require_authorized=True if execute else None,
         )
         result["live_execution_authorized"] = manifest[
             "live_execution_authorized"
