@@ -122,7 +122,7 @@ def mount_entry(pid, device, mountpoint):
     return {"id": left[0], "options": sorted(options), "super_options": sorted(super_options)}
 
 
-def bind_media(tx, daemon_pid):
+def bind_media(tx, daemon_pid, *, include_fingerprint=False):
     from n3w_t1_core_updater_ha_prepare_host import (
         SubprocessPrepareBackend, _boolish, _flatten_blocks, _stable_fingerprint,
     )
@@ -161,14 +161,16 @@ def bind_media(tx, daemon_pid):
     daemon = mount_entry(daemon_pid, device, mountpoint)
     require(mountpoint.is_dir() and mountpoint.resolve() == mountpoint
             and mountpoint.stat().st_dev == info.st_rdev, "usb_mount_path_drift")
+    fingerprint = _stable_fingerprint(disk)
     return mountpoint, {
         "filesystem_uuid": uuid, "mountpoint": str(mountpoint), "device": device,
         "preflight_mount": local, "daemon_mount": daemon,
-        "session_fingerprint_matches": _stable_fingerprint(disk) == tx["usb_device_identity_public_fingerprint"],
+        "session_fingerprint_matches": fingerprint == tx["usb_device_identity_public_fingerprint"],
+        **({"session_fingerprint": fingerprint} if include_fingerprint else {}),
     }
 
 
-def bind_mirror(mountpoint, tx):
+def bind_mirror(mountpoint, tx, *, manifest_fingerprint=None):
     from n3w_t1_core_updater_ha_usb_state import (
         USB_TX_CHECKSUM_SCHEMA, USB_TX_CONTENT_AUTHORITY_SCHEMA, USB_TX_MANIFEST_SCHEMA, USB_TX_PHASE_SCHEMA,
     )
@@ -185,7 +187,9 @@ def bind_mirror(mountpoint, tx):
         "manifest": {
             "schema": USB_TX_MANIFEST_SCHEMA, **tx_id, **target, "release_identity": release,
             "target_image_ref": tx["target_image_ref"], "usb_filesystem_uuid": tx["usb_filesystem_uuid"],
-            "usb_device_identity_public_fingerprint": tx["usb_device_identity_public_fingerprint"],
+            "usb_device_identity_public_fingerprint": (
+                tx["usb_device_identity_public_fingerprint"] if manifest_fingerprint is None else manifest_fingerprint
+            ),
         },
         "checksums": {"schema": USB_TX_CHECKSUM_SCHEMA, **target},
         "phase": {"schema": USB_TX_PHASE_SCHEMA, **tx_id, "phase": tx["phase"],

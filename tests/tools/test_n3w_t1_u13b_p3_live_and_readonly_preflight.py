@@ -1414,3 +1414,129 @@ def test_p3_u7_quiesce_owner_requires_no_process_and_stopped_apps(
             module.verify_quiesced({"peers": peers}, broker)
     else:
         assert module.verify_quiesced({"peers": peers}, broker)["ActiveState"] == owner
+
+
+@pytest.fixture
+def p3_u8(p3_u7_backup, monkeypatch):
+    monkeypatch.setitem(sys.modules, "ha_backup", p3_u7_backup)
+    return load(RECOVERY_EXECUTOR.with_name("recovery_admission.py"), "p3_u8")
+
+
+@pytest.mark.parametrize("stage", ["preflight", "execute", "host_write_failed"])
+def test_p3_u8_usb_first_exact_successor_and_session_fingerprint(
+    p3_u8, monkeypatch, tmp_path, stage,
+):
+    import base64
+    from dataclasses import replace
+    from test_n3w_t1_core_updater_ha_backup_u7 import FakeBackup, FINGERPRINT, PREDECESSOR_RECORD, build_u6
+    from n3w_t1_core_updater_ha_capacity import compute_recovery_admission_capacity
+    from n3w_t1_core_updater_ha_prepare_host import SubprocessPrepareBackend
+    from n3w_t1_core_updater_ha_usb import record_ha_data_backup_verified, record_predecessor_recovery_and_ha_quiesced
+    from n3w_t1_core_updater_ha_usb_media import UsbCapacityInputs
+    from n3w_t1_core_updater_ha_usb_state import HaUsbStateStore
+
+    module = p3_u8
+    state = tmp_path / "host"
+    mount = tmp_path / "usb"
+    mount.mkdir()
+    store = HaUsbStateStore(state)
+    backup = FakeBackup().record
+    u7 = record_ha_data_backup_verified(
+        record_predecessor_recovery_and_ha_quiesced(build_u6(), predecessor=PREDECESSOR_RECORD, ha_quiesced=True),
+        backup=backup,
+    )
+    store.write(u7)
+    raw = store.path.read_bytes()
+    monkeypatch.setattr(module, "U7_SHA", module.install_intent.digest_bytes(raw))
+    new_fingerprint = "a" * 64
+    assert new_fingerprint != FINGERPRINT
+    media = {"device": "8:17", "session_fingerprint": new_fingerprint}
+    snapshot = {"tx": u7, "raw": raw, "mount": mount, "media": media}
+    monkeypatch.setattr(module.recovery, "STATE", state)
+    monkeypatch.setattr(module.recovery, "private_path", lambda *args, **kwargs: None)
+    monkeypatch.setattr(module.preflight, "read_private", Path.read_bytes)
+    monkeypatch.setattr(module, "os", SimpleNamespace(geteuid=lambda: 0, umask=lambda _: None, path=module.os.path))
+    monkeypatch.setattr(module, "verify_prestate", lambda *_: snapshot)
+    monkeypatch.setattr(module, "check_continuity", lambda *_: None)
+    backend = SubprocessPrepareBackend()
+    monkeypatch.setattr(backend, "_require_bound_media", lambda _: "/dev/test")
+    monkeypatch.setattr(backend, "capacity_inputs", lambda _: UsbCapacityInputs(
+        target_artifact_bytes=u7["target_archive_size"],
+        predecessor_recovery_worst_case_bytes=2 * 1024**3,
+        ha_data_backup_worst_case_bytes=2 * 1024**3,
+        transaction_metadata_and_working_bytes=1024**3,
+        removable_media_reserve_bytes=1024**3,
+    ))
+    monkeypatch.setattr(backend, "recovery_admission_capacity", lambda _, device, *, target, predecessor, backup:
+        compute_recovery_admission_capacity(
+            target_archive_bytes=target.archive_size_bytes, predecessor_archive_bytes=predecessor.archive_size_bytes,
+            ha_backup_archive_bytes=backup.archive_size_bytes, transaction_working_budget_bytes=1024**3,
+            observed_usb_free_bytes=18 * 1024**3,
+        ),
+    )
+    monkeypatch.setattr(module.recovery, "recovery_backend", lambda *_, **__: backend)
+    _, device, u8, _ = module.build_admission({}, u7, mount, media)
+    backend.sync_transaction_metadata(u7, replace(device, public_fingerprint=FINGERPRINT))
+    plan = {"candidate_commit": "1" * 40, "target": {"target_archive_sha256": u7["target_archive_sha256"]}}
+    plan["grant"] = {**module.binding(plan), "authorized": True, "expires_at_unix": int(module.time.time()) + 120}
+    encoded = base64.b64encode(json.dumps(plan).encode())
+    if stage == "preflight":
+        assert module.remote_main("preflight", encoded) == 0
+        assert not module.ledger_root().exists()
+        assert store.path.read_bytes() == raw
+        module.preflight.bind_mirror(mount, u7)
+        return
+
+    persist = HaUsbStateStore.write
+
+    def write(self, admitted):
+        assert self.path.read_bytes() == raw
+        assert manifest(module.ledger_root() / "claim.json")["consumed"] is True
+        module.preflight.bind_mirror(mount, admitted, manifest_fingerprint=new_fingerprint)
+        if stage == "host_write_failed":
+            raise module.recovery.Stop("synthetic_host_write_failed")
+        persist(self, admitted)
+
+    monkeypatch.setattr(HaUsbStateStore, "write", write)
+    assert module.remote_main("execute", encoded) == (2 if stage == "host_write_failed" else 0)
+    ledger = module.ledger_root()
+    if stage == "host_write_failed":
+        failure = manifest(ledger / "failure.json")
+        assert failure["status"] == "STOP_POSTCLAIM" and failure["usb_u8_verified"] is True
+        assert failure["u8_transition"] is False and store.path.read_bytes() == raw
+    else:
+        document = store.read()
+        success = manifest(ledger / "success.json")
+        assert document["phase"] == module.U8
+        assert document["usb_device_identity_public_fingerprint"] == FINGERPRINT
+        assert document["recovery_content_manifest_sha256"] == u8["recovery_content_manifest_sha256"]
+        assert success["u9_plus"] is False and document["authorization_claimed"] is False
+        module.preflight.bind_mirror(mount, document, manifest_fingerprint=new_fingerprint)
+        monkeypatch.setattr(module.preflight, "bind_ledger", lambda _: {})
+        monkeypatch.setattr(module, "bind_u7_ledger", lambda _: {})
+        monkeypatch.setattr(module.preflight, "service_binding", lambda: (1, {}))
+        monkeypatch.setattr(module.preflight, "bind_media", lambda *_: (mount, {"session_fingerprint_matches": False}))
+        monkeypatch.setattr(module.ha_backup, "verify_backup_files", lambda *_: module.BACKUP_METADATA_SHA)
+        monkeypatch.setattr(module.ha_backup, "verify_quiesced", lambda *_: {})
+        monkeypatch.setattr(module.u6_preflight, "image_binding", lambda _: None)
+        assert module.remote_main("status", encoded) == 0
+    with pytest.raises(module.recovery.Stop, match="u8_ledger_exists_never_replay"):
+        module.execute(plan, {})
+
+
+def test_p3_u8_remote_entry_denies_execution_without_exact_grant(p3_u8):
+    import subprocess
+
+    module = p3_u8
+    bootstrap = module.u6_recovery.make_bootstrap(
+        Path(module.__file__), extra_modules=(
+            ("u6_recovery", module.u6_recovery), ("check_ha_backup", module.check_ha_backup),
+            ("ha_backup", module.ha_backup),
+        ),
+    )
+    completed = subprocess.run(
+        [sys.executable, "-I", "-B", "-c", bootstrap, "--remote", "execute", "e30="],
+        capture_output=True, text=True, check=False,
+    )
+    assert completed.returncode == 2, completed.stderr
+    assert json.loads(completed.stdout)["reason"] in {"u8_grant_required", "target_root_required"}
