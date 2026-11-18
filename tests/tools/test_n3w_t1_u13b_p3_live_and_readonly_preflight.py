@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -658,3 +659,84 @@ def test_live_requires_verified_single_usb_reset_preflight():
     module = load(LIVE_EXECUTOR, "p3_live_single_usb_reset")
     remote = module.REMOTE_SCRIPT
     assert "single_usb_reuse_reset_not_verified" in remote
+
+
+@pytest.fixture
+def p3_u5(monkeypatch):
+    recovery = load(RECOVERY_EXECUTOR, "p3_recovery_for_u5")
+    monkeypatch.setitem(sys.modules, "executor", recovery)
+    return load(RECOVERY_EXECUTOR.with_name("preflight.py"), "p3_u5_preflight")
+
+
+@pytest.mark.parametrize(
+    ("mountinfo", "error"),
+    [
+        ("", "usb_mount_missing_or_ambiguous"),
+        ("42 28 8:1 / /run/medium ro,nosuid,nodev,noexec - ext4 /dev/sdz1 rw", "usb_mount_identity"),
+        ("42 28 8:1 / /run/medium rw,nosuid,nodev,noexec - ext4 /dev/sdz1 ro", "usb_mount_identity"),
+        ("42 28 8:1 / /run/medium rw,nosuid,nodev,noexec - ext4 /dev/sdz1 rw,noload", "usb_mount_identity"),
+        ("42 28 8:2 / /run/medium rw,nosuid,nodev,noexec - ext4 /dev/sdz2 rw", "usb_mount_identity"),
+        ("42 28 8:1 / /run/medium rw,nosuid,nodev,noexec - ext4 /dev/sdz1 rw\n"
+         "43 28 8:1 / /run/other rw - ext4 /dev/sdz1 rw", "usb_mount_missing_or_ambiguous"),
+    ],
+)
+def test_p3_u5_mount_check_refuses_wrong_mount(monkeypatch, p3_u5, mountinfo, error):
+    monkeypatch.setattr(Path, "read_text", lambda _path: mountinfo)
+    with pytest.raises(p3_u5.recovery.Stop, match=error):
+        p3_u5.mount_entry(17, "8:1", Path("/run/medium"))
+
+
+def test_p3_u5_mount_check_uses_device_number_not_saved_devnode(monkeypatch, p3_u5):
+    mountinfo = "42 28 8:1 / /run/medium rw,nosuid,nodev,noexec - ext4 /dev/sdz1 rw"
+    monkeypatch.setattr(Path, "read_text", lambda _path: mountinfo)
+    assert p3_u5.mount_entry(17, "8:1", Path("/run/medium"))["id"] == "42"
+
+
+def test_p3_u5_ipc_queries_status_only(monkeypatch, p3_u5):
+    def run_status(stage, arguments, **_):
+        assert stage == "manager_ota_ipc_status"
+        assert arguments[:5] == ["docker", "exec", "-u", "999:999", "manager"]
+        probe = arguments[-1]
+        compile(probe, "ipc_probe", "exec")
+        assert '"operation":"status"' in probe
+        assert "submit" not in probe
+        return json.dumps({
+            "schema": "gh.n3w-t1-ha-ota-ipc-response/3", "accepted": True, "code": "status",
+            "phase": "READY_TO_INSTALL", "error_code": None, "installed_version": "2026.10.4",
+        }).encode()
+
+    monkeypatch.setattr(p3_u5, "run", run_status)
+    assert p3_u5.ipc_status("manager", "2026.10.4") == "READY_TO_INSTALL"
+    with pytest.raises(p3_u5.recovery.Stop, match="ota_ipc_not_ready"):
+        p3_u5.ipc_status("manager", "2026.10.0")
+
+
+def test_p3_u5_returns_stop_if_u4_drifts_during_archive_check(monkeypatch, p3_u5):
+    module = p3_u5
+    tx = {"current_image_ref": "prior", "target_archive_size": 10, "target_archive_sha256": "digest"}
+    plan = {"predecessor_runtime_id": "runtime", "predecessor_version": "2026.10.4"}
+    claim = {"peers": {"manager": {"container_id": "manager"},
+                       "homeassistant": {"image_ref": "prior", "runtime_image_id": "runtime"}}}
+    monkeypatch.setattr(module.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(module, "bind_ledger", lambda _: claim)
+    monkeypatch.setattr(module, "bind_transaction", lambda _, raw: tx)
+    monkeypatch.setattr(module.recovery, "check_peers", lambda _: None)
+    monkeypatch.setattr(module.recovery, "private_path", lambda *_, **__: None)
+    monkeypatch.setattr(module, "service_binding", lambda: (1, {}))
+    monkeypatch.setattr(module, "installed_binding", lambda *_: {})
+    monkeypatch.setattr(module, "bind_media", lambda *_: (Path("/tmp/media"), {}))
+    monkeypatch.setattr(module, "bind_mirror", lambda *_: None)
+    monkeypatch.setattr(module, "ipc_status", lambda *_: "READY_TO_INSTALL")
+
+    records = iter([b"u4_before", b"u4_changed"])
+    monkeypatch.setattr(module, "read_private",
+                        lambda _, size=None: next(records) if size is None else "digest")
+    with pytest.raises(module.recovery.Stop, match="transaction_or_mount_changed"):
+        module.preflight(plan, {})
+
+    monkeypatch.setattr(module, "read_private",
+                        lambda _, size=None: b"u4_before" if size is None else "digest")
+    result = {}
+    module.preflight(plan, result)
+    assert result["status"] == "P3_U5_READONLY_PREFLIGHT_PASS"
+    assert result["transaction_phase"] == module.U4
