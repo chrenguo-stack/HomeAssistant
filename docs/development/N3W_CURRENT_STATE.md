@@ -36,10 +36,11 @@ CI_PUBLIC_SAFETY_RUN=44335290118 SUCCESS
 CI_FAST_SOURCE_EXACT_CLOSURE_RUN=44335289469 SUCCESS
 CI_SAME_VERSION_ACCEPTANCE_ARTIFACT_RUN=44335289680 SUCCESS
 
-U10_ATTEMPT03_READONLY_AUTHORIZATION=NOT_GRANTED_BY_ARCHIVE
+U10_ATTEMPT03_READONLY_AUTHORIZATION=AUTHORIZED_ONE_SHOT_BY_USER_CONTINUE
 U10_DESTRUCTIVE_AUTHORIZATION=false
 U11_PLUS_AUTHORIZATION=false
 NEXT_ONE_GATE=N3W_T1_U13B_P3_U10_READONLY_ATTEMPT03_PHYSICAL_REVALIDATION
+U10_ATTEMPT03_MAX_COUNT=1
 ```
 
 Later documentation-only branch heads do not replace `c7c51917d09cc774b5e97e5b7d0f9bcacfe64ea9` as the Attempt 03 execution source. U9 remains consumed/non-replayable. Attempt 03, when separately operator-approved and executed, must remain read-only and stop before destructive U10. A PASS proves only read-only eligibility; customer bounded-recovery acceptance and a new explicit destructive authorization remain separate prerequisites.

@@ -4,7 +4,8 @@
 - KF-167 repair head `b80c7a66af713516f1ca32b6b4417b7f8cb01dd1` loads exact frozen tools before the first U9 status product import and preserves the existing U8 ledger binding.
 - Exact Attempt 03 candidate is `c7c51917d09cc774b5e97e5b7d0f9bcacfe64ea9`. Its associated workflows are all SUCCESS, including P3 live/read-only source `44335289581`, Core Stack authority `44335289659`, Manager A-to-B `44335289799`, HA 2026.10.4 target binding `44335289530`, public safety `44335290118`, fast source/exact closure `44335289469`, and same-version acceptance artifact `44335289680`.
 - Live T1 remains durable U9; U9 is consumed/non-replayable. No destructive U10, predecessor deletion, target load/start, service restart, U11+, spare-T1 mutation or PR merge is authorized.
-- Physical closure of KF-167 requires a later operator-approved U10 read-only Attempt 03. A PASS still does not authorize destructive U10.
+- User explicitly said `继续` after exact-candidate CI reached full SUCCESS; this is recorded as authorization for exactly one U10 read-only Attempt 03 against `c7c51917d09cc774b5e97e5b7d0f9bcacfe64ea9`.
+- Attempt 03 authorization is read-only only, maximum count 1. A PASS still does not authorize destructive U10.
 - [KF-167 source/CI closure](./N3W_T1_U13B_P3_U10_READONLY_KF167_SOURCE_CI_CLOSURE_20261118.md)
 
 ## 2026-11-18 — U13B P3 U10 read-only Attempt 02 safe STOP / ModuleNotFoundError
