@@ -1,0 +1,11 @@
+{
+  "schema": "gh.n3w-t1-u13b-p3-u4-u5-install-intent/1",
+  "authorization_id": "N3W_T1_U13B_P3_U4_TO_U5_INSTALL_INTENT_20261118_01",
+  "authorized": true,
+  "candidate_commit": "63e2c470eace97bfb15c0e7ff9ad7380e6884668",
+  "preflight_receipt_sha256": "99ceecf381c58cbd32439f37f0b9ca90f220a835b10040b302728fbc9f3bc70a",
+  "u4_transaction_sha256": "00167d489d785af6a458cd09826b9293dc29ec6c85b02ac75772017633d6f154",
+  "target_archive_sha256": "be30c4778bf537258d9e3825524c79532f20e8eb7a82136f560110d8f44b418d",
+  "maximum_phase": "U5_INSTALL_REQUESTED_REVALIDATING",
+  "expires_at_unix": 1795000164
+}
