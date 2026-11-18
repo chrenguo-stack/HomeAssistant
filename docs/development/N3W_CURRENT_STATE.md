@@ -1,3 +1,41 @@
+## Latest authority — 2026-11-18 U13B P3 predecessor recovery verified at U6
+
+The operator executed the separately authorized P3 predecessor export. Host and USB metadata agree at U6, the OTA IPC reported the U6 phase, and the verified, fsynced predecessor archive is available on the bound USB.
+
+```text
+PR=807
+DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+P3_U6_CANDIDATE_HEAD=c8e77c76af5ea05445baf6f3d977903a91e860d3
+P3_U6_GRANT_HEAD=97591fd5f041d8cbee655deb032c077e653e3c94
+P3_U6_AUTHORIZATION_ID=N3W_T1_U13B_P3_U6_PREDECESSOR_RECOVERY_20261118_01
+P3_U6_AUTHORIZATION=CONSUMED_NO_REPLAY
+P3_U6_RESULT=P3_U6_PREDECESSOR_RECOVERY_PASS
+EXIT_CODE=0
+TRANSACTION_PHASE=U6_PREDECESSOR_RECOVERY_PREPARING
+TRANSACTION_SHA256=c63c215a3b68041c523a74b682725fc6ca42538a458e8357bf79fe27b20f27b8
+IPC_PHASE=PREDECESSOR_RECOVERY_PREPARING
+USB_METADATA_MATCHES=true
+PREDECESSOR_IMAGE_REF=local/n3w-homeassistant:2026.10.4-5881590f
+PREDECESSOR_ARCHIVE_SIZE_BYTES=743051918
+PREDECESSOR_ARCHIVE_SHA256=31108a725e6b6530c68834218d9e41579055d7fe2718b3f42902b71237dc8e5f
+PREDECESSOR_PORTABLE_IDENTITY_SHA256=efcf67bd4ff40cd902b43fc531aa9dce58d115ececc8ebd4e324a15e0f4952f3
+PREDECESSOR_ARCHIVE_VERIFIED=true
+PREDECESSOR_ARCHIVE_FSYNCED=true
+RUNTIME_CONTINUITY_VERIFIED=true
+U7_PLUS=false
+RECEIPT_SHA256=8c08a06a1bfaa3a4c27dc9a064f3a0b0904f4d326fa04fd3e36bb0b4a7bf8b9a
+```
+
+P3 stopped at U6. The next gate is a separate read-only rebind for U7 preparation. Any U7 HA quiesce, data backup and transaction write requires separate authorization. The repository Core Stack references above describe the accepted product authority and the P3 acceptance target remains separately bound. See the [U6 physical receipt](./N3W_T1_U13B_P3_U6_READONLY_PREFLIGHT_20261118.md#u6-实机执行回执).
+
 ## Latest authority — 2026-11-18 U13B P3 installation intent verified at U5
 
 The operator executed the separately authorized P3 U4-to-U5 intent from the exact grant commit. The executor verified the same transaction on the host and USB and observed the U5 phase via OTA IPC.
@@ -27,7 +65,7 @@ U6_PLUS=false
 RECEIPT_SHA256=cfef0e884513b93defb184bee46b46bb17268ab789a3b9abdbf3656604ea9577
 ```
 
-P3 stopped at U5. The next authorized preparation can reuse the existing U6–U11 source against this exact U5 transaction after read-only rebind. Any U6+ live action requires its own authorization. The repository Core Stack references above describe the accepted product authority, and the P3 acceptance target remains separately bound. See [N3W_T1_U13B_P3_U5_READONLY_PREFLIGHT_20261118.md](./N3W_T1_U13B_P3_U5_READONLY_PREFLIGHT_20261118.md#u5-实机执行回执) for the operator result.
+P3 stopped at U5 after this checkpoint. This exact U5 transaction was used for the separately authorized U6 action above. Any U6+ live action requires its own authorization. The repository Core Stack references above describe the accepted product authority, and the P3 acceptance target remains separately bound. See [N3W_T1_U13B_P3_U5_READONLY_PREFLIGHT_20261118.md](./N3W_T1_U13B_P3_U5_READONLY_PREFLIGHT_20261118.md#u5-实机执行回执) for the operator result.
 
 ## Latest authority — 2026-11-18 U13B P3 recovery verified at U4
 

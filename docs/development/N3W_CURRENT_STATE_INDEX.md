@@ -1,10 +1,19 @@
+## 2026-11-18 — U13B P3 predecessor recovery verified at U6
+
+- Core Stack repository authority is `infra/n3w-t1/production/t1-core-stack-current.json` at product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`. Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, and Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference `24382caae4a1f5d459297f86e8d18f10a848ca64` has Manager `local/greenhouse-manager:fresh-24382caae4a1`. Live upgrade accepted.
+- Exact grant commit `97591fd5f041d8cbee655deb032c077e653e3c94` on PR #807 returned `P3_U6_PREDECESSOR_RECOVERY_PASS / EXIT_CODE=0`.
+- Host and USB agree on `U6_PREDECESSOR_RECOVERY_PREPARING` at SHA-256 `c63c215a3b68041c523a74b682725fc6ca42538a458e8357bf79fe27b20f27b8`. OTA IPC reported the same phase. The U6 authorization is consumed and cannot replay.
+- Predecessor archive has `743051918` bytes and SHA-256 `31108a725e6b6530c68834218d9e41579055d7fe2718b3f42902b71237dc8e5f`. It was verified and fsynced, and runtime continuity was verified.
+- Stop before U7. See the [U6 physical receipt](./N3W_T1_U13B_P3_U6_READONLY_PREFLIGHT_20261118.md#u6-实机执行回执).
+
 ## 2026-11-18 — U13B P3 installation intent verified at U5
 
 - Core Stack repository authority is `infra/n3w-t1/production/t1-core-stack-current.json` at product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`. Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, and Broker `local/n3w-mosquitto:2.1.2-3184566d`.
 - Historical clean reference `24382caae4a1f5d459297f86e8d18f10a848ca64` has Manager `local/greenhouse-manager:fresh-24382caae4a1`. Live upgrade accepted.
 - Exact grant commit `974b2fadba200a769b18ddbb6d1a2beb33decab7` on PR #807 returned `P3_U5_INSTALL_INTENT_PASS / EXIT_CODE=0`.
 - Host and USB agree on `U5_INSTALL_REQUESTED_REVALIDATING` at SHA-256 `53141824bb5bd89f0911e217900ad50acee44cf6ef0ead891e867042a89dfe12`. OTA IPC observed the U5 phase. The grant is consumed and cannot replay.
-- Stop before U6. The next live action requires separate authorization. See [N3W_T1_U13B_P3_U5_READONLY_PREFLIGHT_20261118.md](./N3W_T1_U13B_P3_U5_READONLY_PREFLIGHT_20261118.md#u5-实机执行回执).
+- This checkpoint stopped before U6, which later ran under separate authorization. See [N3W_T1_U13B_P3_U5_READONLY_PREFLIGHT_20261118.md](./N3W_T1_U13B_P3_U5_READONLY_PREFLIGHT_20261118.md#u5-实机执行回执).
 
 ## 2026-11-18 — U13B P3 recovery verified at U4
 
