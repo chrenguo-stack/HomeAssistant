@@ -96,3 +96,11 @@ def test_receipt_stops_before_u10_and_u11() -> None:
     assert "destructive_cutover_eligible=True" in text
     assert "u10_transition=False" in text
     assert "u11_plus=False" in text
+
+
+def test_usb_mirror_uses_u9_write_fingerprint_not_current_session() -> None:
+    text = source()
+    assert 'u9.ledger_root() / "claim.json"' in text
+    assert 'write_fingerprint = u9_claim.get("write_session_fingerprint")' in text
+    assert "manifest_fingerprint=write_fingerprint" in text
+    assert 'manifest_fingerprint=media["session_fingerprint"]' not in text
