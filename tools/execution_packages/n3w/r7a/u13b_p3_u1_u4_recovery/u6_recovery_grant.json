@@ -1,0 +1,11 @@
+{
+  "schema": "gh.n3w-t1-u13b-p3-u6-predecessor-recovery/1",
+  "authorization_id": "N3W_T1_U13B_P3_U6_PREDECESSOR_RECOVERY_20261118_01",
+  "candidate_commit": "c8e77c76af5ea05445baf6f3d977903a91e860d3",
+  "preflight_receipt_sha256": "e9472f04e73e01c46556ce08c8d8d8fa7c1bf905ccb9a52e520eaae70f73f7fb",
+  "u5_transaction_sha256": "53141824bb5bd89f0911e217900ad50acee44cf6ef0ead891e867042a89dfe12",
+  "target_archive_sha256": "be30c4778bf537258d9e3825524c79532f20e8eb7a82136f560110d8f44b418d",
+  "maximum_phase": "U6_PREDECESSOR_RECOVERY_PREPARING",
+  "authorized": true,
+  "expires_at_unix": 1795003438
+}
