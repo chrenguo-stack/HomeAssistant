@@ -166,3 +166,12 @@ unmount exact historical product mount
 It does **not** repartition, run mkfs, create a new OTA transaction, mutate services/images/HA data, claim P3 live authorization, or enter U13B. Standard GPT recreation and ext4 formatting remain owned by the production `confirm_and_prepare()` path in the later separately authorized P3 live stage.
 
 Safety rationale: destroying the old recovery medium occurs while the currently running predecessor remains unchanged. No production service/image/HA-data mutation is allowed until the later flow rebuilds target, predecessor recovery and HA-data backup on the reused USB and passes recovery admission. The reset gate therefore closes the single-USB hardware gap without weakening the ordering of U6/U7/U8 before U9+ production mutation.
+
+
+## Downstream closure for post-reset single-USB reuse
+
+Before the destructive reset executes, the reset package delegates the exact historical U13A status-only binding probe. This preserves evidence that the historical transaction, runtime and USB mirror were exact immediately before the old filesystem identity is destroyed.
+
+After the reset removes the historical filesystem UUID, the historical USB mirror can no longer be re-read. The post-reset P3 preflight therefore switches to an explicit single-USB reuse contract: it revalidates the exact host terminal transaction and current Home Assistant runtime, requires the same diagnosed USB public fingerprint, requires the old U13A filesystem UUID to be absent, requires the device to be unmounted and otherwise eligible, and returns `single_usb_reuse_after_reset=true`.
+
+The live executor must fail closed unless that exact preflight result reports `single_usb_reuse_after_reset=true`. It still creates a fresh U1 transaction and uses the normal production `confirm_and_prepare()` path for partition-table recreation, ext4 formatting and target preparation. Reuse without the destructive reset remains forbidden.

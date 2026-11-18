@@ -206,6 +206,7 @@ def filesystem_uuids_for_candidate(locator):
 
 def main():
     plan = json.loads(base64.b64decode(sys.argv[1]).decode("utf-8"))
+    reuse = plan.get("single_usb_reuse_after_reset") or {}
     ha_store = HaUsbStateStore(STATE_ROOT)
     transaction = ha_store.read()
     if transaction is None:
@@ -263,6 +264,8 @@ def main():
         raise RuntimeError("p3_preflight_historical_usb_fingerprint_invalid")
 
     old_filesystem_uuid = expected["filesystem_uuid"].lower()
+    reuse_authorized = reuse.get("authorized") is True
+    expected_reuse_fingerprint = reuse.get("expected_public_fingerprint")
     backend = SubprocessPrepareBackend()
     fresh = []
     for candidate in backend.inventory():
@@ -270,11 +273,17 @@ def main():
         observed_filesystem_uuids = filesystem_uuids_for_candidate(
             candidate.locator
         )
-        if (
-            not reasons
-            and candidate.public_fingerprint != old_fingerprint
-            and old_filesystem_uuid not in observed_filesystem_uuids
-        ):
+        if reuse_authorized:
+            eligible_identity = (
+                candidate.public_fingerprint == expected_reuse_fingerprint
+                and old_filesystem_uuid not in observed_filesystem_uuids
+            )
+        else:
+            eligible_identity = (
+                candidate.public_fingerprint != old_fingerprint
+                and old_filesystem_uuid not in observed_filesystem_uuids
+            )
+        if not reasons and eligible_identity:
             fresh.append(candidate.public())
 
     if len(fresh) != 1:
@@ -301,7 +310,8 @@ def main():
         "current_homeassistant_runtime_image_id": runtime_id,
         "fresh_usb_candidate_count": 1,
         "fresh_usb_candidate": fresh[0],
-        "old_usb_reuse_forbidden": True,
+        "old_usb_reuse_forbidden": not reuse_authorized,
+        "single_usb_reuse_after_reset": reuse_authorized,
         "transaction_mutation": False,
         "usb_mutation": False,
         "service_mutation": False,
@@ -361,7 +371,12 @@ def remote_probe(
     )
     payload = base64.b64encode(
         json.dumps(
-            {"expected_terminal_u13a": manifest["expected_terminal_u13a"]},
+            {
+                "expected_terminal_u13a": manifest["expected_terminal_u13a"],
+                "single_usb_reuse_after_reset": manifest.get(
+                    "single_usb_reuse_after_reset"
+                ),
+            },
             sort_keys=True,
             separators=(",", ":"),
         ).encode("utf-8")
@@ -414,16 +429,27 @@ def run_readonly(
     expected_host_key_sha256: str,
     access_state: dict[str, Any],
 ) -> dict[str, Any]:
-    p1 = load_module(P1_EXECUTOR, "n3w_u13b_p3_p1_binding")
-    _, binding = p1.run_status_only(
-        execution_id=execution_id + "-terminal-binding",
-        evidence_root=evidence_root,
-        t1_ssh_target=t1_ssh_target,
-        known_hosts=known_hosts,
-        expected_host_key_sha256=expected_host_key_sha256,
-        expected_terminal=manifest["expected_terminal_u13a"],
-        access_state=access_state,
-    )
+    reuse = manifest.get("single_usb_reuse_after_reset") or {}
+    reuse_authorized = reuse.get("authorized") is True
+    if reuse_authorized:
+        binding = {
+            "status": "POST_RESET_HOST_TERMINAL_REVALIDATION",
+            "fresh_binding": True,
+            "historical_transaction_sha256": manifest[
+                "expected_terminal_u13a"
+            ]["transaction_sha256"],
+        }
+    else:
+        p1 = load_module(P1_EXECUTOR, "n3w_u13b_p3_p1_binding")
+        _, binding = p1.run_status_only(
+            execution_id=execution_id + "-terminal-binding",
+            evidence_root=evidence_root,
+            t1_ssh_target=t1_ssh_target,
+            known_hosts=known_hosts,
+            expected_host_key_sha256=expected_host_key_sha256,
+            expected_terminal=manifest["expected_terminal_u13a"],
+            access_state=access_state,
+        )
     probe = remote_probe(
         manifest=manifest,
         t1_ssh_target=t1_ssh_target,
@@ -435,8 +461,15 @@ def run_readonly(
         binding.get("status") != "U13B_REAL_T1_READONLY_BINDING_PASS"
         or binding.get("fresh_binding") is not True
         or probe.get("prepare_new_admissible") is not True
-        or probe.get("old_usb_reuse_forbidden") is not True
         or probe.get("fresh_usb_candidate_count") != 1
+        or (
+            reuse_authorized
+            and probe.get("single_usb_reuse_after_reset") is not True
+        )
+        or (
+            not reuse_authorized
+            and probe.get("old_usb_reuse_forbidden") is not True
+        )
     ):
         raise Stop("p3_fresh_readonly_composite_drift")
     result = {
@@ -452,6 +485,9 @@ def run_readonly(
         "historical_usb_public_fingerprint": probe[
             "historical_usb_public_fingerprint"
         ],
+        "single_usb_reuse_after_reset": probe.get(
+            "single_usb_reuse_after_reset", False
+        ),
         "historical_transaction_sha256": binding[
             "historical_transaction_sha256"
         ],
@@ -484,6 +520,21 @@ def run_readonly(
 
 def source_check(manifest: dict[str, Any]) -> dict[str, Any]:
     target = manifest["acceptance_target"]
+    reuse = manifest.get("single_usb_reuse_after_reset")
+    if (
+        not isinstance(reuse, dict)
+        or reuse.get("authorized") is not True
+        or reuse.get("reset_gate_id")
+        != "N3W_T1_U13B_P3_SINGLE_USB_REUSE_RESET_20261118_01"
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(reuse.get("expected_public_fingerprint", "")),
+        ) is None
+        or reuse.get("historical_filesystem_uuid")
+        != manifest["expected_terminal_u13a"]["filesystem_uuid"]
+        or reuse.get("require_historical_uuid_absent") is not True
+    ):
+        raise Stop("single_usb_reuse_contract_invalid")
     if target["target_image_ref"] == target["expected_predecessor_image_ref"]:
         raise Stop("target_not_distinct")
     return {
@@ -498,7 +549,12 @@ def source_check(manifest: dict[str, Any]) -> dict[str, Any]:
         "expected_predecessor_image_ref": target[
             "expected_predecessor_image_ref"
         ],
-        "old_usb_reuse_forbidden": True,
+        "old_usb_reuse_forbidden": not bool(
+            manifest.get("single_usb_reuse_after_reset", {}).get("authorized")
+        ),
+        "single_usb_reuse_after_reset": bool(
+            manifest.get("single_usb_reuse_after_reset", {}).get("authorized")
+        ),
         "transaction_mutation": False,
         "usb_mutation": False,
         "service_mutation": False,

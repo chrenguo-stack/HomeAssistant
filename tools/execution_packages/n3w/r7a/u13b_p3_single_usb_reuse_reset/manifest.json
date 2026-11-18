@@ -14,10 +14,14 @@
     "source_head_before_reset_package": "d16207ce8923832bec34c2f656823df752f046e1",
     "user_authorized_historical_usb_destruction": true,
     "user_authorized_date": "2026-11-18",
-    "single_usb_hardware_constraint": true
+    "single_usb_hardware_constraint": true,
+    "pre_reset_exact_historical_binding_required": true,
+    "downstream_single_usb_reuse_contract_required": true
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/u13b_p3_single_usb_reuse_reset/executor.py": "6a4e145a071094018928426fa93200cef22aa87e",
+    "tools/execution_packages/n3w/r7a/u13b_p3_single_usb_reuse_reset/executor.py": "c36b34c4a5a526b0d531193e9b533221f7925b16",
+    "tools/execution_packages/n3w/r7a/u13b_real_t1_readonly_binding_preflight/executor.py": "d4370a3962558f156db722dc9370154e0800fb23",
+    "tools/execution_packages/n3w/r7a/u13b_real_t1_readonly_binding_preflight/manifest.json": "081b92c7e15e6b98147fdbc4014e5b686491e121",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
     "tools/n3w_t1_core_updater_ha_prepare_host.py": "2e1a2c52ab19090eb6bf23779e99b8e7879014e2",
     "tools/n3w_t1_core_updater_ha_usb_media.py": "35f83617cccd987a7b001476c539d78974ea5f8b",
@@ -40,6 +44,7 @@
     "mount_target": "/run/n3w-t1-ota/media/ca89774eb4254d0f"
   },
   "execution_contract": {
+    "pre_reset_exact_historical_binding": true,
     "exactly_one_usb_device_required": true,
     "exact_historical_media_required": true,
     "exact_terminal_u13a_required": true,
@@ -55,8 +60,9 @@
     "authorization_claim": false,
     "p3_live_execution": false,
     "board_access": false,
-    "merge": false
+    "merge": false,
+    "partial_usb_mutation_must_be_reported": true
   },
-  "next_boundary": "POST_RESET_SINGLE_USB_PREFLIGHT_SOURCE_REPAIR_AND_READONLY_REVALIDATION",
+  "next_boundary": "POST_RESET_SINGLE_USB_PREFLIGHT_AND_LIVE_SOURCE_CLOSURE",
   "stop_boundary": "STOP_AFTER_SINGLE_USB_RESET_BEFORE_P3_LIVE_EXECUTION"
 }

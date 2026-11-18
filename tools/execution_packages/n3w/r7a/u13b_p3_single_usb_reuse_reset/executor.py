@@ -13,6 +13,10 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[5]
 MANIFEST_PATH = Path(__file__).with_name("manifest.json")
 SSH_TRANSPORT_SOURCE = ROOT / "tools" / "n3w_t1_ssh_transport.py"
+P1_EXECUTOR = (
+    ROOT / "tools" / "execution_packages" / "n3w" / "r7a"
+    / "u13b_real_t1_readonly_binding_preflight" / "executor.py"
+)
 
 GATE_ID = "N3W_T1_U13B_P3_SINGLE_USB_REUSE_RESET_20261118_01"
 MANIFEST_SCHEMA = "gh.n3w-t1-u13b-p3-single-usb-reuse-reset-manifest/1"
@@ -119,6 +123,10 @@ from n3w_t1_core_updater_ha_usb_state import HaUsbStateStore
 
 STATE_ROOT = Path("/var/lib/n3w-t1-core-updater")
 HA_CONTAINER = "n3wfc4-homeassistant-1"
+MUTATION_STATE = {
+    "usb_mutation": False,
+    "destructive_usb_reset": False,
+}
 
 
 def run(argv, *, timeout=30, check=True):
@@ -267,6 +275,7 @@ def main():
     if mount_target != media["mount_target"]:
         raise RuntimeError("single_usb_historical_mount_drift")
 
+    MUTATION_STATE["usb_mutation"] = True
     run(["umount", media["mount_target"]])
     if mount_target_for(partition_path) is not None:
         raise RuntimeError("single_usb_unmount_failed")
@@ -283,6 +292,8 @@ def main():
     if uuid_for(partition_path) != expected["filesystem_uuid"].lower():
         raise RuntimeError("single_usb_uuid_changed_before_reset")
 
+    MUTATION_STATE["usb_mutation"] = True
+    MUTATION_STATE["destructive_usb_reset"] = True
     run(["wipefs", "--all", "--force", partition_path])
     run(["udevadm", "settle"])
     if uuid_for(partition_path) is not None:
@@ -304,7 +315,7 @@ def main():
         "schema": "gh.n3w-t1-u13b-p3-single-usb-reuse-reset-remote/1",
         "status": "P3_SINGLE_USB_REUSE_RESET_PASS",
         "t1_access": True,
-        "destructive_usb_reset": True,
+        "destructive_usb_reset": MUTATION_STATE["destructive_usb_reset"],
         "historical_filesystem_uuid_removed": True,
         "historical_filesystem_uuid": expected["filesystem_uuid"],
         "candidate_public_fingerprint": final.public_fingerprint,
@@ -312,7 +323,7 @@ def main():
         "candidate_display_model": final.display_model.strip(),
         "candidate_display_capacity_bytes": final.display_capacity_bytes,
         "transaction_mutation": False,
-        "usb_mutation": True,
+        "usb_mutation": MUTATION_STATE["usb_mutation"],
         "service_mutation": False,
         "image_mutation": False,
         "ha_data_mutation": False,
@@ -334,9 +345,9 @@ except Exception as error:
                 "status": "STOP",
                 "reason": type(error).__name__ + ":" + str(error)[:300],
                 "t1_access": True,
-                "destructive_usb_reset": False,
+                "destructive_usb_reset": MUTATION_STATE["destructive_usb_reset"],
                 "transaction_mutation": False,
-                "usb_mutation": False,
+                "usb_mutation": MUTATION_STATE["usb_mutation"],
                 "service_mutation": False,
                 "image_mutation": False,
                 "ha_data_mutation": False,
@@ -413,6 +424,10 @@ def remote_reset(
     except json.JSONDecodeError as error:
         raise Stop("remote_result_invalid") from error
     if completed.returncode != 0 or value.get("status") != "P3_SINGLE_USB_REUSE_RESET_PASS":
+        access_state["usb_mutation"] = bool(value.get("usb_mutation"))
+        access_state["destructive_usb_reset"] = bool(
+            value.get("destructive_usb_reset")
+        )
         raise Stop("remote_reset_failed:" + str(value.get("reason", "unknown"))[:220])
     return value
 
@@ -489,6 +504,27 @@ def main() -> int:
         ):
             raise Stop("execute_reset_arguments_missing")
         evidence = prepare_evidence_root(args.evidence_root)
+        p1 = load_module(P1_EXECUTOR, "n3w_u13b_p3_single_usb_pre_reset_binding")
+        binding_access = {"t1_access": False}
+        _, binding = p1.run_status_only(
+            execution_id=args.execution_id + "-pre-reset-terminal-binding",
+            evidence_root=evidence,
+            t1_ssh_target=args.t1_ssh_target,
+            known_hosts=args.known_hosts,
+            expected_host_key_sha256=args.expected_host_key_sha256,
+            expected_terminal=manifest["expected_terminal_u13a"],
+            access_state=binding_access,
+        )
+        result["t1_access"] = bool(binding_access.get("t1_access"))
+        if (
+            binding.get("status") != "U13B_REAL_T1_READONLY_BINDING_PASS"
+            or binding.get("fresh_binding") is not True
+        ):
+            raise Stop("pre_reset_historical_binding_failed")
+        result["historical_terminal_binding_pass"] = True
+        result["historical_usb_phase_sha256"] = binding[
+            "historical_usb_phase_sha256"
+        ]
         value = remote_reset(
             manifest=manifest,
             t1_ssh_target=args.t1_ssh_target,

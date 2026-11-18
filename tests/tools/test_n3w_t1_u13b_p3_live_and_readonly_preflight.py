@@ -43,7 +43,9 @@ def test_fresh_readonly_manifest_is_non_live_and_preserves_old_usb():
     assert value["controlled_rollback_mutation_authorized"] is False
     contract = value["execution_contract"]
     assert contract["exactly_one_fresh_usb_candidate_required"] is True
-    assert contract["historical_usb_reuse_forbidden"] is True
+    assert contract["historical_usb_reuse_forbidden"] is False
+    assert contract["historical_usb_reuse_without_destructive_reset_forbidden"] is True
+    assert contract["single_usb_reuse_after_destructive_reset_authorized"] is True
     assert contract["current_terminal_transaction_write"] is False
     assert contract["usb_format"] is False
     assert value["execution_contract"]["execute_mode_forbidden_until_separate_authorization"] is False
@@ -75,9 +77,12 @@ def test_fresh_readonly_remote_compiles_and_has_no_mutation_calls():
         assert token not in remote
     assert "backend.inventory()" in remote
     assert "candidate.public_fingerprint != old_fingerprint" in remote
+    assert "single_usb_reuse_reset_not_verified" in remote
     assert "filesystem_uuids_for_candidate" in remote
     assert 'old_filesystem_uuid = expected["filesystem_uuid"].lower()' in remote
     assert "old_filesystem_uuid not in observed_filesystem_uuids" in remote
+    assert "expected_reuse_fingerprint" in remote
+    assert "single_usb_reuse_after_reset" in remote
 
 
 def test_fresh_readonly_execute_mode_requires_true_manifest_authority():
@@ -108,7 +113,9 @@ def test_live_manifest_is_source_only_not_authorized():
     assert value["controlled_rollback_mutation_authorized"] is False
     contract = value["execution_contract"]
     assert contract["fresh_real_t1_readonly_preflight_required"] is True
-    assert contract["historical_usb_reuse_forbidden"] is True
+    assert contract["historical_usb_reuse_forbidden"] is False
+    assert contract["historical_usb_reuse_without_destructive_reset_forbidden"] is True
+    assert contract["single_usb_reuse_after_destructive_reset_required"] is True
     assert contract["exactly_one_fresh_usb_candidate_required"] is True
     assert contract["acceptance_staged_artifact_adapter_only"] is True
     assert contract["manager_version_rule_modified"] is False
@@ -249,3 +256,22 @@ def test_single_usb_reuse_reset_remote_is_usb_only_and_fail_closed():
     assert "single_usb_historical_uuid_drift" in remote
     assert "single_usb_historical_mount_drift" in remote
     assert "single_usb_historical_uuid_still_present" in remote
+
+
+def test_single_usb_reset_runs_exact_historical_binding_before_destruction():
+    source = RESET_EXECUTOR.read_text(encoding="utf-8")
+    binding = source.index("p1.run_status_only(")
+    reset = source.index("value = remote_reset(", binding)
+    assert binding < reset
+    module = load(RESET_EXECUTOR, "p3_single_usb_reset_partial_mutation")
+    remote = module.REMOTE_SCRIPT
+    assert 'MUTATION_STATE["usb_mutation"] = True' in remote
+    assert 'MUTATION_STATE["destructive_usb_reset"] = True' in remote
+
+
+def test_live_requires_verified_single_usb_reset_preflight():
+    source = LIVE_EXECUTOR.read_text(encoding="utf-8")
+    assert 'preflight.get("single_usb_reuse_after_reset") is not True' in source
+    module = load(LIVE_EXECUTOR, "p3_live_single_usb_reset")
+    remote = module.REMOTE_SCRIPT
+    assert "single_usb_reuse_reset_not_verified" in remote

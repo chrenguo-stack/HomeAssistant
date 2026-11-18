@@ -336,6 +336,8 @@ def init_claim(plan, authorization_id, confirmation):
         if not reasons and candidate.public_fingerprint != old_fingerprint:
             fresh.append(candidate)
     expected_fresh = plan["preflight"]["fresh_usb_public_fingerprint"]
+    if plan["preflight"].get("single_usb_reuse_after_reset") is not True:
+        raise Stop("single_usb_reuse_reset_not_verified")
     if (
         len(fresh) != 1
         or fresh[0].public_fingerprint != expected_fresh
@@ -1019,6 +1021,9 @@ def build_plan(
             "fresh_usb_public_fingerprint": preflight[
                 "fresh_usb_candidate"
             ]["public_fingerprint"],
+            "single_usb_reuse_after_reset": preflight.get(
+                "single_usb_reuse_after_reset", False
+            ),
         },
     }
 
@@ -1048,7 +1053,9 @@ def source_check(manifest: dict[str, Any]) -> dict[str, Any]:
         "new_clean_ota_mutation_authorized": False,
         "fresh_readonly_preflight_required": True,
         "fresh_usb_required": True,
-        "historical_usb_reuse_forbidden": True,
+        "historical_usb_reuse_forbidden": False,
+        "historical_usb_reuse_without_destructive_reset_forbidden": True,
+        "single_usb_reuse_after_destructive_reset_required": True,
         "exact_source_bundle_required": True,
         "exact_target_archive_required": True,
         "stop_at_u11_before_u12": True,
@@ -1089,6 +1096,7 @@ def execute_live(
         preflight.get("status") != "P3_FRESH_REAL_T1_READONLY_PREFLIGHT_PASS"
         or preflight.get("prepare_new_admissible") is not True
         or preflight.get("fresh_usb_candidate_count") != 1
+        or preflight.get("single_usb_reuse_after_reset") is not True
     ):
         raise Stop("fresh_preflight_not_ready")
 

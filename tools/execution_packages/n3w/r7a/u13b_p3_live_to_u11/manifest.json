@@ -28,17 +28,21 @@
     "p3_fresh_readonly_authorization_id": "N3W_T1_U13B_P3_FRESH_READONLY_PREFLIGHT_20261118_01",
     "p3_fresh_readonly_authorized": true,
     "p3_fresh_readonly_authorized_date": "2026-11-18",
-    "p3_historical_usb_uuid_guard_repair": "HISTORICAL_USB_FILESYSTEM_UUID_GUARD_V1"
+    "p3_historical_usb_uuid_guard_repair": "HISTORICAL_USB_FILESYSTEM_UUID_GUARD_V1",
+    "p3_single_usb_reuse_reset_gate": "N3W_T1_U13B_P3_SINGLE_USB_REUSE_RESET_20261118_01",
+    "p3_single_usb_reuse_authorized": true
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/u13b_p3_live_to_u11/executor.py": "6bfd6dcdad7f32cac4896a6b0cb454028cd6bed3",
-    "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/executor.py": "d4ab2a52d49c677ec97c5c8b96a3509285b47e67",
-    "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/manifest.json": "ed1c08438d4c4ac7d0c481ef8d30727cfdd8a2b6",
+    "tools/execution_packages/n3w/r7a/u13b_p3_live_to_u11/executor.py": "e0cbfa9cc259b043d95882953ea3f09957b4933b",
+    "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/executor.py": "70623e524da000c4200651f0ad905357f08a003f",
+    "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/manifest.json": "b86dc61bb93bf154457799ca5eb85f0f33cc1b49",
     "tools/execution_packages/n3w/r7a/u13b_p3_acceptance_clean_ota_source/executor.py": "360c2587b92e7a390547875ce7e404c40e2e38bf",
     "tools/execution_packages/n3w/r7a/u13b_p3_acceptance_clean_ota_source/manifest.json": "f3497bb11d3fe534825bc62b78336108551d0c77",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
     "infra/n3w-t1/upgrades/homeassistant-2026.10.4-u13b-same-version-acceptance.json": "d22a38aa3b34590cda3df39a8fb48cf61a01ec59",
-    "infra/n3w-t1/upgrades/homeassistant-2026.10.4-u13b-same-version-acceptance-review.json": "3b930c142ebad83f4e6511b46b13e63d8cb955e4"
+    "infra/n3w-t1/upgrades/homeassistant-2026.10.4-u13b-same-version-acceptance-review.json": "3b930c142ebad83f4e6511b46b13e63d8cb955e4",
+    "tools/execution_packages/n3w/r7a/u13b_p3_single_usb_reuse_reset/executor.py": "c36b34c4a5a526b0d531193e9b533221f7925b16",
+    "tools/execution_packages/n3w/r7a/u13b_p3_single_usb_reuse_reset/manifest.json": "1f94d0a2703cd3df36e4cabbea579dbf4c223568"
   },
   "product_source_authority": {
     "tools/n3w_t1_core_updater.py": "2d2fc03c3cbcad324a92741b77e5bd4cbe4d84ed",
@@ -97,10 +101,12 @@
       "p3_fresh_readonly_authorization_id": "N3W_T1_U13B_P3_FRESH_READONLY_PREFLIGHT_20261118_01",
       "p3_fresh_readonly_authorized": true,
       "p3_fresh_readonly_authorized_date": "2026-11-18",
-      "p3_historical_usb_uuid_guard_repair": "HISTORICAL_USB_FILESYSTEM_UUID_GUARD_V1"
+      "p3_historical_usb_uuid_guard_repair": "HISTORICAL_USB_FILESYSTEM_UUID_GUARD_V1",
+      "p3_single_usb_reuse_reset_gate": "N3W_T1_U13B_P3_SINGLE_USB_REUSE_RESET_20261118_01",
+      "p3_single_usb_reuse_authorized": true
     },
     "package_source_authority": {
-      "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/executor.py": "d4ab2a52d49c677ec97c5c8b96a3509285b47e67",
+      "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/executor.py": "70623e524da000c4200651f0ad905357f08a003f",
       "tools/execution_packages/n3w/r7a/u13b_real_t1_readonly_binding_preflight/executor.py": "d4370a3962558f156db722dc9370154e0800fb23",
       "tools/execution_packages/n3w/r7a/u13b_real_t1_readonly_binding_preflight/manifest.json": "081b92c7e15e6b98147fdbc4014e5b686491e121",
       "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
@@ -108,7 +114,9 @@
       "tools/n3w_t1_core_updater_ha_usb_state.py": "f20f7c6e182aeb19ef47bdec595d85bd08729c9c",
       "tools/n3w_t1_core_updater_v2_common.py": "b9c6561a1a8e33bdf586e6a4bd04d025f3c5d7e6",
       "infra/n3w-t1/upgrades/homeassistant-2026.10.4-u13b-same-version-acceptance.json": "d22a38aa3b34590cda3df39a8fb48cf61a01ec59",
-      "infra/n3w-t1/upgrades/homeassistant-2026.10.4-u13b-same-version-acceptance-review.json": "3b930c142ebad83f4e6511b46b13e63d8cb955e4"
+      "infra/n3w-t1/upgrades/homeassistant-2026.10.4-u13b-same-version-acceptance-review.json": "3b930c142ebad83f4e6511b46b13e63d8cb955e4",
+      "tools/execution_packages/n3w/r7a/u13b_p3_single_usb_reuse_reset/executor.py": "c36b34c4a5a526b0d531193e9b533221f7925b16",
+      "tools/execution_packages/n3w/r7a/u13b_p3_single_usb_reuse_reset/manifest.json": "1f94d0a2703cd3df36e4cabbea579dbf4c223568"
     },
     "expected_terminal_u13a": {
       "transaction_phase": "U13A_COMMITTED",
@@ -138,7 +146,7 @@
       "additional_prepare_new_readonly_probe": true,
       "execute_mode_forbidden_until_separate_authorization": false,
       "exactly_one_fresh_usb_candidate_required": true,
-      "historical_usb_reuse_forbidden": true,
+      "historical_usb_reuse_forbidden": false,
       "current_terminal_transaction_write": false,
       "usb_metadata_write": false,
       "usb_format": false,
@@ -149,10 +157,19 @@
       "u13_transition": false,
       "board_access": false,
       "merge": false,
-      "historical_usb_filesystem_uuid_reuse_forbidden": true
+      "historical_usb_filesystem_uuid_reuse_forbidden": true,
+      "historical_usb_reuse_without_destructive_reset_forbidden": true,
+      "single_usb_reuse_after_destructive_reset_authorized": true
     },
-    "next_boundary": "EXECUTE_FRESH_REAL_T1_READONLY_PREFLIGHT",
-    "stop_boundary": "STOP_AFTER_REAL_T1_READONLY_PREFLIGHT_BEFORE_P3_LIVE_AUTHORIZATION"
+    "next_boundary": "EXECUTE_POST_RESET_SINGLE_USB_READONLY_PREFLIGHT",
+    "stop_boundary": "STOP_AFTER_POST_RESET_READONLY_PREFLIGHT_BEFORE_P3_LIVE_AUTHORIZATION",
+    "single_usb_reuse_after_reset": {
+      "authorized": true,
+      "reset_gate_id": "N3W_T1_U13B_P3_SINGLE_USB_REUSE_RESET_20261118_01",
+      "expected_public_fingerprint": "4014f1fb36f2c2bdff9d1af4f918a8324506c3df4e7d0720977ad9421a9de021",
+      "historical_filesystem_uuid": "967cf065-abe5-49ee-8499-7c3f50d2c48f",
+      "require_historical_uuid_absent": true
+    }
   },
   "expected_terminal_u13a": {
     "transaction_phase": "U13A_COMMITTED",
@@ -188,7 +205,7 @@
     "exact_product_source_bundle_required": true,
     "one_shot_outer_authorization": true,
     "product_u9_authorization_separate_and_one_shot": true,
-    "historical_usb_reuse_forbidden": true,
+    "historical_usb_reuse_forbidden": false,
     "exactly_one_fresh_usb_candidate_required": true,
     "acceptance_staged_artifact_adapter_only": true,
     "manager_version_rule_modified": false,
@@ -206,7 +223,9 @@
     "controlled_rollback": false,
     "board_access": false,
     "merge": false,
-    "historical_usb_filesystem_uuid_reuse_forbidden": true
+    "historical_usb_filesystem_uuid_reuse_forbidden": true,
+    "historical_usb_reuse_without_destructive_reset_forbidden": true,
+    "single_usb_reuse_after_destructive_reset_required": true
   },
   "next_boundary": "SOURCE_AND_SIMULATION_CI",
   "stop_boundary": "STOP_BEFORE_P3_REAL_T1_READONLY_OR_LIVE_AUTHORIZATION"
