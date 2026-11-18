@@ -1081,3 +1081,111 @@ def test_p3_u6_execution_stops_at_u6_and_status_reconciles(
     with pytest.raises(module.recovery.Stop, match="u6_ledger_exists_never_replay"):
         module.execute(plan, {})
     assert backend.synced_phases == [module.U6]
+
+
+@pytest.fixture
+def p3_u7(p3_u6_recovery, monkeypatch):
+    monkeypatch.setitem(sys.modules, "u6_recovery", p3_u6_recovery)
+    return load(RECOVERY_EXECUTOR.with_name("check_ha_backup.py"), "p3_u7")
+
+
+def test_p3_u7_binds_completed_u6_and_refuses_changed_ledger(p3_u7, monkeypatch, tmp_path):
+    module = p3_u7
+    u6 = module.u6_recovery
+    plan = {"target": {"target_archive_sha256": "a" * 64}}
+    claim = {
+        **u6.binding({**plan, "candidate_commit": module.U6_CANDIDATE}),
+        "claimed": True, "consumed": True, "replay_permitted": False,
+    }
+    receipt = {
+        "status": u6.PASS, "transaction_sha256": module.U6_SHA, "transaction_phase": u6.U6,
+        "u7_plus": False, "predecessor": {"archive_sha256": "b" * 64},
+    }
+    monkeypatch.setattr(u6, "ledger_root", lambda: tmp_path)
+    monkeypatch.setattr(module.recovery, "private_path", lambda *args, **kwargs: None)
+    monkeypatch.setattr(module.preflight, "read_object", lambda _: claim)
+    success = tmp_path / "success.json"
+    success.write_text(json.dumps(receipt))
+    monkeypatch.setattr(module.preflight, "read_private", Path.read_bytes)
+    monkeypatch.setattr(module, "U6_RECEIPT_SHA", module.install_intent.digest_bytes(success.read_bytes()))
+
+    assert module.bind_u6_receipt(plan) == receipt["predecessor"]
+    claim["candidate_commit"] = "c" * 40
+    with pytest.raises(module.recovery.Stop, match="u6_recovery_claim_drift"):
+        module.bind_u6_receipt(plan)
+    claim["candidate_commit"] = module.U6_CANDIDATE
+    success.write_text(json.dumps({**receipt, "u7_plus": True}))
+    with pytest.raises(module.recovery.Stop, match="u6_recovery_receipt_drift"):
+        module.bind_u6_receipt(plan)
+
+
+@pytest.mark.parametrize("drift", [None, "predecessor", "capacity", "late_archive", "late_host"])
+def test_p3_u7_readonly_entry_preserves_u6_and_rejects_drift(p3_u7, monkeypatch, tmp_path, drift):
+    import base64
+
+    module = p3_u7
+    tx = {"phase": module.u6_recovery.U6, "target_archive_size": 10, "target_archive_sha256": "target"}
+    claim = {"peers": {"manager": {"container_id": "mgr"}, "homeassistant": {"container_id": "ha"}}}
+    predecessor = {"archive_sha256": "old"}
+    mount = tmp_path / "usb"
+    media = {"session_fingerprint_matches": True}
+    states = iter([b"u6", b"changed" if drift == "late_host" else b"u6"])
+    archives = iter([(), (), ("changed",) if drift == "late_archive" else ()])
+    events = []
+
+    def verify_archive(*args):
+        assert args == (mount, tx, predecessor)
+        module.require(drift != "predecessor", "u6_predecessor_archive_digest_drift")
+
+    def verify_capacity(*_):
+        module.require(drift != "capacity", "capacity_failed")
+        return SimpleNamespace(observed_usb_free_bytes=99, required_remaining_bytes=90)
+
+    def ipc(container, version, *, expected_phase):
+        assert (container, version, expected_phase) == ("mgr", "2026.10.4", module.u6_recovery.IPC_U6)
+        events.append("ipc")
+        return expected_phase
+
+    monkeypatch.setattr(module.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(module.recovery, "private_path", lambda *args, **kwargs: None)
+    monkeypatch.setattr(module.recovery, "check_peers", lambda _: None)
+    monkeypatch.setattr(module, "bind_u6_receipt", lambda _: predecessor)
+    monkeypatch.setattr(module, "bind_u6_transaction", lambda *args: tx)
+    monkeypatch.setattr(module.u6_preflight, "owner_units", lambda: {})
+    monkeypatch.setattr(module.u6_preflight, "image_binding", lambda _: None)
+    monkeypatch.setattr(module.preflight, "read_private", lambda _, size=None: "target" if size else next(states))
+    monkeypatch.setattr(module.preflight, "bind_ledger", lambda _: claim)
+    monkeypatch.setattr(module.preflight, "service_binding", lambda: (1, {}))
+    monkeypatch.setattr(module.preflight, "installed_binding", lambda *args: {"installed_matches_prior_reference": True})
+    monkeypatch.setattr(module.preflight, "bind_media", lambda *args: (mount, media))
+    monkeypatch.setattr(module.preflight, "bind_mirror", lambda *args: events.append("mirror"))
+    monkeypatch.setattr(module.install_intent, "archive_stat", lambda _: next(archives))
+    monkeypatch.setattr(module.install_intent, "check_continuity", lambda *args: None)
+    monkeypatch.setattr(module.u6_recovery, "verify_archive", verify_archive)
+    monkeypatch.setattr(module, "backup_inputs", lambda role: events.append(role))
+    monkeypatch.setattr(module, "verify_capacity", verify_capacity)
+    monkeypatch.setattr(module.preflight, "ipc_status", ipc)
+
+    args = base64.b64encode(json.dumps({"predecessor_version": "2026.10.4"}).encode())
+    assert module.remote_main(args) == (2 if drift else 0)
+    if not drift:
+        assert events == ["mirror", "ha", "ipc", "mirror"]
+
+
+def test_p3_u7_bootstrap_loads_remote_readonly_entry(p3_u7):
+    import subprocess
+
+    module = p3_u7
+    bootstrap = module.u6_recovery.make_bootstrap(
+        Path(module.__file__), extra_modules=(("u6_recovery", module.u6_recovery),),
+    )
+    result = subprocess.run(
+        [sys.executable, "-I", "-B", "-c", bootstrap, "--remote", "invalid"],
+        capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 2, result.stderr
+    receipt = json.loads(result.stdout)
+    assert receipt["schema"] == module.SCHEMA
+    assert receipt["read_only"] is True
+    assert receipt["u7_transition"] is False
+    assert receipt["status"] == "STOP"

@@ -1,0 +1,26 @@
+# N3-W T1 P3 U7 只读预检
+
+当前实机停在 U6。旧版 Home Assistant 镜像恢复包已验证并落盘，此阶段准备的是 U7 的只读入口。 [U6 实机归档](./N3W_T1_U13B_P3_U6_READONLY_PREFLIGHT_20261118.md#u6-实机执行回执)
+
+| 绑定项 | 值 |
+| --- | --- |
+| U6 执行候选 | `c8e77c76af5ea05445baf6f3d977903a91e860d3` |
+| U6 事务 SHA-256 | `c63c215a3b68041c523a74b682725fc6ca42538a458e8357bf79fe27b20f27b8` |
+| U6 实机回执 SHA-256 | `8c08a06a1bfaa3a4c27dc9a064f3a0b0904f4d326fa04fd3e36bb0b4a7bf8b9a` |
+| 旧镜像归档 SHA-256 | `31108a725e6b6530c68834218d9e41579055d7fe2718b3f42902b71237dc8e5f` |
+| 目标镜像归档 SHA-256 | `be30c4778bf537258d9e3825524c79532f20e8eb7a82136f560110d8f44b418d` |
+
+## 预检范围
+
+- 从 P3 原始账本复核冻结产品源码，核对已消费的 U6 授权、持久成功回执以及仍处于 U6 的主机事务。
+- 复核当前服务和容器、原镜像绑定、OTA 状态、USB 会话和事务镜像。对目标和旧镜像归档重算摘要。
+- 核查 Home Assistant 正在使用的可写数据挂载，检查数据树、加密密钥文件的元数据、备份工具和 USB 可用空间。密钥内容不读取、不输出。实际 SQLite 完整性检查留在应用服务停止后的备份流程。
+- 确认 USB 的备份目录没有残留数据。结束前再核对事务、USB 元数据、归档身份及运行连续性。
+
+执行入口为 `tools/execution_packages/n3w/r7a/u13b_p3_u1_u4_recovery/check_ha_backup.py`。先在精确提交上执行 `--mode source-check`，再从 Mac 执行 `--mode preflight`。后者只通过 SSH 观测 T1，回执写入 Mac 的证据目录。预期返回 `P3_U7_READONLY_PREFLIGHT_PASS / EXIT_CODE=0`，且 `transaction_phase=U6_PREDECESSOR_RECOVERY_PREPARING`、`u7_transition=false`。实机预检回执待获取。
+
+## 后续 U7 停点
+
+本笔 U7 候选将绑定新预检回执，复用 P3 冻结的 `HaUsbU7BackupController` 和 `ProtectedHaDataBackupProvider`。历史 R32 仅供复核 U7 执行顺序和通过条件，历史事务和授权不能用于本笔。 [历史 R32 执行器](../../tools/execution_packages/n3w/r7a/u7_repaired_ha_quiesce_data_backup_r32/executor.py)
+
+另行批准后，U7 停止 Home Assistant 和温室管理服务，使备份数据保持一致。MQTT Broker 继续运行。U7 成功条件为加密备份已校验，主机和 USB 事务同步到 `U7_HA_QUIESCED_DATA_BACKUP_PREPARING`，并记录两项应用服务已停止。按冻结产品流程，U7 成功停点保持这两项服务停止。备份失败后的恢复由产品控制器处理，并以实机状态为准。后续 U8 和镜像切换均在本笔 U7 停点之后。

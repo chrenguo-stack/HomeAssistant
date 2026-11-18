@@ -231,11 +231,11 @@ def remote_main(mode, encoded):
     return 0 if result["status"] in {PASS, "P3_U6_DURABLE_PASS_VERIFIED"} else 2
 
 
-def make_bootstrap(script):
+def make_bootstrap(script, *, extra_modules=()):
     modules = {
         name: Path(module.__file__).read_text()
         for name, module in (("executor", recovery), ("preflight", preflight), ("install_intent", install_intent),
-                             ("u6_preflight", u6_preflight))
+                             ("u6_preflight", u6_preflight), *extra_modules)
     }
     modules["__main__"] = script.read_text()
     source = base64.b64encode(zlib.compress(json.dumps(modules).encode())).decode()
