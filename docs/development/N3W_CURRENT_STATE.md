@@ -1,3 +1,32 @@
+## Latest authority — 2026-11-18 U13B P3 single-USB reuse reset physical PASS
+
+```text
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+RESET_EXECUTION_HEAD=cc3aa1587af0bbc79f28080bb1936511a4b2f92a
+P3_SINGLE_USB_SOURCE_AUTHORITY_HEAD=3bce3afb61454017ec951301cb5376e0357a0c59
+RESET_GATE=N3W_T1_U13B_P3_SINGLE_USB_REUSE_RESET_20261118_01
+RESET_STATUS=P3_SINGLE_USB_REUSE_RESET_PASS
+EXIT_CODE=0
+HISTORICAL_TERMINAL_BINDING_PASS=true
+T1_ACCESS=true
+USB_MUTATION=true
+DESTRUCTIVE_USB_RESET=true
+HISTORICAL_FILESYSTEM_UUID_REMOVED=true
+TRANSACTION_MUTATION=false
+SERVICE_MUTATION=false
+IMAGE_MUTATION=false
+HA_DATA_MUTATION=false
+AUTHORIZATION_CLAIM=false
+P3_LIVE_EXECUTION=false
+P3_LIVE_EXECUTION_AUTHORIZED=false
+```
+
+The operator's real-T1 executor result confirms fresh historical U13A binding, exact product-owned unmount, and removal of the historical filesystem signature. The former filesystem UUID was verified absent. Evidence is operator-local executor stdout, 926 bytes, SHA-256 `264aa44f2e00ad6c6981c54f28764d573ada0b28a544a16e8be968fac33eda35`. The raw evidence remains private. [PR #807 execution record](https://github.com/chrenguo-stack/HomeAssistant/pull/807#issuecomment-6967094341).
+
+The reset gate is terminal. Stop after result archival. The next entry point is a fresh post-reset single-USB read-only preflight. It has not been run at this boundary.
+
 ## Latest authority — 2026-11-18 U13B P3 single-USB reuse source CLOSED_PASS / destructive reset boundary
 
 ```text

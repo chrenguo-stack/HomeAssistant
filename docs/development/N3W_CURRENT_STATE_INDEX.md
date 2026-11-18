@@ -1,3 +1,11 @@
+## 2026-11-18 — U13B P3 single-USB reuse reset physical PASS
+
+- Exact execution head `cc3aa1587af0bbc79f28080bb1936511a4b2f92a` bound to source authority `3bce3afb61454017ec951301cb5376e0357a0c59`.
+- Real-T1 result is `EXIT_CODE=0 / P3_SINGLE_USB_REUSE_RESET_PASS`. Historical U13A binding passed, the exact historical USB mount was unmounted, and the historical filesystem UUID was verified absent after signature erase.
+- Transaction, services, images and HA data were unchanged per the executor result. No P3 live authorization was claimed and P3 live did not run.
+- SHA-256 of the operator-local 926-byte executor stdout is `264aa44f2e00ad6c6981c54f28764d573ada0b28a544a16e8be968fac33eda35`. [PR #807 execution record](https://github.com/chrenguo-stack/HomeAssistant/pull/807#issuecomment-6967094341).
+- Stop after reset archival. The next entry point is a fresh post-reset single-USB read-only preflight.
+
 ## 2026-11-18 — U13B P3 single-USB reuse source CLOSED_PASS / USB reset boundary
 
 - PR #807 remains OPEN/DRAFT/unmerged; default main is `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`.
