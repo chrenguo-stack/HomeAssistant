@@ -264,6 +264,7 @@ jobs:
             tools/execution_packages/n3w/r7a/u9_live_authorization_r35/executor.py \
             tools/execution_packages/n3w/r7a/u9_live_authorization_r36_successor/executor.py \
             tools/execution_packages/n3w/r7a/u13b_p3_u1_u4_recovery/u9_live_authorization.py \
+            tools/execution_packages/n3w/r7a/u13b_p3_u1_u4_recovery/u10_preflight.py \
             tools/execution_packages/n3w/r7a/u10_predecessor_capacity_release_readonly_preflight_r37/executor.py \
             tools/execution_packages/n3w/r7a/u10_predecessor_capacity_release_r38/executor.py \
             tools/execution_packages/n3w/r7a/u11_target_install_readonly_preflight_r39/executor.py \
@@ -342,6 +343,7 @@ jobs:
             tests/tools/test_n3w_t1_u9_live_authorization_r35.py \
             tests/tools/test_n3w_t1_u9_live_authorization_r36_successor.py \
             tests/tools/test_n3w_t1_u13b_p3_u9_live_authorization.py \
+            tests/tools/test_n3w_t1_u13b_p3_u10_preflight.py \
             tests/tools/test_n3w_t1_u10_predecessor_capacity_release_readonly_preflight_r37.py \
             tests/tools/test_n3w_t1_u10_predecessor_capacity_release_r38.py \
             tests/tools/test_n3w_t1_u11_target_install_readonly_preflight_r39.py \
