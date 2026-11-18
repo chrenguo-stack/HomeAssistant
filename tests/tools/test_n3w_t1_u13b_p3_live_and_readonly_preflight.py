@@ -869,3 +869,91 @@ def test_p3_u5_intent_rejects_changed_preflight_before_claim(p3_intent, monkeypa
     with pytest.raises(module.recovery.Stop, match="archived_preflight_snapshot_drift"):
         module.execute({}, {})
     assert not ledger.exists()
+
+
+@pytest.fixture
+def p3_u6(p3_intent, monkeypatch):
+    monkeypatch.setitem(sys.modules, "install_intent", p3_intent)
+    return load(RECOVERY_EXECUTOR.with_name("u6_preflight.py"), "p3_u6_preflight")
+
+
+@pytest.mark.parametrize("edit", ["claim", "receipt", None])
+def test_p3_u6_requires_exact_consumed_u5_ledger(p3_u6, monkeypatch, tmp_path, edit):
+    module = p3_u6
+    intent = module.install_intent
+    monkeypatch.setattr(intent, "ledger_root", lambda: tmp_path)
+    monkeypatch.setattr(module.recovery, "private_path", lambda *args, **kwargs: None)
+    payload = b"U5 result\n"
+    claim = {
+        "schema": intent.SCHEMA, "authorization_id": intent.AUTHORIZATION_ID,
+        "candidate_commit": module.U5_CANDIDATE, "preflight_receipt_sha256": intent.PREFLIGHT_SHA,
+        "u4_transaction_sha256": module.preflight.U4_SHA, "u5_transaction_sha256": module.U5_SHA,
+        "claimed": True, "consumed": True, "replay_permitted": False,
+    }
+    monkeypatch.setattr(module, "U5_RECEIPT_SHA", intent.digest_bytes(payload))
+    monkeypatch.setattr(module.preflight, "read_object", lambda _: claim)
+    monkeypatch.setattr(module.preflight, "read_private", lambda _: payload)
+    if edit == "claim":
+        claim["replay_permitted"] = True
+    if edit == "receipt":
+        payload = b"changed receipt"
+    if edit:
+        with pytest.raises(module.recovery.Stop, match=f"u5_install_intent_{edit}_drift"):
+            module.bind_u5_receipt()
+    else:
+        module.bind_u5_receipt()
+
+
+@pytest.mark.parametrize("drift", ["archive", "host", None])
+def test_p3_u6_readonly_checks_snapshot_before_reporting_pass(p3_u6, monkeypatch, tmp_path, drift):
+    module = p3_u6
+    tx = {"phase": module.install_intent.U5, "target_archive_size": 10, "target_archive_sha256": "artifact"}
+    claim = {"peers": {"manager": {"container_id": "manager"}}}
+    mount = tmp_path / "usb"
+    media = {"session_fingerprint_matches": True}
+    events = []
+    state_reads = iter([b"u5", b"different state" if drift == "host" else b"u5"])
+
+    def read_private(_path, *, size=None):
+        if size is None:
+            return next(state_reads)
+        return "broken" if drift == "archive" else "artifact"
+
+    monkeypatch.setattr(module.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(module, "bind_u5_receipt", lambda: None)
+    monkeypatch.setattr(module, "bind_u5_transaction", lambda *args: tx)
+    monkeypatch.setattr(module, "owner_units", lambda: {})
+    monkeypatch.setattr(module, "image_binding", lambda _: None)
+    monkeypatch.setattr(module, "require_empty_recovery_dirs", lambda _: None)
+    monkeypatch.setattr(module.recovery, "private_path", lambda *args, **kwargs: None)
+    monkeypatch.setattr(module.recovery, "check_peers", lambda _: None)
+    monkeypatch.setattr(module.preflight, "read_private", read_private)
+    monkeypatch.setattr(module.preflight, "bind_ledger", lambda _: claim)
+    monkeypatch.setattr(module.preflight, "service_binding", lambda: (1, {}))
+    monkeypatch.setattr(module.preflight, "bind_media", lambda *args: (mount, media))
+    monkeypatch.setattr(module.preflight, "bind_mirror", lambda *args: events.append("mirror"))
+    monkeypatch.setattr(module.preflight, "installed_binding", lambda *args: {"installed_matches_prior_reference": True})
+    monkeypatch.setattr(module.install_intent, "archive_stat", lambda _: ())
+    monkeypatch.setattr(module, "validate_capacity", lambda *args: SimpleNamespace(
+        observed_usb_free_bytes=99, required_remaining_bytes=90,
+    ))
+
+    def ipc(container, version, *, expected_phase):
+        assert (container, version, expected_phase) == ("manager", "2026.10.4", module.IPC_PHASE)
+        events.append("ipc")
+        return expected_phase
+
+    monkeypatch.setattr(module.preflight, "ipc_status", ipc)
+    result = {}
+    plan = {"predecessor_version": "2026.10.4"}
+    if drift:
+        reason = "u6_target_archive_drift" if drift == "archive" else "u6_preflight_state_drift"
+        with pytest.raises(module.recovery.Stop, match=reason):
+            module.inspect(plan, result)
+        assert "status" not in result
+    else:
+        module.inspect(plan, result)
+        assert result["status"] == module.PASS
+        assert result["transaction_phase"] == module.install_intent.U5
+        assert result["capacity_pass"] is True
+        assert events == ["mirror", "ipc", "mirror"]
