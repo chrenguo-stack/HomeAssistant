@@ -6,6 +6,7 @@
 - Read-only reconciliation at `f0fbe73c6944388cd8420308eb08733872274548` returned `P3_U7_POSTCLAIM_EVIDENCE_VERIFIED / EXIT_CODE=0`; receipt SHA-256 `27739cf29a883c4ee58d8cc6094099f4fd4e36a056dd94acfeb28d29bb203e73`.
 - Host and USB agree at `U7_HA_QUIESCED_DATA_BACKUP_PREPARING`; transaction SHA-256 `2f45f6eee5fa59d0dafe53cedc23c11d62de35e949fb645ea8fd74b3d8d861a2`. Protected backup verified and matches the quiesced HA source.
 - Home Assistant and Manager are stopped, and the original MQTT Broker container is still running. Stop before U8. [U7 physical checkpoint](./N3W_T1_U13B_P3_U7_READONLY_PREFLIGHT_20261118.md#u7-实机停点确认)
+- U8 candidate `e78b80642f7e71a88ae086f3d7b6c54c34defb99` is CI-verified and unapproved for live writes. The next-session plan adds spare-T1 recovery proof before main-T1 U9 and final customer-entry acceptance. [Recovery acceptance plan](./N3W_T1_CUSTOMER_OTA_FAILURE_RECOVERY_ACCEPTANCE_PLAN_20261118.md)
 
 ## 2026-11-18 — U13B P3 predecessor recovery verified at U6
 

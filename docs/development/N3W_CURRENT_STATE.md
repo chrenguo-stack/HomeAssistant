@@ -33,7 +33,7 @@ BROKER_RUNNING_SAME_CONTAINER=true
 U8_PLUS=false
 ```
 
-P3 stopped at U7 with application services quiesced. Any transition to U8 is a separate gate. [U7 physical checkpoint](./N3W_T1_U13B_P3_U7_READONLY_PREFLIGHT_20261118.md#u7-实机停点确认)
+P3 stopped at U7 with application services quiesced. U8 candidate `e78b80642f7e71a88ae086f3d7b6c54c34defb99` passed source CI and awaits its own live authorization. The customer recovery acceptance plan is recorded for the next session. [Recovery acceptance plan](./N3W_T1_CUSTOMER_OTA_FAILURE_RECOVERY_ACCEPTANCE_PLAN_20261118.md) [U7 physical checkpoint](./N3W_T1_U13B_P3_U7_READONLY_PREFLIGHT_20261118.md#u7-实机停点确认)
 
 ## Latest authority — 2026-11-18 U13B P3 predecessor recovery verified at U6
 
