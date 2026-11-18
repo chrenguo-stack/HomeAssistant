@@ -48,9 +48,12 @@ ATTEMPT05_APPLICATION_SERVICES_STOPPED=true
 KF167_STATUS=CLOSED_PASS_PHYSICALLY_VALIDATED
 U10_DESTRUCTIVE_AUTHORIZATION=false
 U11_PLUS_AUTHORIZATION=false
-NEXT_ONE_GATE=N3W_T1_U9_PLUS_BOUNDED_RECOVERY_PRE_U10_GATE
+KF168_STATUS=OPEN_SOURCE_GAP_PROVEN
+NEXT_ONE_GATE=N3W_T1_U9_PLUS_BOUNDED_RECOVERY_SOURCE_REVIEW_AND_ACCEPTANCE_DESIGN
 
 DESTRUCTIVE_CUTOVER_ELIGIBLE=true is technical eligibility only. The current engineering sequence has deliberately paused between phases and therefore cannot establish the customer downtime budget. Before destructive U10, the product must close the separate U9+ bounded-recovery gate.
+
+Handoff archived at `docs/development/N3W_T1_U10_READONLY_CLOSED_KF168_SOURCE_GAP_TO_U9_PLUS_BOUNDED_RECOVERY_NEW_CHAT_HANDOFF_V1.0_20261119.md`.
 
 Initial source review found a production-integration gap: n3w_t1_core_updater_ha_daemon.py starts HaUsbIpcExecutor.start_background_recovery(), but that method only resumes U1 discovery and U2/U3 preparation. The IPC action surface only accepts PREPARE, CONFIRM_USB_ERASE and INSTALL, where INSTALL revalidates and requests install but does not own U9+ destructive/recovery execution. U9-U13 rollback state functions and engineering stage executors exist, but the always-on product daemon does not currently provide a proven U9+ recovery coordinator. Therefore U10 destructive remains blocked until this integration is designed, implemented, tested and physically accepted.
 

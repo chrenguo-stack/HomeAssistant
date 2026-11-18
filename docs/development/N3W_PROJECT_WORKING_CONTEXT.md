@@ -1,3 +1,39 @@
+## Stable updater authority — 2026-11-19 U10 read-only CLOSED_PASS / KF-168 U9+ bounded recovery source-design boundary
+
+```text
+PROJECT_WORKING_CONTEXT_VERSION=8.1
+
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+HANDOFF_PARENT_HEAD=62d1ed4d268288eeb1ec38ff355595e688738996
+
+CURRENT_LIVE_STAGE=U9_LIVE_AUTHORIZATION_CLAIMED
+U9_TRANSACTION_SHA256=2b3812af093c1f73a95744413e238f1ca3763407241f889c0646b9495e35a84b
+U9_AUTHORIZATION=CONSUMED_NO_REPLAY
+
+U10_READONLY_ATTEMPT05_EXACT_CANDIDATE=4bca19ff857239c4e86e8417cf61e076c686f834
+U10_READONLY_ATTEMPT05_RESULT=P3_U10_READONLY_PREFLIGHT_PASS
+U10_READONLY_ATTEMPT05_RECEIPT_SHA256=e4a08d555656d20d3ef5bd3bc9a36929ca4b4ee9daa3ff138d7d9232bb9e5126
+KF167_STATUS=CLOSED_PASS_PHYSICALLY_VALIDATED
+
+KF168_STATUS=OPEN_SOURCE_GAP_PROVEN
+KF168_GAP=ALWAYS_ON_PRODUCT_DAEMON_HAS_NO_U9_PLUS_RECOVERY_COORDINATOR
+NEXT_ONE_GATE=N3W_T1_U9_PLUS_BOUNDED_RECOVERY_SOURCE_REVIEW_AND_ACCEPTANCE_DESIGN
+
+U10_DESTRUCTIVE_AUTHORIZATION=false
+U11_PLUS_AUTHORIZATION=false
+U9_REPLAY=false
+PR807_MERGE=false
+
+CI_AT_HANDOFF_HEAD_62D1ED4=20_SUCCESS_0_FAILURE_2_IN_PROGRESS
+CI_QUERY_COUNT=2
+```
+
+Attempt 05 physically closed the repaired U10 read-only path without any destructive U10 transition. The next product blocker is KF-168: the installed HA OTA daemon invokes `HaUsbIpcExecutor.start_background_recovery()`, but that path only resumes U1 discovery and U2/U3 preparation. U9-U13 state/rollback primitives and engineering executors exist, but an always-on product U9+ recovery coordinator is not yet wired into the daemon. Destructive U10 stays blocked until the source design, implementation, fault-injection coverage and later separately authorized physical recovery/timing acceptance are complete.
+
+Handoff: `docs/development/N3W_T1_U10_READONLY_CLOSED_KF168_SOURCE_GAP_TO_U9_PLUS_BOUNDED_RECOVERY_NEW_CHAT_HANDOFF_V1.0_20261119.md`.
+
 ## Stable updater authority — 2026-11-18 U13B P3 single-USB reuse source CLOSED_PASS / destructive reset boundary
 
 ```text

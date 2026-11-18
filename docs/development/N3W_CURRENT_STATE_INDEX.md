@@ -2,7 +2,14 @@
 
 - Core Stack repository authority remains `infra/n3w-t1/production/t1-core-stack-current.json` at product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`. Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, and Broker `local/n3w-mosquitto:2.1.2-3184566d`.
 - Historical clean reference `24382caae4a1f5d459297f86e8d18f10a848ca64` has Manager `local/greenhouse-manager:fresh-24382caae4a1`. Live upgrade accepted.
-
+- Attempt 05 exact candidate `4bca19ff857239c4e86e8417cf61e076c686f834` returned `P3_U10_READONLY_PREFLIGHT_PASS / EXIT_CODE=0`; receipt SHA-256 `e4a08d555656d20d3ef5bd3bc9a36929ca4b4ee9daa3ff138d7d9232bb9e5126`.
+- Durable U9 remained `U9_LIVE_AUTHORIZATION_CLAIMED`, transaction SHA-256 `2b3812af093c1f73a95744413e238f1ca3763407241f889c0646b9495e35a84b`, consumed/non-replayable. Target archive, predecessor archive, protected HA backup, same USB metadata, capacity and Broker continuity revalidated on real T1.
+- Attempt 05 remained read-only: no predecessor runtime/image deletion, target load, service mutation, U10 transition or U11+.
+- KF-167 is `CLOSED_PASS / PHYSICALLY_VALIDATED`.
+- KF-168 is `OPEN / SOURCE_GAP_PROVEN`: the always-on HA OTA daemon only resumes U1/U2/U3 preparation and has no proven U9+ recovery coordinator wired to product startup.
+- Destructive U10 remains unauthorized. Next gate: `N3W_T1_U9_PLUS_BOUNDED_RECOVERY_SOURCE_REVIEW_AND_ACCEPTANCE_DESIGN`.
+- At handoff parent head `62d1ed4d268288eeb1ec38ff355595e688738996`, CI status was 20 SUCCESS / 0 failure / 2 in progress after two checks.
+- Handoff: [N3W_T1_U10_READONLY_CLOSED_KF168_SOURCE_GAP_TO_U9_PLUS_BOUNDED_RECOVERY_NEW_CHAT_HANDOFF_V1.0_20261119.md](./N3W_T1_U10_READONLY_CLOSED_KF168_SOURCE_GAP_TO_U9_PLUS_BOUNDED_RECOVERY_NEW_CHAT_HANDOFF_V1.0_20261119.md)
 ## 2026-11-18 — U13B P3 U10 read-only Attempt 05 authorized / exact compatibility-repair candidate
 
 - Core Stack repository authority remains `infra/n3w-t1/production/t1-core-stack-current.json` at product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`. Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, and Broker `local/n3w-mosquitto:2.1.2-3184566d`.
