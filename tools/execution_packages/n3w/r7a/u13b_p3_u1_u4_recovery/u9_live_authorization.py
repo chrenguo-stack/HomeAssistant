@@ -168,6 +168,7 @@ def verify_u8(plan, result):
         "u9_u8_product_authorization_state_invalid",
     )
 
+    original = preflight.bind_ledger(plan)
     broker = u8.bind_u7_ledger(plan)
     pid, daemon = preflight.service_binding()
     mount, media = preflight.bind_media(tx, pid, include_fingerprint=True)
@@ -476,7 +477,6 @@ def inspect(plan, result):
     )
     require(tx["phase"] in {U8, U9}, "u9_status_outside_boundary")
 
-    original = preflight.bind_ledger(plan)
     broker = u8.bind_u7_ledger(plan)
     pid, daemon = preflight.service_binding()
     mount, media = preflight.bind_media(
