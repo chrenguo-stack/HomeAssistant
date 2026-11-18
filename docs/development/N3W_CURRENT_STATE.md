@@ -1,3 +1,51 @@
+## Latest authority — 2026-11-18 U13B P3 U10 read-only Attempt 05 authorized / exact compatibility-repair candidate frozen
+
+The operator explicitly authorized one new real-T1 read-only Attempt 05 after exact repair candidate `4bca19ff857239c4e86e8417cf61e076c686f834` reached 22/22 workflow SUCCESS. This candidate contains the path-specific U10 fix that rereads the historical U9 `claim.json` through `u9.read_ledger_object()` instead of the strict generic reader. Global private-file policy remains unchanged.
+
+```text
+PR=807
+DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+CURRENT_LIVE_STAGE=U9_LIVE_AUTHORIZATION_CLAIMED
+U9_TRANSACTION_SHA256=2b3812af093c1f73a95744413e238f1ca3763407241f889c0646b9495e35a84b
+U9_AUTHORIZATION=CONSUMED_NO_REPLAY
+
+ATTEMPT05_EXACT_CANDIDATE=4bca19ff857239c4e86e8417cf61e076c686f834
+ATTEMPT05_AUTHORIZED=true
+ATTEMPT05_MAX_COUNT=1
+ATTEMPT05_SCOPE=READ_ONLY_VALIDATION_ONLY
+
+CI_P3_LIVE_READONLY_SOURCE_RUN=44342517593 SUCCESS
+CI_CORE_STACK_AUTHORITY_RUN=44342517540 SUCCESS
+CI_MANAGER_A_TO_B_RUN=44342517971 SUCCESS
+CI_HA_2026_10_4_TARGET_BINDING_RUN=44342517418 SUCCESS
+CI_PUBLIC_SAFETY_RUN=44342518542 SUCCESS
+CI_FAST_SOURCE_EXACT_CLOSURE_RUN=44342517497 SUCCESS
+CI_SAME_VERSION_ACCEPTANCE_ARTIFACT_RUN=44342517557 SUCCESS
+CI_HA_2026_10_3_TARGET_BINDING_RUN=44342517647 SUCCESS
+
+U9_REPLAY=false
+U10_DESTRUCTIVE_AUTHORIZATION=false
+PREDECESSOR_RUNTIME_DELETE=false
+PREDECESSOR_IMAGE_DELETE=false
+TARGET_IMAGE_LOAD=false
+SERVICE_MUTATION=false
+U11_PLUS=false
+PR807_MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_U13B_P3_U10_READONLY_ATTEMPT05_RESULT_RECONCILIATION
+```
+
+Attempt 05 is one-shot and read-only. A PASS proves the repaired U10 preflight eligibility only; it does not authorize destructive U10 or U11+.
+
 ## Latest authority — 2026-11-18 U13B P3 U10 read-only Attempt 04 exact root cause proven
 
 Attempt 04 used exact candidate `3a3cceb57167882c1f0cbaf32c77ee21779bc213` and safe-stopped read-only with `private_file_metadata_invalid`. The new observability fields prove durable U9 inspection itself completed successfully (`u9_substage=durable_u9_verified`), and U10 also passed its independent U9 transaction read before stopping in `verify_u9_authority_ledgers`.
