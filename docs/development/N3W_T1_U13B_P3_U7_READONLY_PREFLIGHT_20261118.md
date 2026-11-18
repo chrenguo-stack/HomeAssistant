@@ -37,3 +37,13 @@
 - 授权编号 `N3W_T1_U13B_P3_U7_HA_DATA_BACKUP_20261118_01`。执行必须通过候选之上的独立授权提交 `ha_backup_grant.json`，绑定候选提交、预检回执、U6 事务、目标归档、U7 停点和有效期。授权仅消费一次。
 - 仅在产品完成加密备份校验、主机和 USB 元数据一致、Home Assistant 和温室管理服务停止且 MQTT Broker 连续运行后，写入 U7 持久成功回执。实机授权和正式执行待确认。
 - 启动后若 SSH 断开或超时，使用同一执行器的 `--mode status` 只读验证远端账本、事务、USB 和备份，耗尽授权后不可重放。备份失败时由产品控制器尝试恢复原应用服务，回执区分恢复尝试及产品验证结果。
+
+## U7 实机执行停止与只读补验
+
+操作者从候选 `879f951e543a585a0c35aa0b1677557b741f62f9` 和授权提交 `cb7f0fb5757b2d744dd272895e4923242ead2191` 执行了一次。原执行返回 `STOP_POSTCLAIM / EXIT_CODE=2`，回执 SHA-256 为 `f467552cac646061585bb9a8b84e2100222bab425ab96f23a6b902eaed74587b`，已依据终端 JSON 复算。授权已消费，禁止重放。 [授权提交](https://github.com/chrenguo-stack/HomeAssistant/commit/cb7f0fb5757b2d744dd272895e4923242ead2191)
+
+停止在 `verify_u7_and_stop`，原因 `u7_application_owner_not_inactive`，未尝试恢复应用服务，回执记录 `u8_plus=false`。按源代码执行顺序，产品已返回备份验证完成，执行器已通过其前置事务、USB 镜像和归档检查，最后拒绝了应用单元状态。当前现场仍需从 Mac 只读补验。
+
+P3 执行器原先只接受 `inactive`。冻结产品的停止合同及历史 KF-158/R32 也接受经证实完全停止的 `failed`。补验要求单元主进程已退出、重启次数为零、两项应用容器均已退出且身份不变、Broker 单元和容器保持原身份。使用同一笔 U7 失败回执、主机和 USB 的 U7 状态及旧镜像验证回执作为绑定，再核对目标和旧镜像的摘要，以冻结产品代码验证备份的哈希、认证值、解密清单及与当前静止数据的对应关系。 [KF-158 记录](./KNOWN_FAILURES_AND_REGRESSION_GUARDS.md)
+
+`ha_backup.py --mode status` 在这一笔失败回执匹配且独立补验通过时返回 `P3_U7_POSTCLAIM_EVIDENCE_VERIFIED`，并记录原执行成功回执不存在。该入口只读，原失败回执保持原样，实机补验结果待获取。

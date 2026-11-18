@@ -1214,7 +1214,7 @@ def test_p3_u7_execute_requires_unexpired_exact_u7_grant(p3_u7_backup, monkeypat
     module.validate_grant({**plan, "grant": grant})
 
 
-@pytest.mark.parametrize("failure", [None, "prestop_drift", "backup_failure"])
+@pytest.mark.parametrize("failure", [None, "prestop_drift", "backup_failure", "postcheck_failure"])
 def test_p3_u7_candidate_checks_claim_stops_at_u7_and_reconciles(
     p3_u7_backup, monkeypatch, tmp_path, failure,
 ):
@@ -1301,6 +1301,8 @@ def test_p3_u7_candidate_checks_claim_stops_at_u7_and_reconciles(
     def verify_quiesced(claim, unit):
         assert claim == before_claim and unit == broker
         assert (runtime.quiesce_count, runtime.resume_count) == (1, 0)
+        if failure == "postcheck_failure":
+            raise module.recovery.Stop("u7_application_owner_not_inactive")
 
     monkeypatch.setattr(module, "bound_backend", lambda *_: backend)
     monkeypatch.setattr(module, "verify_quiesced", verify_quiesced)
@@ -1323,7 +1325,7 @@ def test_p3_u7_candidate_checks_claim_stops_at_u7_and_reconciles(
     assert receipt["authorization_consumed"] is True
     assert store.read()["phase"] == (module.u6_recovery.U6 if failure == "prestop_drift" else module.U7)
     assert (runtime.quiesce_count, runtime.resume_count) == {
-        None: (1, 0), "prestop_drift": (0, 0), "backup_failure": (1, 1),
+        None: (1, 0), "prestop_drift": (0, 0), "backup_failure": (1, 1), "postcheck_failure": (1, 0),
     }[failure]
     if failure:
         assert receipt["status"] == "STOP_POSTCLAIM"
@@ -1333,6 +1335,17 @@ def test_p3_u7_candidate_checks_claim_stops_at_u7_and_reconciles(
     status = {}
     module.inspect(plan, status)
     assert status["status"] == ("P3_U7_NO_DURABLE_PASS" if failure else module.STATUS_PASS)
+    if failure == "postcheck_failure":
+        monkeypatch.setattr(module, "POSTCLAIM_CANDIDATE", plan["candidate_commit"])
+        monkeypatch.setattr(module, "POSTCLAIM_FAILURE_SHA", module.install_intent.digest_bytes(durable.read_bytes()))
+        monkeypatch.setattr(module, "verify_postclaim", lambda *_: (provider.record.public(), "a" * 64))
+        assert module.remote_main("status", encoded) == 0
+        status = {}
+        module.inspect(plan, status)
+        assert status["status"] == module.POSTCLAIM_VERIFIED
+        assert status["original_success_receipt_present"] is False
+        assert not (module.ledger_root() / "success.json").exists()
+        assert manifest(durable) == receipt
     with pytest.raises(module.recovery.Stop, match="u7_ledger_exists_never_replay"):
         module.execute(plan, {})
 
@@ -1352,3 +1365,52 @@ def test_p3_u7_backup_bootstrap_requires_grant_before_probing(p3_u7_backup):
     receipt = json.loads(completed.stdout)
     assert receipt["reason"] == "u7_grant_required"
     assert receipt["service_stop_attempted"] is False
+
+
+@pytest.mark.parametrize(
+    "owner,pid,ha_running,expected",
+    [
+        ("active", "42", False, "u7_application_owner_not_quiesced"),
+        ("failed", "42", False, "u7_application_owner_not_quiesced"),
+        ("failed", "0", True, "u7_runtime_postcondition:homeassistant"),
+        ("failed", "0", False, None),
+        ("inactive", "0", False, None),
+    ],
+)
+def test_p3_u7_quiesce_owner_requires_no_process_and_stopped_apps(
+    p3_u7_backup, monkeypatch, owner, pid, ha_running, expected,
+):
+    from n3w_t1_core_updater_host import BROKER_UNIT
+
+    module = p3_u7_backup
+    substate, result = {
+        "active": ("running", "success"),
+        "failed": ("failed", "exit-code"),
+        "inactive": ("dead", "success"),
+    }[owner]
+    fields = f"ActiveState={owner}\nSubState={substate}\nResult={result}\nMainPID={pid}\nNRestarts=0\n"
+    broker = {"InvocationID": "same"}
+    peers = {
+        role: {"container_id": role, "image_ref": "image", "runtime_image_id": "image-id",
+               "state": "running", "restart_count": 0}
+        for role in module.recovery.PEERS
+    }
+    by_name = {name: role for role, name in module.recovery.PEERS.items()}
+
+    def run(operation, argv):
+        if operation == "inspect_quiesced_owner":
+            return fields.encode()
+        role = by_name[argv[-1]]
+        state = "running" if role == "broker" or (role == "homeassistant" and ha_running) else "exited"
+        return json.dumps([{
+            "Id": role, "Config": {"Image": "image"}, "Image": "image-id",
+            "State": {"Status": state}, "RestartCount": 0,
+        }]).encode()
+
+    monkeypatch.setattr(module.recovery, "run", run)
+    monkeypatch.setattr(module.u6_preflight, "owner_units", lambda units: {BROKER_UNIT: broker})
+    if expected:
+        with pytest.raises(module.recovery.Stop, match=expected):
+            module.verify_quiesced({"peers": peers}, broker)
+    else:
+        assert module.verify_quiesced({"peers": peers}, broker)["ActiveState"] == owner

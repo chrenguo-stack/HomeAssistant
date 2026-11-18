@@ -25,6 +25,9 @@ GRANT_FILE = "ha_backup_grant.json"
 U7 = "U7_HA_QUIESCED_DATA_BACKUP_PREPARING"
 PASS = "P3_U7_HA_DATA_BACKUP_PASS"
 STATUS_PASS = "P3_U7_DURABLE_PASS_VERIFIED"
+POSTCLAIM_VERIFIED = "P3_U7_POSTCLAIM_EVIDENCE_VERIFIED"
+POSTCLAIM_CANDIDATE = "879f951e543a585a0c35aa0b1677557b741f62f9"
+POSTCLAIM_FAILURE_SHA = "f467552cac646061585bb9a8b84e2100222bab425ab96f23a6b902eaed74587b"
 require = recovery.require
 
 
@@ -93,10 +96,13 @@ def check_entry(plan, snapshot, tx_path):
 def verify_quiesced(claim, broker_unit):
     from n3w_t1_core_updater_host import BROKER_UNIT, SERVICES_UNIT
 
-    owner = recovery.run("inspect_quiesced_owner", [
-        "systemctl", "show", SERVICES_UNIT, "-p", "ActiveState", "--value",
-    ]).decode().strip()
-    require(owner == "inactive", "u7_application_owner_not_inactive")
+    owner = dict(line.split("=", 1) for line in recovery.run("inspect_quiesced_owner", [
+        "systemctl", "show", SERVICES_UNIT, "-p", "ActiveState,SubState,Result,MainPID,NRestarts,ExecMainStatus",
+    ]).decode().splitlines() if "=" in line)
+    require(owner.get("MainPID") == "0" and owner.get("NRestarts") == "0"
+            and (owner.get("ActiveState"), owner.get("SubState"), owner.get("Result")) in {
+                ("inactive", "dead", "success"), ("failed", "failed", "exit-code"),
+            }, "u7_application_owner_not_quiesced")
     for role, name in recovery.PEERS.items():
         items = json.loads(recovery.run("inspect_quiesced_runtime", [
             "docker", "inspect", "--type", "container", name,
@@ -112,6 +118,7 @@ def verify_quiesced(claim, broker_unit):
             "restart_count": item["RestartCount"],
         } == expected, f"u7_runtime_postcondition:{role}")
     require(u6_preflight.owner_units((BROKER_UNIT,))[BROKER_UNIT] == broker_unit, "u7_broker_owner_changed")
+    return owner
 
 
 def verify_backup_files(mount, tx):
@@ -224,6 +231,64 @@ def execute(plan, result):
             raise
 
 
+def verify_postclaim(plan, result, tx, mount, claim, broker):
+    from n3w_t1_core_updater_ha_backup import (
+        BACKUP_ARCHIVE_NAME, BACKUP_METADATA_NAME, ProtectedHaDataBackupProvider, backup_record_from_document,
+    )
+
+    require(tx["status"] == "ACTIVE" and tx["phase"] == U7
+            and tx["ha_data_backup_verified"] is True and tx["predecessor_recovery_verified"] is True
+            and tx["authorization_claimed"] is False and tx["authorization_consumed"] is False
+            and tx["authorization_id_sha256"] is None and tx["recovery_content_manifest_sha256"] is None,
+            "u7_postclaim_transaction_incomplete")
+    predecessor = check_ha_backup.bind_u6_receipt(plan)
+    target = plan["target"]
+    require(tx["predecessor_recovery_identity"] == predecessor
+            and tx["target_manifest_identity"]["release_identity"] == plan["release"]
+            and tx["target_manifest_identity"]["target_manifest_sha256"] == plan["target_manifest_sha256"]
+            and tx["target_archive_sha256"] == target["target_archive_sha256"]
+            and tx["target_archive_size"] == target["target_archive_size_bytes"]
+            and tx["target_image_ref"] == target["target_image_ref"]
+            and tx["current_image_ref"] == target["expected_predecessor_image_ref"]
+            and tx["current_image_identity"]["runtime_image_id"] == plan["predecessor_runtime_id"]
+            and tx["usb_device_identity_public_fingerprint"] == plan["usb"]["public_fingerprint"]
+            and tx["usb_filesystem_uuid"] != plan["historical_uuid"], "u7_postclaim_transaction_binding_drift")
+
+    result["stage"] = "verify_quiesced_services"
+    owner = verify_quiesced(claim, broker)
+    result["application_owner"] = owner
+    result["stage"] = "verify_existing_recovery_artifacts"
+    target_path = mount / "n3w-update" / "target" / "homeassistant-arm64.tar.gz"
+    old_path = mount / "n3w-update" / "predecessor" / "homeassistant-predecessor.tar.gz"
+    backup_dir = mount / "n3w-update" / "ha-data"
+    archive_path = backup_dir / BACKUP_ARCHIVE_NAME
+    metadata_path = backup_dir / BACKUP_METADATA_NAME
+    for path in (target_path.parent, backup_dir):
+        recovery.private_path(path, directory=True)
+    for path in (archive_path, metadata_path):
+        recovery.private_path(path)
+    files = (target_path, old_path, archive_path, metadata_path)
+    initial_stats = [install_intent.archive_stat(path) for path in files]
+    require(preflight.read_private(target_path, size=tx["target_archive_size"]) == tx["target_archive_sha256"],
+            "u7_postclaim_target_digest_drift")
+    u6_recovery.verify_archive(mount, tx, predecessor)
+
+    result["stage"] = "verify_existing_protected_backup"
+    record = backup_record_from_document(tx["ha_data_backup_identity"])
+    provider = ProtectedHaDataBackupProvider()
+    transaction_id = tx["transaction_id_sha256"]
+    verified = provider.verify_backup(record, transaction_id_sha256=transaction_id, destination_root=backup_dir)
+    require(verified == record, "u7_postclaim_backup_identity_drift")
+    passphrase, _ = provider._keys(transaction_id)
+    provider._compare_with_quiesced_source(archive_path=archive_path, passphrase=passphrase)
+    require([install_intent.archive_stat(path) for path in files] == initial_stats
+            and verify_quiesced(claim, broker) == owner, "u7_postclaim_artifacts_or_services_changed")
+    u6_preflight.image_binding(tx)
+    require(preflight.installed_binding(plan, tx)["installed_matches_prior_reference"] is True,
+            "u7_installed_sources_drift")
+    return record.public(), install_intent.digest_bytes(preflight.read_private(metadata_path))
+
+
 def inspect(plan, result):
     require(os.geteuid() == 0, "target_root_required")
     ledger = ledger_root()
@@ -249,7 +314,7 @@ def inspect(plan, result):
     sha = install_intent.digest_bytes(raw)
     result.update(stage="observe_host_and_usb", transaction_phase=tx["phase"], transaction_sha256=sha)
     require(tx["phase"] in {u6_recovery.U6, U7}, "u7_status_outside_boundary")
-    pid, _ = preflight.service_binding()
+    pid, daemon = preflight.service_binding()
     mount, media = preflight.bind_media(tx, pid)
     require(media["session_fingerprint_matches"] is True, "p3_usb_session_drift")
     preflight.bind_mirror(mount, tx)
@@ -257,7 +322,27 @@ def inspect(plan, result):
     success_path = ledger / "success.json"
     failure_path = ledger / "failure.json"
     if not os.path.lexists(success_path):
-        result.update(status="P3_U7_NO_DURABLE_PASS", failure_receipt_present=os.path.lexists(failure_path))
+        failure_present = os.path.lexists(failure_path)
+        result["failure_receipt_present"] = failure_present
+        if not failure_present or candidate != POSTCLAIM_CANDIDATE:
+            result["status"] = "P3_U7_NO_DURABLE_PASS"
+            return
+        failure = preflight.read_private(failure_path)
+        if install_intent.digest_bytes(failure) != POSTCLAIM_FAILURE_SHA:
+            result["status"] = "P3_U7_NO_DURABLE_PASS"
+            return
+        result["original_failure_receipt_sha256"] = POSTCLAIM_FAILURE_SHA
+        backup, metadata_sha = verify_postclaim(plan, result, tx, mount, claim, broker)
+        require(preflight.service_binding() == (pid, daemon)
+                and preflight.bind_media(tx, pid) == (mount, media)
+                and preflight.read_private(tx_path) == raw
+                and preflight.read_private(failure_path) == failure
+                and not os.path.lexists(success_path), "u7_postclaim_binding_changed")
+        preflight.bind_mirror(mount, tx)
+        result.update(status=POSTCLAIM_VERIFIED, stage="u7_postclaim_evidence_verified",
+                      backup=backup, backup_metadata_sha256=metadata_sha, backup_matches_quiesced_source=True,
+                      application_services_stopped=True, broker_running_same_container=True,
+                      original_success_receipt_present=False)
         return
     success = preflight.read_object(success_path)
     require(not os.path.lexists(failure_path) and success.get("status") == PASS
@@ -286,7 +371,7 @@ def remote_main(mode, encoded):
         if result["status"] != "STOP_POSTCLAIM":
             result.update(status="STOP", reason=recovery.safe_reason(error))
     print(json.dumps(result, sort_keys=True))
-    return 0 if result["status"] in {PASS, STATUS_PASS} else 2
+    return 0 if result["status"] in {PASS, STATUS_PASS, POSTCLAIM_VERIFIED} else 2
 
 
 def local_main():
@@ -329,10 +414,10 @@ def local_main():
             )
             require(completed.returncode in (0, 2), "u7_transport_failed")
             receipt = json.loads(completed.stdout)
-            passed = PASS if args.mode == "execute" else STATUS_PASS
+            passed = {PASS} if args.mode == "execute" else {STATUS_PASS, POSTCLAIM_VERIFIED}
             require(receipt.get("schema") == SCHEMA and receipt.get("replay_permitted") is False
                     and receipt.get("u8_plus") is False and receipt.get("read_only") is (args.mode == "status")
-                    and (receipt.get("status") == passed) == (completed.returncode == 0), "u7_receipt_invalid")
+                    and (receipt.get("status") in passed) == (completed.returncode == 0), "u7_receipt_invalid")
             rc = completed.returncode
         except Exception as error:
             receipt = {"schema": SCHEMA, "status": "STOP_UNKNOWN", "reason": recovery.safe_reason(error),
