@@ -1,3 +1,16 @@
+## 2026-11-18 — U13B P3 U8 recovery admission live PASS
+
+- Exact U8 candidate `e78b80642f7e71a88ae086f3d7b6c54c34defb99`; isolated one-shot grant `525f18ca2c38a792826f885f43132cefdea29f6d`.
+- Real-T1 result: `P3_U8_RECOVERY_ADMISSION_PASS / EXIT_CODE=0`.
+- Host and USB reached `U8_RECOVERY_ADMISSION_COMPLETE`; transaction SHA-256 `c9210a75ba4496b42fd080ca4ef261cf669a56452f99531066f921a5fcbe4908`.
+- Recovery-content manifest SHA-256: `d534be84e38817b10eab8a2f8a47c6dae3fd0946da9eba1e1d7f12090e23e9d3`.
+- U8 authorization is claimed + consumed + non-replayable. USB U8 metadata, protected backup and Broker continuity all verified.
+- Manager and Home Assistant remain stopped; the accepted application-owner state is `failed/failed/exit-code`, `ExecMainStatus=130`, `MainPID=0`, `NRestarts=0`.
+- No U9 transition occurred: `u9_plus=false`. U9 is not yet authorized.
+- Operator-local receipt SHA-256: `8340d0b4a5be925c954932113b8c593668e83b5f60d1271714f2ce91d521a63a`; raw evidence remains private.
+- Spare-T1 physical pre-cutover recovery proof is deferred/skipped for this sequence because the Spare T1 contains data that must not be modified; it is not marked PASS.
+- Next source gate: P3-specific U9 live-authorization execution package plus fresh read-only preclaim. Historical R36 is reference-only. [U8 live closure](./N3W_T1_U13B_P3_U8_RECOVERY_ADMISSION_LIVE_CLOSURE_20261118.md)
+
 ## 2026-11-18 — U13B P3 protected HA backup and U7 checkpoint independently verified
 
 - Core Stack repository authority is `infra/n3w-t1/production/t1-core-stack-current.json` at product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`. Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, and Broker `local/n3w-mosquitto:2.1.2-3184566d`.
