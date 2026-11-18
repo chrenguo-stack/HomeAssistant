@@ -27,12 +27,13 @@
     "p3_same_version_exact_artifact_id": 14381710716,
     "p3_fresh_readonly_authorization_id": "N3W_T1_U13B_P3_FRESH_READONLY_PREFLIGHT_20261118_01",
     "p3_fresh_readonly_authorized": true,
-    "p3_fresh_readonly_authorized_date": "2026-11-18"
+    "p3_fresh_readonly_authorized_date": "2026-11-18",
+    "p3_historical_usb_uuid_guard_repair": "HISTORICAL_USB_FILESYSTEM_UUID_GUARD_V1"
   },
   "package_source_authority": {
     "tools/execution_packages/n3w/r7a/u13b_p3_live_to_u11/executor.py": "6bfd6dcdad7f32cac4896a6b0cb454028cd6bed3",
-    "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/executor.py": "f48872edeb8b3546883b6669cc6c2eb0ddd525ec",
-    "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/manifest.json": "962fbf01fc6cdc30c47af3e583cd58bb71133850",
+    "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/executor.py": "d4ab2a52d49c677ec97c5c8b96a3509285b47e67",
+    "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/manifest.json": "ed1c08438d4c4ac7d0c481ef8d30727cfdd8a2b6",
     "tools/execution_packages/n3w/r7a/u13b_p3_acceptance_clean_ota_source/executor.py": "360c2587b92e7a390547875ce7e404c40e2e38bf",
     "tools/execution_packages/n3w/r7a/u13b_p3_acceptance_clean_ota_source/manifest.json": "f3497bb11d3fe534825bc62b78336108551d0c77",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
@@ -95,10 +96,11 @@
       "p3_same_version_exact_artifact_id": 14381710716,
       "p3_fresh_readonly_authorization_id": "N3W_T1_U13B_P3_FRESH_READONLY_PREFLIGHT_20261118_01",
       "p3_fresh_readonly_authorized": true,
-      "p3_fresh_readonly_authorized_date": "2026-11-18"
+      "p3_fresh_readonly_authorized_date": "2026-11-18",
+      "p3_historical_usb_uuid_guard_repair": "HISTORICAL_USB_FILESYSTEM_UUID_GUARD_V1"
     },
     "package_source_authority": {
-      "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/executor.py": "f48872edeb8b3546883b6669cc6c2eb0ddd525ec",
+      "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/executor.py": "d4ab2a52d49c677ec97c5c8b96a3509285b47e67",
       "tools/execution_packages/n3w/r7a/u13b_real_t1_readonly_binding_preflight/executor.py": "d4370a3962558f156db722dc9370154e0800fb23",
       "tools/execution_packages/n3w/r7a/u13b_real_t1_readonly_binding_preflight/manifest.json": "081b92c7e15e6b98147fdbc4014e5b686491e121",
       "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
@@ -146,7 +148,8 @@
       "authorization_claim": false,
       "u13_transition": false,
       "board_access": false,
-      "merge": false
+      "merge": false,
+      "historical_usb_filesystem_uuid_reuse_forbidden": true
     },
     "next_boundary": "EXECUTE_FRESH_REAL_T1_READONLY_PREFLIGHT",
     "stop_boundary": "STOP_AFTER_REAL_T1_READONLY_PREFLIGHT_BEFORE_P3_LIVE_AUTHORIZATION"
@@ -202,7 +205,8 @@
     "u13b_live_execution": false,
     "controlled_rollback": false,
     "board_access": false,
-    "merge": false
+    "merge": false,
+    "historical_usb_filesystem_uuid_reuse_forbidden": true
   },
   "next_boundary": "SOURCE_AND_SIMULATION_CI",
   "stop_boundary": "STOP_BEFORE_P3_REAL_T1_READONLY_OR_LIVE_AUTHORIZATION"

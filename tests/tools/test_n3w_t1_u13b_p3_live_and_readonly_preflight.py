@@ -70,6 +70,9 @@ def test_fresh_readonly_remote_compiles_and_has_no_mutation_calls():
         assert token not in remote
     assert "backend.inventory()" in remote
     assert "candidate.public_fingerprint != old_fingerprint" in remote
+    assert "filesystem_uuids_for_candidate" in remote
+    assert 'old_filesystem_uuid = expected["filesystem_uuid"].lower()' in remote
+    assert "old_filesystem_uuid not in observed_filesystem_uuids" in remote
 
 
 def test_fresh_readonly_execute_mode_requires_true_manifest_authority():

@@ -163,6 +163,47 @@ def docker_inspect(name):
     return value[0]
 
 
+def filesystem_uuids_for_candidate(locator):
+    completed = subprocess.run(
+        [
+            "lsblk",
+            "--json",
+            "--paths",
+            "--tree",
+            "--output",
+            "PATH,TYPE,UUID",
+            locator,
+        ],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    if completed.returncode:
+        raise RuntimeError("p3_preflight_usb_uuid_inventory_failed:" + locator)
+    try:
+        document = json.loads(completed.stdout)
+    except json.JSONDecodeError as error:
+        raise RuntimeError("p3_preflight_usb_uuid_inventory_invalid:" + locator) from error
+    roots = document.get("blockdevices")
+    if not isinstance(roots, list):
+        raise RuntimeError("p3_preflight_usb_uuid_inventory_invalid:" + locator)
+
+    observed = set()
+    stack = [item for item in roots if isinstance(item, dict)]
+    while stack:
+        item = stack.pop()
+        value = item.get("uuid")
+        if isinstance(value, str) and value.strip():
+            observed.add(value.strip().lower())
+        children = item.get("children")
+        if isinstance(children, list):
+            stack.extend(child for child in children if isinstance(child, dict))
+    return observed
+
+
 def main():
     plan = json.loads(base64.b64decode(sys.argv[1]).decode("utf-8"))
     ha_store = HaUsbStateStore(STATE_ROOT)
@@ -221,11 +262,19 @@ def main():
     ):
         raise RuntimeError("p3_preflight_historical_usb_fingerprint_invalid")
 
+    old_filesystem_uuid = expected["filesystem_uuid"].lower()
     backend = SubprocessPrepareBackend()
     fresh = []
     for candidate in backend.inventory():
         reasons = classify_candidate(candidate.as_media_candidate())
-        if not reasons and candidate.public_fingerprint != old_fingerprint:
+        observed_filesystem_uuids = filesystem_uuids_for_candidate(
+            candidate.locator
+        )
+        if (
+            not reasons
+            and candidate.public_fingerprint != old_fingerprint
+            and old_filesystem_uuid not in observed_filesystem_uuids
+        ):
             fresh.append(candidate.public())
 
     if len(fresh) != 1:
