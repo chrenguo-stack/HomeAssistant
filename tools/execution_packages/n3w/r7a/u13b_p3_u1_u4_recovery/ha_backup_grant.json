@@ -1,0 +1,11 @@
+{
+  "schema": "gh.n3w-t1-u13b-p3-u7-ha-data-backup/1",
+  "authorization_id": "N3W_T1_U13B_P3_U7_HA_DATA_BACKUP_20261118_01",
+  "candidate_commit": "879f951e543a585a0c35aa0b1677557b741f62f9",
+  "preflight_receipt_sha256": "fe70384df1773fc98db3668a148c355bc5373f46c00bb3520b367bdb936674a3",
+  "u6_transaction_sha256": "c63c215a3b68041c523a74b682725fc6ca42538a458e8357bf79fe27b20f27b8",
+  "target_archive_sha256": "be30c4778bf537258d9e3825524c79532f20e8eb7a82136f560110d8f44b418d",
+  "maximum_phase": "U7_HA_QUIESCED_DATA_BACKUP_PREPARING",
+  "authorized": true,
+  "expires_at_unix": 1795004976
+}
