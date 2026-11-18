@@ -1,3 +1,43 @@
+## Latest authority — 2026-11-18 U13B P3 U10 read-only Attempt 02 ready / handoff stop
+
+U10 read-only Attempt 01 safe-stopped at durable-U9 binding with `private_file_metadata_invalid`. Root cause was a legacy U9 ledger file mode created without a forced remote `umask 077`; no U10 mutation occurred. The source-only compatibility repair is CI-verified. The operator will execute/read back Attempt 02 in the next chat.
+
+```text
+PR=807
+DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+CURRENT_LIVE_STAGE=U9_LIVE_AUTHORIZATION_CLAIMED
+U9_TRANSACTION_SHA256=2b3812af093c1f73a95744413e238f1ca3763407241f889c0646b9495e35a84b
+U9_AUTHORIZATION=CONSUMED_NO_REPLAY
+RECOVERY_CONTENT_MANIFEST_SHA256=d534be84e38817b10eab8a2f8a47c6dae3fd0946da9eba1e1d7f12090e23e9d3
+
+U10_ATTEMPT01_RESULT=STOP
+U10_ATTEMPT01_REASON=private_file_metadata_invalid
+U10_ATTEMPT01_STAGE=bind_durable_u9
+U10_ATTEMPT01_EXIT_CODE=2
+U10_ATTEMPT01_LOCAL_RECEIPT_SHA256=30922a0e0afe09dcd5e80ae11cb3bd52f2313dd9cbc3a584829db87a4178c888
+U10_ATTEMPT01_T1_MUTATION=false
+U10_ATTEMPT01_U10_TRANSITION=false
+
+U10_REPAIR_SOURCE_HEAD=4385b36c32a692e2e0c1d3484cb714551b37501a
+U10_ATTEMPT02_EXACT_CANDIDATE=c288303a638947fedb7ee504874f7a14a147bf87
+U10_ATTEMPT02_AUTHORIZATION=READ_ONLY_ONLY
+U10_DESTRUCTIVE_AUTHORIZATION=false
+
+CI_PUBLIC_SAFETY_RUN=44329875391 SUCCESS
+CI_CORE_STACK_AUTHORITY_RUN=44329875446 SUCCESS
+CI_P3_LIVE_READONLY_SOURCE_RUN=44329875510 SUCCESS
+CI_HA_TARGET_BINDING_RUN=44329875490 SUCCESS
+CI_HA_TARGET_BINDING_TESTS=974_PASS
+
+NEXT_ONE_GATE=N3W_T1_U13B_P3_U10_READONLY_PREFLIGHT_ATTEMPT02_RESULT_RECONCILIATION
+```
+
+Attempt 02 must use exact candidate `c288303a638947fedb7ee504874f7a14a147bf87`. Later docs-only heads do not replace that execution authority. The next chat starts from the operator's Attempt 02 receipt; do not replay U9. Do not authorize or execute destructive U10 capacity release, U11+, service restart, predecessor deletion, target load, spare-T1 mutation, or PR merge from this handoff.
+
 ## Latest authority — 2026-11-18 U13B P3 U9 live authorization PASS
 
 The separately authorized one-shot P3 U9 write completed successfully on the real T1. Host and bound USB metadata both reached durable U9. The U9 authorization is consumed and cannot replay.
