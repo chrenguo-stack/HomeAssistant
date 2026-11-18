@@ -188,7 +188,7 @@ def bind_mirror(mountpoint, tx):
             "usb_device_identity_public_fingerprint": tx["usb_device_identity_public_fingerprint"],
         },
         "checksums": {"schema": USB_TX_CHECKSUM_SCHEMA, **target},
-        "phase": {"schema": USB_TX_PHASE_SCHEMA, **tx_id, "phase": U4,
+        "phase": {"schema": USB_TX_PHASE_SCHEMA, **tx_id, "phase": tx["phase"],
                   "target_artifact_verified": True, "usb_capacity_verified": True},
         "content-authority": {
             "schema": USB_TX_CONTENT_AUTHORITY_SCHEMA, **tx_id, "release_identity": release,
@@ -229,13 +229,13 @@ with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
 """
 
 
-def ipc_status(manager, version):
+def ipc_status(manager, version, *, expected_phase="READY_TO_INSTALL"):
     reply = json.loads(run("manager_ota_ipc_status", [
         "docker", "exec", "-u", "999:999", manager, "python3", "-IB", "-c", STATUS_PROBE,
     ], timeout=45))
     require(reply.get("schema") in {"gh.n3w-t1-ha-ota-ipc-response/2", "gh.n3w-t1-ha-ota-ipc-response/3"}
             and reply.get("accepted") is True and reply.get("code") == "status"
-            and reply.get("phase") == "READY_TO_INSTALL" and reply.get("error_code") is None
+            and reply.get("phase") == expected_phase and reply.get("error_code") is None
             and reply.get("installed_version") == version, "ota_ipc_not_ready")
     return reply["phase"]
 
@@ -325,9 +325,13 @@ def preflight(plan, result):
     )
 
 
+def initial_receipt():
+    return {"schema": SCHEMA, "status": "STOP", "read_only": True, "u5_transition": False,
+            "authorization_claimed": False, "authorization_consumed": False}
+
+
 def remote_main(encoded):
-    result = {"schema": SCHEMA, "status": "STOP", "read_only": True, "u5_transition": False,
-              "authorization_claimed": False, "authorization_consumed": False}
+    result = initial_receipt()
     try:
         preflight(json.loads(base64.b64decode(encoded, validate=True)), result)
     except Exception as error:
@@ -336,18 +340,10 @@ def remote_main(encoded):
     return 0 if result["status"] == "P3_U5_READONLY_PREFLIGHT_PASS" else 2
 
 
-def local_main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--expected-commit", required=True)
-    parser.add_argument("--mode", choices=("source-check", "read-only"), default="source-check")
-    parser.add_argument("--t1-ssh-target")
-    parser.add_argument("--known-hosts", type=Path)
-    parser.add_argument("--expected-host-key-sha256")
-    parser.add_argument("--evidence-root", type=Path)
-    args = parser.parse_args()
+def build_plan(expected_commit):
     script = Path(__file__).resolve()
     root = script.parents[5]
-    plan = recovery.local_plan(root, args.expected_commit)
+    plan = recovery.local_plan(root, expected_commit)
     recovery_script = Path(recovery.__file__).resolve()
     require(recovery.run("recovery_source_binding", [
         "git", "-C", str(root), "hash-object", str(recovery_script),
@@ -364,6 +360,22 @@ def local_main():
     plan["runtime_sources"] = sorted({
         *plan["prior_source_hashes"], "n3w_t1_core_updater_ha_daemon.py",
     })
+    return plan
+
+
+def local_main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--expected-commit", required=True)
+    parser.add_argument("--mode", choices=("source-check", "read-only"), default="source-check")
+    parser.add_argument("--t1-ssh-target")
+    parser.add_argument("--known-hosts", type=Path)
+    parser.add_argument("--expected-host-key-sha256")
+    parser.add_argument("--evidence-root", type=Path)
+    args = parser.parse_args()
+    script = Path(__file__).resolve()
+    root = script.parents[5]
+    plan = build_plan(args.expected_commit)
+    recovery_script = Path(recovery.__file__).resolve()
     sources = [base64.b64encode(path.read_bytes()).decode("ascii") for path in (recovery_script, script)]
     bootstrap = (
         "import base64, sys, types\n"

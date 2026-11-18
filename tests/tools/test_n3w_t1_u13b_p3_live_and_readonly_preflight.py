@@ -740,3 +740,132 @@ def test_p3_u5_returns_stop_if_u4_drifts_during_archive_check(monkeypatch, p3_u5
     module.preflight(plan, result)
     assert result["status"] == "P3_U5_READONLY_PREFLIGHT_PASS"
     assert result["transaction_phase"] == module.U4
+
+
+@pytest.fixture
+def p3_intent(monkeypatch, p3_u5):
+    monkeypatch.setitem(sys.modules, "preflight", p3_u5)
+    return load(RECOVERY_EXECUTOR.with_name("install_intent.py"), "p3_install_intent")
+
+
+def test_p3_u5_intent_requires_separate_exact_unexpired_grant(p3_intent, monkeypatch):
+    module = p3_intent
+    monkeypatch.setattr(module.time, "time", lambda: 1000)
+    plan = {"candidate_commit": "a" * 40, "target": {"target_archive_sha256": "b" * 64}}
+    grant = {
+        "schema": module.SCHEMA, "authorized": True, "authorization_id": module.AUTHORIZATION_ID,
+        "candidate_commit": plan["candidate_commit"], "preflight_receipt_sha256": module.PREFLIGHT_SHA,
+        "u4_transaction_sha256": module.preflight.U4_SHA, "target_archive_sha256": "b" * 64,
+        "maximum_phase": module.U5, "expires_at_unix": 1001,
+    }
+    monkeypatch.setattr(module.preflight, "preflight", lambda *_: pytest.fail("unexpected host probe"))
+    for bad, reason in (
+        (None, "install_grant_required"),
+        ({**grant, "maximum_phase": "U6"}, "install_grant_binding_invalid"),
+        ({**grant, "candidate_commit": "c" * 40}, "install_grant_binding_invalid"),
+        ({**grant, "expires_at_unix": 1000}, "install_grant_expired"),
+    ):
+        with pytest.raises(module.recovery.Stop, match=reason):
+            module.execute({**plan, "grant": bad}, {})
+    module.validate_grant(grant, plan)
+
+
+@pytest.mark.parametrize("host_write_fails", [False, True])
+def test_p3_u5_intent_uses_product_usb_then_host_and_exposes_split(
+    p3_intent, monkeypatch, tmp_path, host_write_fails
+):
+    from test_n3w_t1_core_updater_ha_usb_r1 import ready_to_install, target_record
+    from n3w_t1_core_updater_ha_prepare import PreparedUsbMedia
+    from n3w_t1_core_updater_ha_prepare_host import SubprocessPrepareBackend
+    from n3w_t1_core_updater_ha_usb import request_install
+    from n3w_t1_core_updater_ha_usb_state import HaUsbStateStore
+
+    module = p3_intent
+    state = tmp_path / "host"
+    mount = tmp_path / "usb"
+    mount.mkdir(mode=0o700)
+    store = HaUsbStateStore(state)
+    backend = SubprocessPrepareBackend()
+    monkeypatch.setattr(backend, "_require_bound_media", lambda _: "/dev/test")
+    monkeypatch.setattr(module.recovery, "private_path", lambda *args, **kwargs: None)
+    monkeypatch.setattr(module.preflight, "read_private", lambda path: path.read_bytes())
+    tx = ready_to_install()
+    record = target_record()
+    tx["target_artifact_identity"] = record.public()
+    media = PreparedUsbMedia("/dev/test", tx["usb_device_identity_public_fingerprint"],
+                             tx["usb_filesystem_uuid"], tx["usb_measured_usable_bytes"], str(mount))
+    store.write(tx)
+    backend.sync_transaction_metadata(tx, media)
+    before = store.path.read_bytes()
+    u5 = request_install(tx, target=record)
+    original_write = store.write
+
+    def assert_usb_first(document):
+        assert store.path.read_bytes() == before
+        module.preflight.bind_mirror(mount, document)
+        assert document["phase"] == module.U5
+        if host_write_fails:
+            raise OSError("injected host persistence failure")
+        original_write(document)
+
+    monkeypatch.setattr(store, "write", assert_usb_first)
+    result = {}
+    args = (store, backend, media, before, u5, mount, result)
+    if host_write_fails:
+        with pytest.raises(OSError, match="injected host"):
+            module.persist_intent(*args)
+        assert result["stage"] == "persist_host_u5"
+        assert store.path.read_bytes() == before
+    else:
+        module.persist_intent(*args)
+        assert store.read() == u5
+        assert store.path.read_bytes() == module.state_bytes(u5)
+        assert store.read()["authorization_consumed"] is False
+    module.preflight.bind_mirror(mount, u5)
+
+    ledger = state / module.LEDGER_NAME
+    ledger.mkdir(mode=0o700)
+    monkeypatch.setattr(module.recovery, "STATE", state)
+    monkeypatch.setattr(module.preflight, "U4_SHA", module.digest_bytes(before))
+    monkeypatch.setattr(module.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(module.preflight, "bind_ledger", lambda _: None)
+    monkeypatch.setattr(module.preflight, "service_binding", lambda: (1, {}))
+    monkeypatch.setattr(module.preflight, "bind_media", lambda *_: (mount, {}))
+    module.recovery.write_once(ledger / "claim.json", {
+        "schema": module.SCHEMA, "authorization_id": module.AUTHORIZATION_ID,
+        "preflight_receipt_sha256": module.PREFLIGHT_SHA, "claimed": True,
+        "consumed": True, "replay_permitted": False,
+        "u4_transaction_sha256": module.digest_bytes(before),
+        "u5_transaction_sha256": module.digest_bytes(module.state_bytes(u5)),
+    })
+    host_bytes = store.path.read_bytes()
+    status = {}
+    module.inspect({}, status)
+    expected = "STOP_USB_U5_HOST_U4" if host_write_fails else "P3_U5_BOTH_U5_VERIFIED"
+    assert status["status"] == expected
+    assert status["authorization_claimed"] is True
+    assert store.path.read_bytes() == host_bytes
+
+
+def test_p3_u5_intent_stops_on_existing_ledger_before_probing(p3_intent, monkeypatch, tmp_path):
+    module = p3_intent
+    monkeypatch.setattr(module, "validate_grant", lambda *_: None)
+    monkeypatch.setattr(module.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(module.os, "umask", lambda _: None)
+    monkeypatch.setattr(module, "ledger_root", lambda: tmp_path)
+    monkeypatch.setattr(module.preflight, "preflight", lambda *_: pytest.fail("unexpected host probe"))
+    with pytest.raises(module.recovery.Stop, match="install_ledger_exists_never_replay"):
+        module.execute({}, {})
+
+
+def test_p3_u5_intent_rejects_changed_preflight_before_claim(p3_intent, monkeypatch, tmp_path):
+    module = p3_intent
+    monkeypatch.setattr(module, "validate_grant", lambda *_: None)
+    monkeypatch.setattr(module.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(module.os, "umask", lambda _: None)
+    ledger = tmp_path / "ledger"
+    monkeypatch.setattr(module, "ledger_root", lambda: ledger)
+    monkeypatch.setattr(module.preflight, "preflight", lambda plan, receipt: receipt.update(status="changed"))
+    with pytest.raises(module.recovery.Stop, match="archived_preflight_snapshot_drift"):
+        module.execute({}, {})
+    assert not ledger.exists()
