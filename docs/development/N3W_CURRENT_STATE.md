@@ -1,3 +1,44 @@
+## Latest authority — 2026-11-18 U13B P3 U9 read-only preflight PASS
+
+The frozen P3 U9 candidate completed its real-T1 read-only preflight successfully. The live transaction remains durably at U8; no U9 authorization was claimed and no U9 or U10 transition occurred.
+
+```text
+PR=807
+DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+P3_U9_CANDIDATE_HEAD=816cf5f2f55c895b6112edbd563cf71df8b7be93
+P3_U9_READONLY_RESULT=P3_U9_READONLY_PREFLIGHT_PASS
+P3_U9_READONLY_EXIT_CODE=0
+TRANSACTION_PHASE=U8_RECOVERY_ADMISSION_COMPLETE
+TRANSACTION_SHA256=c9210a75ba4496b42fd080ca4ef261cf669a56452f99531066f921a5fcbe4908
+RECOVERY_CONTENT_MANIFEST_SHA256=d534be84e38817b10eab8a2f8a47c6dae3fd0946da9eba1e1d7f12090e23e9d3
+READ_ONLY=true
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+U9_TRANSITION=false
+U10_PLUS=false
+DESTRUCTIVE_CUTOVER=false
+PREDECESSOR_IMAGE_DELETE=false
+TARGET_IMAGE_LOAD=false
+SERVICE_MUTATION=false
+APPLICATION_SERVICES_STOPPED=true
+BROKER_CONTINUITY_VERIFIED=true
+BACKUP_VERIFIED=true
+USB_METADATA_MATCHES=true
+LOCAL_RECEIPT_SHA256=c10ec0d43f4c18decf71d6c21c46fe6f38af50b22830a313eae2a908a2faf16b
+U9_LIVE_AUTHORIZATION_GRANTED=false
+U9_GRANT_PRESENT=false
+```
+
+The next gate is a separately authorized P3 U9 live-authorization claim. No grant is created by this read-only closure. A later successful U9 claim must still stop before U10. See [U9 read-only physical closure](./N3W_T1_U13B_P3_U9_READONLY_PREFLIGHT_PHYSICAL_CLOSURE_20261118.md).
+
 ## Latest authority — 2026-11-18 U13B P3 U8 recovery admission live PASS
 
 The separately authorized one-shot U8 write completed successfully on the current T1. Host transaction and bound USB recovery metadata both reached the durable U8 checkpoint. The U8 grant is consumed and cannot replay.
