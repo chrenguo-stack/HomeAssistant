@@ -70,9 +70,9 @@ def bind_u5_transaction(plan, raw):
     return tx
 
 
-def owner_units():
+def owner_units(units=("n3wfc4-services-activation.service", "n3wfc4-broker-activation.service")):
     records = {}
-    for unit in ("n3wfc4-services-activation.service", "n3wfc4-broker-activation.service"):
+    for unit in units:
         keys = ("ActiveState", "SubState", "Result", "InvocationID", "NRestarts")
         value = recovery.run("inspect_owner_unit", ["systemctl", "show", unit, "-p", ",".join(keys)])
         fields = dict(line.split("=", 1) for line in value.decode().splitlines() if "=" in line)

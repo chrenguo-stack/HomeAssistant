@@ -1189,3 +1189,166 @@ def test_p3_u7_bootstrap_loads_remote_readonly_entry(p3_u7):
     assert receipt["read_only"] is True
     assert receipt["u7_transition"] is False
     assert receipt["status"] == "STOP"
+
+
+@pytest.fixture
+def p3_u7_backup(p3_u7, monkeypatch):
+    monkeypatch.setitem(sys.modules, "check_ha_backup", p3_u7)
+    return load(RECOVERY_EXECUTOR.with_name("ha_backup.py"), "p3_u7_backup")
+
+
+def test_p3_u7_execute_requires_unexpired_exact_u7_grant(p3_u7_backup, monkeypatch):
+    module = p3_u7_backup
+    plan = {"candidate_commit": "a" * 40, "target": {"target_archive_sha256": "b" * 64}}
+    monkeypatch.setattr(module.time, "time", lambda: 1000)
+    monkeypatch.setattr(module.check_ha_backup, "inspect", lambda *_: pytest.fail("grant checked before probes"))
+    grant = {**module.binding(plan), "authorized": True, "expires_at_unix": 1001}
+    for invalid, reason in (
+        (None, "u7_grant_required"),
+        ({**grant, "maximum_phase": "U8"}, "u7_grant_binding_drift"),
+        ({**grant, "preflight_receipt_sha256": "0" * 64}, "u7_grant_binding_drift"),
+        ({**grant, "expires_at_unix": 1000}, "u7_grant_expired"),
+    ):
+        with pytest.raises(module.recovery.Stop, match=reason):
+            module.execute({**plan, "grant": invalid}, {})
+    module.validate_grant({**plan, "grant": grant})
+
+
+@pytest.mark.parametrize("failure", [None, "prestop_drift", "backup_failure"])
+def test_p3_u7_candidate_checks_claim_stops_at_u7_and_reconciles(
+    p3_u7_backup, monkeypatch, tmp_path, failure,
+):
+    import base64
+    from dataclasses import replace
+    from test_n3w_t1_core_updater_ha_backup_u7 import (
+        FakeBackend, FakeBackup, FakeRuntime, FINGERPRINT, PREDECESSOR_RECORD, USB_UUID, build_u6,
+    )
+    import n3w_t1_core_updater_ha_backup as product_backup
+    import n3w_t1_core_updater_host as host
+    from n3w_t1_core_updater_ha_prepare import PreparedUsbMedia
+    from n3w_t1_core_updater_ha_prepare_host import SubprocessPrepareBackend
+    from n3w_t1_core_updater_ha_usb_state import HaUsbStateStore
+
+    module = p3_u7_backup
+    state = tmp_path / "host"
+    mount = tmp_path / "usb"
+    mount.mkdir()
+    store = HaUsbStateStore(state)
+    u6 = build_u6()
+    store.write(u6)
+    monkeypatch.setattr(module.recovery, "STATE", state)
+    monkeypatch.setattr(module.recovery, "private_path", lambda *args, **kwargs: None)
+    monkeypatch.setattr(module.check_ha_backup, "U6_SHA", module.install_intent.digest_bytes(store.path.read_bytes()))
+    monkeypatch.setattr(module, "os", SimpleNamespace(geteuid=lambda: 0, umask=lambda _: None, path=module.os.path))
+    mirror = SubprocessPrepareBackend()
+    monkeypatch.setattr(mirror, "_require_bound_media", lambda _: "/dev/test")
+
+    class LocalBackend(FakeBackend):
+        def sync_transaction_metadata(self, transaction, media):
+            super().sync_transaction_metadata(transaction, media)
+            mirror.sync_transaction_metadata(transaction, media)
+
+    backend = LocalBackend(PreparedUsbMedia("/dev/test", FINGERPRINT, USB_UUID, 20 * 1024**3, str(mount)))
+    mirror.sync_transaction_metadata(u6, backend.media)
+    encrypted = b"encrypted archive"
+    provider = FakeBackup(fail=failure == "backup_failure")
+    provider.record = replace(provider.record, archive_sha256=module.install_intent.digest_bytes(encrypted),
+                              archive_size_bytes=len(encrypted))
+
+    def create(**kwargs):
+        record = FakeBackup.create_consistent_backup(provider, **kwargs)
+        assert store.read()["phase"] == module.U7
+        assert runtime.quiesce_count == 1
+        assert manifest(module.ledger_root() / "claim.json")["consumed"] is True
+        destination = kwargs["destination_root"]
+        destination.mkdir()
+        (destination / product_backup.BACKUP_ARCHIVE_NAME).write_bytes(encrypted)
+        (destination / product_backup.BACKUP_METADATA_NAME).write_bytes(b"verified backup metadata")
+        return record
+
+    provider.create_consistent_backup = create
+    runtime = FakeRuntime()
+    monkeypatch.setattr(host, "LocalHost", lambda: runtime)
+    monkeypatch.setattr(product_backup, "ProtectedHaDataBackupProvider", lambda: provider)
+    plan = {"candidate_commit": "a" * 40, "target": {"target_archive_sha256": u6["target_archive_sha256"]}}
+    plan["grant"] = {**module.binding(plan), "authorized": True, "expires_at_unix": int(module.time.time()) + 120}
+    media = {"session_fingerprint_matches": True}
+    broker = {"InvocationID": "before"}
+    before_claim = {"peers": {}}
+    predecessor = PREDECESSOR_RECORD.public()
+    snapshot = {
+        "transaction": u6, "mount": mount, "original_claim": before_claim, "usb_binding": media,
+        "daemon": {}, "owner_units": {host.BROKER_UNIT: broker}, "runtime_admission": {},
+        "old_path": mount / "old", "old_stat": (), "target_path": mount / "target", "target_stat": (),
+        "predecessor": predecessor,
+    }
+
+    def inspect_preflight(_, result):
+        result["status"] = module.check_ha_backup.PASS
+        return snapshot
+
+    def read_private(path, *, size=None):
+        data = path.read_bytes()
+        if size is None:
+            return data
+        assert size == len(data)
+        return module.install_intent.digest_bytes(data)
+
+    def check_binding(*args):
+        if failure == "prestop_drift" and (module.ledger_root() / "claim.json").exists():
+            raise module.recovery.Stop("u7_prestop_binding_drift")
+
+    def verify_quiesced(claim, unit):
+        assert claim == before_claim and unit == broker
+        assert (runtime.quiesce_count, runtime.resume_count) == (1, 0)
+
+    monkeypatch.setattr(module, "bound_backend", lambda *_: backend)
+    monkeypatch.setattr(module, "verify_quiesced", verify_quiesced)
+    monkeypatch.setattr(module.u6_recovery, "check_binding", check_binding)
+    monkeypatch.setattr(module.u6_preflight, "image_binding", lambda _: None)
+    monkeypatch.setattr(module.check_ha_backup, "inspect", inspect_preflight)
+    monkeypatch.setattr(module.check_ha_backup, "verify_capacity", lambda *_: None)
+    monkeypatch.setattr(module.check_ha_backup, "bind_u6_receipt", lambda _: predecessor)
+    monkeypatch.setattr(module.install_intent, "archive_stat", lambda _: ())
+    monkeypatch.setattr(module.preflight, "read_private", read_private)
+    monkeypatch.setattr(module.preflight, "bind_ledger", lambda _: before_claim)
+    monkeypatch.setattr(module.preflight, "service_binding", lambda: (1, {}))
+    monkeypatch.setattr(module.preflight, "bind_media", lambda *args: (mount, media))
+    monkeypatch.setattr(module.preflight, "installed_binding", lambda *args: {})
+    encoded = base64.b64encode(json.dumps(plan).encode())
+    assert module.remote_main("execute", encoded) == (2 if failure else 0)
+    durable = module.ledger_root() / ("failure.json" if failure else "success.json")
+    receipt = manifest(durable)
+    assert receipt["replay_permitted"] is False and receipt["u8_plus"] is False
+    assert receipt["authorization_consumed"] is True
+    assert store.read()["phase"] == (module.u6_recovery.U6 if failure == "prestop_drift" else module.U7)
+    assert (runtime.quiesce_count, runtime.resume_count) == {
+        None: (1, 0), "prestop_drift": (0, 0), "backup_failure": (1, 1),
+    }[failure]
+    if failure:
+        assert receipt["status"] == "STOP_POSTCLAIM"
+    else:
+        assert receipt["status"] == module.PASS
+        assert receipt["backup"] == store.read()["ha_data_backup_identity"]
+    status = {}
+    module.inspect(plan, status)
+    assert status["status"] == ("P3_U7_NO_DURABLE_PASS" if failure else module.STATUS_PASS)
+    with pytest.raises(module.recovery.Stop, match="u7_ledger_exists_never_replay"):
+        module.execute(plan, {})
+
+
+def test_p3_u7_backup_bootstrap_requires_grant_before_probing(p3_u7_backup):
+    import subprocess
+
+    module = p3_u7_backup
+    bootstrap = module.u6_recovery.make_bootstrap(
+        Path(module.__file__), extra_modules=(("u6_recovery", module.u6_recovery), ("check_ha_backup", module.check_ha_backup)),
+    )
+    completed = subprocess.run(
+        [sys.executable, "-I", "-B", "-c", bootstrap, "--remote", "execute", "e30="],
+        capture_output=True, text=True, check=False,
+    )
+    assert completed.returncode == 2, completed.stderr
+    receipt = json.loads(completed.stdout)
+    assert receipt["reason"] == "u7_grant_required"
+    assert receipt["service_stop_attempted"] is False

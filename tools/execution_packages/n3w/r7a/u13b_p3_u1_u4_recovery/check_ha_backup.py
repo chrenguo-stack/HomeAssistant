@@ -174,6 +174,11 @@ def inspect(plan, result):
                   ha_backup_inputs_verified=True, capacity_pass=True, usb_free_bytes=capacity.observed_usb_free_bytes,
                   usb_required_remaining_bytes=capacity.required_remaining_bytes, ipc_phase=phase,
                   runtime_continuity_verified=True)
+    return {
+        **snapshot, "transaction": tx, "original_claim": claim, "owner_units": units, "mount": mount,
+        "target_path": target, "target_stat": target_stat, "old_path": old, "old_stat": old_stat,
+        "predecessor": predecessor,
+    }
 
 
 def remote_main(encoded):

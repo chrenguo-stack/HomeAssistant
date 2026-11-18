@@ -24,3 +24,16 @@
 本笔 U7 候选将绑定新预检回执，复用 P3 冻结的 `HaUsbU7BackupController` 和 `ProtectedHaDataBackupProvider`。历史 R32 仅供复核 U7 执行顺序和通过条件，历史事务和授权不能用于本笔。 [历史 R32 执行器](../../tools/execution_packages/n3w/r7a/u7_repaired_ha_quiesce_data_backup_r32/executor.py)
 
 另行批准后，U7 停止 Home Assistant 和温室管理服务，使备份数据保持一致。MQTT Broker 继续运行。U7 成功条件为加密备份已校验，主机和 USB 事务同步到 `U7_HA_QUIESCED_DATA_BACKUP_PREPARING`，并记录两项应用服务已停止。按冻结产品流程，U7 成功停点保持这两项服务停止。备份失败后的恢复由产品控制器处理，并以实机状态为准。后续 U8 和镜像切换均在本笔 U7 停点之后。
+
+## U7 实机只读回执
+
+预检提交 `d6c00259083af2bcb050949b35c25899b65eec53` 从 Mac 执行，返回 `P3_U7_READONLY_PREFLIGHT_PASS / EXIT_CODE=0`。回执 SHA-256 为 `fe70384df1773fc98db3668a148c355bc5373f46c00bb3520b367bdb936674a3`，已依据终端 JSON 复算。完整回执留在 Mac。 [预检源码 CI](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44274576998)
+
+事务仍为 `U6_PREDECESSOR_RECOVERY_PREPARING`，U6 事务和回执摘要一致，USB 元数据与两个镜像归档一致。Home Assistant 数据挂载及备份条件通过，三个服务的运行连续性通过。USB 可用 28,134,289,408 字节，备份所需余量为 2,684,354,560 字节。
+
+## U7 执行候选
+
+- `ha_backup.py` 复用冻结的 P3 控制器。正式执行时重新跑实机预检，领取授权前在事务锁下重新核对 U6 摘要、挂载、归档状态和容量。停止应用服务前再次核对同一笔事务和两个归档。
+- 授权编号 `N3W_T1_U13B_P3_U7_HA_DATA_BACKUP_20261118_01`。执行必须通过候选之上的独立授权提交 `ha_backup_grant.json`，绑定候选提交、预检回执、U6 事务、目标归档、U7 停点和有效期。授权仅消费一次。
+- 仅在产品完成加密备份校验、主机和 USB 元数据一致、Home Assistant 和温室管理服务停止且 MQTT Broker 连续运行后，写入 U7 持久成功回执。实机授权和正式执行待确认。
+- 启动后若 SSH 断开或超时，使用同一执行器的 `--mode status` 只读验证远端账本、事务、USB 和备份，耗尽授权后不可重放。备份失败时由产品控制器尝试恢复原应用服务，回执区分恢复尝试及产品验证结果。
