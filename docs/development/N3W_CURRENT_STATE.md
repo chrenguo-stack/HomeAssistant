@@ -1,3 +1,48 @@
+## Latest authority — 2026-11-18 U13B P3 U10 read-only Attempt 03 safe STOP / internal-stage observability repair required
+
+Attempt 03 used exact candidate `c7c51917d09cc774b5e97e5b7d0f9bcacfe64ea9` and returned a safe read-only `STOP / private_file_metadata_invalid` while the outer U10 stage still reported `bind_durable_u9`. The receipt confirms zero U10/destructive mutation. Because U10 currently discards the delegated U9 substage when `u9.inspect()` raises, the exact strict private-file check cannot be identified from this receipt alone. Do not relax the global 0600/private-file policy without a path-specific proof.
+
+```text
+PR=807
+DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+CURRENT_LIVE_STAGE=U9_LIVE_AUTHORIZATION_CLAIMED
+U9_TRANSACTION_SHA256=2b3812af093c1f73a95744413e238f1ca3763407241f889c0646b9495e35a84b
+U9_AUTHORIZATION=CONSUMED_NO_REPLAY
+
+U10_ATTEMPT03_EXACT_CANDIDATE=c7c51917d09cc774b5e97e5b7d0f9bcacfe64ea9
+U10_ATTEMPT03_RESULT=STOP
+U10_ATTEMPT03_REASON=private_file_metadata_invalid
+U10_ATTEMPT03_OUTER_STAGE=bind_durable_u9
+U10_ATTEMPT03_READ_ONLY=true
+U10_ATTEMPT03_AUTHORIZATION_CLAIMED=null
+U10_ATTEMPT03_AUTHORIZATION_CONSUMED=null
+U10_ATTEMPT03_DESTRUCTIVE_CUTOVER=false
+U10_ATTEMPT03_DESTRUCTIVE_CUTOVER_ELIGIBLE=false
+U10_ATTEMPT03_U10_TRANSITION=false
+U10_ATTEMPT03_U11_PLUS=false
+U10_ATTEMPT03_PREDECESSOR_RUNTIME_DELETE=false
+U10_ATTEMPT03_PREDECESSOR_IMAGE_DELETE=false
+U10_ATTEMPT03_TARGET_IMAGE_LOAD=false
+U10_ATTEMPT03_SERVICE_MUTATION=false
+U10_ATTEMPT03_RECEIPT_SHA256=NOT_SUPPLIED
+
+KF167_STATUS=OPEN_ATTEMPT03_SAFE_STOP_OBSERVABILITY_REPAIR_REQUIRED
+U10_DESTRUCTIVE_AUTHORIZATION=false
+U11_PLUS_AUTHORIZATION=false
+NEXT_ONE_GATE=N3W_T1_U13B_P3_U10_READONLY_INTERNAL_STAGE_OBSERVABILITY_REPAIR
+```
+
+Attempt 02 already proved the historical base ledger reaches exact-tools loading; Attempt 03 proves the earlier module-import blocker is gone. The remaining failure is a later strict private-file metadata check inside delegated durable-U9 inspection, but the exact substage is hidden by the current wrapper. The next source action is observability-only: preserve the U9 substage on failure and add bounded stage markers before strict reads. No global permission relaxation and no physical retry until that repair is source/CI closed.
+
 ## Latest authority — 2026-11-18 U13B P3 U10 read-only KF-167 source/CI closed / Attempt 03 candidate frozen
 
 Attempt 02 safe-stopped read-only at durable-U9 binding with `ModuleNotFoundError`. KF-167 root cause is repaired: durable U9 inspection now loads and validates the exact frozen tools authority before the first product-module import. The exact repaired candidate `c7c51917d09cc774b5e97e5b7d0f9bcacfe64ea9` has completed all currently associated GitHub workflows successfully. Physical read-only revalidation is still pending; no U10 destructive authorization is granted.

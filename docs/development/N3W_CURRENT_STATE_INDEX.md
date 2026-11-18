@@ -1,3 +1,12 @@
+## 2026-11-18 — U13B P3 U10 read-only Attempt 03 safe STOP / observability repair required
+
+- Exact candidate `c7c51917d09cc774b5e97e5b7d0f9bcacfe64ea9` returned `STOP / private_file_metadata_invalid`; outer stage remained `bind_durable_u9`.
+- Receipt is read-only and reports no destructive cutover, U10/U11 transition, predecessor deletion, target load or service mutation. Authorization claim/consume fields are null; U9 remains consumed/non-replayable from the earlier U9 live step.
+- Attempt 02 had already reached the first product import after `preflight.bind_ledger(plan)`; Attempt 03 therefore confirms the module-import repair is effective and exposes a later strict private-file metadata stop.
+- Current U10 wrapper loses the delegated U9 internal stage when `u9.inspect()` raises, so this receipt does not prove which exact file failed. Global relaxation of the 0600/private-file policy is forbidden without path-specific evidence.
+- Next gate is source/test/CI only: preserve the U9 failure substage and add bounded stage markers before strict reads. No physical Attempt 04 is authorized yet.
+- [Attempt 03 safe-STOP archive](./N3W_T1_U13B_P3_U10_READONLY_ATTEMPT03_PRIVATE_METADATA_STOP_20261118.md)
+
 ## 2026-11-18 — U13B P3 U10 KF-167 source/CI closed / Attempt 03 candidate frozen
 
 - Attempt 02 remained a safe read-only STOP: `ModuleNotFoundError` at `bind_durable_u9`, receipt SHA-256 `8f2275e25a1b5be8dfa6fa104ad2d2c529162a0c581585006c00c172d073b9ca`, with zero U10/destructive mutation.
