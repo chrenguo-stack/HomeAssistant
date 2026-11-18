@@ -1,3 +1,33 @@
+## Latest authority — 2026-11-18 U13B P3 U9 live authorization granted / execution pending
+
+The operator explicitly approved the one-shot U9 live-authorization write after the successful read-only preflight. An isolated single-file grant commit now exists directly on the frozen U9 candidate. No T1 U9 execute has run yet.
+
+```text
+PR=807
+DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+P3_U9_CANDIDATE_HEAD=816cf5f2f55c895b6112edbd563cf71df8b7be93
+P3_U9_GRANT_HEAD=31a7c5daed754db4a189c1d27b81795ef60abc0b
+P3_U9_AUTHORIZATION_ID=N3W_T1_CORE_UPDATER_HOMEASSISTANT_USB_P3_U9_20261118_01
+P3_U9_AUTHORIZATION=GRANTED_NOT_YET_CLAIMED
+P3_U9_GRANT_PARENT_EXACT=true
+P3_U9_GRANT_SINGLE_FILE_ONLY=true
+P3_U9_GRANT_EXPIRES_AT_UNIX=1795132799
+CURRENT_LIVE_STAGE=U8_RECOVERY_ADMISSION_COMPLETE
+TRANSACTION_SHA256=c9210a75ba4496b42fd080ca4ef261cf669a56452f99531066f921a5fcbe4908
+U9_TRANSITION=false
+U10_PLUS=false
+```
+
+The next action is the single authorized U9 execute from the exact grant head. It may advance only to `U9_LIVE_AUTHORIZATION_CLAIMED` and must stop before U10. Replay is forbidden after claim/consume. See PR #807 authorization record comment 6981071177.
+
 ## Latest authority — 2026-11-18 U13B P3 U9 read-only preflight PASS
 
 The frozen P3 U9 candidate completed its real-T1 read-only preflight successfully. The live transaction remains durably at U8; no U9 authorization was claimed and no U9 or U10 transition occurred.
