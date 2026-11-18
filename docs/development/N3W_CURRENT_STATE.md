@@ -1,3 +1,67 @@
+## Latest authority — 2026-11-18 U13B P3 single-USB reuse source CLOSED_PASS / destructive reset boundary
+
+```text
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+P3_SINGLE_USB_SOURCE_AUTHORITY_HEAD=3bce3afb61454017ec951301cb5376e0357a0c59
+
+P3_SAME_VERSION_EXACT_ARTIFACT_READY=true
+P3_SAME_VERSION_EXACT_ARTIFACT_RUN=44199389702
+P3_SAME_VERSION_EXACT_ARTIFACT_ID=14381710716
+P3_TARGET_IMAGE=local/n3w-homeassistant:2026.10.4-u13b-acceptance-v1
+P3_PREDECESSOR_IMAGE=local/n3w-homeassistant:2026.10.4-5881590f
+
+P3_REAL_T1_READONLY_ATTEMPT01=SAFE_STOP_FRESH_USB_CANDIDATE_COUNT_0
+P3_REAL_T1_READONLY_ATTEMPT02=SAFE_STOP_FRESH_USB_CANDIDATE_COUNT_0
+P3_ATTEMPT02_T1_ACCESS=true
+P3_ATTEMPT02_MUTATION=false
+HISTORICAL_USB_IDENTITY_GUARD=FILESYSTEM_UUID_PLUS_SESSION_FINGERPRINT
+
+T1_SINGLE_USB_PORT_CONSTRAINT=true
+SECOND_USB_AVAILABLE=false
+CURRENT_HISTORICAL_USB_DESTRUCTION_AUTHORIZED=true
+P3_SINGLE_USB_REUSE_RESET_GATE=N3W_T1_U13B_P3_SINGLE_USB_REUSE_RESET_20261118_01
+P3_SINGLE_USB_REUSE_RESET_SOURCE_READY=true
+P3_SINGLE_USB_REUSE_RESET_EXECUTED=false
+P3_SINGLE_USB_REUSE_RESET_AUTHORIZATION=GRANTED_NOT_EXECUTED
+
+RESET_REPARTITION=false
+RESET_MKFS=false
+RESET_TRANSACTION_MUTATION=false
+RESET_SERVICE_MUTATION=false
+RESET_IMAGE_MUTATION=false
+RESET_HA_DATA_MUTATION=false
+RESET_P3_LIVE_EXECUTION=false
+
+POST_RESET_PREFLIGHT_SOURCE_READY=true
+POST_RESET_PREFLIGHT_REQUIRES_SAME_USB_FINGERPRINT=true
+POST_RESET_PREFLIGHT_REQUIRES_HISTORICAL_FILESYSTEM_UUID_ABSENT=true
+P3_LIVE_PRECLAIM_REQUIRES_SINGLE_USB_REUSE_AFTER_RESET=true
+
+P3_LIVE_AND_READONLY_SOURCE_CI_RUN=44219668667
+P3_LIVE_AND_READONLY_SOURCE_CI=SUCCESS
+P3_FAST_CLOSURE_CI_RUN=44219668645
+P3_FAST_CLOSURE_CI=SUCCESS
+P3_ACCEPTANCE_SOURCE_CI_RUN=44219668801
+P3_ACCEPTANCE_SOURCE_CI=SUCCESS
+P3_FOCUSED_TESTS=17_PASSED
+
+NEXT_ONE_GATE=N3W_T1_U13B_P3_SINGLE_USB_REUSE_RESET_20261118_01
+NEXT_GATE_ACTION=EXECUTE_USB_UNMOUNT_AND_HISTORICAL_FILESYSTEM_SIGNATURE_ERASE
+P3_LIVE_EXECUTION_AUTHORIZED=false
+BOARD_ACCESS=false
+MERGE=false
+```
+
+The real T1 has one USB host interface and the operator has no second USB storage device. The two read-only P3 attempts safely stopped with zero fresh candidates because the only present media is the historical U13A recovery USB. Attempt 01 also exposed that the public USB fingerprint is session-scoped; source head `d16207ce...` added the historical filesystem-UUID guard.
+
+The operator explicitly authorized destruction/reuse of the current historical U13A USB. Source heads `a4cd707f...` and `0dc74661...` introduced and closed the single-USB reuse path; `3bce3afb...` is the exact source authority after test alignment. The reset gate first delegates the exact historical U13A status-only binding, then permits only the exact product-owned unmount plus removal of the old filesystem signature. It does not repartition or run mkfs; normal product `confirm_and_prepare()` retains ownership of GPT recreation and ext4 formatting in the later separately authorized P3 live stage.
+
+Current stop point: the historical USB remains mounted and unchanged by the single-USB reset path. The next chat may execute only the already-authorized reset gate after fresh source/target binding. P3 live execution, service/image/HA-data mutation, board access and PR merge remain unauthorized.
+
+Handoff: `docs/development/N3W_T1_U13B_P3_SINGLE_USB_REUSE_SOURCE_CLOSED_TO_USB_RESET_NEW_CHAT_HANDOFF_V1.0_20261118.md`.
+
 ## Latest authority — 2026-11-17 U13B P3 physical target redesign to same-version distinct image
 
 ```text

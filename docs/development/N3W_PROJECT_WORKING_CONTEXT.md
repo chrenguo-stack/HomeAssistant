@@ -1,3 +1,55 @@
+## Stable updater authority — 2026-11-18 U13B P3 single-USB reuse source CLOSED_PASS / destructive reset boundary
+
+```text
+PROJECT_WORKING_CONTEXT_VERSION=8.0
+
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+P3_SINGLE_USB_SOURCE_AUTHORITY_HEAD=3bce3afb61454017ec951301cb5376e0357a0c59
+
+P3_SAME_VERSION_EXACT_ARTIFACT_RUN=44199389702
+P3_SAME_VERSION_EXACT_ARTIFACT_ID=14381710716
+P3_TARGET_IMAGE=local/n3w-homeassistant:2026.10.4-u13b-acceptance-v1
+LAST_PROVEN_LIVE_HOMEASSISTANT=local/n3w-homeassistant:2026.10.4-5881590f
+LAST_PROVEN_LIVE_HOMEASSISTANT_RUNTIME_IMAGE_ID=sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365
+
+REAL_T1_READONLY_ATTEMPT01=SAFE_STOP
+REAL_T1_READONLY_ATTEMPT02=SAFE_STOP
+REAL_T1_READONLY_STOP_REASON=FRESH_USB_CANDIDATE_COUNT_0
+LAST_PROVEN_REAL_T1_MUTATION=false
+
+T1_SINGLE_USB_PORT_CONSTRAINT=true
+SECOND_USB_AVAILABLE=false
+HISTORICAL_USB_REUSE_DESTRUCTION_AUTHORIZED=true
+SINGLE_USB_RESET_GATE=N3W_T1_U13B_P3_SINGLE_USB_REUSE_RESET_20261118_01
+SINGLE_USB_RESET_EXECUTED=false
+SINGLE_USB_RESET_AUTHORIZATION=GRANTED_NOT_EXECUTED
+
+SINGLE_USB_RESET_REPARTITION=false
+SINGLE_USB_RESET_MKFS=false
+SINGLE_USB_RESET_TRANSACTION_MUTATION=false
+SINGLE_USB_RESET_SERVICE_MUTATION=false
+SINGLE_USB_RESET_IMAGE_MUTATION=false
+SINGLE_USB_RESET_HA_DATA_MUTATION=false
+
+P3_LIVE_AND_READONLY_SOURCE_CI=SUCCESS
+P3_ACCEPTANCE_SOURCE_CI=SUCCESS
+P3_FAST_CLOSURE_CI=SUCCESS
+P3_FOCUSED_TESTS=17_PASSED
+
+NEXT_ONE_GATE=N3W_T1_U13B_P3_SINGLE_USB_REUSE_RESET_20261118_01
+P3_LIVE_EXECUTION_AUTHORIZED=false
+BOARD_ACCESS=false
+MERGE=false
+```
+
+The single-USB constraint supersedes the earlier assumption that the historical U13A recovery USB and a fresh USB could be online simultaneously. The operator has explicitly authorized destroying/reusing the current historical USB. The new reset gate is intentionally narrower than product format: it performs a fresh exact historical U13A binding, unmounts only the exact historical product-owned mount, removes the historical filesystem signature, verifies the old filesystem identity is gone, and stops. It must accurately report partial USB mutation if interruption occurs.
+
+The downstream P3 preflight/live source is already closed for this mode. Post-reset preflight accepts only the same diagnosed USB after the old historical filesystem UUID is absent and the device is unmounted/eligible. The later P3 live executor must receive `single_usb_reuse_after_reset=true` and still uses normal product `confirm_and_prepare()` for repartition/mkfs. No P3 live execution authority exists yet.
+
+Handoff: `docs/development/N3W_T1_U13B_P3_SINGLE_USB_REUSE_SOURCE_CLOSED_TO_USB_RESET_NEW_CHAT_HANDOFF_V1.0_20261118.md`.
+
 ## Stable updater authority — 2026-11-17 U11 R42 CLOSED_PASS / U12 read-only + performance-design boundary
 
 ```text

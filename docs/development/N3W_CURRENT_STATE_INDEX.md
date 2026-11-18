@@ -1,3 +1,19 @@
+## 2026-11-18 — U13B P3 single-USB reuse source CLOSED_PASS / USB reset boundary
+
+- PR #807 remains OPEN/DRAFT/unmerged; default main is `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`.
+- Exact single-USB source authority is `3bce3afb61454017ec951301cb5376e0357a0c59`.
+- P3 same-version exact artifact remains frozen at run `44199389702`, artifact ID `14381710716`, target `local/n3w-homeassistant:2026.10.4-u13b-acceptance-v1`.
+- Real-T1 readonly Attempts 01/02 both safe-stopped at `fresh_usb_candidate_count=0`; no transaction/USB/service/image/HA-data mutation occurred.
+- Attempt diagnostics proved the only connected USB is the historical U13A media and the T1 hardware exposes only one USB host interface; no second USB is available.
+- Historical media exclusion now uses the durable historical filesystem UUID in addition to the session-only public fingerprint.
+- The operator explicitly authorized destructive reuse of the current historical USB.
+- Reset gate: `N3W_T1_U13B_P3_SINGLE_USB_REUSE_RESET_20261118_01`; source ready, not yet executed.
+- Reset contract: exact pre-reset U13A binding -> exact historical product mount unmount -> remove historical filesystem signature -> STOP. No repartition, mkfs, transaction write, service/image/HA-data mutation or P3 live execution.
+- Post-reset read-only preflight requires the same diagnosed USB public fingerprint, old historical filesystem UUID absent and device unmounted/eligible. P3 live preclaim requires `single_usb_reuse_after_reset=true`.
+- Focused CI on `3bce3afb...`: run `44219668667` SUCCESS (17 passed), run `44219668645` SUCCESS, run `44219668801` SUCCESS.
+- Next gate is the already-authorized USB unmount/filesystem-signature reset. P3 live execution, board access and merge remain unauthorized.
+- Handoff: `docs/development/N3W_T1_U13B_P3_SINGLE_USB_REUSE_SOURCE_CLOSED_TO_USB_RESET_NEW_CHAT_HANDOFF_V1.0_20261118.md`.
+
 ## 2026-11-17 — U13B P3 physical target redesign: same-version distinct image
 
 - Core Stack current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
