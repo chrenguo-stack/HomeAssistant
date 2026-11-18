@@ -249,6 +249,13 @@ def inspect(plan, result):
 
     original = preflight.bind_ledger(plan)
     broker = u8.bind_u7_ledger(plan)
+    u9_claim = preflight.read_object(u9.ledger_root() / "claim.json")
+    write_fingerprint = u9_claim.get("write_session_fingerprint")
+    require(
+        isinstance(write_fingerprint, str)
+        and re.fullmatch(r"[0-9a-f]{64}", write_fingerprint),
+        "u10_u9_write_fingerprint_invalid",
+    )
     pid, daemon = preflight.service_binding()
     mount, media = preflight.bind_media(
         tx, pid, include_fingerprint=True
@@ -256,7 +263,7 @@ def inspect(plan, result):
     preflight.bind_mirror(
         mount,
         tx,
-        manifest_fingerprint=media["session_fingerprint"],
+        manifest_fingerprint=write_fingerprint,
     )
     owner = ha_backup.verify_quiesced(original, broker)
     deployment = preflight.installed_binding(plan, tx)
@@ -286,7 +293,7 @@ def inspect(plan, result):
     preflight.bind_mirror(
         mount,
         tx,
-        manifest_fingerprint=media["session_fingerprint"],
+        manifest_fingerprint=write_fingerprint,
     )
     verify_release_candidate(original, tx)
 
