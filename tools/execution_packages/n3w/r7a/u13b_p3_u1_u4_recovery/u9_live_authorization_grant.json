@@ -1,0 +1,12 @@
+{
+  "schema": "gh.n3w-t1-u13b-p3-u9-live-authorization/1",
+  "authorization_id": "N3W_T1_CORE_UPDATER_HOMEASSISTANT_USB_P3_U9_20261118_01",
+  "candidate_commit": "816cf5f2f55c895b6112edbd563cf71df8b7be93",
+  "u8_transaction_sha256": "c9210a75ba4496b42fd080ca4ef261cf669a56452f99531066f921a5fcbe4908",
+  "u8_receipt_sha256": "8340d0b4a5be925c954932113b8c593668e83b5f60d1271714f2ce91d521a63a",
+  "recovery_content_manifest_sha256": "d534be84e38817b10eab8a2f8a47c6dae3fd0946da9eba1e1d7f12090e23e9d3",
+  "target_archive_sha256": "be30c4778bf537258d9e3825524c79532f20e8eb7a82136f560110d8f44b418d",
+  "maximum_phase": "U9_LIVE_AUTHORIZATION_CLAIMED",
+  "authorized": true,
+  "expires_at_unix": 1795132799
+}
