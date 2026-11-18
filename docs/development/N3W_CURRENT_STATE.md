@@ -52,6 +52,8 @@ NEXT_ONE_GATE=N3W_T1_U9_PLUS_BOUNDED_RECOVERY_PRE_U10_GATE
 
 DESTRUCTIVE_CUTOVER_ELIGIBLE=true is technical eligibility only. The current engineering sequence has deliberately paused between phases and therefore cannot establish the customer downtime budget. Before destructive U10, the product must close the separate U9+ bounded-recovery gate.
 
+Initial source review found a production-integration gap: n3w_t1_core_updater_ha_daemon.py starts HaUsbIpcExecutor.start_background_recovery(), but that method only resumes U1 discovery and U2/U3 preparation. The IPC action surface only accepts PREPARE, CONFIRM_USB_ERASE and INSTALL, where INSTALL revalidates and requests install but does not own U9+ destructive/recovery execution. U9-U13 rollback state functions and engineering stage executors exist, but the always-on product daemon does not currently provide a proven U9+ recovery coordinator. Therefore U10 destructive remains blocked until this integration is designed, implemented, tested and physically accepted.
+
 ## Latest authority — 2026-11-18 U13B P3 U10 read-only Attempt 05 authorized / exact compatibility-repair candidate frozen
 
 The operator explicitly authorized one new real-T1 read-only Attempt 05 after exact repair candidate `4bca19ff857239c4e86e8417cf61e076c686f834` reached 22/22 workflow SUCCESS. This candidate contains the path-specific U10 fix that rereads the historical U9 `claim.json` through `u9.read_ledger_object()` instead of the strict generic reader. Global private-file policy remains unchanged.

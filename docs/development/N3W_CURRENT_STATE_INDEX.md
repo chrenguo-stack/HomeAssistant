@@ -6,6 +6,7 @@
 - The preflight remained read-only: u10_transition=false, u11_plus=false, no predecessor runtime/image delete, target load or service mutation. destructive_cutover_eligible=true is only an in-memory eligibility result.
 - KF-167 is now physically closed. U9 remains consumed/non-replayable.
 - Destructive U10 remains blocked by a separate product requirement: prove U9+ bounded recovery and customer-visible recovery timing. This long engineering sequence cannot be used as a customer downtime measurement.
+- Initial source review proves a production-integration gap: the installed HA OTA daemon calls HaUsbIpcExecutor.start_background_recovery(), but that recovery only handles U1 and U2/U3. U9+ rollback/state primitives and engineering executors are not yet wired into the always-on product recovery path.
 - Attempt 05 physical closure: N3W_T1_U13B_P3_U10_READONLY_ATTEMPT05_PHYSICAL_CLOSURE_20261119.md
 - Pre-U10 bounded recovery gate: N3W_T1_U9_PLUS_BOUNDED_RECOVERY_PRE_U10_GATE_20261119.md
 

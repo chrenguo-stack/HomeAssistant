@@ -1,3 +1,19 @@
+### 2026-11-19 KF-168 Home Assistant USB OTA U9+ product recovery coordinator — OPEN / SOURCE_GAP_PROVEN
+
+Source review after U10 Attempt 05 found that the installed Home Assistant OTA daemon constructs HaUsbIpcExecutor and calls start_background_recovery(), but that method only resumes U1 discovery and U2/U3 preparation. The IPC action surface accepts PREPARE, CONFIRM_USB_ERASE and INSTALL; INSTALL revalidates and requests installation but does not execute or reconcile U9+ destructive phases.
+
+The repository does contain U9-U13 state-machine rollback primitives, power-loss classification, and engineering stage executors for U10/U11/U12/U13B. Those pieces do not by themselves prove that the always-on product daemon can recover a customer system after process death, host reboot, target failure, or power loss once destructive cutover has begun.
+
+Required closure:
+- add one production U9+ recovery coordinator owned by the host OTA daemon;
+- on daemon boot, classify durable host transaction + same bound USB UUID before normal HA activation;
+- support adjacent safe forward resume or image+data rollback for U9-U12;
+- expose RECOVERY_MEDIA_REQUIRED without depending on Home Assistant when the bound USB is absent;
+- never replay the consumed U9 authorization;
+- declare recovery complete only after exact predecessor binding, HA page, Manager, Broker, telemetry and expected historical data pass;
+- add deterministic fault-injection coverage and representative real-T1 timing acceptance;
+- keep destructive U10 unauthorized until physical closure.
+
 ### 2026-11-19 KF-167 U13B P3 U10 read-only durable-U9 status compatibility — CLOSED_PASS / PHYSICALLY_VALIDATED
 
 ```text

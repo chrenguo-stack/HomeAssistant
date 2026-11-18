@@ -64,6 +64,17 @@ Before customer release cover at least:
 
 Each case records recovery path, terminal state, page/Manager/telemetry readiness and elapsed outage.
 
+## Initial source review result
+
+The first read-only source review found a concrete integration blocker.
+
+- tools/n3w_t1_core_updater_ha_daemon.py builds HaUsbIpcExecutor and invokes start_background_recovery() at daemon startup.
+- HaUsbIpcExecutor.start_background_recovery() only handles U1 by restarting discovery and U2/U3 by resuming preparation.
+- HaUsbIpcExecutor.submit() accepts only PREPARE, CONFIRM_USB_ERASE and INSTALL. INSTALL calls the prepare controller to revalidate and request install; it is not a U9+ destructive/recovery coordinator.
+- tools/n3w_t1_core_updater_ha_usb.py contains U9-U13 rollback and recovery state transitions, and the repository contains stage-specific engineering executors for U10/U11/U12/U13B, but those are not equivalent to an always-on product recovery path.
+
+Conclusion: architecture/state-machine capability exists, but customer-safe U9+ automatic recovery is not yet integrated into the installed product daemon. This is tracked as KF-168 and blocks destructive U10.
+
 ## Closure sequence
 
 1. source review of the actual U9-U13 recovery coordinator/executor used by production;
