@@ -23,6 +23,7 @@ RESET_EXECUTOR = (
     / "u13b_p3_single_usb_reuse_reset" / "executor.py"
 )
 RESET_MANIFEST = RESET_EXECUTOR.with_name("manifest.json")
+RECOVERY_EXECUTOR = LIVE_EXECUTOR.parent.parent / "u13b_p3_u1_u4_recovery" / "executor.py"
 
 
 def load(path: Path, name: str):
@@ -35,6 +36,206 @@ def load(path: Path, name: str):
 
 def manifest(path: Path):
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def test_u1_recovery_stops_before_writing_existing_signature(monkeypatch):
+    module = load(RECOVERY_EXECUTOR, "p3_recovery_blank_guard")
+    calls = []
+    monkeypatch.setattr(module, "select_usb", lambda *args: SimpleNamespace(locator="/dev/test"))
+    monkeypatch.setattr(module, "device_unused", lambda path: calls.append(("unused", path)))
+    monkeypatch.setattr(module, "disk_signatures", lambda _: [{"type": "gpt"}])
+    monkeypatch.setattr(module, "run", lambda *args, **kwargs: pytest.fail("unexpected command"))
+    with pytest.raises(module.Stop, match="on_disk_partition_table_or_signature_present"):
+        module.verify_blank_media(None, {})
+    assert calls == [("unused", "/dev/test")]
+
+
+def test_u1_recovery_creates_gpt_without_force_or_signature_erase(monkeypatch):
+    module = load(RECOVERY_EXECUTOR, "p3_recovery_partition")
+    calls = []
+    monkeypatch.setattr(module, "run", lambda stage, args, **kw: calls.append((stage, args, kw)))
+    monkeypatch.setattr(module, "select_usb", lambda *_: SimpleNamespace(locator="/dev/test"))
+    monkeypatch.setattr(module, "verify_partition_layout", lambda *args: calls.append(("layout", args)))
+    monkeypatch.setattr(module, "device_unused", lambda _: None)
+    monkeypatch.setattr(module, "disk_signatures", lambda _: [])
+    assert module.create_gpt(SimpleNamespace(_partition=lambda _: "/dev/test1"), {}, "/dev/test") == "/dev/test1"
+    assert calls[0][1] == [
+        "sfdisk", "--lock=yes", "--wipe", "never", "--wipe-partitions", "never", "/dev/test",
+    ]
+    assert calls[0][2]["input_bytes"] == b"label: gpt\n,;\n"
+    assert [entry[0] for entry in calls] == ["create_gpt", "settle_partition_events", "layout"]
+
+
+def test_u1_recovery_refuses_existing_recovery_ledger(tmp_path, monkeypatch):
+    module = load(RECOVERY_EXECUTOR, "p3_recovery_one_shot")
+    original = tmp_path / "original"
+    original.mkdir()
+    recovery = tmp_path / "recovery"
+    recovery.mkdir()
+    monkeypatch.setattr(module, "STATE", tmp_path)
+    monkeypatch.setattr(module, "RECOVERY_ROOT", recovery)
+    monkeypatch.setattr(module, "private_path", lambda *args, **kwargs: None)
+    monkeypatch.setattr(module, "read_record", lambda _: pytest.fail("replay read past guard"))
+    with pytest.raises(module.Stop, match="recovery_attempt_already_started"):
+        module.recover({"original_root": original.name}, {})
+
+
+def test_u1_recovery_requires_prior_confirmation_and_u1_digest(tmp_path, monkeypatch):
+    module = load(RECOVERY_EXECUTOR, "p3_recovery_bind")
+    transaction = {"transaction_id_sha256": "tx", "phase": "U1_PREPARE_REQUESTED", "status": "ACTIVE"}
+    state = {
+        "transaction_id_sha256": "tx", "confirmation_consumed": True,
+        "confirmation_required": False, "candidate": {"model": "test"},
+    }
+    store = SimpleNamespace(read=lambda: transaction, path=tmp_path / "tx")
+    prepare = SimpleNamespace(read=lambda: state)
+    monkeypatch.setattr(module, "digest", lambda _: module.U1_SHA256)
+    assert module.require_u1(store, prepare, {"usb": state["candidate"]}) == transaction
+    state["confirmation_consumed"] = False
+    with pytest.raises(module.Stop, match="u1_prepare_confirmation_drift"):
+        module.require_u1(store, prepare, {"usb": state["candidate"]})
+    monkeypatch.setattr(module, "digest", lambda _: "other")
+    with pytest.raises(module.Stop, match="active_u1_transaction_drift"):
+        module.require_u1(store, prepare, {"usb": state["candidate"]})
+
+
+def test_u1_recovery_reports_failed_tool_and_refuses_duplicate_record(tmp_path, monkeypatch):
+    module = load(RECOVERY_EXECUTOR, "p3_recovery_failure")
+    monkeypatch.setattr(module.subprocess, "run", lambda *a, **kw: SimpleNamespace(returncode=11))
+    with pytest.raises(module.Stop, match="create_gpt:exit_11"):
+        module.run("create_gpt", ["sfdisk"])
+    ledger = tmp_path / "claim.json"
+    module.write_once(ledger, {"claimed": True})
+    with pytest.raises(FileExistsError):
+        module.write_once(ledger, {"claimed": False})
+    assert json.loads(ledger.read_text()) == {"claimed": True}
+
+
+def test_p3_recovery_keeps_original_grants_and_ends_at_u4(tmp_path, monkeypatch):
+    import base64
+
+    from n3w_t1_core_updater_ha_capacity import compute_capacity
+    from n3w_t1_core_updater_ha_prepare import (
+        PREPARE_STATE_SCHEMA, HostUsbCandidate, PrepareStateStore,
+    )
+    from n3w_t1_core_updater_ha_recovery import ImageRecoveryRecord
+    from n3w_t1_core_updater_ha_usb import request_prepare
+    from n3w_t1_core_updater_ha_usb_state import HaUsbStateStore, new_transaction
+    import n3w_t1_portable_image_identity as portable
+
+    module = load(RECOVERY_EXECUTOR, "p3_recovery_integrated")
+    original = tmp_path / "original"
+    original.mkdir(mode=0o700)
+    (original / "staging").mkdir(mode=0o700)
+    (original / "staging" / "homeassistant-arm64.tar.gz").touch()
+    monkeypatch.setattr(module, "STATE", tmp_path)
+    recovery = tmp_path / "recovery"
+    monkeypatch.setattr(module, "RECOVERY_ROOT", recovery)
+    monkeypatch.setattr(module, "private_path", lambda *args, **kwargs: None)
+    monkeypatch.setattr(module, "load_frozen_tools", lambda *args: None)
+    monkeypatch.setattr(module, "check_peers", lambda _: None)
+    monkeypatch.setattr(module, "os", SimpleNamespace(
+        **(vars(module.os) | {"geteuid": lambda: 0, "umask": lambda _: None})
+    ))
+    monkeypatch.setattr(module, "ota_daemon", lambda: ({"InvocationID": "unchanged"}, 1))
+
+    sha = "1" * 64
+    uuid = "12345678-1234-5678-1234-567812345678"
+    image = "local/n3w-homeassistant:2026.10.4-bbbbbbbb"
+    transaction = request_prepare(new_transaction(
+        current_image_ref="local/n3w-homeassistant:2026.10.0-aaaaaaaa",
+        current_image_identity={"portable_identity_sha256": "2" * 64, "platform": "linux/arm64"},
+        target_manifest_identity={"release_identity": "ha-2026.10.4", "manifest_sha256": "3" * 64},
+        target_image_ref=image, target_archive_sha256=sha, target_archive_size=835_299_595,
+    ))
+    tx_id = transaction["transaction_id_sha256"]
+    store = HaUsbStateStore(tmp_path)
+    store.write(transaction)
+    monkeypatch.setattr(module, "U1_SHA256", module.digest(store.path))
+    candidate = HostUsbCandidate("/dev/test", "a" * 64, "test", 32_017_047_552)
+    capacity = compute_capacity(
+        target_artifact_bytes=835_299_595, predecessor_recovery_budget_bytes=1_342_177_280,
+        ha_data_measured_bytes=134_217_728,
+    ).snapshot(calculated_at_unix=2)
+    prepare_store = PrepareStateStore(tmp_path)
+    prepare_store.write({
+        "schema": PREPARE_STATE_SCHEMA, "transaction_id_sha256": tx_id,
+        "release_identity": "ha-2026.10.4", "baseline_public_fingerprints": [],
+        "candidate": candidate.public(), "confirmation_consumed": True,
+        "confirmation_required": False, "error_code": None,
+        "updated_at_unix": 2, "capacity_snapshot": capacity,
+    })
+    initial_prepare = prepare_store.path.read_bytes()
+    initial_claim = {
+        "execution_id": "previous-run", "authorization_id": "previous-grant",
+        "consumed": True, "claimed": True, "replay_permitted": False,
+    }
+    original_claim = original / "authorization_claim.json"
+    module.write_once(original_claim, initial_claim)
+    module.write_once(original / "failure.json", {
+        "status": "STOP_POSTCLAIM", "transaction_phase": transaction["phase"],
+        "transaction_id_sha256": tx_id, "authorization_consumed": True,
+    })
+    module.write_once(original / "progress.json", {
+        "phase": "fresh_usb_format_and_target_prepare", "updated_at_unix": 2,
+    })
+
+    runtime = tmp_path / "runtime"
+    runtime.mkdir(mode=0o700)
+    commands, phases = [], []
+    verified_target = ImageRecoveryRecord(
+        kind="target", image_ref=image, archive_sha256=sha, archive_size_bytes=835_299_595,
+        portable_identity_sha256="4" * 64, platform="linux/arm64", verified=True, fsynced=True,
+    )
+    backend = SimpleNamespace(
+        runtime_root=runtime,
+        policy_provider=SimpleNamespace(load=lambda _: SimpleNamespace(target_archive_sha256=sha)),
+        capacity_snapshot=lambda *a, **kw: capacity,
+        _self_test=lambda _: None,
+        _filesystem_space=lambda _: (30_000_000_000, 29_000_000_000),
+        _require_bound_media=lambda _: None,
+        sync_transaction_metadata=lambda document, media: phases.append((document["phase"], media)),
+        resolve_transaction_media=lambda *a, **kw: phases[-1][1],
+        prepare_target=lambda **kw: verified_target,
+    )
+
+    def run(stage, argv, **kwargs):
+        commands.append(stage)
+        return f"UUID={uuid}\nTYPE=ext4\nLABEL=N3W-UPDATE\n".encode() if stage == "verify_ext4" else b""
+
+    monkeypatch.setattr(module, "run", run)
+    monkeypatch.setattr(module, "recovery_backend", lambda *a: backend)
+    monkeypatch.setattr(module, "verify_blank_media", lambda *a: candidate)
+    monkeypatch.setattr(module, "create_gpt", lambda *a: "/dev/test1")
+    monkeypatch.setattr(portable, "parse_image_archive", lambda *a, **kw: SimpleNamespace(
+        config_semantics_sha256="5" * 64, rootfs_diff_ids_sha256="6" * 64,
+    ))
+
+    plan = {
+        "original_root": original.name, "original_execution_id": "previous-run",
+        "original_authorization_id": "previous-grant", "tools_sha256": {},
+        "usb": candidate.public(), "historical_uuid": "other",
+        "target": {
+            "target_archive_sha256": sha, "target_archive_size_bytes": 835_299_595,
+            "target_image_ref": image, "target_config_semantics_sha256": "5" * 64,
+            "target_rootfs_diff_ids_sha256": "6" * 64,
+        },
+    }
+    encoded = base64.b64encode(json.dumps(plan).encode()).decode()
+    assert module.remote_main("execute", encoded) == 0
+    assert module.status_result()["stop_before_u5"] is True
+    assert store.read()["phase"] == "U4_READY_TO_INSTALL"
+    assert store.read()["transaction_id_sha256"] == tx_id
+    assert store.read()["target_artifact_verified"] is True
+    assert [phase for phase, _ in phases] == [
+        "U2_USB_QUALIFIED_FORMATTED_BOUND", "U2_USB_QUALIFIED_FORMATTED_BOUND",
+        "U3_TARGET_DOWNLOADING_VERIFYING", "U4_READY_TO_INSTALL",
+    ]
+    assert commands == ["create_ext4", "settle_filesystem_events", "verify_ext4", "mount_ext4"]
+    assert prepare_store.path.read_bytes() == initial_prepare
+    assert json.loads(original_claim.read_text()) == initial_claim
+    assert module.remote_main("execute", encoded) == 2
+    assert module.status_result()["status"] == "U4_RECOVERY_PASS"
 
 
 def test_fresh_readonly_manifest_is_non_live_and_preserves_old_usb():

@@ -7,6 +7,7 @@ on:
       - "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/**"
       - "tools/execution_packages/n3w/r7a/u13b_p3_single_usb_reuse_reset/**"
       - "tools/execution_packages/n3w/r7a/u13b_p3_live_to_u11/**"
+      - "tools/execution_packages/n3w/r7a/u13b_p3_u1_u4_recovery/**"
       - "tests/tools/test_n3w_t1_u13b_p3_live_and_readonly_preflight.py"
       - "docs/development/N3W_T1_U13B_P3_LIVE_EXECUTOR_AND_FRESH_READONLY_PREFLIGHT_SOURCE_DESIGN_20261117.md"
       - "tools/n3w_t1_core_updater*.py"
@@ -49,4 +50,5 @@ jobs:
           python tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/executor.py             --expected-package-commit "$SOURCE_HEAD"             --mode source-check
           python tools/execution_packages/n3w/r7a/u13b_p3_single_usb_reuse_reset/executor.py             --expected-package-commit "$SOURCE_HEAD"             --mode source-check
           python tools/execution_packages/n3w/r7a/u13b_p3_live_to_u11/executor.py             --expected-package-commit "$SOURCE_HEAD"             --mode source-check
+          python tools/execution_packages/n3w/r7a/u13b_p3_u1_u4_recovery/executor.py --expected-commit "$SOURCE_HEAD" --mode source-check
           python -m pytest -q             tests/tools/test_n3w_t1_u13b_p3_live_and_readonly_preflight.py             tests/tools/test_n3w_t1_core_updater_ha_usb_r1.py::test_terminal_ha_usb_transaction_is_archived_before_next             tests/tools/test_n3w_t1_core_updater_ha_usb_r2.py::test_r2_power_loss_classification_is_deterministic_u0_through_u11             tests/tools/test_n3w_t1_u11_target_install_r40.py::test_r40_success_persists_usb_before_host_and_stops_before_u12
