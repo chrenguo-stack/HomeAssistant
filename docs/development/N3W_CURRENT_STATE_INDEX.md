@@ -1,3 +1,16 @@
+## 2026-11-18 — U13B P3 U10 read-only Attempt 02 ready / handoff stop
+
+- Live T1 remains durably at `U9_LIVE_AUTHORIZATION_CLAIMED`; transaction SHA-256 `2b3812af093c1f73a95744413e238f1ca3763407241f889c0646b9495e35a84b`.
+- U9 authorization is consumed/non-replayable. No U10 transition has occurred.
+- U10 Attempt 01 returned `STOP / private_file_metadata_invalid` at `bind_durable_u9`, receipt SHA-256 `30922a0e0afe09dcd5e80ae11cb3bd52f2313dd9cbc3a584829db87a4178c888`; no destructive cutover, predecessor deletion, target load, service mutation or U10 transition occurred.
+- Root cause: U9 ledger authority files were created without a forced remote `umask 077`; later strict private-file metadata validation rejected the durable root-owned non-writable file.
+- Source repair head `4385b36c32a692e2e0c1d3484cb714551b37501a` accepts the existing root-owned, parent-private, group/other-nonwritable ledger while forcing `umask 077` for future U9 writes.
+- Attempt 02 exact read-only candidate: `c288303a638947fedb7ee504874f7a14a147bf87`.
+- Replacement CI on that candidate: public safety `44329875391` SUCCESS; Core Stack authority `44329875446` SUCCESS; P3 live/readonly source `44329875510` SUCCESS; HA target-binding `44329875490` SUCCESS with `974 passed`.
+- Operator will provide Attempt 02 result in the next chat. Attempt 02 is read-only only; U10 destructive mutation, U11+, service restart, predecessor deletion, target load, spare-T1 mutation and PR merge remain unauthorized.
+- [Attempt 01 false-STOP archive](./N3W_T1_U13B_P3_U10_READONLY_PREFLIGHT_ATTEMPT01_FALSE_STOP_20261118.md)
+- [U10 read-only source closure](./N3W_T1_U13B_P3_U10_READONLY_PREFLIGHT_SOURCE_CLOSURE_20261118.md)
+
 ## 2026-11-18 — U13B P3 U9 live authorization PASS
 
 - Core Stack repository authority remains `infra/n3w-t1/production/t1-core-stack-current.json` at product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`. Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, and Broker `local/n3w-mosquitto:2.1.2-3184566d`.
