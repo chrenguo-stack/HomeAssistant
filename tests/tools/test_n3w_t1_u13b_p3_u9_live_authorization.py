@@ -153,3 +153,16 @@ def test_u9_inspect_uses_ledger_specific_reader_for_claim_and_success() -> None:
     block = text[start:end]
     assert 'read_ledger_object(ledger / "claim.json")' in block
     assert "read_ledger_object(success_path)" in block
+
+def test_u9_inspect_loads_exact_tools_before_first_product_import() -> None:
+    text = source()
+    start = text.index("def inspect(")
+    end = text.index("MODES =", start)
+    block = text[start:end]
+    bind = block.index("original = preflight.bind_ledger(plan)")
+    product_import = block.index(
+        "from n3w_t1_core_updater_ha_usb_state import validate_transaction_document"
+    )
+    assert bind < product_import
+    assert block.count("original = preflight.bind_ledger(plan)") == 1
+
