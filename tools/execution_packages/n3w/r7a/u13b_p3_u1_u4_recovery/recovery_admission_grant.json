@@ -1,0 +1,11 @@
+{
+  "schema": "gh.n3w-t1-u13b-p3-u8-recovery-admission/1",
+  "authorization_id": "N3W_T1_U13B_P3_U8_RECOVERY_ADMISSION_20261118_01",
+  "candidate_commit": "e78b80642f7e71a88ae086f3d7b6c54c34defb99",
+  "u7_transaction_sha256": "2f45f6eee5fa59d0dafe53cedc23c11d62de35e949fb645ea8fd74b3d8d861a2",
+  "u7_receipt_sha256": "27739cf29a883c4ee58d8cc6094099f4fd4e36a056dd94acfeb28d29bb203e73",
+  "target_archive_sha256": "be30c4778bf537258d9e3825524c79532f20e8eb7a82136f560110d8f44b418d",
+  "maximum_phase": "U8_RECOVERY_ADMISSION_COMPLETE",
+  "authorized": true,
+  "expires_at_unix": 1795132799
+}
