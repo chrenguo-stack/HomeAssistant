@@ -125,3 +125,31 @@ def test_postclaim_failure_is_non_replayable_status_only() -> None:
     assert "read_only_status_required=True" in block
     assert "u9_ledger_exists_never_replay" in block
     assert "replay_permitted" in text
+
+
+def test_u9_ledger_reader_accepts_root_owned_nonwritable_legacy_mode() -> None:
+    text = source()
+    start = text.index("def read_ledger_object(")
+    end = text.index("def binding(", start)
+    block = text[start:end]
+    assert "recovery.private_path(path.parent, directory=True)" in block
+    assert "info.st_uid == 0" in block
+    assert "not info.st_mode & 0o022" in block
+    assert "0o077" not in block
+
+
+def test_remote_u9_writer_forces_private_umask() -> None:
+    text = source()
+    start = text.index("def remote_main(")
+    end = text.index("def local_main(", start)
+    block = text[start:end]
+    assert "os.umask(0o077)" in block
+
+
+def test_u9_inspect_uses_ledger_specific_reader_for_claim_and_success() -> None:
+    text = source()
+    start = text.index("def inspect(")
+    end = text.index("MODES =", start)
+    block = text[start:end]
+    assert 'read_ledger_object(ledger / "claim.json")' in block
+    assert "read_ledger_object(success_path)" in block
