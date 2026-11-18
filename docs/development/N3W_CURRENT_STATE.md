@@ -5,6 +5,14 @@ The original P3 live attempt stopped after claim at U1. The separately authorize
 ```text
 PR=807
 DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
 RECOVERY_EXECUTION_HEAD=d54e2794a590208c7a9f57ac00bb6ee2017a94ff
 RECOVERY_AUTHORIZATION_ID=N3W_T1_U13B_P3_U1_TO_U4_USB_RECOVERY_20261118_01
 RECOVERY_AUTHORIZATION=CONSUMED_NO_REPLAY
@@ -21,6 +29,8 @@ STOP_BEFORE_U5=true
 ```
 
 The recovery verified the P3 acceptance archive on the newly prepared USB. The receipt is from the operator's Mac and the raw evidence stays there. The U4 transaction is the handoff point for any separately authorized continuation. [PR #807 recovery receipt](https://github.com/chrenguo-stack/HomeAssistant/pull/807#issuecomment-6968950587).
+
+The Core Stack fields above preserve the accepted repository authority. The P3 acceptance transaction has its own predecessor and target bindings. See the [U4 recovery to U5 handoff](N3W_T1_U13B_P3_U4_RECOVERY_PASS_TO_U5_NEW_CHAT_HANDOFF_V1.0_20261118.md) for the current stop point and next read-only gate.
 
 ## 2026-11-18 — U13B P3 single-USB reset and post-reset preflight physical PASS
 

@@ -1,8 +1,11 @@
 ## 2026-11-18 — U13B P3 recovery verified at U4
 
+- Core Stack repository authority is `infra/n3w-t1/production/t1-core-stack-current.json` at product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`. Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, and Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference `24382caae4a1f5d459297f86e8d18f10a848ca64` has Manager `local/greenhouse-manager:fresh-24382caae4a1`. Live upgrade accepted.
 - The original live attempt stopped at U1 after claim. The recovery initially safe-stopped on USB `EBUSY` before claim. The exact unmount of the historical Manager namespace mount restored exclusive read access to the disk and partition.
 - Recovery authority `d54e2794a590208c7a9f57ac00bb6ee2017a94ff` returned `EXIT_CODE=0 / U4_RECOVERY_PASS`. Active U4 transaction SHA-256 is `00167d489d785af6a458cd09826b9293dc29ec6c85b02ac75772017633d6f154`.
 - The new filesystem UUID and the exact USB acceptance archive were verified. Runtime containers stayed on the baseline. Both execution grants are consumed. The current stop point is before U5. [PR #807 recovery receipt](https://github.com/chrenguo-stack/HomeAssistant/pull/807#issuecomment-6968950587).
+- Next chat starts from the [U4 recovery to U5 handoff](N3W_T1_U13B_P3_U4_RECOVERY_PASS_TO_U5_NEW_CHAT_HANDOFF_V1.0_20261118.md).
 
 ## 2026-11-18 — U13B P3 single-USB reset and post-reset preflight physical PASS
 
