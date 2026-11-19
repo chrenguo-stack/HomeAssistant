@@ -139,3 +139,15 @@ def test_remote_stdout_empty_preserves_stderr_diagnostic() -> None:
     text = source()
     assert 'completed.stderr.strip().replace("\\n", " ")[:600]' in text
     assert '"remote_stdout_empty" + (":" + stderr if stderr else "")' in text
+
+
+def test_remote_bootstrap_defines_file_and_reaches_remote_main() -> None:
+    text = source()
+    assert 'bootstrap = f"__file__={remote_file!r}\\n" + bootstrap' in text
+    assert 'compile(bootstrap, "<u9plus-fault-acceptance-bootstrap>", "exec")' in text
+
+
+def test_stop_unknown_keeps_sanitized_diagnostic_field() -> None:
+    text = source()
+    assert '"diagnostic": diagnostic or type(error).__name__' in text
+    assert 're.sub(r"[^a-zA-Z0-9_./:+-]+", "_", str(error))[:600]' in text

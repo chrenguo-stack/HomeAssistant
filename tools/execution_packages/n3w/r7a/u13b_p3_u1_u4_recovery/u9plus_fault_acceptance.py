@@ -613,7 +613,7 @@ def remote_main(mode: str, encoded: str, extra: list[str]):
 
 
 def bootstrap_for_remote():
-    return u6_recovery.make_bootstrap(
+    bootstrap = u6_recovery.make_bootstrap(
         Path(__file__).resolve(),
         extra_modules=(
             # make_bootstrap executes modules in insertion order.  Load the
@@ -627,6 +627,15 @@ def bootstrap_for_remote():
             ("u10_preflight", u10_preflight),
         ),
     )
+    # python -c does not define __file__.  The embedded __main__ source uses
+    # it only for local-path constants that are not dereferenced by remote_main.
+    remote_file = (
+        "/__n3w_remote__/tools/execution_packages/n3w/r7a/"
+        "u13b_p3_u1_u4_recovery/u9plus_fault_acceptance.py"
+    )
+    bootstrap = f"__file__={remote_file!r}\n" + bootstrap
+    compile(bootstrap, "<u9plus-fault-acceptance-bootstrap>", "exec")
+    return bootstrap
 
 
 def source_check(manifest: dict, expected_commit: str):
@@ -725,10 +734,12 @@ def local_main():
         receipt = json.loads(lines[-1])
         rc = completed.returncode
     except Exception as error:
+        diagnostic = re.sub(r"[^a-zA-Z0-9_./:+-]+", "_", str(error))[:600]
         receipt = {
             "schema": SCHEMA,
             "status": "STOP_UNKNOWN",
             "reason": recovery.safe_reason(error),
+            "diagnostic": diagnostic or type(error).__name__,
             "target_image_load": False,
             "u11_plus": False,
             "product_u9_replayed": False,
