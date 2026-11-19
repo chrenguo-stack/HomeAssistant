@@ -23,7 +23,9 @@
     "independent_oracle_repair_head": "b05b923997238c4cac5505f5e27b5a405f0b7d75",
     "p3_source_authority_rebind_head": "9f301091dad9faeee77e997c435e2b81115a1206",
     "u10_readonly_attempt05_candidate": "4bca19ff857239c4e86e8417cf61e076c686f834",
-    "u10_readonly_attempt05_status": "P3_U10_READONLY_PREFLIGHT_PASS"
+    "u10_readonly_attempt05_status": "P3_U10_READONLY_PREFLIGHT_PASS",
+    "missing_media_status_repair_base_head": "ce7b0c301911b962a3ccdf4ba356d2f4ddb986a6",
+    "missing_media_status_observed": "ota_status_rejected"
   },
   "current_u9": {
     "transaction_phase": "U9_LIVE_AUTHORIZATION_CLAIMED",
@@ -34,7 +36,7 @@
     "replay_permitted": false
   },
   "p3_candidate_source_manifest": "tools/execution_packages/n3w/r7a/u13b_p3_live_to_u11/manifest.json",
-  "p3_candidate_source_manifest_blob": "991a32851a56136b8d9c7a0af95c3c6d5a344051",
+  "p3_candidate_source_manifest_blob": "d8d45bd0a58c2232799240414c99f039629687ff",
   "package_source_authority": {
     "tools/execution_packages/n3w/r7a/u13b_p3_u1_u4_recovery/u10_preflight.py": "155e7a475fe197e7acfbdc539259b2b6bad26227",
     "tools/execution_packages/n3w/r7a/u13b_p3_u1_u4_recovery/executor.py": "deb0f1536b4e884993cb2b72b60df4b43623b27f",
@@ -73,6 +75,6 @@
     "board_access": false,
     "merge": false
   },
-  "next_boundary": "PHASE_A_REAL_T1_PREFLIGHT_THEN_ARM_U10",
+  "next_boundary": "PHASE_A_U10_MISSING_MEDIA_STATUS_REPAIR_THEN_OBSERVE",
   "stop_boundary": "STOP_AFTER_PHASE_A_U13B_RECOVERY_BEFORE_FRESH_TIMING_TRANSACTION"
 }

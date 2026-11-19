@@ -151,3 +151,25 @@ def test_stop_unknown_keeps_sanitized_diagnostic_field() -> None:
     text = source()
     assert '"diagnostic": diagnostic or type(error).__name__' in text
     assert 're.sub(r"[^a-zA-Z0-9_./:+-]+", "_", str(error))[:600]' in text
+
+
+def test_missing_media_status_repair_is_narrow_and_stays_u10() -> None:
+    text = source()
+    start = text.index("def repair_missing_status(")
+    end = text.index("def observe_missing(", start)
+    block = text[start:end]
+    assert '"n3w_t1_core_updater_ha_ipc.py"' in block
+    assert 'tx.get("phase") == U10' in block
+    assert '["systemctl", "restart", OTA_UNIT]' in block
+    assert '"RECOVERY_MEDIA_REQUIRED"' in block
+    assert "store.write(" not in block
+    assert '["docker", "load"' not in block
+    assert "/opt/HomeAssistant" not in block
+
+
+def test_missing_media_status_repair_has_separate_mode_and_no_u9_replay() -> None:
+    text = source()
+    assert '"repair-missing-status"' in text
+    assert '"product_u9_replayed": False' in text or "product_u9_replayed=False" in text
+    assert "claim_live_authorization(" not in text
+    assert "REPEAT_OBSERVE_MISSING_READONLY" in text

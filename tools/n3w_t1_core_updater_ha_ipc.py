@@ -204,7 +204,12 @@ class HaUsbIpcExecutor:
         }
         if self.prepare_controller is None:
             return defaults
-        projection = self.prepare_controller.public_status()
+        try:
+            projection = self.prepare_controller.public_status()
+        except UpdaterV2Error as error:
+            if str(error) == "ha_usb_prepare_status_phase_invalid":
+                return defaults
+            raise
         return {
             "usb_required_bytes_or_null": projection.get(
                 "usb_required_bytes_or_null"

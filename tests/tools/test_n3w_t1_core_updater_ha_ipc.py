@@ -790,3 +790,43 @@ def test_daemon_builds_product_recovery_only_for_postclaim_phase(
         is None
     )
     assert calls == []
+
+
+class PostclaimPhaseRejectingController(ControllerStub):
+    def public_status(self):
+        self.public_calls += 1
+        raise UpdaterV2Error("ha_usb_prepare_status_phase_invalid")
+
+
+def test_u9_plus_recovery_media_required_dispatcher_survives_prepare_phase_boundary():
+    store = StaticPostclaimStore(phase=U10)
+    recovery = RecoveryCoordinatorStub(
+        terminal_phase="RECOVERY_MEDIA_REQUIRED"
+    )
+    controller = PostclaimPhaseRejectingController()
+    executor = HaUsbIpcExecutor(
+        store=store,
+        admission_resolver=Resolver(),
+        prepare_controller=controller,
+        recovery_coordinator=recovery,
+    )
+    executor.start_background_recovery()
+    assert executor._recovery_thread is not None
+    executor._recovery_thread.join(2)
+
+    response = json.loads(
+        HaUsbIpcDispatcher(executor).handle(
+            json.dumps(
+                {"schema": REQUEST_SCHEMA, "operation": "status"}
+            ).encode("utf-8")
+        )
+    )
+
+    assert response["accepted"] is True
+    assert response["code"] == "status"
+    assert response["phase"] == "RECOVERY_MEDIA_REQUIRED"
+    assert response["error_code"] is None
+    assert response["usb_required_bytes_or_null"] is None
+    assert response["usb_capacity_check_state"] == "NOT_CALCULATED"
+    assert controller.public_calls >= 1
+    executor.stop_background_workers()

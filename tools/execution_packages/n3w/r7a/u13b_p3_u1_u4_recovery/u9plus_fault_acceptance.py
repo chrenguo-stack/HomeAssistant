@@ -50,6 +50,7 @@ PREFLIGHT_PASS = "U9PLUS_PHASE_A_PREFLIGHT_PASS"
 ARMED = "U9PLUS_PHASE_A_U10_ARMED"
 MEDIA_REQUIRED_PASS = "U9PLUS_PHASE_A_MEDIA_REQUIRED_PASS"
 RECOVERED_PASS = "U9PLUS_PHASE_A_RECOVERED_PASS"
+STATUS_REPAIR_PASS = "U9PLUS_PHASE_A_MISSING_STATUS_REPAIR_PASS"
 U9 = "U9_LIVE_AUTHORIZATION_CLAIMED"
 U10 = "U10_INTERNAL_PREDECESSOR_CAPACITY_RELEASED"
 U13B = "U13B_ROLLED_BACK"
@@ -59,6 +60,7 @@ CLAIM_PATH = STATE_ROOT / "acceptance-claim.json"
 ARMED_PATH = STATE_ROOT / "armed-u10.json"
 MISSING_PATH = STATE_ROOT / "missing-media-observed.json"
 RECOVERED_PATH = STATE_ROOT / "recovered.json"
+STATUS_REPAIR_PATH = STATE_ROOT / "missing-status-repair.json"
 OTA_UNIT = "n3w-t1-ha-ota.service"
 OTA_SOCKET = Path("/run/n3w-t1-ota/ha-ota.sock")
 OVERRIDE_DIR = Path("/etc/systemd/system/n3w-t1-ha-ota.service.d")
@@ -476,6 +478,106 @@ def arm_u10(plan: dict, bundle_path: str, authorization_id: str, confirmation: s
     )
 
 
+def repair_missing_status(plan: dict, bundle_path: str, result: dict):
+    require(STATE_ROOT.is_dir() and ARMED_PATH.is_file() and CLAIM_PATH.is_file(), "acceptance_arm_state_missing")
+    require(not STATUS_REPAIR_PATH.exists() and not STATUS_REPAIR_PATH.is_symlink(), "missing_status_repair_already_recorded")
+    armed = json.loads(ARMED_PATH.read_text())
+    claim = json.loads(CLAIM_PATH.read_text())
+    fa = plan["fault_acceptance"]
+    require(claim.get("authorization_id") == fa["authorization_id"], "acceptance_claim_authorization_drift")
+    require(claim.get("execution_id") == fa["execution_id"], "acceptance_claim_execution_drift")
+    require(claim.get("claimed") is True and claim.get("consumed") is True, "acceptance_claim_not_consumed")
+    require(claim.get("replay_permitted") is False, "acceptance_claim_replay_invalid")
+    require(boot_id() != armed["boot_id_before_fault"], "power_cycle_not_observed")
+    before_unit = systemd_contract(expect_override=True)
+
+    tx_path = recovery.STATE / preflight.TX_NAME
+    tx = json.loads(preflight.read_private(tx_path))
+    require(tx.get("phase") == U10, "status_repair_requires_u10")
+    require(transaction_sha(tx_path) == armed["transaction_sha256"], "u10_transaction_changed_before_status_repair")
+    require(same_authorization(tx, armed["authorization_tuple"]), "authorization_drift_before_status_repair")
+
+    lsblk = command(["lsblk", "-J", "-o", "UUID"], check=False)
+    require(lsblk.returncode == 0, "lsblk_failed")
+    require(armed["usb_filesystem_uuid"] not in lsblk.stdout.decode(errors="replace"), "bound_usb_present_during_status_repair")
+    require(not installed_image_present(armed["predecessor_image_ref"]), "predecessor_present_before_status_repair")
+    require(not installed_image_present(armed["target_image_ref"]), "target_present_before_status_repair")
+
+    bundle = Path(bundle_path)
+    require(bundle.is_file() and not bundle.is_symlink(), "candidate_bundle_missing")
+    require(sha_file(bundle) == fa["candidate_bundle_sha256"], "candidate_bundle_sha256_drift")
+    expected = fa["candidate_source_sha256"]
+    name = "n3w_t1_core_updater_ha_ipc.py"
+    require(name in expected, "candidate_ipc_not_bound")
+    target = CANDIDATE_DIR / name
+    require(CANDIDATE_DIR.is_dir() and not CANDIDATE_DIR.is_symlink(), "candidate_dir_missing")
+    require(target.is_file() and not target.is_symlink(), "candidate_ipc_missing")
+    info = target.stat()
+    require(info.st_uid == 0 and not info.st_mode & 0o077, "candidate_ipc_metadata_invalid")
+
+    with zipfile.ZipFile(bundle) as archive:
+        require(set(archive.namelist()) == set(expected), "candidate_bundle_members_drift")
+        raw = archive.read(name)
+    require(hashlib.sha256(raw).hexdigest() == expected[name], "candidate_ipc_hash_drift")
+    temporary = CANDIDATE_DIR / (name + ".repair")
+    require(not temporary.exists() and not temporary.is_symlink(), "candidate_ipc_repair_temp_exists")
+    fd = os.open(
+        temporary,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+        0o600,
+    )
+    try:
+        os.write(fd, raw)
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    os.replace(temporary, target)
+    _fsync_dir(CANDIDATE_DIR)
+    bundle.unlink(missing_ok=True)
+
+    require(sha_file(target) == expected[name], "candidate_ipc_repair_not_exact")
+    command(["systemctl", "restart", OTA_UNIT], timeout=180)
+    after_unit = systemd_contract(expect_override=True)
+    require(after_unit["main_pid"] != before_unit["main_pid"], "ota_daemon_restart_not_observed")
+
+    status = ipc_status()
+    require(status.get("phase") == "RECOVERY_MEDIA_REQUIRED", "recovery_media_required_not_projected_after_repair")
+    require(status.get("error_code") is None, "recovery_media_required_has_error_after_repair")
+
+    final = json.loads(preflight.read_private(tx_path))
+    require(final.get("phase") == U10, "transaction_advanced_during_status_repair")
+    require(transaction_sha(tx_path) == armed["transaction_sha256"], "u10_transaction_changed_during_status_repair")
+    require(same_authorization(final, armed["authorization_tuple"]), "authorization_drift_during_status_repair")
+    require(not installed_image_present(armed["predecessor_image_ref"]), "predecessor_restored_during_status_repair")
+    require(not installed_image_present(armed["target_image_ref"]), "target_loaded_during_status_repair")
+
+    receipt = {
+        "schema": "gh.n3w-t1-u9plus-fault-acceptance-status-repair/1",
+        "status": STATUS_REPAIR_PASS,
+        "boot_id": boot_id(),
+        "transaction_sha256": transaction_sha(tx_path),
+        "usb_filesystem_uuid": armed["usb_filesystem_uuid"],
+        "ipc_phase": status["phase"],
+        "candidate_ipc_sha256": expected[name],
+    }
+    durable_json_once(STATUS_REPAIR_PATH, receipt)
+    result.update(
+        status=STATUS_REPAIR_PASS,
+        read_only=False,
+        destructive_u10=False,
+        transaction_phase=U10,
+        transaction_sha256=receipt["transaction_sha256"],
+        recovery_media_required=True,
+        bound_usb_present=False,
+        candidate_status_repair=True,
+        ota_daemon_restarted=True,
+        target_image_load=False,
+        u11_plus=False,
+        product_u9_replayed=False,
+        next_action="REPEAT_OBSERVE_MISSING_READONLY",
+    )
+
+
 def observe_missing(plan: dict, result: dict):
     require(STATE_ROOT.is_dir() and ARMED_PATH.is_file() and CLAIM_PATH.is_file(), "acceptance_arm_state_missing")
     armed = json.loads(ARMED_PATH.read_text())
@@ -579,7 +681,7 @@ def remote_main(mode: str, encoded: str, extra: list[str]):
     result = {
         "schema": SCHEMA,
         "status": "STOP",
-        "read_only": mode != "arm-u10",
+        "read_only": mode not in {"arm-u10", "repair-missing-status"},
         "destructive_u10": False,
         "target_image_load": False,
         "u11_plus": False,
@@ -594,6 +696,9 @@ def remote_main(mode: str, encoded: str, extra: list[str]):
         elif mode == "arm-u10":
             require(len(extra) == 3, "arm_arguments_invalid")
             arm_u10(plan, extra[0], extra[1], extra[2], result)
+        elif mode == "repair-missing-status":
+            require(len(extra) == 1, "status_repair_arguments_invalid")
+            repair_missing_status(plan, extra[0], result)
         elif mode == "observe-missing":
             observe_missing(plan, result)
         elif mode == "verify-recovered":
@@ -606,6 +711,7 @@ def remote_main(mode: str, encoded: str, extra: list[str]):
     success = {
         "preflight": PREFLIGHT_PASS,
         "arm-u10": ARMED,
+        "repair-missing-status": STATUS_REPAIR_PASS,
         "observe-missing": MEDIA_REQUIRED_PASS,
         "verify-recovered": RECOVERED_PASS,
     }
@@ -663,7 +769,7 @@ def local_main():
     parser.add_argument("--expected-commit", required=True)
     parser.add_argument(
         "--mode",
-        choices=("source-check", "preflight", "arm-u10", "observe-missing", "verify-recovered"),
+        choices=("source-check", "preflight", "arm-u10", "repair-missing-status", "observe-missing", "verify-recovered"),
         default="source-check",
     )
     parser.add_argument("--execution-id")
@@ -694,9 +800,10 @@ def local_main():
     hashes = None
     bundle_sha = None
     temp = None
-    if args.mode == "arm-u10":
-        require(args.authorization_id == manifest["authorization_id"], "authorization_id_mismatch")
-        require(args.confirm == manifest["confirmation"], "confirmation_mismatch")
+    if args.mode in {"arm-u10", "repair-missing-status"}:
+        if args.mode == "arm-u10":
+            require(args.authorization_id == manifest["authorization_id"], "authorization_id_mismatch")
+            require(args.confirm == manifest["confirmation"], "confirmation_mismatch")
         temp = tempfile.TemporaryDirectory(prefix="n3w-u9plus-fi-bundle-")
         bundle_path, hashes = build_candidate_bundle(manifest, Path(temp.name))
         bundle_sha = sha_file(bundle_path)
@@ -715,13 +822,17 @@ def local_main():
     try:
         remote_extra = []
         remote_bundle = None
-        if args.mode == "arm-u10":
+        if args.mode in {"arm-u10", "repair-missing-status"}:
             remote_bundle = f"/tmp/n3w-u9plus-fi-{args.execution_id}.zip"
             transport.scp_to(bundle_path, remote_bundle, timeout=1800)
-            remote_extra = [remote_bundle, args.authorization_id, args.confirm]
+            remote_extra = (
+                [remote_bundle, args.authorization_id, args.confirm]
+                if args.mode == "arm-u10"
+                else [remote_bundle]
+            )
         completed = transport.run_remote(
             ["python3", "-I", "-B", "-c", bootstrap, "--remote", args.mode, data, *remote_extra],
-            timeout=3600 if args.mode in {"arm-u10", "verify-recovered"} else 1200,
+            timeout=3600 if args.mode in {"arm-u10", "repair-missing-status", "verify-recovered"} else 1200,
             check=False,
         )
         lines = [line for line in completed.stdout.splitlines() if line.strip()]
@@ -756,6 +867,7 @@ def local_main():
     expected = {
         "preflight": PREFLIGHT_PASS,
         "arm-u10": ARMED,
+        "repair-missing-status": STATUS_REPAIR_PASS,
         "observe-missing": MEDIA_REQUIRED_PASS,
         "verify-recovered": RECOVERED_PASS,
     }[args.mode]
