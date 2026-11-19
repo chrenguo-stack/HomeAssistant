@@ -23,7 +23,7 @@
     "tools/execution_packages/n3w/r7a/u13b_real_t1_readonly_binding_preflight/executor.py": "d4370a3962558f156db722dc9370154e0800fb23",
     "tools/execution_packages/n3w/r7a/u13b_real_t1_readonly_binding_preflight/manifest.json": "081b92c7e15e6b98147fdbc4014e5b686491e121",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
-    "tools/n3w_t1_core_updater_ha_prepare_host.py": "2e1a2c52ab19090eb6bf23779e99b8e7879014e2",
+    "tools/n3w_t1_core_updater_ha_prepare_host.py": "060066bb3495bcf50a373fa7d83633b0eb85276d",
     "tools/n3w_t1_core_updater_ha_usb_media.py": "35f83617cccd987a7b001476c539d78974ea5f8b",
     "tools/n3w_t1_core_updater_ha_usb_state.py": "f20f7c6e182aeb19ef47bdec595d85bd08729c9c"
   },
