@@ -656,3 +656,75 @@ def test_discovery_success_does_not_clear_prepare_worker_error(
     assert controller.refresh_calls == 1
     assert executor._discovery_error is None
     assert executor._prepare_error == "ha_target_download_failed"
+
+
+
+class StaticPostclaimStore:
+    def __init__(self, phase=U9):
+        self.document = {
+            "phase": phase,
+            "status": "ACTIVE",
+            "current_image_ref": "local/n3w-homeassistant:2026.10.0-aaaaaaaa",
+            "target_image_ref": "local/n3w-homeassistant:2026.10.4-bbbbbbbb",
+        }
+
+    def read(self):
+        return dict(self.document)
+
+
+class RecoveryCoordinatorStub:
+    def __init__(self, *, terminal_phase="ROLLED_BACK"):
+        self.calls = 0
+        self.terminal_phase = terminal_phase
+        self._status = {"phase": "RECOVERY_PENDING", "error_code": None}
+
+    def recover_once(self):
+        self.calls += 1
+        self._status = {"phase": self.terminal_phase, "error_code": None}
+        return dict(self._status)
+
+    def public_status(self):
+        return dict(self._status)
+
+
+def test_u9_plus_background_recovery_is_started_by_ipc_lifecycle():
+    store = StaticPostclaimStore()
+    recovery = RecoveryCoordinatorStub()
+    executor = HaUsbIpcExecutor(
+        store=store,
+        admission_resolver=Resolver(),
+        prepare_controller=ControllerStub(),
+        recovery_coordinator=recovery,
+    )
+
+    executor.start_background_recovery()
+    assert executor._recovery_thread is not None
+    executor._recovery_thread.join(2)
+
+    assert recovery.calls == 1
+    status = executor.status()
+    assert status["phase"] == "ROLLED_BACK"
+    assert status["error_code"] is None
+    executor.stop_background_workers()
+
+
+def test_u9_plus_recovery_media_required_is_projected_without_error():
+    store = StaticPostclaimStore(phase=U10)
+    recovery = RecoveryCoordinatorStub(
+        terminal_phase="RECOVERY_MEDIA_REQUIRED"
+    )
+    executor = HaUsbIpcExecutor(
+        store=store,
+        admission_resolver=Resolver(),
+        prepare_controller=ControllerStub(),
+        recovery_coordinator=recovery,
+    )
+
+    executor.start_background_recovery()
+    assert executor._recovery_thread is not None
+    executor._recovery_thread.join(2)
+
+    status = executor.status()
+    assert status["phase"] == "RECOVERY_MEDIA_REQUIRED"
+    assert status["error_code"] is None
+    executor.stop_background_workers()

@@ -8,8 +8,11 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
 from n3w_t1_core_updater_ha_u13b import U13BRollbackResult
+import n3w_t1_core_updater_ha_u13b_auto as auto
 from n3w_t1_core_updater_ha_u13b_auto import (
     U13BAutomaticRollbackCoordinator,
+    U9PlusBoundedRecoveryCoordinator,
+    U9PlusRecoveryCompletionEvidence,
 )
 from n3w_t1_core_updater_ha_u13b_reconcile import (
     ALREADY_EXACT,
@@ -231,3 +234,143 @@ def test_d4_rejects_mismatched_backend_binding():
             reconciliation_writer=writer,
             rollback_controller=controller,
         )
+
+
+
+class RecoveryStore:
+    def __init__(self, phase):
+        self.document = {
+            "phase": phase,
+            "authorization_claimed": True,
+            "authorization_consumed": True,
+        }
+
+    def read(self):
+        return dict(self.document)
+
+
+class RecoveryRollback:
+    def __init__(self, store):
+        self.transaction_store = store
+        self.backend = object()
+        self.calls = []
+        self.rollback_controller = self
+
+    def rollback(self, *, failure_code):
+        self.calls.append(failure_code)
+        self.transaction_store.document["phase"] = "U13B_ROLLED_BACK"
+        return object()
+
+
+class RecoveryOracle:
+    def __init__(self, *, fresh=True):
+        self.calls = []
+        self.fresh = fresh
+
+    def verify(self, transaction, *, recovery_started_unix):
+        self.calls.append((dict(transaction), recovery_started_unix))
+        return U9PlusRecoveryCompletionEvidence(
+            predecessor_runtime_healthy=True,
+            homeassistant_http_ready=True,
+            manager_ready=True,
+            broker_ready=True,
+            fresh_greenhouse_telemetry_visible=self.fresh,
+            preupgrade_history_readable=True,
+            host_usb_terminal_exact=True,
+            authorization_replay_absent=True,
+        )
+
+
+def _recovery_coordinator(monkeypatch, phase, *, rollback=None, oracle=None):
+    store = RecoveryStore(phase)
+    monkeypatch.setattr(
+        auto,
+        "validate_transaction_document",
+        lambda document: dict(document),
+    )
+    rollback = rollback or RecoveryRollback(store)
+    oracle = oracle or RecoveryOracle()
+    coordinator = U9PlusBoundedRecoveryCoordinator(
+        transaction_store=store,
+        rollback_coordinator=rollback,
+        completion_oracle=oracle,
+        clock=lambda: 1234.0,
+    )
+    return coordinator, store, rollback, oracle
+
+
+def test_u9_plus_restart_conservatively_rolls_back_without_reclaiming_authorization(
+    monkeypatch,
+):
+    coordinator, store, rollback, oracle = _recovery_coordinator(
+        monkeypatch,
+        "U9_LIVE_AUTHORIZATION_CLAIMED",
+    )
+
+    result = coordinator.recover_once()
+
+    assert result == {"phase": "ROLLED_BACK", "error_code": None}
+    assert store.document["phase"] == "U13B_ROLLED_BACK"
+    assert store.document["authorization_claimed"] is True
+    assert store.document["authorization_consumed"] is True
+    assert rollback.calls == ["u9_plus_restart_bounded_recovery"]
+    assert oracle.calls[0][1] == 1234
+
+
+def test_u9_plus_missing_bound_media_is_recoverable_and_never_substituted(
+    monkeypatch,
+):
+    coordinator, _store, rollback, oracle = _recovery_coordinator(
+        monkeypatch,
+        "U10_INTERNAL_PREDECESSOR_CAPACITY_RELEASED",
+    )
+
+    def missing(*, failure_code):
+        rollback.calls.append(failure_code)
+        raise UpdaterV2Error("usb_transaction_media_unavailable")
+
+    rollback.rollback = missing
+
+    result = coordinator.recover_once()
+
+    assert result == {
+        "phase": "RECOVERY_MEDIA_REQUIRED",
+        "error_code": None,
+    }
+    assert rollback.calls == ["u9_plus_restart_bounded_recovery"]
+    assert oracle.calls == []
+
+
+def test_u9_plus_existing_terminal_requires_customer_oracle(monkeypatch):
+    oracle = RecoveryOracle(fresh=False)
+    coordinator, _store, rollback, _ = _recovery_coordinator(
+        monkeypatch,
+        "U13B_ROLLED_BACK",
+        oracle=oracle,
+    )
+
+    with pytest.raises(
+        UpdaterV2Error,
+        match="u9_plus_recovery_customer_oracle_incomplete",
+    ):
+        coordinator.recover_once()
+
+    assert rollback.calls == []
+    assert coordinator.public_status()["phase"] == "ROLLING_BACK"
+
+
+def test_u9_plus_rejects_unconsumed_authorization(monkeypatch):
+    coordinator, store, rollback, oracle = _recovery_coordinator(
+        monkeypatch,
+        "U9_LIVE_AUTHORIZATION_CLAIMED",
+    )
+    store.document["authorization_consumed"] = False
+
+    with pytest.raises(
+        UpdaterV2Error,
+        match="u9_plus_recovery_authorization_not_consumed",
+    ):
+        coordinator.recover_once()
+
+    assert rollback.calls == []
+    assert oracle.calls == []
