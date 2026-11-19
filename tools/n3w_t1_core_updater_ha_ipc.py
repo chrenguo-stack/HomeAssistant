@@ -714,9 +714,12 @@ def _read_frame(connection: socket.socket) -> bytes:
 
 def _public_code(error: Exception) -> str:
     code = str(error)
-    if _PUBLIC_CODE_RE.fullmatch(code) is None:
-        return "ota_host_rejected"
-    return code
+    if _PUBLIC_CODE_RE.fullmatch(code) is not None:
+        return code
+    stable = code.split(":", 1)[0]
+    if _PUBLIC_CODE_RE.fullmatch(stable) is not None:
+        return stable
+    return "ota_host_rejected"
 
 
 class HaUsbIpcDispatcher:

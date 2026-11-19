@@ -999,31 +999,34 @@ class ProtectedHaDataBackupProvider:
             passphrase=passphrase,
         )
         database = self.ha_data_root / "home-assistant_v2.db"
-        if any(
+        sidecars_present = any(
             (self.ha_data_root / ("home-assistant_v2.db" + suffix)).exists()
             for suffix in ("-wal", "-shm", "-journal")
-        ):
-            raise UpdaterV2Error("u13b_ha_restore_sqlite_sidecar_present")
+        )
         if database.exists():
             if database.is_symlink() or not database.is_file():
                 raise UpdaterV2Error("u13b_ha_restore_sqlite_invalid")
-            try:
-                # SQLite immutable URI prevents lock or -shm creation.
-                connection = sqlite3.connect(
-                    f"file:{database}?mode=ro&immutable=1",
-                    uri=True,
-                    timeout=10.0,
-                )
+            if not sidecars_present:
                 try:
-                    checks = tuple(connection.execute("PRAGMA quick_check"))
-                finally:
-                    connection.close()
-            except sqlite3.Error as error:
-                raise UpdaterV2Error(
-                    "u13b_ha_restore_sqlite_check_failed"
-                ) from error
-            if checks != (("ok",),):
-                raise UpdaterV2Error("u13b_ha_restore_sqlite_check_failed")
+                    # With no WAL/journal sidecars, immutable verification is
+                    # both complete and guaranteed not to perturb the tree.
+                    connection = sqlite3.connect(
+                        f"file:{database}?mode=ro&immutable=1",
+                        uri=True,
+                        timeout=10.0,
+                    )
+                    try:
+                        checks = tuple(connection.execute("PRAGMA quick_check"))
+                    finally:
+                        connection.close()
+                except sqlite3.Error as error:
+                    raise UpdaterV2Error(
+                        "u13b_ha_restore_sqlite_check_failed"
+                    ) from error
+                if checks != (("ok",),):
+                    raise UpdaterV2Error(
+                        "u13b_ha_restore_sqlite_check_failed"
+                    )
         return validated
 
     def restore_preupgrade_backup(
@@ -1069,7 +1072,28 @@ class ProtectedHaDataBackupProvider:
         )
         self._report("restore_validate")
         self._validate_source_tree()
-        self._verify_sqlite()
+        sidecar_times: dict[Path, tuple[int, int]] = {}
+        database = self.ha_data_root / "home-assistant_v2.db"
+        for suffix in ("-wal", "-shm", "-journal"):
+            sidecar = Path(str(database) + suffix)
+            if sidecar.is_symlink() or not sidecar.is_file():
+                continue
+            metadata = sidecar.stat()
+            sidecar_times[sidecar] = (
+                metadata.st_atime_ns,
+                metadata.st_mtime_ns,
+            )
+        try:
+            self._verify_sqlite()
+        finally:
+            for sidecar, (atime_ns, mtime_ns) in sidecar_times.items():
+                if sidecar.is_symlink() or not sidecar.is_file():
+                    continue
+                os.utime(
+                    sidecar,
+                    ns=(atime_ns, mtime_ns),
+                    follow_symlinks=False,
+                )
         self._compare_with_quiesced_source(
             archive_path=archive_path,
             passphrase=passphrase,
