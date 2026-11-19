@@ -713,3 +713,412 @@ class U13BProductionReadOnlyObserver:
             ).validate()
             is not None
         )
+
+
+
+def _resolve_u9_plus_peer_identity(
+    host: LocalHost,
+    component: str,
+    *,
+    allow_stopped: bool,
+) -> dict[str, str]:
+    """Resolve one exact Compose peer without inventing a replacement."""
+    running = host._running_count(component)
+    if running == 1:
+        value = host._runtime(component)
+        return {
+            "container_id": value["container_id"],
+            "image_ref": value["image_ref"],
+            "image_id": value["image_id"],
+        }
+    if running != 0:
+        raise UpdaterV2Error(f"u9_plus_{component}_runtime_ambiguous")
+    if not allow_stopped:
+        raise UpdaterV2Error(f"u9_plus_{component}_runtime_not_running")
+    residue = host.component_container_residue(component)
+    if len(residue) != 1:
+        raise UpdaterV2Error(f"u9_plus_{component}_residue_ambiguous")
+    item = residue[0]
+    return {
+        "container_id": item["container_id"],
+        "image_ref": item["image_ref"],
+        "image_id": item["image_id"],
+    }
+
+
+class U9PlusProductionCompletionOracle:
+    """Prove customer-visible rollback completion on the production host."""
+
+    _ACCEPTED_TELEMETRY_RE = __import__("re").compile(
+        r"Accepted telemetry node=([A-Za-z0-9._:-]{1,128})\b"
+    )
+
+    def __init__(
+        self,
+        *,
+        runtime: U13BProductionRuntime,
+        backend: U13BProductionBackend,
+        backup_provider: Any,
+        clock=None,
+        sleeper=None,
+        telemetry_timeout_s: float = 180.0,
+        poll_interval_s: float = 2.0,
+    ) -> None:
+        import time
+        self.runtime = runtime
+        self.backend = backend
+        self.backup_provider = backup_provider
+        self.clock = clock or time.time
+        self.sleeper = sleeper or time.sleep
+        self.telemetry_timeout_s = telemetry_timeout_s
+        self.poll_interval_s = poll_interval_s
+
+    def _terminal_host_usb_exact(
+        self,
+        transaction: Mapping[str, Any],
+    ) -> bool:
+        from n3w_t1_core_updater_ha_u13b_reconcile import (
+            HOST_USB_EXACT,
+            classify_u13b_usb_host_split,
+        )
+        media = self.backend.resolve_transaction_media_for_reconciliation(
+            transaction
+        )
+        if media is None:
+            raise UpdaterV2Error(
+                "u9_plus_completion_bound_media_unavailable"
+            )
+        try:
+            snapshot = self.backend.read_transaction_metadata(
+                transaction,
+                media,
+            )
+            split = classify_u13b_usb_host_split(
+                dict(transaction),
+                media,
+                snapshot,
+            )
+            return split.classification == HOST_USB_EXACT
+        finally:
+            self.backend.release_transaction_media_for_reconciliation(
+                media
+            )
+
+    def _history_readable(self) -> bool:
+        import sqlite3
+        database = (
+            Path(self.backup_provider.ha_data_root)
+            / "home-assistant_v2.db"
+        )
+        if (
+            not database.exists()
+            or database.is_symlink()
+            or not database.is_file()
+        ):
+            return False
+        try:
+            connection = sqlite3.connect(
+                f"file:{database}?mode=ro",
+                uri=True,
+                timeout=10.0,
+            )
+            try:
+                checks = tuple(connection.execute("PRAGMA quick_check"))
+                tables = {
+                    str(row[0])
+                    for row in connection.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table'"
+                    )
+                }
+                if "states" not in tables:
+                    return False
+                connection.execute("SELECT COUNT(*) FROM states").fetchone()
+            finally:
+                connection.close()
+        except sqlite3.Error:
+            return False
+        return checks == (("ok",),)
+
+    def _accepted_nodes_since(
+        self,
+        recovery_started_unix: int,
+    ) -> set[str]:
+        from datetime import UTC, datetime
+        since = (
+            datetime.fromtimestamp(recovery_started_unix, tz=UTC)
+            .isoformat(timespec="seconds")
+            .replace("+00:00", "Z")
+        )
+        result = self.runtime.host._run(
+            (
+                "docker",
+                "logs",
+                "--since",
+                since,
+                self.runtime.u11.expected_manager_container_id,
+            ),
+            timeout=30,
+            check=False,
+        )
+        if result.returncode:
+            raise UpdaterV2Error(
+                "u9_plus_completion_manager_logs_unavailable"
+            )
+        payload = (
+            result.stdout + result.stderr
+        ).decode("utf-8", errors="replace")
+        return {
+            match.group(1)
+            for match in self._ACCEPTED_TELEMETRY_RE.finditer(payload)
+        }
+
+    def _ha_entity_ids(self, node_ids: set[str]) -> tuple[str, ...]:
+        registry = (
+            Path(self.backup_provider.ha_data_root)
+            / ".storage"
+            / "core.entity_registry"
+        )
+        if (
+            registry.is_symlink()
+            or not registry.is_file()
+            or not node_ids
+        ):
+            return ()
+        try:
+            document = json.loads(registry.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            return ()
+        data = document.get("data")
+        entities = data.get("entities") if isinstance(data, dict) else None
+        if not isinstance(entities, list):
+            return ()
+        result: set[str] = set()
+        for item in entities:
+            if not isinstance(item, dict):
+                continue
+            unique_id = item.get("unique_id")
+            entity_id = item.get("entity_id")
+            if (
+                not isinstance(unique_id, str)
+                or not isinstance(entity_id, str)
+            ):
+                continue
+            if any(
+                unique_id.startswith(node_id + "_")
+                for node_id in node_ids
+            ):
+                result.add(entity_id)
+        return tuple(sorted(result))[:256]
+
+    def _ha_has_fresh_state(
+        self,
+        entity_ids: tuple[str, ...],
+        recovery_started_unix: int,
+    ) -> bool:
+        import sqlite3
+        if not entity_ids:
+            return False
+        database = (
+            Path(self.backup_provider.ha_data_root)
+            / "home-assistant_v2.db"
+        )
+        if database.is_symlink() or not database.is_file():
+            return False
+        try:
+            connection = sqlite3.connect(
+                f"file:{database}?mode=ro",
+                uri=True,
+                timeout=10.0,
+            )
+            try:
+                state_columns = {
+                    str(row[1])
+                    for row in connection.execute(
+                        "PRAGMA table_info(states)"
+                    )
+                }
+                tables = {
+                    str(row[0])
+                    for row in connection.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table'"
+                    )
+                }
+                placeholders = ",".join("?" for _ in entity_ids)
+                if (
+                    "states_meta" in tables
+                    and "metadata_id" in state_columns
+                    and "last_updated_ts" in state_columns
+                ):
+                    row = connection.execute(
+                        "SELECT 1 FROM states AS s "
+                        "JOIN states_meta AS m "
+                        "ON m.metadata_id=s.metadata_id "
+                        f"WHERE m.entity_id IN ({placeholders}) "
+                        "AND s.last_updated_ts>=? LIMIT 1",
+                        (*entity_ids, float(recovery_started_unix)),
+                    ).fetchone()
+                    return row is not None
+                if (
+                    "entity_id" in state_columns
+                    and "last_updated" in state_columns
+                ):
+                    from datetime import UTC, datetime
+                    timestamp = datetime.fromtimestamp(
+                        recovery_started_unix,
+                        tz=UTC,
+                    ).isoformat()
+                    row = connection.execute(
+                        "SELECT 1 FROM states "
+                        f"WHERE entity_id IN ({placeholders}) "
+                        "AND last_updated>=? LIMIT 1",
+                        (*entity_ids, timestamp),
+                    ).fetchone()
+                    return row is not None
+            finally:
+                connection.close()
+        except sqlite3.Error:
+            return False
+        return False
+
+    def _fresh_greenhouse_telemetry_visible(
+        self,
+        recovery_started_unix: int,
+    ) -> bool:
+        deadline = self.clock() + self.telemetry_timeout_s
+        while True:
+            nodes = self._accepted_nodes_since(recovery_started_unix)
+            entities = self._ha_entity_ids(nodes)
+            if self._ha_has_fresh_state(
+                entities,
+                recovery_started_unix,
+            ):
+                return True
+            if self.clock() >= deadline:
+                return False
+            self.sleeper(self.poll_interval_s)
+
+    def verify(
+        self,
+        transaction: dict[str, Any],
+        *,
+        recovery_started_unix: int,
+    ):
+        from n3w_t1_core_updater_ha_recovery import (
+            image_recovery_record_from_document,
+        )
+        from n3w_t1_core_updater_ha_u13b_auto import (
+            U9PlusRecoveryCompletionEvidence,
+        )
+        from n3w_t1_core_updater_ha_usb_state import U13B
+
+        if transaction.get("phase") != U13B:
+            raise UpdaterV2Error(
+                "u9_plus_completion_transaction_not_terminal"
+            )
+        if (
+            transaction.get("authorization_claimed") is not True
+            or transaction.get("authorization_consumed") is not True
+        ):
+            raise UpdaterV2Error(
+                "u9_plus_completion_authorization_invalid"
+            )
+        predecessor = image_recovery_record_from_document(
+            transaction["predecessor_recovery_identity"],
+            expected_kind="predecessor",
+            expected_image_ref=transaction["current_image_ref"],
+        )
+        health = self.runtime.verify_predecessor_health(
+            transaction=transaction,
+            predecessor=predecessor,
+        ).validate()
+        return U9PlusRecoveryCompletionEvidence(
+            predecessor_runtime_healthy=(
+                health.predecessor_health_verified
+            ),
+            homeassistant_http_ready=health.homeassistant_http_ready,
+            manager_ready=health.manager_mqtt_authenticated,
+            broker_ready=(
+                self.runtime.host._systemctl("is-active", BROKER_UNIT)
+                == "active"
+            ),
+            fresh_greenhouse_telemetry_visible=(
+                self._fresh_greenhouse_telemetry_visible(
+                    recovery_started_unix
+                )
+            ),
+            preupgrade_history_readable=self._history_readable(),
+            host_usb_terminal_exact=(
+                self._terminal_host_usb_exact(transaction)
+            ),
+            authorization_replay_absent=True,
+        ).validate()
+
+
+def build_production_u9_plus_recovery(transaction_store: Any):
+    """Compose existing production rollback mechanisms for daemon recovery."""
+    from n3w_t1_core_updater_ha_backup import (
+        ProtectedHaDataBackupProvider,
+    )
+    from n3w_t1_core_updater_ha_u13b import (
+        HaUsbU13BRollbackController,
+    )
+    from n3w_t1_core_updater_ha_u13b_auto import (
+        U13BAutomaticRollbackCoordinator,
+        U9PlusBoundedRecoveryCoordinator,
+    )
+    from n3w_t1_core_updater_ha_u13b_reconcile import (
+        U13BHostOnlyReconciliationWriter,
+    )
+
+    host = LocalHost()
+    manager = _resolve_u9_plus_peer_identity(
+        host,
+        "manager",
+        allow_stopped=True,
+    )
+    broker = _resolve_u9_plus_peer_identity(
+        host,
+        "broker",
+        allow_stopped=False,
+    )
+    backend = U13BProductionBackend()
+    runtime = U13BProductionRuntime(
+        expected_manager_container_id=manager["container_id"],
+        expected_manager_image_ref=manager["image_ref"],
+        expected_manager_runtime_image_id=manager["image_id"],
+        expected_broker_container_id=broker["container_id"],
+        expected_broker_image_ref=broker["image_ref"],
+        expected_broker_runtime_image_id=broker["image_id"],
+        host=host,
+    )
+    backup = ProtectedHaDataBackupProvider()
+    observer = U13BProductionReadOnlyObserver(
+        runtime=runtime,
+        backend=backend,
+        backup_provider=backup,
+    )
+    reconciliation = U13BHostOnlyReconciliationWriter(
+        transaction_store=transaction_store,
+        backend=backend,
+        observer=observer,
+    )
+    rollback = HaUsbU13BRollbackController(
+        transaction_store=transaction_store,
+        backend=backend,
+        runtime_owner=runtime,
+        backup_provider=backup,
+    )
+    automatic = U13BAutomaticRollbackCoordinator(
+        reconciliation_writer=reconciliation,
+        rollback_controller=rollback,
+    )
+    oracle = U9PlusProductionCompletionOracle(
+        runtime=runtime,
+        backend=backend,
+        backup_provider=backup,
+    )
+    return U9PlusBoundedRecoveryCoordinator(
+        transaction_store=transaction_store,
+        rollback_coordinator=automatic,
+        completion_oracle=oracle,
+    )

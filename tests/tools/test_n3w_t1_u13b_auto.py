@@ -241,6 +241,7 @@ class RecoveryStore:
     def __init__(self, phase):
         self.document = {
             "phase": phase,
+            "authorization_id_sha256": "a" * 64,
             "authorization_claimed": True,
             "authorization_consumed": True,
         }
@@ -356,7 +357,7 @@ def test_u9_plus_existing_terminal_requires_customer_oracle(monkeypatch):
         coordinator.recover_once()
 
     assert rollback.calls == []
-    assert coordinator.public_status()["phase"] == "ROLLING_BACK"
+    assert coordinator.public_status()["phase"] == "ERROR"
 
 
 def test_u9_plus_rejects_unconsumed_authorization(monkeypatch):
@@ -374,3 +375,27 @@ def test_u9_plus_rejects_unconsumed_authorization(monkeypatch):
 
     assert rollback.calls == []
     assert oracle.calls == []
+
+
+
+def test_u9_plus_detects_authorization_identity_drift(monkeypatch):
+    coordinator, store, rollback, oracle = _recovery_coordinator(
+        monkeypatch,
+        "U10_INTERNAL_PREDECESSOR_CAPACITY_RELEASED",
+    )
+    original = rollback.rollback
+
+    def mutate(*, failure_code):
+        result = original(failure_code=failure_code)
+        store.document["authorization_id_sha256"] = "b" * 64
+        return result
+
+    rollback.rollback = mutate
+    with pytest.raises(
+        UpdaterV2Error,
+        match="u9_plus_recovery_authorization_drift",
+    ):
+        coordinator.recover_once()
+
+    assert oracle.calls == []
+    assert coordinator.public_status()["phase"] == "ERROR"

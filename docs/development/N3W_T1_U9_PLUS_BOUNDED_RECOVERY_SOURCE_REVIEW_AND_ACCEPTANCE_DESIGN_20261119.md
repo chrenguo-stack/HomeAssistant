@@ -113,3 +113,55 @@ Source closure requires:
 
 Only after those source/CI conditions are archived may a separately authorized
 real-T1 destructive U10 acceptance be considered.
+
+
+## 7. Source slice 2: production binding and concrete completion probes
+
+The production adapter is composed from the existing U13B stack; it does not
+introduce a second rollback implementation.
+
+Peer identity binding:
+
+- Broker must be exactly one running Compose service instance.
+- Manager may be running or quiesced. If quiesced, exactly one stopped Compose
+  residue is required and its container id, image ref and runtime image id are
+  bound as the expected peer identity.
+- Multiple running peers, multiple residues, or a missing Broker fail closed.
+
+Customer data-plane proof:
+
+- Manager logs are inspected only from the recovery-start timestamp and must
+  contain a new `Accepted telemetry node=...` ingress event. A retained
+  canonical-state restore does not satisfy this check.
+- The accepted node id is mapped through Home Assistant's entity registry by
+  the stable MQTT Discovery unique id.
+- Home Assistant Recorder SQLite must contain a state for one of those mapped
+  entities whose update timestamp is at or after recovery start.
+- Recorder SQLite is opened read-only and must pass `PRAGMA quick_check`;
+  the Recorder database and `states` table must exist. Combined with the
+  exact protected pre-upgrade restore contract, this is the source-level proof
+  that pre-upgrade history remains readable.
+- Host and bound-USB terminal metadata must classify as `HOST_USB_EXACT`.
+- The coordinator snapshots the consumed authorization identity before
+  rollback and requires it to remain byte-identical at terminal U13B. The
+  recovery path contains no authorization-claim call.
+
+Daemon wiring is gated by the durable phase. The production coordinator is
+constructed only when startup observes U9-U12, U13B0-U13B4 or U13B. Recovery
+peer binding therefore does not become a precondition for ordinary U0-U8
+operation.
+
+The P3 execution-package source authorities are rebound only to keep their
+source-integrity CI aligned with the changed product files. Their authorization
+fields are not changed, and this source work does not authorize replay or live
+execution.
+
+No real T1 action is authorized by this source repair.
+
+## 8. Remaining physical acceptance boundary
+
+The source oracle uses the recovery-process start timestamp for the fresh
+telemetry proof. The full customer downtime budget still starts at the actual
+service-stop instant. That end-to-end timing must therefore be measured by the
+separately authorized real-T1 fault-injection acceptance; source CI alone must
+not claim the <=15 minute post-cutover objective has been physically proven.

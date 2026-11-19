@@ -30,6 +30,8 @@ from n3w_t1_core_updater_ha_usb_media import (
 )
 from n3w_t1_core_updater_ha_usb_state import (
     U1,
+    U9,
+    U10,
     U13A,
     HaUsbStateStore,
 )
@@ -728,3 +730,39 @@ def test_u9_plus_recovery_media_required_is_projected_without_error():
     assert status["phase"] == "RECOVERY_MEDIA_REQUIRED"
     assert status["error_code"] is None
     executor.stop_background_workers()
+
+
+
+def test_daemon_builds_product_recovery_only_for_postclaim_phase(
+    monkeypatch,
+):
+    import n3w_t1_core_updater_ha_daemon as daemon_mod
+
+    class Store:
+        def __init__(self, phase):
+            self.phase = phase
+
+        def read(self):
+            return {"phase": self.phase}
+
+    calls = []
+    sentinel = object()
+    monkeypatch.setattr(
+        daemon_mod,
+        "build_production_u9_plus_recovery",
+        lambda store: calls.append(store) or sentinel,
+    )
+    active = Store(U9)
+    assert (
+        daemon_mod._build_u9_plus_recovery_if_needed(active)
+        is sentinel
+    )
+    assert calls == [active]
+
+    calls.clear()
+    preclaim = Store(U1)
+    assert (
+        daemon_mod._build_u9_plus_recovery_if_needed(preclaim)
+        is None
+    )
+    assert calls == []

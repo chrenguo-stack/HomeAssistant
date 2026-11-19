@@ -12,6 +12,7 @@ from n3w_t1_core_updater_common import BROKER_UNIT, SERVICES_UNIT
 from n3w_t1_core_updater_ha_backup import HaDataBackupRecord
 from n3w_t1_core_updater_ha_prepare import PreparedUsbMedia
 from n3w_t1_core_updater_ha_recovery import ImageRecoveryRecord
+import n3w_t1_core_updater_ha_u13b_host as host_mod
 from n3w_t1_core_updater_ha_u13b_host import (
     U13BProductionBackend,
     U13BProductionRuntime,
@@ -533,3 +534,169 @@ def test_readonly_production_runtime_observer_does_not_start_services():
         adapter.observe_predecessor_runtime(
             transaction=tx, media=object()
         )
+
+
+
+class PeerHost:
+    def __init__(self, *, running, residue=None, runtime=None):
+        self.running = running
+        self.residue = residue or []
+        self.runtime = runtime or {}
+
+    def _running_count(self, _component):
+        return self.running
+
+    def _runtime(self, _component):
+        return dict(self.runtime)
+
+    def component_container_residue(self, _component):
+        return [dict(item) for item in self.residue]
+
+
+def test_u9_plus_peer_identity_accepts_unique_stopped_manager_residue():
+    host = PeerHost(
+        running=0,
+        residue=[
+            {
+                "container_id": "manager-id",
+                "image_ref": "local/greenhouse-manager:test",
+                "image_id": "sha256:" + "a" * 64,
+            }
+        ],
+    )
+    assert host_mod._resolve_u9_plus_peer_identity(
+        host,
+        "manager",
+        allow_stopped=True,
+    ) == {
+        "container_id": "manager-id",
+        "image_ref": "local/greenhouse-manager:test",
+        "image_id": "sha256:" + "a" * 64,
+    }
+
+
+def test_u9_plus_peer_identity_rejects_stopped_broker():
+    host = PeerHost(running=0)
+    with pytest.raises(
+        UpdaterV2Error,
+        match="u9_plus_broker_runtime_not_running",
+    ):
+        host_mod._resolve_u9_plus_peer_identity(
+            host,
+            "broker",
+            allow_stopped=False,
+        )
+
+
+def test_u9_plus_peer_identity_rejects_ambiguous_manager_residue():
+    host = PeerHost(
+        running=0,
+        residue=[
+            {
+                "container_id": "one",
+                "image_ref": "local/greenhouse-manager:a",
+                "image_id": "sha256:" + "a" * 64,
+            },
+            {
+                "container_id": "two",
+                "image_ref": "local/greenhouse-manager:b",
+                "image_id": "sha256:" + "b" * 64,
+            },
+        ],
+    )
+    with pytest.raises(
+        UpdaterV2Error,
+        match="u9_plus_manager_residue_ambiguous",
+    ):
+        host_mod._resolve_u9_plus_peer_identity(
+            host,
+            "manager",
+            allow_stopped=True,
+        )
+
+
+def test_u9_plus_customer_data_plane_requires_new_manager_ingress_and_ha_state(
+    tmp_path,
+):
+    import sqlite3
+    from types import SimpleNamespace
+
+    storage = tmp_path / ".storage"
+    storage.mkdir()
+    (storage / "core.entity_registry").write_text(
+        json.dumps(
+            {
+                "data": {
+                    "entities": [
+                        {
+                            "unique_id": "node-1_air_temperature_c",
+                            "entity_id": "sensor.node_1_air_temperature",
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    database = tmp_path / "home-assistant_v2.db"
+    connection = sqlite3.connect(database)
+    try:
+        connection.execute(
+            "CREATE TABLE states_meta "
+            "(metadata_id INTEGER PRIMARY KEY, entity_id TEXT)"
+        )
+        connection.execute(
+            "CREATE TABLE states "
+            "(metadata_id INTEGER, last_updated_ts REAL)"
+        )
+        connection.execute(
+            "INSERT INTO states_meta(metadata_id, entity_id) "
+            "VALUES (1, 'sensor.node_1_air_temperature')"
+        )
+        connection.execute(
+            "INSERT INTO states(metadata_id, last_updated_ts) "
+            "VALUES (1, 110.0)"
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    class LogHost:
+        def _run(self, _argv, **_kwargs):
+            return SimpleNamespace(
+                returncode=0,
+                stdout=(
+                    b"Accepted telemetry node=node-1 "
+                    b"key=boot:1\n"
+                ),
+                stderr=b"",
+            )
+
+    runtime = SimpleNamespace(
+        host=LogHost(),
+        u11=SimpleNamespace(
+            expected_manager_container_id="manager-id"
+        ),
+    )
+    oracle = host_mod.U9PlusProductionCompletionOracle(
+        runtime=runtime,
+        backend=object(),
+        backup_provider=SimpleNamespace(ha_data_root=tmp_path),
+        clock=lambda: 100.0,
+        sleeper=lambda _seconds: None,
+        telemetry_timeout_s=1.0,
+    )
+    assert oracle._history_readable() is True
+    assert oracle._fresh_greenhouse_telemetry_visible(100) is True
+
+
+def test_u9_plus_history_oracle_fails_closed_when_recorder_missing(
+    tmp_path,
+):
+    from types import SimpleNamespace
+    oracle = host_mod.U9PlusProductionCompletionOracle(
+        runtime=object(),
+        backend=object(),
+        backup_provider=SimpleNamespace(ha_data_root=tmp_path),
+    )
+    assert oracle._history_readable() is False

@@ -235,6 +235,11 @@ class U9PlusBoundedRecoveryCoordinator:
             return self._set_status("RECOVERY_IDLE")
 
         self._require_consumed_authorization(current)
+        authorization_before = (
+            current.get("authorization_id_sha256"),
+            current.get("authorization_claimed"),
+            current.get("authorization_consumed"),
+        )
         self._set_status("ROLLING_BACK")
 
         if phase != U13B:
@@ -261,12 +266,29 @@ class U9PlusBoundedRecoveryCoordinator:
             raise UpdaterV2Error(
                 "u9_plus_recovery_terminal_missing"
             )
-        evidence = self.completion_oracle.verify(
-            terminal,
-            recovery_started_unix=started,
-        ).validate()
-        if evidence.authorization_replay_absent is not True:
-            raise UpdaterV2Error(
-                "u9_plus_recovery_authorization_replay_detected"
+        authorization_after = (
+            terminal.get("authorization_id_sha256"),
+            terminal.get("authorization_claimed"),
+            terminal.get("authorization_consumed"),
+        )
+        if authorization_after != authorization_before:
+            self._set_status(
+                "ERROR",
+                error_code="u9_plus_recovery_authorization_drift",
             )
+            raise UpdaterV2Error(
+                "u9_plus_recovery_authorization_drift"
+            )
+        try:
+            evidence = self.completion_oracle.verify(
+                terminal,
+                recovery_started_unix=started,
+            ).validate()
+            if evidence.authorization_replay_absent is not True:
+                raise UpdaterV2Error(
+                    "u9_plus_recovery_authorization_replay_detected"
+                )
+        except UpdaterV2Error as error:
+            self._set_status("ERROR", error_code=str(error))
+            raise
         return self._set_status("ROLLED_BACK")
