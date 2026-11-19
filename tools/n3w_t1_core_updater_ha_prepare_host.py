@@ -1208,6 +1208,35 @@ class SubprocessPrepareBackend:
                 )
             if mount_path.is_symlink() or not mount_path.is_dir():
                 raise UpdaterV2Error("usb_mount_path_invalid")
+            existing_options = _run(
+                (
+                    "findmnt",
+                    "--noheadings",
+                    "--output",
+                    "OPTIONS",
+                    "--source",
+                    partition,
+                )
+            ).decode("utf-8", errors="strict").strip()
+            existing_mount_options = {
+                item.strip()
+                for item in existing_options.split(",")
+                if item.strip()
+            }
+            if (
+                "ro" not in existing_mount_options
+                or "rw" in existing_mount_options
+            ):
+                _run(("umount", str(mount_path)))
+                _run(
+                    (
+                        "mount",
+                        "-o",
+                        "ro,noload,nodev,nosuid,noexec",
+                        partition,
+                        str(mount_path),
+                    )
+                )
 
         options = _run(
             (

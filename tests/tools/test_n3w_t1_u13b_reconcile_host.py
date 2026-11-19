@@ -51,8 +51,16 @@ def backend(tmp_path, observed_disk):
     return value
 
 
-def install_commands(monkeypatch, mount_path, *, already_mounted, options):
+def install_commands(
+    monkeypatch,
+    mount_path,
+    *,
+    already_mounted,
+    options,
+    options_after_mount=None,
+):
     calls = []
+    state = {"mounted": False}
 
     def run(argv, **kwargs):
         calls.append(tuple(argv))
@@ -64,8 +72,16 @@ def install_commands(monkeypatch, mount_path, *, already_mounted, options):
             "findmnt", "--noheadings", "--output", "OPTIONS",
             "--source", "/dev/sdz1",
         ):
-            return (options + "\n").encode()
-        if argv and argv[0] in {"mount", "umount"}:
+            value = (
+                options_after_mount
+                if state["mounted"] and options_after_mount is not None
+                else options
+            )
+            return (value + "\n").encode()
+        if argv and argv[0] == "mount":
+            state["mounted"] = True
+            return b""
+        if argv and argv[0] == "umount":
             return b""
         raise AssertionError(f"unexpected command: {argv!r}")
 
@@ -146,7 +162,7 @@ def test_reconciliation_resolver_accepts_existing_exact_ro_mount(
     assert not any(call and call[0] == "mount" for call in calls)
 
 
-def test_reconciliation_resolver_rejects_existing_rw_mount(
+def test_reconciliation_resolver_replaces_existing_rw_mount_with_strict_ro(
     tmp_path, monkeypatch
 ):
     transaction = origin_transaction(U9)
@@ -161,13 +177,18 @@ def test_reconciliation_resolver_rejects_existing_rw_mount(
         mount_path,
         already_mounted=True,
         options="rw,nosuid,nodev,noexec,relatime",
+        options_after_mount="ro,nosuid,nodev,noexec,relatime",
     )
-    with pytest.raises(
-        UpdaterV2Error,
-        match="usb_reconciliation_media_not_readonly",
-    ):
-        value.resolve_transaction_media_for_reconciliation(transaction)
-    assert not any(call and call[0] == "mount" for call in calls)
+    media = value.resolve_transaction_media_for_reconciliation(transaction)
+    assert media is not None
+    assert ("umount", str(mount_path)) in calls
+    assert (
+        "mount",
+        "-o",
+        "ro,noload,nodev,nosuid,noexec",
+        "/dev/sdz1",
+        str(mount_path),
+    ) in calls
 
 
 
