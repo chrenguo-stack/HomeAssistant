@@ -1,7 +1,7 @@
 ## 2026-11-19 — U9+ bounded recovery source implemented / key CI pass / physical acceptance pending
 
 - Core Stack repository authority remains `infra/n3w-t1/production/t1-core-stack-current.json` at product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`. Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`.
-- Historical clean reference `24382caae4a1f5d459297f86e8d18f10a848ca64` remains preserved with Manager `local/greenhouse-manager:fresh-24382caae4a1`; this historical authority is not replaced by the current Core Stack source.
+- Historical clean reference `24382caae4a1f5d459297f86e8d18f10a848ca64` remains preserved with Manager `local/greenhouse-manager:fresh-24382caae4a1`. Live upgrade accepted. This historical authority is not replaced by the current Core Stack source.
 - Source implementation authority: `22f8da382ef50af3f2133b3027b0d2e49236cdef`.
 - The product daemon now owns a phase-gated U9+ recovery coordinator, reusing the existing U13B rollback/reconciliation implementation instead of introducing a parallel recovery stack.
 - Restart/re-entry in U9-U12 is intentionally conservative and selects rollback; consumed U9 authorization is never reclaimed or replayed.
