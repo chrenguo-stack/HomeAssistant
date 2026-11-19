@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 import n3w_t1_portable_image_identity as portable
-from n3w_t1_core_updater_common import BROKER_UNIT, SERVICES_UNIT
+from n3w_t1_core_updater_common import BROKER_UNIT, SERVICES_UNIT, UpdaterError
 from n3w_t1_core_updater_ha_prepare import PreparedUsbMedia
 from n3w_t1_core_updater_ha_prepare_host import SubprocessPrepareBackend
 from n3w_t1_core_updater_ha_recovery import (
@@ -28,7 +28,11 @@ from n3w_t1_core_updater_ha_u13b import (
     U13BTargetCleanupEvidence,
     U13BUsbMetadataSnapshot,
 )
-from n3w_t1_core_updater_host import EXPECTED_LISTENERS, LocalHost
+from n3w_t1_core_updater_host import (
+    EXPECTED_LISTENERS,
+    HOMEASSISTANT_SERVICES_READINESS_TIMEOUT_SECONDS,
+    LocalHost,
+)
 from n3w_t1_core_updater_v2_common import (
     SHA256,
     UpdaterV2Error,
@@ -559,6 +563,22 @@ class U13BProductionRuntime:
         transaction: Mapping[str, Any],
         predecessor: ImageRecoveryRecord,
     ) -> U13BHealthEvidence:
+        runtime = self._running_predecessor_evidence(
+            transaction,
+            predecessor,
+        )
+        if runtime is None:
+            raise UpdaterV2Error("u13b_predecessor_runtime_not_running")
+
+        try:
+            self.host.wait_services(
+                timeout=HOMEASSISTANT_SERVICES_READINESS_TIMEOUT_SECONDS,
+            )
+        except UpdaterError as error:
+            raise UpdaterV2Error(
+                "u13b_predecessor_health_not_ready:" + str(error)
+            ) from error
+
         runtime = self._running_predecessor_evidence(
             transaction,
             predecessor,

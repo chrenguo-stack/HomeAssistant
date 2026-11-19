@@ -58,6 +58,8 @@ class Host:
         }]
         self.owner = "inactive"
         self.started = 0
+        self.listener_ready = True
+        self.wait_services_calls = []
 
     def _activation_env(self):
         pass
@@ -155,7 +157,18 @@ class Host:
         assert self.binding == expected
         self.binding = replacement
 
+    def wait_services(self, timeout):
+        self.wait_services_calls.append(timeout)
+        self.listener_ready = True
+
     def _listener_snapshot(self):
+        if not self.listener_ready:
+            return {
+                "tcp_8883": 1,
+                "tcp_47110": 0,
+                "udp_47111": 0,
+                "tcp_47112": 0,
+            }
         return {
             "tcp_8883": 1,
             "tcp_47110": 1,
@@ -239,6 +252,24 @@ def test_u13b_predecessor_runtime_start_uses_ha_ota_path():
     )
     assert evidence.predecessor_runtime_started is True
     assert host.binding == CURRENT
+
+
+def test_u13b_predecessor_health_waits_for_listener_convergence():
+    host = Host()
+    host.owner = "active"
+    host.binding = CURRENT
+    host.listener_ready = False
+    adapter = runtime(host)
+
+    evidence = adapter.verify_predecessor_health(
+        transaction=transaction(),
+        predecessor=image("predecessor", CURRENT),
+    )
+
+    assert evidence.predecessor_health_verified is True
+    assert host.wait_services_calls == [
+        host_mod.HOMEASSISTANT_SERVICES_READINESS_TIMEOUT_SECONDS
+    ]
 
 
 def test_u13b_predecessor_health_rejects_binding_drift():
