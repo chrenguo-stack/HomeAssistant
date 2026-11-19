@@ -234,6 +234,7 @@ def ipc_status():
             "operation": "status",
         }
         sock.sendall((json.dumps(payload, separators=(",", ":")) + "\n").encode())
+        sock.shutdown(socket.SHUT_WR)
         raw = b""
         while b"\n" not in raw and len(raw) < 16384:
             part = sock.recv(4096)
