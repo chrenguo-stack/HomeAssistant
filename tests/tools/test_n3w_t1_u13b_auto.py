@@ -300,12 +300,27 @@ def _recovery_coordinator(monkeypatch, phase, *, rollback=None, oracle=None):
     return coordinator, store, rollback, oracle
 
 
+@pytest.mark.parametrize(
+    "phase",
+    [
+        "U9_LIVE_AUTHORIZATION_CLAIMED",
+        "U10_INTERNAL_PREDECESSOR_CAPACITY_RELEASED",
+        "U11_TARGET_INSTALLED_STARTED",
+        "U12_TARGET_ACCEPTANCE",
+        "U13B0_ROLLBACK_IN_PROGRESS",
+        "U13B1_TARGET_CLEANUP_COMPLETE",
+        "U13B2_PREDECESSOR_IMAGE_RESTORED",
+        "U13B3_HA_DATA_RESTORED",
+        "U13B4_PREDECESSOR_RUNTIME_STARTED",
+    ],
+)
 def test_u9_plus_restart_conservatively_rolls_back_without_reclaiming_authorization(
     monkeypatch,
+    phase,
 ):
     coordinator, store, rollback, oracle = _recovery_coordinator(
         monkeypatch,
-        "U9_LIVE_AUTHORIZATION_CLAIMED",
+        phase,
     )
 
     result = coordinator.recover_once()
@@ -318,8 +333,20 @@ def test_u9_plus_restart_conservatively_rolls_back_without_reclaiming_authorizat
     assert oracle.calls[0][1] == 1234
 
 
-def test_u9_plus_missing_bound_media_is_recoverable_and_never_substituted(
+@pytest.mark.parametrize(
+    "media_error",
+    [
+        "usb_transaction_media_unavailable",
+        "usb_bound_media_unavailable",
+        "usb_bound_device_identity_mismatch",
+        "usb_filesystem_uuid_mismatch",
+        "u13b_bound_media_uuid_drift",
+        "u13b_reconciliation_usb_unavailable",
+    ],
+)
+def test_u9_plus_missing_or_wrong_bound_media_is_recoverable_and_never_substituted(
     monkeypatch,
+    media_error,
 ):
     coordinator, _store, rollback, oracle = _recovery_coordinator(
         monkeypatch,
@@ -328,7 +355,7 @@ def test_u9_plus_missing_bound_media_is_recoverable_and_never_substituted(
 
     def missing(*, failure_code):
         rollback.calls.append(failure_code)
-        raise UpdaterV2Error("usb_transaction_media_unavailable")
+        raise UpdaterV2Error(media_error)
 
     rollback.rollback = missing
 

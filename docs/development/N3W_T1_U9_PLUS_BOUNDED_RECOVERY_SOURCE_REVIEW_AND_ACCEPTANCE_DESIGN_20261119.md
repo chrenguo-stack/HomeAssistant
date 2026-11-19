@@ -130,13 +130,22 @@ Peer identity binding:
 
 Customer data-plane proof:
 
-- Manager logs are inspected only from the recovery-start timestamp and must
-  contain a new `Accepted telemetry node=...` ingress event. A retained
-  canonical-state restore does not satisfy this check.
+- KF-140 is an inherited regression guard. The deployed simplified N3-W
+  Manager source logs accepted data as
+  `Accepted simplified N3-W telemetry source=<direct|relay> node=...`.
+  The legacy `Accepted telemetry node=...` string is forbidden as the
+  recovery oracle.
 - The accepted node id is mapped through Home Assistant's entity registry by
   the stable MQTT Discovery unique id.
-- Home Assistant Recorder SQLite must contain a state for one of those mapped
-  entities whose update timestamp is at or after recovery start.
+- Fresh Home Assistant receipt is bound to the same short polling interval as
+  a newly observed simplified-N3-W Manager acceptance and requires the unique
+  Home Assistant loopback MQTT client connection to port 1883 to advance both
+  `bytes_received` and `data_segs_in`.
+- The transport baseline is reset on every poll, so unrelated MQTT traffic
+  observed without a new N3-W Manager acceptance cannot be carried forward
+  and combined with a later node event.
+- Home Assistant Recorder `last_updated` is deliberately not the sole fresh
+  receipt oracle because a legitimate sensor value may remain unchanged.
 - Recorder SQLite is opened read-only and must pass `PRAGMA quick_check`;
   the Recorder database and `states` table must exist. Combined with the
   exact protected pre-upgrade restore contract, this is the source-level proof
@@ -184,8 +193,35 @@ The terminal customer oracle therefore uses an ordered evidence chain:
    after the existing exact restore path succeeds;
 3. Host and bound-USB terminal metadata must still be exact;
 4. after services restart, Recorder must remain readable;
-5. new Manager ingress must produce a new HA Recorder state.
+5. a new simplified-N3-W Manager acceptance must correlate with forward
+   progress on the unique Home Assistant MQTT client socket, while the
+   accepted node remains mapped in the HA entity registry.
 
 This proves the exact restore at the only time exact tree equality is valid,
 then proves historical readability and forward data progress after the live
 runtime legitimately begins changing the database.
+
+
+## 10. Independent review correction against KF-140
+
+Fresh independent review of the candidate source found that the first
+production completion oracle accidentally reintroduced the exact stale
+Manager log matcher prohibited by KF-140 and also treated Recorder
+`last_updated` as the decisive fresh-receipt signal. That candidate could
+therefore complete the rollback correctly and still expose a false recovery
+failure.
+
+The corrected source keeps the rollback state machine unchanged and repairs
+only the customer-data-plane evidence:
+
+- exact simplified-N3-W Direct and Relay acceptance strings;
+- stable node-to-HA entity-registry mapping;
+- unique HA loopback MQTT client transport progress in the same poll window;
+- no carry-forward of unrelated MQTT traffic;
+- Recorder readability remains a history-integrity check, not the sole
+  fresh-delivery check.
+
+The deterministic test matrix is expanded across U9-U12, U13B0-U13B4, all
+recognized missing/wrong-bound-media classifications, daemon phase
+construction, the KF-140 stale-log negative case, and ambiguous HA MQTT
+socket fail-closed behavior.

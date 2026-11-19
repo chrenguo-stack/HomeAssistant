@@ -32,7 +32,15 @@ from n3w_t1_core_updater_ha_usb_state import (
     U1,
     U9,
     U10,
+    U11,
+    U12,
     U13A,
+    U13B0,
+    U13B1,
+    U13B2,
+    U13B3,
+    U13B4,
+    U13B,
     HaUsbStateStore,
 )
 from n3w_t1_core_updater_v2_common import UpdaterV2Error
@@ -733,8 +741,24 @@ def test_u9_plus_recovery_media_required_is_projected_without_error():
 
 
 
+@pytest.mark.parametrize(
+    "postclaim_phase",
+    [
+        U9,
+        U10,
+        U11,
+        U12,
+        U13B0,
+        U13B1,
+        U13B2,
+        U13B3,
+        U13B4,
+        U13B,
+    ],
+)
 def test_daemon_builds_product_recovery_only_for_postclaim_phase(
     monkeypatch,
+    postclaim_phase,
 ):
     import n3w_t1_core_updater_ha_daemon as daemon_mod
 
@@ -752,7 +776,7 @@ def test_daemon_builds_product_recovery_only_for_postclaim_phase(
         "build_production_u9_plus_recovery",
         lambda store: calls.append(store) or sentinel,
     )
-    active = Store(U9)
+    active = Store(postclaim_phase)
     assert (
         daemon_mod._build_u9_plus_recovery_if_needed(active)
         is sentinel

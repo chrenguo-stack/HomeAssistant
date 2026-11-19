@@ -615,7 +615,7 @@ def test_u9_plus_peer_identity_rejects_ambiguous_manager_residue():
         )
 
 
-def test_u9_plus_customer_data_plane_requires_new_manager_ingress_and_ha_state(
+def test_u9_plus_data_plane_binds_simplified_ingress_to_ha_mqtt_transport(
     tmp_path,
 ):
     import sqlite3
@@ -655,22 +655,47 @@ def test_u9_plus_customer_data_plane_requires_new_manager_ingress_and_ha_state(
         )
         connection.execute(
             "INSERT INTO states(metadata_id, last_updated_ts) "
-            "VALUES (1, 110.0)"
+            "VALUES (1, 50.0)"
         )
         connection.commit()
     finally:
         connection.close()
 
     class LogHost:
-        def _run(self, _argv, **_kwargs):
-            return SimpleNamespace(
-                returncode=0,
-                stdout=(
-                    b"Accepted telemetry node=node-1 "
-                    b"key=boot:1\n"
-                ),
-                stderr=b"",
-            )
+        def __init__(self):
+            self.log_calls = 0
+            self.socket_calls = 0
+
+        def _run(self, argv, **_kwargs):
+            if argv[0] == "docker" and argv[1] == "logs":
+                self.log_calls += 1
+                payload = b""
+                if self.log_calls >= 2:
+                    payload = (
+                        b"Accepted simplified N3-W telemetry "
+                        b"source=direct node=node-1 gateway=None "
+                        b"key=('node-1','boot',1)\n"
+                    )
+                return SimpleNamespace(
+                    returncode=0,
+                    stdout=payload,
+                    stderr=b"",
+                )
+            if argv[0] == "ss":
+                self.socket_calls += 1
+                received = 100 if self.socket_calls == 1 else 1197
+                segments = 2 if self.socket_calls == 1 else 4
+                payload = (
+                    "ESTAB 0 0 127.0.0.1:50000 127.0.0.1:1883\n"
+                    f" bytes_received:{received} "
+                    f"data_segs_in:{segments}\n"
+                ).encode()
+                return SimpleNamespace(
+                    returncode=0,
+                    stdout=payload,
+                    stderr=b"",
+                )
+            raise AssertionError(argv)
 
     runtime = SimpleNamespace(
         host=LogHost(),
@@ -684,10 +709,113 @@ def test_u9_plus_customer_data_plane_requires_new_manager_ingress_and_ha_state(
         backup_provider=SimpleNamespace(ha_data_root=tmp_path),
         clock=lambda: 100.0,
         sleeper=lambda _seconds: None,
-        telemetry_timeout_s=1.0,
+        telemetry_timeout_s=5.0,
+        poll_interval_s=1.0,
     )
     assert oracle._history_readable() is True
     assert oracle._fresh_greenhouse_telemetry_visible(100) is True
+
+
+def test_u9_plus_data_plane_rejects_kf140_legacy_manager_log(tmp_path):
+    from types import SimpleNamespace
+
+    storage = tmp_path / ".storage"
+    storage.mkdir()
+    (storage / "core.entity_registry").write_text(
+        json.dumps(
+            {
+                "data": {
+                    "entities": [
+                        {
+                            "unique_id": "node-1_air_temperature_c",
+                            "entity_id": "sensor.node_1_air_temperature",
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class Clock:
+        def __init__(self):
+            self.value = 0.0
+
+        def __call__(self):
+            return self.value
+
+        def sleep(self, seconds):
+            self.value += seconds
+
+    class LegacyLogHost:
+        def __init__(self):
+            self.socket_calls = 0
+
+        def _run(self, argv, **_kwargs):
+            if argv[0] == "docker":
+                return SimpleNamespace(
+                    returncode=0,
+                    stdout=b"Accepted telemetry node=node-1 key=legacy\n",
+                    stderr=b"",
+                )
+            if argv[0] == "ss":
+                self.socket_calls += 1
+                value = 100 + self.socket_calls
+                payload = (
+                    "ESTAB 0 0 127.0.0.1:50000 127.0.0.1:1883\n"
+                    f" bytes_received:{value} "
+                    f"data_segs_in:{value}\n"
+                ).encode()
+                return SimpleNamespace(
+                    returncode=0,
+                    stdout=payload,
+                    stderr=b"",
+                )
+            raise AssertionError(argv)
+
+    clock = Clock()
+    oracle = host_mod.U9PlusProductionCompletionOracle(
+        runtime=SimpleNamespace(
+            host=LegacyLogHost(),
+            u11=SimpleNamespace(
+                expected_manager_container_id="manager-id"
+            ),
+        ),
+        backend=object(),
+        backup_provider=SimpleNamespace(ha_data_root=tmp_path),
+        clock=clock,
+        sleeper=clock.sleep,
+        telemetry_timeout_s=1.0,
+        poll_interval_s=1.0,
+    )
+    assert oracle._fresh_greenhouse_telemetry_visible(0) is False
+
+
+def test_u9_plus_data_plane_requires_unique_ha_mqtt_socket(tmp_path):
+    from types import SimpleNamespace
+
+    class AmbiguousSocketHost:
+        def _run(self, argv, **_kwargs):
+            assert argv[0] == "ss"
+            return SimpleNamespace(
+                returncode=0,
+                stdout=(
+                    b"ESTAB a\n bytes_received:1 data_segs_in:1\n"
+                    b"ESTAB b\n bytes_received:2 data_segs_in:2\n"
+                ),
+                stderr=b"",
+            )
+
+    oracle = host_mod.U9PlusProductionCompletionOracle(
+        runtime=SimpleNamespace(host=AmbiguousSocketHost()),
+        backend=object(),
+        backup_provider=SimpleNamespace(ha_data_root=tmp_path),
+    )
+    with pytest.raises(
+        UpdaterV2Error,
+        match="u9_plus_completion_ha_mqtt_socket_ambiguous",
+    ):
+        oracle._ha_mqtt_socket_counters()
 
 
 def test_u9_plus_history_oracle_fails_closed_when_recorder_missing(

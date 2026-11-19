@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import stat
 from pathlib import Path
 from typing import Any, Mapping
@@ -749,9 +750,15 @@ def _resolve_u9_plus_peer_identity(
 class U9PlusProductionCompletionOracle:
     """Prove customer-visible rollback completion on the production host."""
 
-    _ACCEPTED_TELEMETRY_RE = __import__("re").compile(
-        r"Accepted telemetry node=([A-Za-z0-9._:-]{1,128})\b"
+    _ACCEPTED_SIMPLIFIED_TELEMETRY_RE = re.compile(
+        r"Accepted simplified N3-W telemetry "
+        r"source=(?:direct|relay) "
+        r"node=([A-Za-z0-9._:-]{1,128})\b"
+        r"[^\r\n]*$",
+        re.MULTILINE,
     )
+    _SS_BYTES_RECEIVED_RE = re.compile(r"\bbytes_received:(\d+)\b")
+    _SS_DATA_SEGS_IN_RE = re.compile(r"\bdata_segs_in:(\d+)\b")
 
     def __init__(
         self,
@@ -853,11 +860,12 @@ class U9PlusProductionCompletionOracle:
             return False
         return checks == (("ok",),)
 
-    def _accepted_nodes_since(
+    def _accepted_simplified_events_since(
         self,
         recovery_started_unix: int,
-    ) -> set[str]:
+    ) -> dict[str, str]:
         from datetime import UTC, datetime
+
         since = (
             datetime.fromtimestamp(recovery_started_unix, tz=UTC)
             .isoformat(timespec="seconds")
@@ -881,10 +889,45 @@ class U9PlusProductionCompletionOracle:
         payload = (
             result.stdout + result.stderr
         ).decode("utf-8", errors="replace")
-        return {
-            match.group(1)
-            for match in self._ACCEPTED_TELEMETRY_RE.finditer(payload)
-        }
+        events: dict[str, str] = {}
+        for match in self._ACCEPTED_SIMPLIFIED_TELEMETRY_RE.finditer(
+            payload
+        ):
+            events[match.group(0).strip()] = match.group(1)
+        return events
+
+    def _ha_mqtt_socket_counters(self) -> tuple[int, int]:
+        result = self.runtime.host._run(
+            (
+                "ss",
+                "-Htin",
+                "state",
+                "established",
+                "dport",
+                "=",
+                ":1883",
+            ),
+            timeout=15,
+            check=False,
+        )
+        if result.returncode:
+            raise UpdaterV2Error(
+                "u9_plus_completion_ha_mqtt_socket_unavailable"
+            )
+        payload = result.stdout.decode("utf-8", errors="replace")
+        received = [
+            int(match.group(1))
+            for match in self._SS_BYTES_RECEIVED_RE.finditer(payload)
+        ]
+        segments = [
+            int(match.group(1))
+            for match in self._SS_DATA_SEGS_IN_RE.finditer(payload)
+        ]
+        if len(received) != 1 or len(segments) != 1:
+            raise UpdaterV2Error(
+                "u9_plus_completion_ha_mqtt_socket_ambiguous"
+            )
+        return received[0], segments[0]
 
     def _ha_entity_ids(self, node_ids: set[str]) -> tuple[str, ...]:
         registry = (
@@ -999,17 +1042,46 @@ class U9PlusProductionCompletionOracle:
         recovery_started_unix: int,
     ) -> bool:
         deadline = self.clock() + self.telemetry_timeout_s
+
+        # KF-140: bind the exact simplified-N3W Manager event to the unique
+        # HA->Broker loopback MQTT client socket. Recorder last_updated is not
+        # a valid sole receipt oracle when a sensor value may stay unchanged.
+        seen = set(
+            self._accepted_simplified_events_since(
+                recovery_started_unix
+            )
+        )
+        previous_received, previous_segments = (
+            self._ha_mqtt_socket_counters()
+        )
+
         while True:
-            nodes = self._accepted_nodes_since(recovery_started_unix)
-            entities = self._ha_entity_ids(nodes)
-            if self._ha_has_fresh_state(
-                entities,
-                recovery_started_unix,
-            ):
-                return True
             if self.clock() >= deadline:
                 return False
             self.sleeper(self.poll_interval_s)
+
+            events = self._accepted_simplified_events_since(
+                recovery_started_unix
+            )
+            received, segments = self._ha_mqtt_socket_counters()
+            new_signatures = set(events) - seen
+            if new_signatures:
+                nodes = {
+                    events[signature]
+                    for signature in new_signatures
+                }
+                entities = self._ha_entity_ids(nodes)
+                if (
+                    entities
+                    and received > previous_received
+                    and segments > previous_segments
+                ):
+                    return True
+
+            # Do not carry unrelated HA MQTT traffic into a later node event.
+            seen = set(events)
+            previous_received = received
+            previous_segments = segments
 
     def verify(
         self,
