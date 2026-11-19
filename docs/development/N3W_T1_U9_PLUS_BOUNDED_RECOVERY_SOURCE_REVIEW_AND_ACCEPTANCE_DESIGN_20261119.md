@@ -165,3 +165,15 @@ telemetry proof. The full customer downtime budget still starts at the actual
 service-stop instant. That end-to-end timing must therefore be measured by the
 separately authorized real-T1 fault-injection acceptance; source CI alone must
 not claim the <=15 minute post-cutover objective has been physically proven.
+
+
+## 9. Exact historical-data guard refinement
+
+Independent review found an existing stronger primitive in
+`ProtectedHaDataBackupProvider.verify_restored_preupgrade_backup_readonly()`.
+The production completion oracle now requires that exact verifier in addition
+to Recorder SQLite readability. It compares the restored HA tree against the
+protected pre-upgrade archive, rejects extra/missing members and SQLite
+sidecars, and performs the immutable SQLite integrity check. Therefore
+`preupgrade_history_readable` is no longer inferred from a generic database
+`quick_check` alone.

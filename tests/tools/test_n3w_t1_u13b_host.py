@@ -700,3 +700,76 @@ def test_u9_plus_history_oracle_fails_closed_when_recorder_missing(
         backup_provider=SimpleNamespace(ha_data_root=tmp_path),
     )
     assert oracle._history_readable() is False
+
+
+
+def test_u9_plus_exact_history_oracle_reuses_protected_backup_verifier(
+    monkeypatch,
+    tmp_path,
+):
+    from types import SimpleNamespace
+    import n3w_t1_core_updater_ha_backup as backup_mod
+
+    class Record:
+        def public(self):
+            return {"archive_sha256": "a" * 64}
+
+    record = Record()
+    monkeypatch.setattr(
+        backup_mod,
+        "backup_record_from_document",
+        lambda _value: record,
+    )
+
+    media = SimpleNamespace(mount_path=str(tmp_path / "usb"))
+    releases = []
+
+    class Backend:
+        def resolve_transaction_media_for_reconciliation(
+            self,
+            _transaction,
+        ):
+            return media
+
+        def release_transaction_media_for_reconciliation(
+            self,
+            value,
+        ):
+            releases.append(value)
+
+    calls = []
+
+    class Backup:
+        ha_data_root = tmp_path
+
+        def verify_restored_preupgrade_backup_readonly(
+            self,
+            value,
+            *,
+            transaction_id_sha256,
+            source_root,
+        ):
+            calls.append(
+                (value, transaction_id_sha256, source_root)
+            )
+            return value
+
+    oracle = host_mod.U9PlusProductionCompletionOracle(
+        runtime=object(),
+        backend=Backend(),
+        backup_provider=Backup(),
+    )
+    transaction = {
+        "ha_data_backup_identity": {"opaque": True},
+        "transaction_id_sha256": "b" * 64,
+    }
+
+    assert oracle._exact_preupgrade_restore(transaction) is True
+    assert calls == [
+        (
+            record,
+            "b" * 64,
+            tmp_path / "usb" / "n3w-update" / "ha-data",
+        )
+    ]
+    assert releases == [media]

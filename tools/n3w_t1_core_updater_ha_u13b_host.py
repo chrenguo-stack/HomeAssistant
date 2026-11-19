@@ -804,6 +804,44 @@ class U9PlusProductionCompletionOracle:
                 media
             )
 
+    def _exact_preupgrade_restore(
+        self,
+        transaction: Mapping[str, Any],
+    ) -> bool:
+        from n3w_t1_core_updater_ha_backup import (
+            backup_record_from_document,
+        )
+
+        media = self.backend.resolve_transaction_media_for_reconciliation(
+            transaction
+        )
+        if media is None:
+            return False
+        try:
+            record = backup_record_from_document(
+                transaction.get("ha_data_backup_identity")
+            )
+            source_root = (
+                Path(media.mount_path) / "n3w-update" / "ha-data"
+            )
+            verified = (
+                self.backup_provider
+                .verify_restored_preupgrade_backup_readonly(
+                    record,
+                    transaction_id_sha256=transaction[
+                        "transaction_id_sha256"
+                    ],
+                    source_root=source_root,
+                )
+            )
+            return verified.public() == record.public()
+        except UpdaterV2Error:
+            return False
+        finally:
+            self.backend.release_transaction_media_for_reconciliation(
+                media
+            )
+
     def _history_readable(self) -> bool:
         import sqlite3
         database = (
@@ -1046,7 +1084,10 @@ class U9PlusProductionCompletionOracle:
                     recovery_started_unix
                 )
             ),
-            preupgrade_history_readable=self._history_readable(),
+            preupgrade_history_readable=(
+                self._exact_preupgrade_restore(transaction)
+                and self._history_readable()
+            ),
             host_usb_terminal_exact=(
                 self._terminal_host_usb_exact(transaction)
             ),
