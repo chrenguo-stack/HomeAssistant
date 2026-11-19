@@ -41,7 +41,7 @@
     "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/executor.py": "46f4ef06558d3f8e78f892061ba2f33b60663b11",
     "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/manifest.json": "b72cae3223d131fca159df2933624ba09e9c9bbe",
     "tools/execution_packages/n3w/r7a/u13b_p3_acceptance_clean_ota_source/executor.py": "360c2587b92e7a390547875ce7e404c40e2e38bf",
-    "tools/execution_packages/n3w/r7a/u13b_p3_acceptance_clean_ota_source/manifest.json": "be922028ada20d1debe4f85e90a9c7ecb9df5005",
+    "tools/execution_packages/n3w/r7a/u13b_p3_acceptance_clean_ota_source/manifest.json": "0ba82ff1edb3213ebb57a5456114412010492ffd",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
     "infra/n3w-t1/upgrades/homeassistant-2026.10.4-u13b-same-version-acceptance.json": "d22a38aa3b34590cda3df39a8fb48cf61a01ec59",
     "infra/n3w-t1/upgrades/homeassistant-2026.10.4-u13b-same-version-acceptance-review.json": "3b930c142ebad83f4e6511b46b13e63d8cb955e4",
