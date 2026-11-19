@@ -1,3 +1,19 @@
+## 2026-11-19 — U9+ bounded recovery source implemented / key CI pass / physical acceptance pending
+
+- Core Stack repository authority remains `infra/n3w-t1/production/t1-core-stack-current.json` at product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`. Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Source implementation authority: `22f8da382ef50af3f2133b3027b0d2e49236cdef`.
+- The product daemon now owns a phase-gated U9+ recovery coordinator, reusing the existing U13B rollback/reconciliation implementation instead of introducing a parallel recovery stack.
+- Restart/re-entry in U9-U12 is intentionally conservative and selects rollback; consumed U9 authorization is never reclaimed or replayed.
+- Missing or mismatched bound recovery media is projected as `RECOVERY_MEDIA_REQUIRED`; no replacement USB is formatted or substituted.
+- Recovery completion requires predecessor runtime/HA/Manager/Broker health, fresh greenhouse telemetry visible in HA Recorder, durable pre-upgrade restore evidence plus readable history, exact Host/USB terminal state, and unchanged consumed authorization identity.
+- Final active-head CI poll: 18 SUCCESS / 0 FAILURE / 4 RUNNING. Key source gates already SUCCESS: P3 live/read-only source `44428121767`, P3 acceptance clean OTA source `44428121744`, fast source/exact closure `44428121732`, Core Stack authority `44428121703`, public repository safety `44428121662`.
+- Still running when polling stopped by rule: Manager A-to-B `44428121642`, HA 2026.10.3 target binding `44428121787`, HA 2026.10.4 target binding `44428121752`, HA 2026.10.4 same-version artifact `44428121785`.
+- Live T1 remains durable `U9_LIVE_AUTHORIZATION_CLAIMED`, transaction SHA-256 `2b3812af093c1f73a95744413e238f1ca3763407241f889c0646b9495e35a84b`, authorization consumed/non-replayable.
+- No real-T1 access, service write/restart, destructive U10, target load, U11+, or merge occurred in this gate.
+- KF-168 remains OPEN as `SOURCE_IMPLEMENTED / KEY_CI_PASS / FULL_CI_AND_PHYSICAL_ACCEPTANCE_PENDING`; source integration is present, but representative real-T1 fault injection and customer downtime timing are not yet proven.
+- Next boundary: `N3W_T1_U9_PLUS_BOUNDED_RECOVERY_REAL_T1_FAULT_INJECTION_ACCEPTANCE`, requiring separate explicit authorization.
+- Archive: [N3W_T1_U9_PLUS_BOUNDED_RECOVERY_SOURCE_IMPLEMENTED_PHYSICAL_ACCEPTANCE_PENDING_20261119.md](./N3W_T1_U9_PLUS_BOUNDED_RECOVERY_SOURCE_IMPLEMENTED_PHYSICAL_ACCEPTANCE_PENDING_20261119.md)
+
 ## 2026-11-19 — U13B P3 U10 Attempt 05 read-only PASS / KF-167 physically closed
 
 - Core Stack repository authority remains `infra/n3w-t1/production/t1-core-stack-current.json` at product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`. Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, and Broker `local/n3w-mosquitto:2.1.2-3184566d`.

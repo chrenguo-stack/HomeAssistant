@@ -1,6 +1,8 @@
-## Latest authority — 2026-11-19 U13B P3 U10 read-only Attempt 05 PASS / KF-167 physically closed / destructive U10 still blocked
+## Latest authority — 2026-11-19 U9+ bounded recovery source implemented / key CI pass / physical acceptance pending
 
-Attempt 05 used exact candidate 4bca19ff857239c4e86e8417cf61e076c686f834 and passed the real-T1 U10 read-only preflight. Durable U9, the path-specific historical U9 claim compatibility reader, exact transaction, bound USB mirror, predecessor recovery package, protected HA data backup, target archive, stopped application-owner state and Broker continuity all revalidated. The probe projected U10 in memory only; it did not delete predecessor runtime/image, load the target, mutate services, transition U10, or enter U11+.
+KF-168's original product integration gap is now implemented in source. The always-on HA OTA daemon conditionally constructs one U9+ recovery coordinator for durable U9-U12/U13B states, resumes recovery through the existing U13B rollback stack, refuses U9 authorization replay, requires the same bound recovery USB, and projects RECOVERY_MEDIA_REQUIRED instead of substituting media. Restart recovery is deliberately conservative: after process/host re-entry in U9-U12 it chooses the legal rollback edge rather than guessing that an interrupted forward mutation completed.
+
+Recovery completion is customer-visible rather than container-only. Terminal ROLLED_BACK requires exact predecessor runtime health, Home Assistant HTTP readiness, Manager readiness, Broker continuity, a new Manager telemetry ingress that produces a post-recovery Home Assistant Recorder state, durable proof that the protected pre-upgrade HA data restore completed while services were quiesced, readable Recorder history, exact Host/USB terminal authority, and unchanged consumed U9 authorization identity.
 
 PR=807
 DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
@@ -17,45 +19,34 @@ CURRENT_LIVE_STAGE=U9_LIVE_AUTHORIZATION_CLAIMED
 U9_TRANSACTION_SHA256=2b3812af093c1f73a95744413e238f1ca3763407241f889c0646b9495e35a84b
 U9_AUTHORIZATION=CONSUMED_NO_REPLAY
 
-ATTEMPT05_EXACT_CANDIDATE=4bca19ff857239c4e86e8417cf61e076c686f834
-ATTEMPT05_RESULT=P3_U10_READONLY_PREFLIGHT_PASS
-ATTEMPT05_STAGE=u9_verified_for_u10
-ATTEMPT05_U9_SUBSTAGE=durable_u9_verified
-ATTEMPT05_EXIT_CODE=0
-ATTEMPT05_RECEIPT_SHA256=e4a08d555656d20d3ef5bd3bc9a36929ca4b4ee9daa3ff138d7d9232bb9e5126
-ATTEMPT05_READ_ONLY=true
-ATTEMPT05_DESTRUCTIVE_CUTOVER=false
-ATTEMPT05_DESTRUCTIVE_CUTOVER_ELIGIBLE=true
-ATTEMPT05_PROJECTED_PHASE=U10_INTERNAL_PREDECESSOR_CAPACITY_RELEASED
-ATTEMPT05_U10_TRANSITION=false
-ATTEMPT05_U11_PLUS=false
-ATTEMPT05_PREDECESSOR_RUNTIME_DELETE=false
-ATTEMPT05_PREDECESSOR_IMAGE_DELETE=false
-ATTEMPT05_TARGET_IMAGE_LOAD=false
-ATTEMPT05_SERVICE_MUTATION=false
-
-ATTEMPT05_TARGET_ARCHIVE_SHA256=be30c4778bf537258d9e3825524c79532f20e8eb7a82136f560110d8f44b418d
-ATTEMPT05_PREDECESSOR_ARCHIVE_SHA256=31108a725e6b6530c68834218d9e41579055d7fe2718b3f42902b71237dc8e5f
-ATTEMPT05_BACKUP_ARCHIVE_SHA256=b6f7ad3803c1ae954d2d946562b5ae1db8725786e4c457db8a1deff7b10623e2
-ATTEMPT05_BACKUP_VERIFIED=true
-ATTEMPT05_CAPACITY_PASS=true
-ATTEMPT05_USB_FREE_BYTES=28132188160
-ATTEMPT05_REQUIRED_FREE_AFTER_RECOVERY_ASSETS_BYTES=1610612736
-ATTEMPT05_USB_METADATA_MATCHES=true
-ATTEMPT05_BROKER_CONTINUITY_VERIFIED=true
-ATTEMPT05_APPLICATION_SERVICES_STOPPED=true
-
+SOURCE_IMPLEMENTATION_HEAD=22f8da382ef50af3f2133b3027b0d2e49236cdef
+SOURCE_DESIGN=docs/development/N3W_T1_U9_PLUS_BOUNDED_RECOVERY_SOURCE_REVIEW_AND_ACCEPTANCE_DESIGN_20261119.md
 KF167_STATUS=CLOSED_PASS_PHYSICALLY_VALIDATED
+KF168_STATUS=OPEN_SOURCE_IMPLEMENTED_KEY_CI_PASS_FULL_CI_AND_PHYSICAL_ACCEPTANCE_PENDING
+
+CI_FINAL_ACTIVE_HEAD_POLL=18_SUCCESS_0_FAILURE_4_RUNNING
+CI_P3_LIVE_READONLY_SOURCE_RUN=44428121767_SUCCESS
+CI_P3_ACCEPTANCE_CLEAN_OTA_SOURCE_RUN=44428121744_SUCCESS
+CI_FAST_SOURCE_EXACT_CLOSURE_RUN=44428121732_SUCCESS
+CI_CORE_STACK_AUTHORITY_RUN=44428121703_SUCCESS
+CI_PUBLIC_REPOSITORY_SAFETY_RUN=44428121662_SUCCESS
+CI_PENDING_MANAGER_A_TO_B_RUN=44428121642_RUNNING
+CI_PENDING_HA_2026_10_3_TARGET_BINDING_RUN=44428121787_RUNNING
+CI_PENDING_HA_2026_10_4_TARGET_BINDING_RUN=44428121752_RUNNING
+CI_PENDING_HA_2026_10_4_SAME_VERSION_ARTIFACT_RUN=44428121785_RUNNING
+
+REAL_T1_ACCESS_THIS_GATE=false
+SERVICE_WRITE_THIS_GATE=false
 U10_DESTRUCTIVE_AUTHORIZATION=false
 U11_PLUS_AUTHORIZATION=false
-KF168_STATUS=OPEN_SOURCE_GAP_PROVEN
-NEXT_ONE_GATE=N3W_T1_U9_PLUS_BOUNDED_RECOVERY_SOURCE_REVIEW_AND_ACCEPTANCE_DESIGN
+PR807_MERGE=false
 
-DESTRUCTIVE_CUTOVER_ELIGIBLE=true is technical eligibility only. The current engineering sequence has deliberately paused between phases and therefore cannot establish the customer downtime budget. Before destructive U10, the product must close the separate U9+ bounded-recovery gate.
+NEXT_ONE_GATE=N3W_T1_U9_PLUS_BOUNDED_RECOVERY_REAL_T1_FAULT_INJECTION_ACCEPTANCE
+NEXT_GATE_REQUIRES_EXPLICIT_AUTHORIZATION=true
 
-Handoff archived at `docs/development/N3W_T1_U10_READONLY_CLOSED_KF168_SOURCE_GAP_TO_U9_PLUS_BOUNDED_RECOVERY_NEW_CHAT_HANDOFF_V1.0_20261119.md`.
+No real-T1 operation occurred in this source gate. In particular, the new daemon was not deployed or restarted on the current live U9 system, because doing so would itself activate rollback and cross the service-write/real-T1 boundary. The four remaining workflows were still running after the allowed polling cadence; they were left running and were not retriggered. Physical fault injection and the end-to-end customer downtime budget remain unproven until a separately authorized real-T1 acceptance.
 
-Initial source review found a production-integration gap: n3w_t1_core_updater_ha_daemon.py starts HaUsbIpcExecutor.start_background_recovery(), but that method only resumes U1 discovery and U2/U3 preparation. The IPC action surface only accepts PREPARE, CONFIRM_USB_ERASE and INSTALL, where INSTALL revalidates and requests install but does not own U9+ destructive/recovery execution. U9-U13 rollback state functions and engineering stage executors exist, but the always-on product daemon does not currently provide a proven U9+ recovery coordinator. Therefore U10 destructive remains blocked until this integration is designed, implemented, tested and physically accepted.
+Archive: `docs/development/N3W_T1_U9_PLUS_BOUNDED_RECOVERY_SOURCE_IMPLEMENTED_PHYSICAL_ACCEPTANCE_PENDING_20261119.md`.
 
 ## Latest authority — 2026-11-18 U13B P3 U10 read-only Attempt 05 authorized / exact compatibility-repair candidate frozen
 

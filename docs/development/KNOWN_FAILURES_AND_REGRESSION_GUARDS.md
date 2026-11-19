@@ -1,18 +1,45 @@
-### 2026-11-19 KF-168 Home Assistant USB OTA U9+ product recovery coordinator — OPEN / SOURCE_GAP_PROVEN
+### 2026-11-19 KF-168 Home Assistant USB OTA U9+ product recovery coordinator — OPEN / SOURCE_IMPLEMENTED / KEY_CI_PASS / PHYSICAL_ACCEPTANCE_PENDING
 
-Source review after U10 Attempt 05 found that the installed Home Assistant OTA daemon constructs HaUsbIpcExecutor and calls start_background_recovery(), but that method only resumes U1 discovery and U2/U3 preparation. The IPC action surface accepts PREPARE, CONFIRM_USB_ERASE and INSTALL; INSTALL revalidates and requests installation but does not execute or reconcile U9+ destructive phases.
+Original gap:
+- the always-on HA OTA daemon previously resumed only U1/U2/U3 preparation;
+- U9-U13 rollback primitives existed, but product startup did not own U9+ recovery;
+- customer recovery completion had no product-level telemetry/history oracle.
 
-The repository does contain U9-U13 state-machine rollback primitives, power-loss classification, and engineering stage executors for U10/U11/U12/U13B. Those pieces do not by themselves prove that the always-on product daemon can recover a customer system after process death, host reboot, target failure, or power loss once destructive cutover has begun.
+Source repair authority: `22f8da382ef50af3f2133b3027b0d2e49236cdef`.
 
-Required closure:
-- add one production U9+ recovery coordinator owned by the host OTA daemon;
-- on daemon boot, classify durable host transaction + same bound USB UUID before normal HA activation;
-- support adjacent safe forward resume or image+data rollback for U9-U12;
-- expose RECOVERY_MEDIA_REQUIRED without depending on Home Assistant when the bound USB is absent;
-- never replay the consumed U9 authorization;
-- declare recovery complete only after exact predecessor binding, HA page, Manager, Broker, telemetry and expected historical data pass;
-- add deterministic fault-injection coverage and representative real-T1 timing acceptance;
-- keep destructive U10 unauthorized until physical closure.
+Implemented guards:
+- one daemon-owned U9+ coordinator is constructed only for durable U9-U12 or U13B0-U13B terminal/recovery phases;
+- restart in U9-U12 deliberately chooses the legal rollback edge instead of guessing forward completion;
+- existing U13B reconciliation/rollback implementation remains the single recovery mechanism;
+- recovery requires the already consumed U9 authorization and snapshots its identity; terminal drift fails closed and no claim/replay call exists in the recovery path;
+- same bound USB authority is required; absence/mismatch exposes `RECOVERY_MEDIA_REQUIRED` and never substitutes or formats another device;
+- exact Manager/Broker runtime identity is fail-closed, including unique stopped Manager residue when application services are quiesced;
+- customer-visible completion requires predecessor health, HA HTTP, Manager, Broker, fresh Manager telemetry that creates a post-recovery HA Recorder state, durable U13B3 pre-upgrade data-restore evidence, readable Recorder history, exact Host/USB terminal authority, and no authorization replay;
+- exact protected-backup equality remains ordered before runtime restart, where it is valid; terminal checks do not incorrectly require a live Recorder database to remain byte-identical after legitimate new writes.
+
+Deterministic coverage added for authorization consumption/drift, restart rollback, missing media, incomplete customer oracle, IPC background recovery, daemon phase-gated production entry, Manager/Broker identity ambiguity, fresh telemetry-to-HA Recorder proof, Recorder/history fail-closed behavior, and durable restore evidence.
+
+CI at the final allowed poll on this source head:
+- SUCCESS: P3 live/read-only source `44428121767`;
+- SUCCESS: P3 acceptance clean OTA source `44428121744`;
+- SUCCESS: fast source/exact closure `44428121732`;
+- SUCCESS: Core Stack current authority `44428121703`;
+- SUCCESS: public repository safety `44428121662`;
+- aggregate `18 SUCCESS / 0 FAILURE / 4 RUNNING`;
+- remaining running: Manager A-to-B `44428121642`, HA 2026.10.3 target binding `44428121787`, HA 2026.10.4 target binding `44428121752`, 2026.10.4 same-version artifact `44428121785`.
+
+Remaining closure:
+- final terminal result of the four already-running CI workflows;
+- separately authorized real-T1 fault injection through the destructive cutover/recovery path;
+- physical verification of the customer-visible completion oracle and total downtime from actual service stop;
+- only then may KF-168 be considered physically closed.
+
+Safety boundary:
+- live T1 remains durable U9 with authorization consumed/non-replayable;
+- this source gate performed no real-T1 access or mutation;
+- deploying/restarting the new daemon on that live U9 system would itself activate recovery and therefore is a separate service-write/real-T1 authorization boundary;
+- destructive U10, service write, U11+, and PR #807 merge remain unauthorized.
+
 
 ### 2026-11-19 KF-167 U13B P3 U10 read-only durable-U9 status compatibility — CLOSED_PASS / PHYSICALLY_VALIDATED
 
