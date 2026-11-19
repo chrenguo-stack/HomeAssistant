@@ -19,7 +19,7 @@
   },
   "package_source_authority": {
     "tools/execution_packages/n3w/r7a/u13b_p3_acceptance_clean_ota_source/executor.py": "360c2587b92e7a390547875ce7e404c40e2e38bf",
-    "tools/n3w_t1_core_updater_ha_ipc.py": "e793b705bfabdcf549ff31a39ac2111e79665dc3",
+    "tools/n3w_t1_core_updater_ha_ipc.py": "48558556169a045da092aef94d4c5244d2c48775",
     "tools/n3w_t1_core_updater_ha_usb_state.py": "f20f7c6e182aeb19ef47bdec595d85bd08729c9c",
     "tools/n3w_t1_core_updater_ha_prepare.py": "c4973a9fa9f114b2d068db5f2166894a41ed2217",
     "tools/n3w_t1_core_updater_v2_common.py": "b9c6561a1a8e33bdf586e6a4bd04d025f3c5d7e6",
