@@ -616,12 +616,15 @@ def bootstrap_for_remote():
     return u6_recovery.make_bootstrap(
         Path(__file__).resolve(),
         extra_modules=(
-            ("u10_preflight", u10_preflight),
+            # make_bootstrap executes modules in insertion order.  Load the
+            # dependency chain before u10_preflight so isolated remote Python
+            # never imports a module that has not been registered yet.
             ("u6_recovery", u6_recovery),
             ("check_ha_backup", check_ha_backup),
             ("ha_backup", ha_backup),
             ("recovery_admission", u8),
             ("u9_live_authorization", u9),
+            ("u10_preflight", u10_preflight),
         ),
     )
 
@@ -713,7 +716,12 @@ def local_main():
             check=False,
         )
         lines = [line for line in completed.stdout.splitlines() if line.strip()]
-        require(lines, "remote_stdout_empty")
+        if not lines:
+            stderr = completed.stderr.strip().replace("\n", " ")[:600]
+            raise RuntimeError(
+                "remote_stdout_empty"
+                + (":" + stderr if stderr else "")
+            )
         receipt = json.loads(lines[-1])
         rc = completed.returncode
     except Exception as error:

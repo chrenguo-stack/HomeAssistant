@@ -116,3 +116,26 @@ def test_terminal_recovery_requires_u13b_from_u10_and_no_target() -> None:
     assert 'tx.get("rollback_ha_data_restored") is True' in block
     assert 'tx.get("rollback_health_verified") is True' in block
     assert "target_image_present_after_rollback" in block
+
+
+def test_bootstrap_dependency_order_prevents_remote_import_failure() -> None:
+    text = source()
+    start = text.index("def bootstrap_for_remote():")
+    end = text.index("def source_check(", start)
+    block = text[start:end]
+    ordered = [
+        '("u6_recovery", u6_recovery)',
+        '("check_ha_backup", check_ha_backup)',
+        '("ha_backup", ha_backup)',
+        '("recovery_admission", u8)',
+        '("u9_live_authorization", u9)',
+        '("u10_preflight", u10_preflight)',
+    ]
+    positions = [block.index(item) for item in ordered]
+    assert positions == sorted(positions)
+
+
+def test_remote_stdout_empty_preserves_stderr_diagnostic() -> None:
+    text = source()
+    assert 'completed.stderr.strip().replace("\\n", " ")[:600]' in text
+    assert '"remote_stdout_empty" + (":" + stderr if stderr else "")' in text
