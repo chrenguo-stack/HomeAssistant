@@ -1,8 +1,8 @@
-## Latest authority — 2026-11-19 U9+ bounded recovery source implemented / key CI pass / physical acceptance pending
+## Latest authority — 2026-11-19 U9+ bounded recovery independent source review closed / physical acceptance pending
 
-KF-168's original product integration gap is now implemented in source. The always-on HA OTA daemon conditionally constructs one U9+ recovery coordinator for durable U9-U12/U13B states, resumes recovery through the existing U13B rollback stack, refuses U9 authorization replay, requires the same bound recovery USB, and projects RECOVERY_MEDIA_REQUIRED instead of substituting media. Restart recovery is deliberately conservative: after process/host re-entry in U9-U12 it chooses the legal rollback edge rather than guessing that an interrupted forward mutation completed.
+KF-168's product integration gap is implemented and independently reviewed in source. The always-on HA OTA daemon conditionally constructs one U9+ recovery coordinator for durable U9-U12/U13B states, reuses the existing U13B rollback/reconciliation stack, refuses U9 authorization replay, requires the same bound recovery USB, and projects RECOVERY_MEDIA_REQUIRED instead of substituting media. Restart/re-entry in U9-U12 deliberately selects the legal rollback edge rather than guessing that interrupted forward mutation completed.
 
-Recovery completion is customer-visible rather than container-only. Terminal ROLLED_BACK requires exact predecessor runtime health, Home Assistant HTTP readiness, Manager readiness, Broker continuity, a new Manager telemetry ingress that produces a post-recovery Home Assistant Recorder state, durable proof that the protected pre-upgrade HA data restore completed while services were quiesced, readable Recorder history, exact Host/USB terminal authority, and unchanged consumed U9 authorization identity.
+Independent review found and repaired one inherited acceptance defect in the candidate completion oracle: it had reintroduced the KF-140 legacy Manager log matcher and treated Home Assistant Recorder last_updated as the decisive fresh-receipt signal. The repaired oracle matches the deployed simplified N3-W Direct/Relay acceptance log, maps the accepted node through the HA entity registry, and requires same-window forward progress on the unique HA loopback MQTT client connection to port 1883. Recorder remains the pre-upgrade-history readability check rather than the sole fresh-delivery oracle. Missing/ambiguous socket evidence fails closed. The socket-counter mechanism is a fixed-T1 runtime contract supported by prior KF-140 real-T1 evidence and must be revalidated in the separately authorized physical fault-injection gate.
 
 PR=807
 DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
@@ -19,21 +19,27 @@ CURRENT_LIVE_STAGE=U9_LIVE_AUTHORIZATION_CLAIMED
 U9_TRANSACTION_SHA256=2b3812af093c1f73a95744413e238f1ca3763407241f889c0646b9495e35a84b
 U9_AUTHORIZATION=CONSUMED_NO_REPLAY
 
-SOURCE_IMPLEMENTATION_HEAD=22f8da382ef50af3f2133b3027b0d2e49236cdef
+ORIGINAL_U9_PLUS_IMPLEMENTATION_HEAD=22f8da382ef50af3f2133b3027b0d2e49236cdef
+INDEPENDENT_KF140_ORACLE_REPAIR_HEAD=b05b923997238c4cac5505f5e27b5a405f0b7d75
+CORE_STACK_INDEX_REPAIR_HEAD=a8b132e0cae5489a0ece7828a65b722b661dc58d
+P3_SOURCE_AUTHORITY_REBIND_HEAD=9f301091dad9faeee77e997c435e2b81115a1206
 SOURCE_DESIGN=docs/development/N3W_T1_U9_PLUS_BOUNDED_RECOVERY_SOURCE_REVIEW_AND_ACCEPTANCE_DESIGN_20261119.md
+SOURCE_REVIEW_ARCHIVE=docs/development/N3W_T1_U9_PLUS_BOUNDED_RECOVERY_INDEPENDENT_SOURCE_REVIEW_CLOSED_PHYSICAL_ACCEPTANCE_PENDING_20261119.md
 KF167_STATUS=CLOSED_PASS_PHYSICALLY_VALIDATED
-KF168_STATUS=OPEN_SOURCE_IMPLEMENTED_KEY_CI_PASS_FULL_CI_AND_PHYSICAL_ACCEPTANCE_PENDING
+KF168_STATUS=OPEN_SOURCE_REVIEW_CLOSED_PHYSICAL_ACCEPTANCE_PENDING
 
-CI_FINAL_ACTIVE_HEAD_POLL=18_SUCCESS_0_FAILURE_4_RUNNING
-CI_P3_LIVE_READONLY_SOURCE_RUN=44428121767_SUCCESS
-CI_P3_ACCEPTANCE_CLEAN_OTA_SOURCE_RUN=44428121744_SUCCESS
-CI_FAST_SOURCE_EXACT_CLOSURE_RUN=44428121732_SUCCESS
-CI_CORE_STACK_AUTHORITY_RUN=44428121703_SUCCESS
-CI_PUBLIC_REPOSITORY_SAFETY_RUN=44428121662_SUCCESS
-CI_PENDING_MANAGER_A_TO_B_RUN=44428121642_RUNNING
-CI_PENDING_HA_2026_10_3_TARGET_BINDING_RUN=44428121787_RUNNING
-CI_PENDING_HA_2026_10_4_TARGET_BINDING_RUN=44428121752_RUNNING
-CI_PENDING_HA_2026_10_4_SAME_VERSION_ARTIFACT_RUN=44428121785_RUNNING
+CI_FINAL_ALLOWED_POLL_AT_9F301091=18_SUCCESS_0_FAILURE_4_RUNNING
+CI_P3_LIVE_READONLY_SOURCE_RUN=44430251423_SUCCESS
+CI_P3_ACCEPTANCE_CLEAN_OTA_SOURCE_RUN=44430251448_SUCCESS
+CI_FAST_SOURCE_EXACT_CLOSURE_RUN=44430251511_SUCCESS
+CI_CORE_STACK_AUTHORITY_RUN=44430251696_SUCCESS
+CI_PUBLIC_REPOSITORY_SAFETY_RUN=44430251618_SUCCESS
+CI_GREENHOUSE_MANAGER_RUN=44430251523_SUCCESS
+CI_PENDING_MANAGER_A_TO_B_RUN=44430251468_RUNNING
+CI_PENDING_HA_2026_10_3_TARGET_BINDING_RUN=44430251532_RUNNING
+CI_PENDING_HA_2026_10_4_TARGET_BINDING_RUN=44430251449_RUNNING
+CI_PENDING_HA_2026_10_4_SAME_VERSION_ARTIFACT_RUN=44430251783_RUNNING
+CI_ACTIVE_POLLING_STOPPED_BY_RULE=true
 
 REAL_T1_ACCESS_THIS_GATE=false
 SERVICE_WRITE_THIS_GATE=false
@@ -43,10 +49,6 @@ PR807_MERGE=false
 
 NEXT_ONE_GATE=N3W_T1_U9_PLUS_BOUNDED_RECOVERY_REAL_T1_FAULT_INJECTION_ACCEPTANCE
 NEXT_GATE_REQUIRES_EXPLICIT_AUTHORIZATION=true
-
-No real-T1 operation occurred in this source gate. In particular, the new daemon was not deployed or restarted on the current live U9 system, because doing so would itself activate rollback and cross the service-write/real-T1 boundary. The four remaining workflows were still running after the allowed polling cadence; they were left running and were not retriggered. Physical fault injection and the end-to-end customer downtime budget remain unproven until a separately authorized real-T1 acceptance.
-
-Archive: `docs/development/N3W_T1_U9_PLUS_BOUNDED_RECOVERY_SOURCE_IMPLEMENTED_PHYSICAL_ACCEPTANCE_PENDING_20261119.md`.
 
 ## Latest authority — 2026-11-18 U13B P3 U10 read-only Attempt 05 authorized / exact compatibility-repair candidate frozen
 
