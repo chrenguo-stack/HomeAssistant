@@ -173,3 +173,14 @@ def test_missing_media_status_repair_has_separate_mode_and_no_u9_replay() -> Non
     assert '"product_u9_replayed": False' in text or "product_u9_replayed=False" in text
     assert "claim_live_authorization(" not in text
     assert "REPEAT_OBSERVE_MISSING_READONLY" in text
+
+
+def test_ipc_status_half_closes_write_side_before_waiting_for_response() -> None:
+    text = source()
+    start = text.index("def ipc_status():")
+    end = text.index("def installed_image_present(", start)
+    block = text[start:end]
+    send = block.index("sock.sendall(")
+    shutdown = block.index("sock.shutdown(socket.SHUT_WR)")
+    recv = block.index("sock.recv(4096)")
+    assert send < shutdown < recv
