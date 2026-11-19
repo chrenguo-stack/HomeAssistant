@@ -1,7 +1,7 @@
-# T1_Core_Stack OTA 架构设计方案 V1.1.3
+# T1_Core_Stack OTA 架构设计方案 V1.1.4
 
 **定稿日期**　2026-11-19  
-**修订说明**　V1.1.3 将 OTA 终态正式收敛为严格二态：`SUCCESS` 或 `FAILURE`。status/checker 自身异常不能伪造成“新版软件已被证明失败”，但在限定补验后仍无法证明新版满足验收合同时，本次 OTA 必须判定为 `FAILURE` 并自动恢复升级前的健康版本；不得形成 `PENDING`、`SAFE_HOLD`、`NEEDS_SUPPORT` 等第三种 OTA 终态。V1.1.3 取代尚未合并 `main` 的 V1.1.2。  
+**修订说明**　V1.1.4 在 V1.1.3 严格二态终态基础上，正式收敛 OTA 验收合同：`CORE GATE 要少、CORE GATE 要稳定、非 CORE GATE 永远不能决定 OTA 成败`。本版定义通用 CORE、条件 CORE、诊断项和移出验收项四类，并冻结 Manager / Broker / HA 的最低健康定义与整栈端到端验收。任何运行中突然出现的未知检查都不得自动晋升为 CORE。V1.1.4 取代尚未合并 `main` 的 V1.1.3。  
 **适用产品**　斐讯 T1 上由 greenhouse-manager（Manager）、Mosquitto（Broker）和 Home Assistant（HA）组成的温室监测系统。  
 **文档状态**　产品架构定稿，供后续开发和验收使用。源代码完成情况和实机结论以各自的验收记录为准。
 
@@ -115,7 +115,7 @@ usb_capacity_check_state=UNKNOWN
 - **PROVEN_FAIL：** 已取得明确反例，证明新版或本次升级结果不满足健康合同，进入受控恢复。
 - **EVIDENCE_UNAVAILABLE：** 验收器、status、数据源、协议或附加查询自身异常，暂时无法证明成功，也无法证明新版软件本身有故障。它只是内部取证状态，**不是 OTA 结果**。
 
-当新版已经启动但出现 `EVIDENCE_UNAVAILABLE` 时，主机保持在现有验收阶段（现有 HA 路径中即 U12/TARGET_ACCEPTANCE 或等价阶段），并执行一个**有界补验窗口**：
+当新版已经启动且**冻结的 CORE GATE**出现 `EVIDENCE_UNAVAILABLE` 时，主机保持在现有验收阶段（现有 HA 路径中即 U12/TARGET_ACCEPTANCE 或等价阶段），并执行一个**有界补验窗口**。非 CORE 检查的 UNKNOWN、异常或缺失只记诊断，不进入本流程：
 
 1. 保持当前可用业务服务，不为取得状态回执反复重启；
 2. 使用限定次数的同源重试和至少一种独立等效证据补验；
@@ -123,10 +123,10 @@ usb_capacity_check_state=UNKNOWN
 4. 阻止下一笔 OTA 和会破坏回滚条件的用户写入；
 5. 补验得到 PASS，则提交新版，终态为 `SUCCESS`；
 6. 补验得到 PROVEN_FAIL，则自动回滚；
-7. 补验窗口结束仍无法取得 PASS，则**不再等待、不形成第三种结果**，本次 OTA 按“未能证明可安全提交”判定为失败路径并自动回滚；
+7. 补验窗口结束后，若仍无法证明**冻结的 CORE ACCEPTANCE CONTRACT**全部成立，则**不再等待、不形成第三种结果**，本次 OTA 按“核心提交门槛未满足”判定为失败路径并自动回滚；
 8. 前代恢复并通过独立的最低健康合同后，持久化 OTA 终态 `FAILURE`。
 
-因此，“无法证明新版成功”不会被描述成“新版软件已经证明损坏”，但对**本次 OTA 事务**而言仍然是失败，因为产品没有获得提交新版所必需的证据。
+因此，“某个未知检查无法给出结果”本身不构成 OTA 失败。只有预先冻结并绑定到本次事务的 CORE GATE 在有界补验后仍无法成立，才构成本次 OTA 失败。这样同时防止假成功和“系统实际上正常、却被新增或偶发验证器误判回滚”的假失败。
 
 **状态接口不参与提交/回滚决策。** status 只能投影“当前事务阶段 + 最近一次验收证据 + 降级标志”。提交或回滚由宿主执行器读取持久验收证据决定。即使 status 完全不可用，宿主也必须独立收敛：新版在有界验收内通过则提交为 `SUCCESS`；否则自动恢复前代，前代健康后终态为 `FAILURE`。
 
@@ -139,7 +139,8 @@ CHECKER_FAILURE != TARGET_FAILURE
 STATUS_API_FAILURE != TARGET_FAILURE
 EVIDENCE_UNAVAILABLE != PROVEN_FAIL
 OTA_TERMINAL_RESULT in {SUCCESS, FAILURE}
-NO_ACCEPTANCE_PASS_AFTER_BOUND => OTA_FAILURE_AND_ROLLBACK
+CORE_ACCEPTANCE_NOT_PROVEN_AFTER_BOUND => OTA_FAILURE_AND_ROLLBACK
+NON_CORE_FAILURE => DIAGNOSTIC_ONLY
 ```
 
 其中危险动作仍然 fail-closed：没有足够证据时不得提交新版。status/checker 单次异常不能立即触发破坏性回滚；必须先进入有界补验。但补验窗口结束仍无法取得提交证据时，本次 OTA 必须自动走失败回滚路径，不能无限等待，也不能要求普通用户决定。
@@ -157,11 +158,126 @@ NO_ACCEPTANCE_PASS_AFTER_BOUND => OTA_FAILURE_AND_ROLLBACK
 
 **节点不在线时也要能验收主机。** 优先复用现有本机凭据、消息通道及 HA 接收能力。可关联的节点消息已经完整经过实际链路时直接采用。没有自然消息时，使用带本笔标识、无保留、无控制副作用的本机测试消息，在实际 Manager → Broker → HA 接收路径核对同一标识。使用受限测试位置，不写入农户的监测曲线，也不触发用户自动化。能证明本机收发即可完成主机验收，实际节点是否在线另行显示。若某一受支持部署无法安全实现等效检查，开发阶段先解决该部署的验收方法，再开放该发布；现场不能用“没节点”跳过接收检查。
 
+### 6.1 CORE GATE 收敛与分类
+
+OTA 验收采用**封闭、版本化、事务级冻结**的验收合同。准备阶段必须把本次事务适用的 CORE GATE 集合、合同版本和允许的等效取证方式写入持久事务；进入切换后不得因为遇到新日志、新字段、新异常或新工程判断临时增加 CORE GATE。
+
+三个原则是强制约束：
+
+1. **CORE GATE 要少。** 只保留直接回答“当前是否确实在运行批准目标、核心服务能否工作、真实业务链路能否工作、必要受保护状态是否连续”的门槛。
+2. **CORE GATE 要稳定。** CORE 语义跨小版本保持稳定；更改 CORE 定义需要版本化合同、正反样本、兼容性测试和独立复核，不能靠现场临时解释。
+3. **非 CORE GATE 永远不能决定 OTA 成败。** 非 CORE 检查可以报警、记录、进入工程诊断或阻止未来发布，但不得单独把本次 OTA 从 SUCCESS 改成 FAILURE，也不得触发回滚。
+
+现有和后续检查统一归入四类：
+
+| 分类 | 是否决定 OTA 成败 | 用途 |
+| --- | --- | --- |
+| `CORE` | 是 | 每次相关 OTA 都必须满足的最小提交合同。 |
+| `CONDITIONAL_CORE` | 仅当本次发布触及对应风险域时 | 例如 Broker/TLS/授权发生变化、HA 数据迁移、受保护状态发生变化。启用条件在准备阶段冻结。 |
+| `DIAGNOSTIC` | 否 | 日志、性能、详细 systemd 状态、附加 status 字段、观察窗口统计等，用于定位和趋势分析。 |
+| `REMOVE_FROM_ACCEPTANCE` | 否 | 已证明重复、脆弱、误报高或被更高层 CORE 完整覆盖的旧判据；可以保留工程测试，但不再参与设备 OTA 判定。 |
+
+**任何运行中首次出现的未知条件，默认只能进入 `DIAGNOSTIC`。** 若项目认为它以后应成为 CORE，必须在后续版本通过架构评审升级，而不能影响正在执行的事务。
+
+#### 6.1.1 通用 CORE ACCEPTANCE CONTRACT
+
+V1.1.4 将通用提交门槛收敛为三个 CORE GATE；第四类为按发布影响启用的条件 CORE：
+
+| Gate | 类型 | 必须证明的事实 |
+| --- | --- | --- |
+| `CG1_RELEASE_IDENTITY` | CORE | Manager、Broker、HA 的实际运行身份与本次已批准目标组合一致；每个应运行组件只有一个生产实例，不存在新旧版本并存或错误镜像冒充目标。 |
+| `CG2_SERVICE_MINIMUM_HEALTH` | CORE | 三个组件达到下述最小应用健康合同。该 Gate 不追求覆盖所有功能。 |
+| `CG3_STACK_E2E` | CORE | 一条可关联、无控制副作用的验收消息实际经过 Manager → Broker → HA 生产数据路径；不能仅依赖单条日志、端口或容器 running。 |
+| `CG4_PROTECTED_STATE_CONTINUITY` | CONDITIONAL_CORE | 仅当本次发布可能影响配置、配对、凭据、HA 受保护数据或迁移状态时启用；证明必要受保护状态仍可读且语义连续。 |
+
+提交规则为：
+
+```text
+OTA_SUCCESS =
+    CG1_RELEASE_IDENTITY
+    AND CG2_SERVICE_MINIMUM_HEALTH
+    AND CG3_STACK_E2E
+    AND all(enabled CONDITIONAL_CORE)
+```
+
+除此之外的检查默认不进入提交公式。
+
+#### 6.1.2 Manager / Broker / HA 的最低健康定义
+
+**Manager 正常**只证明最小运行能力：
+
+```text
+MANAGER_MINIMUM_HEALTH =
+    expected_runtime_identity
+    AND exactly_one_production_instance
+    AND mqtt_authenticated_to_broker
+```
+
+其中 MQTT 已认证连接证明 Manager 使用正式身份与 Broker 建立生产连接；它不单独证明 Manager 的全部业务逻辑。Manager 对温室遥测的实际处理能力由 `CG3_STACK_E2E` 证明。
+
+**Broker 正常**只证明最小消息总线能力：
+
+```text
+BROKER_MINIMUM_HEALTH =
+    expected_runtime_identity
+    AND exactly_one_production_instance
+    AND manager_authenticated
+    AND homeassistant_authenticated
+```
+
+`systemd active`、容器 running 或端口监听只能作为辅助证据，不能单独定义 `broker_ready`。Broker 的实际发布/订阅/路由能力由 `CG3_STACK_E2E` 证明。
+
+若本次发布改变 Broker、TLS、证书、动态安全或认证授权配置，则额外启用条件 CORE `BROKER_SECURITY_CONTRACT`，至少证明批准的生产身份可连接、随机非法身份被拒绝以及目标 TLS 身份正确。若这些安全域没有变化，不把每个安全探针重复提升为通用 CORE。
+
+**Home Assistant 正常**定义为：
+
+```text
+HA_MINIMUM_HEALTH =
+    expected_runtime_identity
+    AND exactly_one_production_instance
+    AND http_application_ready
+    AND mqtt_authenticated_to_broker
+```
+
+本地或受控 HTTP 请求返回产品合同认可的 200/401 可证明 HA 应用层已经响应；MQTT 已认证连接证明 HA 已重新接入 Broker。HA 是否真正收到温室业务数据仍由 `CG3_STACK_E2E` 证明。
+
+#### 6.1.3 整栈端到端 CORE
+
+`CG3_STACK_E2E` 是三组件业务组合的核心证明。优先使用带本次事务唯一标识的验收消息，复用实际生产 Manager → Broker → HA 路径，并满足：
+
+- 不写入农户正式监测曲线，或使用明确隔离的验收命名空间；
+- 不触发用户自动化和控制动作；
+- 同一事务标识能从入口关联到 HA 接收事实；
+- 不把某一条 INFO 日志是否存在作为唯一 oracle；
+- 实际节点在线时可以采用可关联的自然消息；节点离线时仍应能通过本地无副作用 canary 完成主机验收。
+
+一次 `CG3_STACK_E2E` 通过即同时证明 Manager 核心处理路径、Broker 路由路径和 HA 接收路径协同工作。不得再为同一事实叠加多个容易互相矛盾的硬门槛。
+
+#### 6.1.4 现有检查的初始分类方向
+
+V1.1.4 冻结以下迁移方向，后续源码 inventory 逐项落实：
+
+| 现有检查 | 初始分类 |
+| --- | --- |
+| 目标 image/runtime identity、唯一生产实例 | CORE，归入 CG1 |
+| Manager MQTT 正式身份已认证 | CORE，归入 CG2 |
+| HA HTTP ready、HA MQTT 正式身份已认证 | CORE，归入 CG2 |
+| Broker `systemd active`、单纯容器 running | DIAGNOSTIC，不再单独代表 Broker 正常 |
+| Manager/Broker/HA 实际业务数据闭环 | CORE，合并为 CG3 |
+| 受保护配置、配对、凭据、必要历史/迁移数据连续性 | CONDITIONAL_CORE，归入 CG4 或对应数据迁移合同 |
+| TLS CA、SNI、非法凭据拒绝 | Broker/TLS/认证发生变化时为 CONDITIONAL_CORE；否则为回归/诊断 |
+| 精确 listener 数量 | 默认 DIAGNOSTIC；只有被明确纳入冻结安全合同时才成为 CONDITIONAL_CORE |
+| 90 秒无重启、restart_count、采样窗口连续性 | DIAGNOSTIC；若实际 crash-loop 已导致 CG2/CG3 失败，自然由 CORE 捕获 |
+| 单条日志文本、`critical_errors_sha256`、systemd 摘要、附加 status 字段、性能指标 | DIAGNOSTIC 或 REMOVE_FROM_ACCEPTANCE |
+| status API 本身是否完整可用 | 永远不是 CORE；status 故障按第 5.1/5.2 节降级处理 |
+
+后续必须对当前所有“抛异常即导致验收失败”的路径做一次 inventory，并逐项标注 `CORE / CONDITIONAL_CORE / DIAGNOSTIC / REMOVE_FROM_ACCEPTANCE`。未完成分类的旧检查不得默认继续保有 CORE 权限。
+
 ### 6.1 各种结果对应的动作
 
 - **准备期间。** 签名、摘要、恢复点或容量明确不满足时停止安装；读取异常也先保持旧版。两者分别记录原因，用户仍能使用原系统。
 - **未提交，新版明确不可用。** 例如持续启动失败、确认加载错误镜像、已知应存在的历史在正确数据库中读不到，或本机通道可重复证实中断。排除启动未就绪及探针自身故障后，自动恢复旧版。
-- **未提交，检查器异常。** 内部归类为 `EVIDENCE_UNAVAILABLE`，但这不是 OTA 结果。读不到记录、超时、未知格式或断言抛错时，先按同一事务换用已验证的独立取证方式并限定重试。必检事实在有界窗口内补齐则提交 `SUCCESS`；窗口结束仍无法取得提交所需证据，则本次 OTA 自动转失败回滚路径。旧版恢复并通过最低健康合同后，持久化 `FAILURE`。不得无限等待，不得要求用户选择“继续还是回滚”，也不得把未验证新版当成成功。
+- **未提交，检查器异常。** 先判断该检查是否属于本事务冻结的 CORE/CONDITIONAL_CORE。非 CORE 异常只记诊断，不影响结果。CORE 取证异常归类为 `EVIDENCE_UNAVAILABLE`，先使用合同内已批准的等效证据并限定重试；核心门槛在有界窗口内补齐则提交 `SUCCESS`，否则自动转失败回滚路径。不得把运行中新增的未知检查临时提升为 CORE。
 - **未提交，业务已中断。** 旧服务已停或新服务无法提供最低可用功能时，主机在局部观察期结束后接管，按第 5 节启动或恢复旧版。禁止把“工程检查报错”变成一个无人负责的停机终态。
 - **回滚验收。** 旧版通过相同的业务合同才显示“已恢复旧版”。单项证据不足时保留已启动服务并补验。发布规则必须覆盖检查器故障和可预见的等效证据，普通用户没有“强制判定成功”的职责或按钮。
 
@@ -173,7 +289,7 @@ NO_ACCEPTANCE_PASS_AFTER_BOUND => OTA_FAILURE_AND_ROLLBACK
 | U9 / U10 / KF-167：旧账本文件权限格式兼容、执行器导入顺序和重复读取等问题多次使预检中止。 | 同一种事务资料共用一个带版本的产品读取器；受支持的旧格式有测试样本，权限例外局限于已审核的特定路径。能解析旧记录和能防止错误身份通过，都要有用例。 |
 | KF-140 / KF-168：旧日志文字及 Recorder 的 `last_updated` 容易把有效输入误判为无新数据；已具备的回滚原语还需要主机接管。 | 核对可关联的业务接收证据。恢复程序随宿主启动。对“实际工作但观察器坏了”与“观察器工作但业务坏了”成对测试。 |
 | 2026-11-19 U10 缺盘实机：恢复协调器已经得到 `RECOVERY_MEDIA_REQUIRED`，但 status 又调用只适用于 U1–U5 的 prepare 状态，最终把正确恢复状态变成 `ota_status_rejected`。 | 核心恢复状态与附加状态字段强制解耦；U9–U13 不依赖 prepare 状态查询。附加信息失败时 status 仍返回核心恢复状态并标记降级。此类观察错误不得阻断恢复。 |
-| 由 U10 缺盘问题推导的升级链路风险：U11/U12 中若 checker/status 自身异常被二值化为“新版失败”，可能过早触发回滚；若无限保留“待确认”又会形成第三终态。 | 升级执行事实、验收证据和状态展示三层分离。checker 自身异常先产生内部 `EVIDENCE_UNAVAILABLE` 并进入有界补验；补验仍不能得到 PASS 时，本次 OTA 自动判为失败路径并恢复前代，最终只写 `SUCCESS` 或 `FAILURE`。 |
+| 由 U10 缺盘问题推导的升级链路风险：U11/U12 中若 checker/status 自身异常被二值化为“新版失败”，可能过早触发回滚；若无限保留“待确认”又会形成第三终态。 | 升级执行事实、验收证据和状态展示三层分离。只有本事务预先冻结的 CORE/CONDITIONAL_CORE 失败或无法在有界补验后成立，才影响 OTA 成败；未知和非 CORE 检查只记诊断。最终仍只写 `SUCCESS` 或 `FAILURE`。 |
 | U5 介质路径变化；U9、U10 的预检与实际切换分开归档。 | 识别原盘使用 UUID 及事务材料；一次授权被消费、一次只读验证通过、一个内部镜像被移除是三件不同的事，分别记事实。 |
 
 ## 7. checker 的位置与升级
@@ -206,7 +322,7 @@ checker 是 `T1_Core_Updater` 内的校验模块。它接受对象和阶段，�
 | 带历史和配对的升级、数据结构迁移后回滚、空历史、节点离线、恒定读数与真实链路故障 | 同一发布分别证明正常数据可用、旧版数据恢复正确、真实故障能拦截、自然静默不会阻断验收。 |
 | checker 版本变化、旧记录格式、业务已恢复但卸载或终态回执失败 | 在途事务规则稳定，旧记录兼容；状态与实际业务一致，收尾异常不触发重复回滚。 |
 | status 接口异常、checker 抛错、Manager 断开、UI 无法刷新、附加容量/进度字段读取失败 | 恢复线程和升级执行器仍按持久事实运行；核心 phase 可继续返回或在接口完全失效时由宿主独立推进；不得加载未授权目标、不得重放授权、不得因为观察链路故障停止已恢复服务。 |
-| 新版已启动但 status/checker 自身故障 | 保持 U12/等价验收阶段和恢复点；先有限重试和独立证据补验。PASS 才提交；明确失败立即回滚；补验到期仍无 PASS 也自动回滚。最终不得出现“待确认”终态。 |
+| 新版已启动但 status/checker 自身故障 | 先按冻结合同判断故障是否影响 CORE。非 CORE 故障不影响结果；CORE 证据不足才进入有界补验。所有启用 CORE 成立才提交；核心门槛失败或补验到期仍不能成立才回滚。 |
 | U10/U11/U12 等后置阶段误调用 U1–U5 状态提供器、未知 status 字段或新旧版本状态协议不一致 | 非适用附加字段降级为 UNKNOWN/缺失；核心恢复 phase 不被覆盖；协议兼容性失败只影响显示，不改变恢复事务。 |
 | 用户关闭页面、更新期间断网、停机期间节点缓存溢出 | 设备独立完成安装或恢复；局域网恢复后能查看结果；曲线可有缺口，后续正常收数。 |
 
@@ -214,21 +330,25 @@ checker 是 `T1_Core_Updater` 内的校验模块。它接受对象和阶段，�
 
 本版的交付标准是普通用户安装后能够继续使用监测系统。UI 的 OTA 最终结果只允许两种：**“升级成功”**，或**“升级失败，系统已自动恢复原版本”**。升级中、验证中和恢复中可以显示过程进度，但不能形成第三种最终结论。项目团队可以用同一套成功和失败样本重现这个结果。
 
-## 10. V1.1.3 强制回归条件
+## 10. V1.1.4 强制回归条件
 
-V1.1.3 以后，以下条件属于产品级发布门槛，不再只作为单次缺陷修复测试：
+V1.1.4 以后，以下条件属于产品级发布门槛，不再只作为单次缺陷修复测试：
 
 - `STATUS_API_FAILURE != RECOVERY_ENGINE_FAILURE`。状态接口失败不得自动登记恢复失败。
 - `STATUS_API_FAILURE != TARGET_FAILURE`，且 `CHECKER_FAILURE != TARGET_FAILURE`。状态/验收组件自身异常不得直接证明新版软件有故障。
-- `EVIDENCE_UNAVAILABLE != PROVEN_FAIL`，但有界补验结束仍无 PASS 时，**本次 OTA 事务必须进入失败回滚路径**。
+- `EVIDENCE_UNAVAILABLE != PROVEN_FAIL`。只有本事务冻结的 CORE/CONDITIONAL_CORE 在有界补验后仍无法成立时，本次 OTA 才进入失败回滚路径；非 CORE 的证据不足不得影响 OTA 成败。
 - OTA 持久终态字段只允许 `SUCCESS` 或 `FAILURE`；`PENDING`、`SAFE_HOLD`、`NEEDS_SUPPORT`、`EVIDENCE_UNAVAILABLE` 等均禁止作为 OTA 最终结果。
 - 在 U9–U13 任一阶段故障注入 status/checker 异常，恢复线程仍能根据持久事务继续到等待介质、回滚或健康终态。
-- 在 U11/U12 新版运行与验收阶段分别注入 status 超时、checker 抛错、错误阶段 provider、协议不兼容和附加字段读取失败；必须证明新版不会仅因观察器异常被错误回滚，也不会在证据不足时被错误提交。
+- 在 U11/U12 新版运行与验收阶段分别注入 status 超时、checker 抛错、错误阶段 provider、协议不兼容和附加字段读取失败；必须证明非 CORE 异常不会造成假失败，CORE 失败不会被忽略造成假成功。
 - `RECOVERY_MEDIA_REQUIRED`、`ROLLING_BACK`、`ROLLED_BACK` 等核心状态在附加容量/进度信息不可得时仍可独立成立。
 - Manager 停止、HA 停止、页面断开、UI 协议不兼容时，宿主恢复不依赖这些组件重新上线。
 - 对未知核心事实不得继续向新版方向推进；必须证明没有目标镜像继续装载、没有进入下一破坏性阶段、没有授权重放、没有介质格式化，并自动选择最保守的前代恢复路径。
 - 已恢复健康服务但观察链路仍异常时，维持服务并补验，不得为获得“漂亮的状态”反复重启或重复回滚。
 - status 查询必须经过只读测试，证明查询本身不会改变事务摘要、服务状态、镜像集合、介质内容或授权状态。
+- 每个发布在进入切换前必须持久绑定 acceptance contract version、启用的 CORE/CONDITIONAL_CORE 列表及等效证据方法；运行期间不得动态新增 CORE。
+- 必须有测试证明 `NON_CORE_FAILURE => DIAGNOSTIC_ONLY`，包括单条日志缺失、restart_count 变化、90 秒观察采样缺口、附加 status 字段异常等不会单独触发回滚。
+- 必须分别注入 Manager MQTT 断开、Broker 无法完成生产认证/路由、HA HTTP 或 MQTT 失效、E2E canary 不达等真实核心故障，确认对应 CORE 能稳定拦截。
+- 必须建立现有 acceptance hard-fail 路径 inventory，逐项归类 `CORE / CONDITIONAL_CORE / DIAGNOSTIC / REMOVE_FROM_ACCEPTANCE`，并删除重复或脆弱的旧硬门槛。
 
 ## 11. 设计依据
 
