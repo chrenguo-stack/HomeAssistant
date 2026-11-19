@@ -167,13 +167,25 @@ separately authorized real-T1 fault-injection acceptance; source CI alone must
 not claim the <=15 minute post-cutover objective has been physically proven.
 
 
-## 9. Exact historical-data guard refinement
+## 9. Historical-data evidence ordering
 
-Independent review found an existing stronger primitive in
-`ProtectedHaDataBackupProvider.verify_restored_preupgrade_backup_readonly()`.
-The production completion oracle now requires that exact verifier in addition
-to Recorder SQLite readability. It compares the restored HA tree against the
-protected pre-upgrade archive, rejects extra/missing members and SQLite
-sidecars, and performs the immutable SQLite integrity check. Therefore
-`preupgrade_history_readable` is no longer inferred from a generic database
-`quick_check` alone.
+Independent review found that the existing exact protected-backup verifier is
+correctly executed while HA is still quiesced, before the predecessor runtime
+is restarted. Re-running that full-tree equality check after Home Assistant
+starts would be wrong because legitimate Recorder writes and SQLite sidecars
+make the live tree differ from the pre-upgrade snapshot.
+
+The terminal customer oracle therefore uses an ordered evidence chain:
+
+1. the validated U13B transaction must retain
+   `rollback_recovery_content_verified=true`;
+2. it must retain the durable U13B3
+   `rollback_ha_data_restored=true` evidence, which can only be recorded
+   after the existing exact restore path succeeds;
+3. Host and bound-USB terminal metadata must still be exact;
+4. after services restart, Recorder must remain readable;
+5. new Manager ingress must produce a new HA Recorder state.
+
+This proves the exact restore at the only time exact tree equality is valid,
+then proves historical readability and forward data progress after the live
+runtime legitimately begins changing the database.

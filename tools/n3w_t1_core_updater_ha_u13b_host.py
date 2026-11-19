@@ -804,43 +804,19 @@ class U9PlusProductionCompletionOracle:
                 media
             )
 
-    def _exact_preupgrade_restore(
-        self,
+    @staticmethod
+    def _durable_preupgrade_restore_proven(
         transaction: Mapping[str, Any],
     ) -> bool:
-        from n3w_t1_core_updater_ha_backup import (
-            backup_record_from_document,
+        return (
+            transaction.get("rollback_recovery_content_verified")
+            is True
+            and transaction.get("rollback_ha_data_restored") is True
+            and isinstance(
+                transaction.get("ha_data_backup_identity"),
+                dict,
+            )
         )
-
-        media = self.backend.resolve_transaction_media_for_reconciliation(
-            transaction
-        )
-        if media is None:
-            return False
-        try:
-            record = backup_record_from_document(
-                transaction.get("ha_data_backup_identity")
-            )
-            source_root = (
-                Path(media.mount_path) / "n3w-update" / "ha-data"
-            )
-            verified = (
-                self.backup_provider
-                .verify_restored_preupgrade_backup_readonly(
-                    record,
-                    transaction_id_sha256=transaction[
-                        "transaction_id_sha256"
-                    ],
-                    source_root=source_root,
-                )
-            )
-            return verified.public() == record.public()
-        except UpdaterV2Error:
-            return False
-        finally:
-            self.backend.release_transaction_media_for_reconciliation(
-                media
-            )
 
     def _history_readable(self) -> bool:
         import sqlite3
@@ -1085,7 +1061,7 @@ class U9PlusProductionCompletionOracle:
                 )
             ),
             preupgrade_history_readable=(
-                self._exact_preupgrade_restore(transaction)
+                self._durable_preupgrade_restore_proven(transaction)
                 and self._history_readable()
             ),
             host_usb_terminal_exact=(
