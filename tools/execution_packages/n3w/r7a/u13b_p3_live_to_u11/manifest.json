@@ -39,7 +39,7 @@
   "package_source_authority": {
     "tools/execution_packages/n3w/r7a/u13b_p3_live_to_u11/executor.py": "ddf13aa13574b66b245164ed61b5c306e0d60ed2",
     "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/executor.py": "46f4ef06558d3f8e78f892061ba2f33b60663b11",
-    "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/manifest.json": "3b09c440c2689b741cc9fb0c3c9423fd4ef8ec0a",
+    "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/manifest.json": "4ec2140b0255928849d499bff7c626605353ba85",
     "tools/execution_packages/n3w/r7a/u13b_p3_acceptance_clean_ota_source/executor.py": "360c2587b92e7a390547875ce7e404c40e2e38bf",
     "tools/execution_packages/n3w/r7a/u13b_p3_acceptance_clean_ota_source/manifest.json": "0ba82ff1edb3213ebb57a5456114412010492ffd",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",

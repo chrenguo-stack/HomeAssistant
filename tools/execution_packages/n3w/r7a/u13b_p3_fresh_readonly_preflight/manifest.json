@@ -35,7 +35,7 @@
     "infra/n3w-t1/upgrades/homeassistant-2026.10.4-u13b-same-version-acceptance.json": "d22a38aa3b34590cda3df39a8fb48cf61a01ec59",
     "infra/n3w-t1/upgrades/homeassistant-2026.10.4-u13b-same-version-acceptance-review.json": "3b930c142ebad83f4e6511b46b13e63d8cb955e4",
     "tools/execution_packages/n3w/r7a/u13b_p3_single_usb_reuse_reset/executor.py": "c36b34c4a5a526b0d531193e9b533221f7925b16",
-    "tools/execution_packages/n3w/r7a/u13b_p3_single_usb_reuse_reset/manifest.json": "1f94d0a2703cd3df36e4cabbea579dbf4c223568"
+    "tools/execution_packages/n3w/r7a/u13b_p3_single_usb_reuse_reset/manifest.json": "b554193fefbb7299cdcd508e93a4019d07c01202"
   },
   "expected_terminal_u13a": {
     "transaction_phase": "U13A_COMMITTED",
