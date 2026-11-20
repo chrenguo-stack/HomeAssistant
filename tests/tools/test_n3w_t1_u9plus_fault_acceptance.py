@@ -138,7 +138,8 @@ def test_bootstrap_dependency_order_prevents_remote_import_failure() -> None:
 def test_remote_stdout_empty_preserves_stderr_diagnostic() -> None:
     text = source()
     assert 'completed.stderr.strip().replace("\\n", " ")[:600]' in text
-    assert '"remote_stdout_empty" + (":" + stderr if stderr else "")' in text
+    expression = '"remote_stdout_empty" + (":" + stderr if stderr else "")'
+    assert expression in " ".join(text.split())
 
 
 def test_remote_bootstrap_defines_file_and_reaches_remote_main() -> None:

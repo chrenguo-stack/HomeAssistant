@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import stat
 import subprocess
@@ -229,6 +230,52 @@ class FixedHostReleasePolicyProvider:
             raise UpdaterV2Error("ha_prepare_policy_binding_drift")
         return policy
 
+_LOGGER = logging.getLogger(__name__)
+_USB_DIAGNOSTIC_TOOLS = frozenset({"blkid", "findmnt", "lsblk", "mount", "umount"})
+_USB_DIAGNOSTIC_COLUMNS = {
+    "MAJ:MIN": "major_minor",
+    "OPTIONS": "options",
+    "PKNAME": "parent_device",
+    "SOURCE": "source",
+    "TARGET": "target",
+}
+_USB_DIAGNOSTIC_REASONS = (
+    ("permission_denied", (b"permission denied", b"operation not permitted")),
+    ("journal_recovery_required", (b"journal recovery", b"needs recovery")),
+    ("device_busy", (b"busy", b"already mounted")),
+    ("not_mounted", (b"not mounted",)),
+    ("device_or_path_missing", (b"no such file", b"can't find", b"cannot find")),
+    ("filesystem_or_mount_option", (b"wrong fs type", b"bad superblock", b"bad option")),
+)
+
+
+def _log_usb_command_failure(
+    argv: tuple[str, ...], returncode: int, stderr: bytes
+) -> None:
+    tool = argv[0]
+    if tool not in _USB_DIAGNOSTIC_TOOLS:
+        return
+    operation = "default"
+    if tool in {"findmnt", "lsblk"}:
+        column = next((value for flag, value in zip(argv, argv[1:]) if flag == "--output"), "")
+        operation = _USB_DIAGNOSTIC_COLUMNS.get(
+            column, "inventory" if tool == "lsblk" else "default"
+        )
+    elif tool == "mount" and "ro,noload,nodev,nosuid,noexec" in argv:
+        operation = "strict_readonly"
+    detail = stderr.lower()
+    reason = next(
+        (label for label, patterns in _USB_DIAGNOSTIC_REASONS
+         if any(pattern in detail for pattern in patterns)),
+        "unclassified",
+    )
+    # Device paths and process output stay private. Keep the IPC error stable.
+    _LOGGER.warning(
+        "ha_prepare_usb_command_failed tool=%s operation=%s exit_code=%d reason=%s",
+        tool, operation, returncode, reason,
+    )
+
+
 def _run(
     argv: tuple[str, ...],
     *,
@@ -249,6 +296,7 @@ def _run(
     except subprocess.TimeoutExpired as error:
         raise UpdaterV2Error("ha_prepare_host_command_timeout") from error
     if result.returncode:
+        _log_usb_command_failure(argv, result.returncode, result.stderr)
         raise UpdaterV2Error("ha_prepare_host_command_failed")
     return result.stdout
 

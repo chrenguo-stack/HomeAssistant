@@ -1,3 +1,51 @@
+### 2026-11-20 KF-168 UPDATE — prepare-host subprocess diagnostics / live completion OPEN
+
+The one authorized restart of candidate U13B Host blob `437f3e6c...` ended
+with IPC `ERROR / ha_prepare_host_command_failed`. Durable U13B and the
+business runtime remained healthy. See the
+[archived stop](https://github.com/chrenguo-stack/HomeAssistant/blob/0f50f0b98eefeb6780aca597ddd0da798251159d/docs/development/N3W_T1_U9_PLUS_PHASE_A_RESTART_CONVERGENCE_REPAIR_LIVE_REVALIDATION_STOP_20261120.md).
+
+The bound ext4 partition was visible to the daemon and remained unmounted
+during the follow-up. The observer and daemon shared a mount namespace.
+The exact inventory, partition parent, type and label queries succeeded
+when observed. A read-only superblock query showed `needs_recovery`; that
+observation does not establish the cause of the historical command failure.
+No command or exit code was recovered from the stopped attempt.
+
+Follow-up used `debugfs` without write mode or mounting. It read the five
+durable transaction JSON files on the single exact UUID-bound, unmounted
+ext4 partition. The existing classifier returned `HOST_USB_EXACT` with
+`U13B_ROLLED_BACK` on both sides. The Host file was unchanged before and
+after. This is a raw on-disk observation; it does not exercise the daemon's
+mount or release path and does not replace the product completion check.
+The active daemon had all five expected tools in PATH, CAP_SYS_ADMIN and
+no seccomp filter. No configured fstab entry matched the bound device or
+target, and retained audit/journal evidence still does not identify the
+historical failing command. The observed metadata is consistent even
+though the superblock recovery flag was set.
+
+Guard: log a fixed diagnostic record for a failed USB subprocess, including
+the allowlisted tool, operation, return code and a fixed reason class.
+Never include argv, device paths, stdout or raw stderr. Preserve the stable
+IPC error, strict read-only reconciliation options and fail-closed behavior.
+Unit tests inject failures for mount, mount inspection and unmount and
+require redaction plus the original IPC-facing exception.
+
+The initial review head exposed two CI integration failures: a stale
+prepare-host blob in nested P3 package authorities and an omitted historical
+Manager binding in the current-state index. Bind the nested manifests
+bottom-up, restore the historical reference, and preserve all execution
+and authorization fields. The existing Phase-A transport assertion now
+ignores source line wrapping while retaining the diagnostic contract.
+
+```text
+KF168_PREPARE_HOST_COMMAND_ROOT_CAUSE=UNCONFIRMED
+KF168_USB_COMMAND_DIAGNOSTIC_SOURCE=REVIEW_ONLY
+PHASE_A_OVERALL=NOT_YET_PASS
+PREVIOUS_LIVE_RETRY_AUTHORIZATION=CONSUMED_NO_REPLAY
+NEW_LIVE_AUTHORIZATION=NOT_GRANTED
+```
+
 ### 2026-11-20 KF-168 UPDATE — restart-convergence source/test/CI CLOSED_PASS / live retry preflight pending
 
 The real-T1 `a103...` live revalidation exposed `u13b_predecessor_runtime_not_running` only because the OTA daemon evaluated completion roughly 2–3 seconds before the services owner and Manager/Home Assistant runtime converged. Settled business runtime was healthy.

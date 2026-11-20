@@ -1,6 +1,7 @@
 ## 2026-11-20 — Phase-A restart-convergence repair CI PASS / live retry preflight pending
 
 - PR #807 remains OPEN/DRAFT/unmerged; final CI-closed head is `3d74881e3bfadbecd23721f8c9d500f95ef69696`; default main remains `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`.
+- Historical clean-reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
 - Core Stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json` at product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`. Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean reference `24382caae4a1f5d459297f86e8d18f10a848ca64` is preserved. Live upgrade accepted.
 - Real T1 remains durable `U13B_ROLLED_BACK / ROLLED_BACK`; settled business runtime is healthy. Current live candidate U13B-host blob is still `a103a2633...`, and its one replacement + restart authorization is consumed/no-replay.
 - Restart race repair commit `f8fc67cff39a0b2831a3005ae00d0556fce8351a`; repaired source blob `437f3e6c4cae53f7d94e244cd312ac454768f8e1`; regression test blob `9ca455c79204632e396530c0e40f654957da2caf`.
