@@ -1,4 +1,69 @@
-## Latest authority — 2026-11-20 Phase-A restart-convergence repair CI PASS / live retry preflight pending
+## Latest authority — 2026-11-20 KF-168 IPC migration STOP / healthy rollback / executor readiness repair next
+
+The exact five-asset migration to the PR #810 IPC isolation candidate was
+attempted once. The application owner reported Started before Docker's
+containers entered the running state. The execution wrapper reported
+`container_not_unique` and restored the five pre-deploy files. The later
+read-only audit proved the restored legacy bind and healthy business
+runtime. The restarted product oracle separately ended at
+`ERROR / u9_plus_recovery_customer_oracle_incomplete`; there were zero
+accepted fresh simplified N3-W telemetry events in that assessment window.
+The bound USB mounted and unmounted successfully without a residual mount.
+
+```text
+DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+PR_807_HEAD=7811b6bc2fc3cdc5b1cecb45549cb81b6d80784c
+PR_809_HEAD=06332c58de850c590da83e0971d7576291f371b2
+PR_810_HEAD=4abebaa61c1db0be41a724c45263e26ac15eb06e
+PR_810_TREE=b34b33ebd7bd477c7f10692c001b8da45768a645
+PR_810_CI=16_SUCCESS_4_DRAFT_GATED_SKIP_0_FAILURE_0_PENDING
+PR_810_LIVE_IPC_ISOLATION=ROLLED_BACK_NOT_DEPLOYED
+KF168_MANAGER_RECURSIVE_BIND_ROOT_CAUSE=REPRODUCED
+KF168_RETAINED_USB_MOUNT_CLEANUP=PASS_CONSUMED_NO_REPLAY
+
+LIVE_LAST_OBSERVED_AT_UTC=2026-11-20T11:22:13Z
+LIVE_HOST_PHASE=U13B_ROLLED_BACK
+LIVE_HOST_STATUS=ROLLED_BACK
+LIVE_HOST_TRANSACTION_SHA256=4548f591d972576ea4d3f1f078cb55b483d1f63f2244b03c3413da1891e09d3f
+LIVE_CANDIDATE_DAEMON_BLOB=941baffc8423a10cfa1436323d109caae17be473
+LIVE_CANDIDATE_U13B_HOST_BLOB=437f3e6c4cae53f7d94e244cd312ac454768f8e1
+LIVE_MANAGER_EXPORT=LEGACY_RUNTIME_ROOT_READONLY
+LIVE_IPC_PHASE=ERROR
+LIVE_IPC_ERROR_CODE=u9_plus_recovery_customer_oracle_incomplete
+LIVE_BUSINESS_RUNTIME_HEALTH=PASS
+LIVE_ROLLBACK_ASSETS_BYTE_EQUAL=5_OF_5
+LIVE_BOUND_USB_RESIDUAL_MOUNTS=0_OF_11_NAMESPACES
+LIVE_ROLLBACK_ACCEPTED_SIMPLIFIED_N3W_TELEMETRY_EVENTS=0
+
+PHASE_A_DURABLE_AUTOMATIC_ROLLBACK=PASS
+PHASE_A_BUSINESS_RECOVERY=PASS
+PHASE_A_OVERALL=NOT_YET_PASS
+MIGRATION_EXECUTOR_READINESS=REPAIR_PENDING
+LAST_MIGRATION_AUTHORIZATION=CONSUMED_NO_REPLAY
+NEW_LIVE_AUTHORIZATION=NOT_GRANTED
+NEXT_ONE_GATE=N3W_T1_KF168_IPC_MIGRATION_EXECUTOR_READINESS_SOURCE_REPAIR
+NEXT_GATE_SCOPE=SOURCE_OFFLINE_TEST_CI_ARCHIVE_ONLY
+```
+
+The Core Stack authority fields above describe the separate accepted Stack
+baseline. The Phase-A HA observations describe the specific rollback lab
+transaction. The V1.0 Stack OTA architecture is frozen at product level;
+the detailed design and SOTA-R1–R7 implementation and acceptance are a
+separate program. Phase B timing/SLA acceptance remains a separate gate.
+
+- [Latest execution and rollback evidence](https://github.com/chrenguo-stack/HomeAssistant/blob/3532dd9877bdb4454415068ce52c6290bb743bd1/docs/development/N3W_T1_KF168_IPC_MIGRATION_READYNESS_STOP_AND_ROLLBACK_20261120.md)
+- [V1.4 new-chat handoff](./N3W_T1_KF168_IPC_MIGRATION_READINESS_STOP_TO_SOURCE_REPAIR_NEW_CHAT_HANDOFF_V1.0_20261120.md)
+
+## Historical authority — 2026-11-20 Phase-A restart-convergence repair CI PASS / live retry preflight pending
 
 The real T1 remains durably at `U13B_ROLLED_BACK / ROLLED_BACK` with healthy business runtime. The previously authorized live candidate replacement installed `a103a2633aaea5a34efbfed35449b2eb5bace61b` and consumed exactly one OTA-daemon restart. That run exposed a restart-ordering completion-oracle false failure: `u13b_predecessor_runtime_not_running`.
 
