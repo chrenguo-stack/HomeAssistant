@@ -1,3 +1,53 @@
+### 2026-11-20 KF-168 UPDATE — a103 live revalidation exposed restart-convergence completion false failure / source repair in CI
+
+Real-T1 live revalidation installed exact candidate U13B-host blob `a103a2633aaea5a34efbfed35449b2eb5bace61b` and consumed exactly one authorized OTA-service restart. The socket aggregation repair removed the prior `u9_plus_completion_ha_mqtt_socket_ambiguous` stop, but the restarted recovery worker then reported `u13b_predecessor_runtime_not_running`.
+
+Fresh read-only evidence proves business recovery itself is healthy:
+- durable Host transaction remains `U13B_ROLLED_BACK / ROLLED_BACK`;
+- services owner and Broker owner are active;
+- Manager/Home Assistant/Broker are exactly 1/1/1 and restart_count=0;
+- expected listener contract is exact;
+- Manager and Home Assistant MQTT identities are currently authenticated;
+- Home Assistant HTTP returns 401;
+- Home Assistant remains bound to the predecessor image;
+- candidate U13B-host blob is exact `a103a263...`.
+
+Restart timing proves the race:
+- OTA daemon start: 15:08:48 CST;
+- services owner start: 15:08:50 CST;
+- Manager + Home Assistant container start: 15:08:51 CST.
+
+Root cause:
+- `verify_predecessor_health()` performed an immediate `_running_predecessor_evidence()` call;
+- if runtime was not already present, it raised `u13b_predecessor_runtime_not_running`;
+- therefore the existing bounded readiness loop, which already knows how to wait while runtime is absent, never got a chance to run.
+
+Guard/repair:
+- remove only the premature pre-loop runtime hard failure;
+- enter the existing bounded readiness loop immediately;
+- retain the strict final runtime identity, overlay supervision, listener, MQTT and HTTP checks after convergence;
+- regression must begin with services owner inactive, converge after the first wait, and then PASS;
+- do not replace this with a fixed sleep.
+
+Authorities:
+- source repair commit: `f8fc67cff39a0b2831a3005ae00d0556fce8351a`;
+- repaired U13B host blob: `437f3e6c4cae53f7d94e244cd312ac454768f8e1`;
+- regression commit: `1ea43b4ac467ca99b83ecf9edc8d3502675fd0b1`;
+- P3 manifest rebind: `3569d385c9f774991af6a528c9c6dff0dcc232f4` / `fcb8ecd4dd4f68a7fef5c64abe627cedc32dbca7`;
+- Phase-A manifest rebind: `b1f3d5ca6564f38e5bf7638d7781110b878beaf6` / `2ba6e96aec0f41f7916c852cef37c3fce9ecb966`.
+
+Status:
+```text
+KF168_DURABLE_U13B=PASS
+KF168_BUSINESS_RECOVERY=PASS
+KF168_A103_LIVE_REVALIDATION=STOP_RESTART_CONVERGENCE_FALSE_FAILURE
+KF168_RESTART_CONVERGENCE_SOURCE_REPAIR=IMPLEMENTED
+KF168_RESTART_CONVERGENCE_CI=IN_PROGRESS
+LIVE_A103_RESTART_AUTHORIZATION=CONSUMED_NO_REPLAY
+LIVE_437F_RETRY_AUTHORIZATION_GRANTED=false
+PHASE_A_OVERALL=NOT_YET_PASS
+```
+
 ### 2026-11-20 KF-168 UPDATE — Phase-A durable recovery PASS / completion-oracle socket-uniqueness false failure repaired in source / live revalidation pending
 
 Real-T1 Phase-A evidence closed the product recovery mechanism through durable Host + USB `U13B_ROLLED_BACK` and healthy predecessor business runtime. The remaining terminal failure was customer-completion oracle code `u9_plus_completion_ha_mqtt_socket_ambiguous`.
