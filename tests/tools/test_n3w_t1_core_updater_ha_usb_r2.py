@@ -10,6 +10,7 @@ import sqlite3
 import stat
 import sys
 import threading
+from contextlib import nullcontext
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -692,7 +693,7 @@ def prepare_to_u4(tmp_path: Path):
 
 @pytest.mark.parametrize("fault", (
     None, "wrong_uuid", "duplicate_uuid", "same_disk", "archive_drift",
-    "symlink", "internal_space", "occupied_backup",
+    "symlink", "internal_space", "occupied_backup", "restore",
 ))
 def test_verify_existing_usb_media_from_bound_archives(tmp_path, monkeypatch, fault):
     media = SyntheticUsb(tmp_path / "original")
@@ -778,10 +779,17 @@ def test_verify_existing_usb_media_from_bound_archives(tmp_path, monkeypatch, fa
         assert commands == ["findmnt", "lsblk", "findmnt", "lsblk"]
     assert set(commands) <= {"findmnt", "lsblk"}
     assert sentinel.read_bytes() == b"keep unchanged"
-    if fault in {None, "occupied_backup"}:
+    if fault in {None, "occupied_backup", "restore"}:
         store.write(pending)
         runtime = PredecessorRuntime(store)
         ha = SyntheticHaData(tmp_path / "ha")
+        config = ha.root / ".storage" / "core.config"
+        config.chmod(0o640)
+        original_config = config.read_bytes()
+        (ha.root / "config-link").symlink_to("configuration.yaml")
+        if fault == "restore":
+            payload = ha.root / "synthetic-history.bin"
+            payload.write_bytes(os.urandom(1088 * 1024))
         work = tmp_path / "internal-work"
         work.mkdir(mode=0o700)
         key = work / "fixture-root"
@@ -817,14 +825,81 @@ def test_verify_existing_usb_media_from_bound_archives(tmp_path, monkeypatch, fa
             (backup_dir / BACKUP_ARCHIVE_NAME).write_bytes(b"preserve existing backup")
             expected = "ha_data_backup_destination_occupied"
         recovery = HaPredecessorRecovery(store, runtime, runtime)
-        with (
-            pytest.raises(UpdaterV2Error, match=expected),
-            recovery.install_recovery_point(verifier, backups) as document,
-        ):
+        outcome = (
+            nullcontext() if fault == "restore" else pytest.raises(UpdaterV2Error, match=expected)
+        )
+        with outcome, recovery.install_recovery_point(verifier, backups) as document:
             assert document["phase"] == U8
             assert document["install_recovery_materials"]["predecessor"] == predecessor.public()
             record = backup_record_from_document(document["install_recovery_materials"]["backup"])
             assert backups.verify_backup(record) == record
+            if fault == "restore":
+                with (
+                    pytest.raises(UpdaterV2Error, match="restore_phase_invalid"),
+                    backups.stage_preupgrade_data(),
+                ):
+                    pytest.fail("an unclaimed transaction must not stage a restore")
+                claimed = claim_live_authorization(document, AUTHORIZATION_ID)
+                cutover = record_target_started(record_predecessor_capacity_released(claimed))
+                store.write(cutover)
+        if fault == "restore":
+            archive = backup_dir / BACKUP_ARCHIVE_NAME
+            ciphertext = archive.read_bytes()
+            assert len(ciphertext) > 1024 * 1024
+            config.write_bytes(b"new version's data")
+            live_inode = ha.root.stat().st_ino
+            with store.lock():
+                runtime.running.add("homeassistant")
+                with (
+                    pytest.raises(UpdaterV2Error, match="restore_writers_not_quiesced"),
+                    backups.stage_preupgrade_data(),
+                ):
+                    pytest.fail("HA must be stopped before restoring")
+                runtime.running.remove("homeassistant")
+                mounts[0]["uuid"] = OTHER_UUID
+                with (
+                    pytest.raises(UpdaterV2Error, match="usb_filesystem_uuid_mismatch"),
+                    backups.stage_preupgrade_data(),
+                ):
+                    pytest.fail("the wrong USB must not supply the restore")
+                mounts[0]["uuid"] = USB_UUID
+
+                ciphertext_identity = backups.backup._ciphertext_identity
+
+                def change_ciphertext_after_authentication(*args, **kwargs):
+                    identity = ciphertext_identity(*args, **kwargs)
+                    archive.write_bytes(ciphertext[:-1] + bytes([ciphertext[-1] ^ 1]))
+                    return identity
+
+                with monkeypatch.context() as patch:
+                    patch.setattr(backups.backup, "_ciphertext_identity", change_ciphertext_after_authentication)
+                    with (
+                        pytest.raises(UpdaterV2Error, match="backup_archive_changed"),
+                        backups.stage_preupgrade_data(),
+                    ):
+                        pytest.fail("the changed ciphertext must never reach the recovery caller")
+                assert not list(work.glob(".ha-restore-*"))
+                archive.write_bytes(ciphertext)
+
+                mounts[0]["options"] = "ro,nosuid"
+                with pytest.raises(UpdaterV2Error, match="original_mount_not_writable"):
+                    verifier.verify_install_materials(cutover)
+                with backups.stage_preupgrade_data() as stage:
+                    staged_config = stage / config.relative_to(ha.root)
+                    assert staged_config.read_bytes() == original_config
+                    assert stat.S_IMODE(staged_config.stat().st_mode) == 0o640
+                    assert (stage / "config-link").readlink() == Path("configuration.yaml")
+                    assert sha(stage / payload.name) == sha(payload)
+                    assert stat.S_IMODE(stage.parent.stat().st_mode) == 0o700
+                    assert all(sha(stage / path.name) == digest for path, digest in before.items())
+                    assert config.read_bytes() == b"new version's data"
+                assert not stage.exists()
+            assert archive.read_bytes() == ciphertext
+            assert store.read() == cutover
+            assert ha.root.stat().st_ino == live_inode
+            assert sentinel.read_bytes() == b"keep unchanged"
+            assert {path: sha(path) for path in db_files} == before
+            return
         assert store.read()["status"] == "ROLLED_BACK"
         assert sentinel.read_bytes() == b"keep unchanged"
         assert {path: sha(path) for path in db_files} == before

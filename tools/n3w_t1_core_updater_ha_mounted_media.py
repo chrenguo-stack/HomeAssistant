@@ -5,13 +5,16 @@ import json
 import os
 import stat
 import subprocess
+import tempfile
 from collections.abc import Callable, Iterator
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from n3w_t1_core_updater_ha_backup import HaDataBackupRecord, ProtectedHaDataBackup
+from n3w_t1_core_updater_ha_backup import (
+    HaDataBackupRecord, ProtectedHaDataBackup, backup_record_from_document,
+)
 from n3w_t1_core_updater_ha_recovery import ImageRecoveryRecord
 from n3w_t1_core_updater_ha_usb import HaInstallMaterials
 from n3w_t1_core_updater_ha_usb_media import (
@@ -21,6 +24,9 @@ from n3w_t1_core_updater_ha_usb_media import (
     require_same_filesystem_uuid,
 )
 from n3w_t1_core_updater_ha_usb_state import (
+    U10,
+    U11,
+    U12,
     U7,
     HaUsbStateStore,
     prepared_image_materials,
@@ -76,7 +82,9 @@ def _protected_devices(internal_storage: Path) -> set[str]:
     }
 
 
-def _mount_device(mountpoint: Path, expected_uuid: str, protected: set[str]) -> str:
+def _mount_device(
+    mountpoint: Path, expected_uuid: str, protected: set[str], *, allow_read_only: bool,
+) -> str:
     mounts = _command_json(
         "findmnt", "--json", "--mountpoint", str(mountpoint),
         "--output", "TARGET,FSTYPE,OPTIONS,MAJ:MIN,FSROOT,UUID",
@@ -86,15 +94,17 @@ def _mount_device(mountpoint: Path, expected_uuid: str, protected: set[str]) -> 
     mount = mounts[0]
     options = mount.get("options")
     device = mount.get("maj:min")
+    access_modes = {"rw", "ro"} if allow_read_only else {"rw"}
     if (
         mount.get("target") != str(mountpoint)
         or mount.get("fstype") != USB_FILESYSTEM
         or mount.get("fsroot") != "/"
         or not isinstance(options, str)
-        or "rw" not in options.split(",")
+        or access_modes.isdisjoint(options.split(","))
         or not isinstance(device, str)
     ):
-        raise UpdaterV2Error("ha_usb_original_mount_not_writable")
+        reason = "ha_usb_original_mount_not_readable" if allow_read_only else "ha_usb_original_mount_not_writable"
+        raise UpdaterV2Error(reason)
     require_same_filesystem_uuid(expected_uuid, mount.get("uuid"))
     devices = _command_json(
         "lsblk", "--json", "--output", "NAME,TYPE,TRAN,MAJ:MIN,UUID"
@@ -158,12 +168,13 @@ def _verify_archive(directory: int, name: str, record: ImageRecoveryRecord) -> N
 
 @contextmanager
 def _open_transaction_directory(
-    mountpoint: Path, internal_storage: Path, document: dict[str, Any]
+    mountpoint: Path, internal_storage: Path, document: dict[str, Any],
+    *, allow_read_only: bool = False,
 ) -> Iterator[tuple[int, int]]:
     expected_uuid = document["usb_filesystem_uuid"].lower()
     try:
         protected = _protected_devices(internal_storage)
-        device = _mount_device(mountpoint, expected_uuid, protected)
+        device = _mount_device(mountpoint, expected_uuid, protected, allow_read_only=allow_read_only)
         with ExitStack() as stack:
             fd = os.open(mountpoint, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
             stack.callback(os.close, fd)
@@ -189,7 +200,9 @@ def _open_transaction_directory(
                     raise UpdaterV2Error("ha_usb_transaction_directory_changed")
             if (
                 _protected_devices(internal_storage) != protected
-                or _mount_device(mountpoint, expected_uuid, protected) != device
+                or _mount_device(
+                    mountpoint, expected_uuid, protected, allow_read_only=allow_read_only,
+                ) != device
                 or not os.path.samestat(mount_stat, mountpoint.stat())
             ):
                 raise UpdaterV2Error("ha_usb_original_mount_changed")
@@ -284,13 +297,32 @@ class HaMountedBackupProvider:
         ):
             raise UpdaterV2Error("ha_data_backup_writers_not_quiesced")
 
+    def _internal_work_root(self) -> Path:
+        try:
+            entry = self.backup.work_root.lstat()
+            work_root = self.backup.work_root.resolve(strict=True)
+            internal = self.internal_storage.resolve(strict=True)
+            if (
+                not work_root.is_relative_to(internal)
+                or entry.st_dev != internal.stat().st_dev
+            ):
+                raise UpdaterV2Error("ha_data_backup_work_directory_off_internal_storage")
+            if (
+                not stat.S_ISDIR(entry.st_mode) or entry.st_uid != os.geteuid()
+                or stat.S_IMODE(entry.st_mode) & 0o077
+            ):
+                raise UpdaterV2Error("ha_data_backup_work_directory_invalid")
+        except OSError as error:
+            raise UpdaterV2Error("ha_data_backup_work_directory_invalid") from error
+        return work_root
+
     @contextmanager
     def _backup_directory(
-        self, current: dict[str, Any], *, create: bool = False
+        self, current: dict[str, Any], *, create: bool = False, allow_read_only: bool = False,
     ) -> Iterator[int]:
-        with _open_transaction_directory(self.mountpoint, self.internal_storage, current) as (
-            _, parent,
-        ):
+        with _open_transaction_directory(
+            self.mountpoint, self.internal_storage, current, allow_read_only=allow_read_only,
+        ) as (_, parent):
             if create:
                 try:
                     os.mkdir("ha-backup", mode=0o700, dir_fd=parent)
@@ -320,10 +352,7 @@ class HaMountedBackupProvider:
         if current["transaction_id_sha256"] != transaction_id_sha256:
             raise UpdaterV2Error("ha_data_backup_transaction_identity_drift")
         self._require_stopped(current)
-        work_root = self.backup.work_root.resolve(strict=True)
-        internal = self.internal_storage.resolve(strict=True)
-        if not work_root.is_relative_to(internal) or work_root.stat().st_dev != internal.stat().st_dev:
-            raise UpdaterV2Error("ha_data_backup_work_directory_off_internal_storage")
+        self._internal_work_root()
         with self._backup_directory(current, create=True) as directory:
             self._require_stopped(self._document())
             record = self.backup.create(directory, transaction_id_sha256)
@@ -338,3 +367,39 @@ class HaMountedBackupProvider:
             raise UpdaterV2Error("ha_data_backup_record_unbound")
         with self._backup_directory(current) as directory:
             return self.backup.verify(directory, current["transaction_id_sha256"], record)
+
+    @contextmanager
+    def stage_preupgrade_data(self) -> Iterator[Path]:
+        """Supply a verified tree to the recovery caller while it holds the host lock."""
+        current = self._document()
+        if current["phase"] not in {U10, U11, U12}:
+            raise UpdaterV2Error("ha_data_restore_phase_invalid")
+        if self.verify_quiesced() is not True:
+            raise UpdaterV2Error("ha_data_restore_writers_not_quiesced")
+        record = backup_record_from_document(current["install_recovery_materials"]["backup"])
+        work_root = self._internal_work_root()
+        live = self.backup.ha_data_root
+        try:
+            entry = live.lstat()
+            if (
+                not stat.S_ISDIR(entry.st_mode) or entry.st_dev != work_root.stat().st_dev
+                or work_root.is_relative_to(live.resolve(strict=True))
+            ):
+                raise UpdaterV2Error("ha_data_restore_work_directory_unsafe")
+        except OSError as error:
+            raise UpdaterV2Error("ha_data_restore_target_unavailable") from error
+
+        with tempfile.TemporaryDirectory(prefix=".ha-restore-", dir=work_root) as scratch:
+            stage = Path(scratch) / "data"
+            with self._backup_directory(current, allow_read_only=True) as directory:
+                try:
+                    self.backup.restore_to_stage(
+                        directory, current["transaction_id_sha256"], record, stage,
+                    )
+                except OSError as error:
+                    raise UpdaterV2Error("ha_data_restore_stage_io_failed") from error
+            if self._document() != current:
+                raise UpdaterV2Error("ha_data_restore_transaction_changed")
+            if self.verify_quiesced() is not True:
+                raise UpdaterV2Error("ha_data_restore_writers_not_quiesced")
+            yield stage

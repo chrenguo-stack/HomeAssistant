@@ -10,6 +10,8 @@ import sqlite3
 import stat
 import subprocess
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import BinaryIO, Protocol
@@ -62,7 +64,6 @@ class HaDataBackupProvider(Protocol):
         record: HaDataBackupRecord,
     ) -> HaDataBackupRecord:
         ...
-
 
 
 def validate_backup_record(record: HaDataBackupRecord) -> HaDataBackupRecord:
@@ -118,6 +119,7 @@ DEFAULT_PRODUCT_HA_CONFIG = Path(
     "homeassistant-configuration.yaml"
 )
 EXTERNAL_DB_RE = re.compile(rb"(?m)^[ \t]*db_url[ \t]*:")
+ARCHIVE_BLOCK_BYTES = 1024 * 1024
 
 
 class ProtectedHaDataBackup:
@@ -257,8 +259,8 @@ class ProtectedHaDataBackup:
             argv.append("-d")
         return argv
 
-    def _verify_sqlite(self) -> None:
-        database = self.ha_data_root / "home-assistant_v2.db"
+    def _verify_sqlite(self, data_root: Path) -> None:
+        database = data_root / "home-assistant_v2.db"
         sidecars = [Path(str(database) + suffix) for suffix in ("-wal", "-journal", "-shm")]
         present = [path for path in sidecars if path.exists() or path.is_symlink()]
         if not database.exists() and not present:
@@ -299,7 +301,10 @@ class ProtectedHaDataBackup:
         *,
         decrypt: bool,
         hash_listing: bool = False,
+        authenticated_blocks: list[bytes] | None = None,
     ) -> str:
+        if authenticated_blocks is not None and (not decrypt or hash_listing):
+            raise ValueError("authenticated blocks require a decrypt pipeline without output capture")
         read_fd, write_fd = os.pipe()
         processes: list[subprocess.Popen[bytes]] = []
         try:
@@ -307,9 +312,12 @@ class ProtectedHaDataBackup:
                 writer.write(passphrase + b"\n")
             crypto = self._openssl_argv(pass_fd=read_fd, decrypt=decrypt)
             tar = [self.tar_binary, *tar_args]
+            producer_input = stream if decrypt else subprocess.DEVNULL
+            if authenticated_blocks is not None:
+                producer_input = subprocess.PIPE
             producer = subprocess.Popen(
                 crypto if decrypt else tar,
-                stdin=stream if decrypt else subprocess.DEVNULL,
+                stdin=producer_input,
                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                 pass_fds=(read_fd,) if decrypt else (),
             )
@@ -326,6 +334,10 @@ class ProtectedHaDataBackup:
                 processes.append(consumer)
             finally:
                 producer.stdout.close()
+            if authenticated_blocks is not None:
+                assert producer.stdin is not None
+                with producer.stdin as sink:
+                    self._feed_authenticated(stream, sink, authenticated_blocks)
             digest = hashlib.sha256()
             if consumer.stdout is not None:
                 with consumer.stdout as listing:
@@ -344,8 +356,22 @@ class ProtectedHaDataBackup:
                 process.wait()
 
     @staticmethod
+    def _feed_authenticated(stream: BinaryIO, sink: BinaryIO, blocks: list[bytes]) -> None:
+        # The removable file may change after authentication. Pass only bytes
+        # from the authenticated read to the extraction process.
+        stream.seek(0)
+        for expected in blocks:
+            block = stream.read(ARCHIVE_BLOCK_BYTES)
+            if hashlib.sha256(block).digest() != expected:
+                raise UpdaterV2Error("ha_data_backup_archive_changed")
+            sink.write(block)
+        if stream.read(1):
+            raise UpdaterV2Error("ha_data_backup_archive_changed")
+
+    @staticmethod
     def _ciphertext_identity(
-        stream: BinaryIO, mac_key: bytes, transaction_id: str, manifest_sha: str
+        stream: BinaryIO, mac_key: bytes, transaction_id: str, manifest_sha: str,
+        *, expected_size: int, blocks: list[bytes] | None = None,
     ) -> tuple[str, str]:
         digest = hashlib.sha256()
         tag = hmac.new(mac_key, digestmod=hashlib.sha256)
@@ -354,9 +380,18 @@ class ProtectedHaDataBackup:
             + transaction_id.encode("ascii") + b"\x00" + manifest_sha.encode("ascii") + b"\x00"
         )
         stream.seek(0)
-        while block := stream.read(1024 * 1024):
+        remaining = expected_size
+        while remaining:
+            block = stream.read(min(ARCHIVE_BLOCK_BYTES, remaining))
+            if not block:
+                raise UpdaterV2Error("ha_data_backup_identity_drift")
+            remaining -= len(block)
             digest.update(block)
             tag.update(block)
+            if blocks is not None:
+                blocks.append(hashlib.sha256(block).digest())
+        if stream.read(1):
+            raise UpdaterV2Error("ha_data_backup_identity_drift")
         return digest.hexdigest(), tag.hexdigest()
 
     def _manifest(self, stream: BinaryIO, passphrase: bytes) -> str:
@@ -404,7 +439,7 @@ class ProtectedHaDataBackup:
     def create(self, directory: int, transaction_id: str) -> HaDataBackupRecord:
         """Seal the snapshot. The install controller reopens it before admission."""
         self._validate_source_tree()
-        self._verify_sqlite()
+        self._verify_sqlite(self.ha_data_root)
         passphrase, mac_key = self._keys(transaction_id)
         with self._file(directory, BACKUP_ARCHIVE_NAME, create=True) as archive:
             self._tar_pipeline(
@@ -422,9 +457,12 @@ class ProtectedHaDataBackup:
                  "--directory", str(self.ha_data_root)],
                 decrypt=True,
             )
-            digest, tag = self._ciphertext_identity(archive, mac_key, transaction_id, manifest)
+            archive_size = os.fstat(archive.fileno()).st_size
+            digest, tag = self._ciphertext_identity(
+                archive, mac_key, transaction_id, manifest, expected_size=archive_size,
+            )
             record = HaDataBackupRecord(
-                archive_sha256=digest, archive_size_bytes=os.fstat(archive.fileno()).st_size,
+                archive_sha256=digest, archive_size_bytes=archive_size,
                 manifest_sha256=manifest, verified=True, fsynced=True,
                 consistent_preupgrade_point=True, complete_production_config=True,
                 storage_integrity_verified=True, ownership_metadata_present=True,
@@ -439,6 +477,14 @@ class ProtectedHaDataBackup:
         return record
 
     def verify(self, directory: int, transaction_id: str, record: HaDataBackupRecord) -> HaDataBackupRecord:
+        with self._authenticated_archive(directory, transaction_id, record):
+            return record
+
+    @contextmanager
+    def _authenticated_archive(
+        self, directory: int, transaction_id: str, record: HaDataBackupRecord,
+        *, blocks: list[bytes] | None = None,
+    ) -> Iterator[tuple[BinaryIO, bytes]]:
         validate_backup_record(record)
         passphrase, mac_key = self._keys(transaction_id)
         with self._file(directory, BACKUP_METADATA_NAME) as metadata:
@@ -454,7 +500,8 @@ class ProtectedHaDataBackup:
             if before.st_size != record.archive_size_bytes:
                 raise UpdaterV2Error("ha_data_backup_identity_drift")
             digest, tag = self._ciphertext_identity(
-                archive, mac_key, transaction_id, record.manifest_sha256
+                archive, mac_key, transaction_id, record.manifest_sha256,
+                expected_size=record.archive_size_bytes, blocks=blocks,
             )
             if digest != record.archive_sha256:
                 raise UpdaterV2Error("ha_data_backup_archive_hash_mismatch")
@@ -465,8 +512,11 @@ class ProtectedHaDataBackup:
                 or stored != self._metadata(transaction_id, record, tag)
             ):
                 raise UpdaterV2Error("ha_data_backup_authentication_failed")
-            if self._manifest(archive, passphrase) != record.manifest_sha256:
+            # Staged restore compares the extracted tree using the same authenticated
+            # bytes. Standalone readback independently checks the tar listing.
+            if blocks is None and self._manifest(archive, passphrase) != record.manifest_sha256:
                 raise UpdaterV2Error("ha_data_backup_manifest_hash_mismatch")
+            yield archive, passphrase
             after = os.stat(BACKUP_ARCHIVE_NAME, dir_fd=directory, follow_symlinks=False)
             if (
                 not os.path.samestat(before, after) or before.st_size != after.st_size
@@ -474,4 +524,48 @@ class ProtectedHaDataBackup:
                 or before.st_mtime_ns != after.st_mtime_ns
             ):
                 raise UpdaterV2Error("ha_data_backup_archive_changed")
-        return record
+
+    def restore_to_stage(
+        self, directory: int, transaction_id: str, record: HaDataBackupRecord, destination: Path,
+    ) -> None:
+        """Materialize into a fresh directory under a private host scratch parent."""
+        blocks: list[bytes] = []
+        with self._authenticated_archive(directory, transaction_id, record, blocks=blocks) as (
+            archive, passphrase,
+        ):
+            destination.mkdir(mode=0o700)
+            common = ["--numeric-owner", "--gzip", "--file=-", "--directory", str(destination)]
+            self._tar_pipeline(
+                archive, passphrase,
+                ["--extract", "--same-permissions", "--delay-directory-restore", *common],
+                decrypt=True, authenticated_blocks=blocks,
+            )
+            self._verify_sqlite(destination)
+            self._tar_pipeline(
+                archive, passphrase, ["--compare", *common],
+                decrypt=True, authenticated_blocks=blocks,
+            )
+            self._sync_staged_tree(destination)
+
+    @staticmethod
+    def _sync_staged_tree(root: Path) -> None:
+        def raise_walk_error(error: OSError) -> None:
+            raise error
+
+        for directory, _, files in os.walk(root, topdown=False, onerror=raise_walk_error):
+            base = Path(directory)
+            for name in [*files, "."]:
+                path = base / name
+                metadata = path.lstat()
+                if stat.S_ISLNK(metadata.st_mode):
+                    continue
+                flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+                if stat.S_ISDIR(metadata.st_mode):
+                    flags |= os.O_DIRECTORY
+                elif not stat.S_ISREG(metadata.st_mode):
+                    raise UpdaterV2Error("ha_data_restore_special_file_unsupported")
+                fd = os.open(path, flags)
+                try:
+                    os.fsync(fd)
+                finally:
+                    os.close(fd)
