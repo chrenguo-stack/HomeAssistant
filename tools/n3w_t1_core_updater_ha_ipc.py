@@ -115,9 +115,11 @@ class HaUsbIpcExecutor:
         *,
         store: HaUsbStateStore,
         admission_resolver: HostOtaAdmissionResolver,
+        install_ready: threading.Event | None = None,
     ) -> None:
         self.store = store
         self.admission_resolver = admission_resolver
+        self.install_ready = install_ready
 
     def _resolve(self, release_identity: str) -> HostOtaAdmission:
         if _RELEASE_RE.fullmatch(release_identity) is None:
@@ -167,7 +169,12 @@ class HaUsbIpcExecutor:
         return {
             "phase": phase,
             "progress_percent": None,
-            "error_code": None,
+            "error_code": (
+                "ha_usb_install_revalidation_failed"
+                if document["phase"] == U4
+                and document.get("failure_code") == "ha_usb_install_revalidation_failed"
+                else None
+            ),
         }
 
     @staticmethod
@@ -209,6 +216,8 @@ class HaUsbIpcExecutor:
                     raise UpdaterV2Error("ha_ota_ipc_transaction_missing")
                 self._require_same_admission(document, admission)
                 self.store.write(request_install(document))
+        if action == "INSTALL" and self.install_ready is not None:
+            self.install_ready.set()
         return self.status()
 
 

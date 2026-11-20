@@ -8,6 +8,8 @@ import os
 import shutil
 import stat
 import sys
+import threading
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -21,12 +23,18 @@ from n3w_t1_core_updater_ha_backup import (
     HaDataBackupRecord,
     validate_backup_record,
 )
-from n3w_t1_core_updater_ha_ipc import HaUsbIpcExecutor
+from n3w_t1_core_updater_ha_ipc import (
+    REQUEST_SCHEMA,
+    HaUsbIpcDispatcher,
+    HaUsbIpcExecutor,
+    HostOtaAdmission,
+)
 from n3w_t1_core_updater_ha_recovery import (
     ImageRecoveryRecord,
     validate_image_recovery_record,
 )
 from n3w_t1_core_updater_ha_usb import (
+    HaInstallMaterials,
     HaPredecessorRecovery,
     claim_live_authorization,
     classify_power_loss_reentry,
@@ -393,7 +401,7 @@ def test_boot_entry_resumes_only_the_bound_predecessor(tmp_path, monkeypatch, ca
 
 
 def test_boot_entry_leaves_legacy_and_post_cutover_transactions_alone(tmp_path, monkeypatch, capsys):
-    prepared, *_ = drive_to_u8(tmp_path)
+    prepared, _, _, _, target, predecessor, backup = drive_to_u8(tmp_path)
     store = HaUsbStateStore(tmp_path / "state")
     monkeypatch.setattr(recovery_startup, "HaUsbStateStore", lambda: store)
     monkeypatch.setattr(recovery_startup, "LocalHaPredecessorRuntime", object)
@@ -403,6 +411,9 @@ def test_boot_entry_leaves_legacy_and_post_cutover_transactions_alone(tmp_path, 
     assert store.read() == prepared
 
     prepared["predecessor_start"] = PredecessorRuntime(store).binding
+    prepared["install_recovery_materials"] = {
+        "target": target.public(), "predecessor": predecessor.public(), "backup": backup.public(),
+    }
     post_cutover = claim_live_authorization(prepared, AUTHORIZATION_ID)
     store.write(post_cutover)
     assert recovery_startup.main() == 0
@@ -670,6 +681,109 @@ def prepare_to_u4(tmp_path: Path):
     target = media.target_record()
     tx = record_target_ready(tx, target=target)
     return tx, media, docker, ha, target
+
+
+class InstallMaterialFixture:
+    def __init__(self, media, target, predecessor, ha, runtime, drift):
+        self.media = media
+        self.target = target
+        self.predecessor = predecessor
+        self.ha = ha
+        self.runtime = runtime
+        self.drift = drift
+        self.preflight_phases = []
+
+    def verify_install_materials(self, document):
+        self.preflight_phases.append(document["phase"])
+        target = self.target
+        if self.drift == "target_size":
+            target = replace(target, archive_size_bytes=target.archive_size_bytes + 1)
+        return HaInstallMaterials(
+            filesystem_uuid=(
+                OTHER_UUID if self.drift == "usb_after_stop" and document["phase"] == U7
+                else USB_UUID
+            ),
+            target=target,
+            predecessor=self.predecessor,
+            capacity=self.media.report,
+            production_prestate_exact=True,
+        )
+
+    def create_consistent_backup(self, *, transaction_id_sha256):
+        assert self.runtime.running == {"broker"}
+        assert transaction_id_sha256 == self.runtime.store.read()["transaction_id_sha256"]
+        self.ha.quiesce()
+        return self.ha.create_backup(self.media)
+
+    def verify_backup(self, record):
+        return self.ha.verify_backup(self.media, record)
+
+
+@pytest.mark.parametrize(
+    ("drift", "expected", "expected_phase"),
+    [
+        ("target_size", "ha_usb_install_target_size_drift", U4),
+        ("usb_after_stop", "usb_filesystem_uuid_mismatch", U7),
+        (None, "ha_usb_install_cutover_not_consumed", U8),
+    ],
+)
+def test_ipc_install_request_reaches_qualified_recovery_point(
+    tmp_path, drift, expected, expected_phase
+):
+    current, media, docker, ha, target = prepare_to_u4(tmp_path)
+    predecessor = docker.verify_predecessor(media, docker.export_predecessor(media))
+    store = HaUsbStateStore(tmp_path / "state")
+    store.write(current)
+    runtime = PredecessorRuntime(store)
+    fixture = InstallMaterialFixture(media, target, predecessor, ha, runtime, drift)
+    admission_fields = {
+        key: current[key]
+        for key in ("current_image_ref", "current_image_identity", "target_manifest_identity",
+                    "target_image_ref", "target_archive_sha256", "target_archive_size")
+    }
+    release = current["target_manifest_identity"]["release_identity"]
+    resolver = SimpleNamespace(
+        resolve_homeassistant_release=lambda release_id: HostOtaAdmission(
+            release_identity=release_id, **admission_fields
+        )
+    )
+    install_ready = threading.Event()
+    executor = HaUsbIpcExecutor(
+        store=store, admission_resolver=resolver, install_ready=install_ready
+    )
+    dispatcher = HaUsbIpcDispatcher(executor)
+    response = json.loads(dispatcher.handle(json.dumps({
+        "schema": REQUEST_SCHEMA, "operation": "submit", "action": "INSTALL",
+        "target_release_id": release,
+    }).encode()))
+    assert response["accepted"] is True
+    assert runtime.stop_count == 0
+    assert store.read()["phase"] == U5
+    assert install_ready.is_set()
+
+    with (
+        pytest.raises(UpdaterV2Error, match=expected),
+        HaPredecessorRecovery(store, runtime, runtime).install_recovery_point(fixture, fixture)
+        as ready,
+    ):
+        assert ready["phase"] == U8
+        assert store.read()["install_recovery_materials"]["target"] == target.public()
+        assert runtime.running == {"broker"}
+        with pytest.raises(UpdaterV2Error, match="upgrade_transaction_busy"):
+            with store.lock():
+                pytest.fail("cutover uses the existing lock")
+    result = store.read()
+    assert result["phase"] == expected_phase
+    assert result["authorization_consumed"] is False
+    assert runtime.running == {"manager", "homeassistant", "broker"}
+    if expected_phase == U4:
+        assert runtime.stop_count == runtime.start_count == 0
+        assert fixture.preflight_phases == [U5]
+        assert executor.status()["error_code"] == "ha_usb_install_revalidation_failed"
+    else:
+        assert runtime.stop_count == runtime.start_count == 1
+        assert fixture.preflight_phases == [U5, U7]
+        assert executor.status()["phase"] == "ROLLED_BACK"
 
 
 def drive_to_u8(tmp_path: Path):

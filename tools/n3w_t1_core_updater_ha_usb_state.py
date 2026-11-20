@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any
 
 from n3w_t1_core_updater_common import IMAGE_ID
+from n3w_t1_core_updater_ha_backup import HaDataBackupRecord, validate_backup_record
+from n3w_t1_core_updater_ha_recovery import ImageRecoveryRecord, validate_image_recovery_record
 from n3w_t1_core_updater_ha_usb_media import (
     USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
     validate_filesystem_uuid,
@@ -74,8 +76,8 @@ _ALLOWED_TRANSITIONS = {
     U2: frozenset({U3}),
     U3: frozenset({U4}),
     U4: frozenset({U5}),
-    U5: frozenset({U6}),
-    U6: frozenset({U7}),
+    U5: frozenset({U4, U6}),
+    U6: frozenset({U4, U7}),
     U7: frozenset({U8}),
     U8: frozenset({U9}),
     U9: frozenset({U10, U13B}),
@@ -157,6 +159,30 @@ def _validate_predecessor_start(document: dict[str, Any]) -> None:
             raise UpdaterV2Error("ha_usb_predecessor_image_binding_invalid")
     if images["homeassistant"]["reference"] != document["current_image_ref"]:
         raise UpdaterV2Error("ha_usb_predecessor_homeassistant_image_drift")
+
+
+def _validate_recovery_materials(document: dict[str, Any]) -> None:
+    materials = document.get("install_recovery_materials")
+    if not isinstance(materials, dict) or set(materials) != {"target", "predecessor", "backup"}:
+        raise UpdaterV2Error("ha_usb_install_recovery_materials_invalid")
+    try:
+        target = ImageRecoveryRecord(**materials["target"])
+        predecessor = ImageRecoveryRecord(**materials["predecessor"])
+        backup = HaDataBackupRecord(**materials["backup"])
+    except TypeError as error:
+        raise UpdaterV2Error("ha_usb_install_recovery_materials_invalid") from error
+    validate_image_recovery_record(
+        target, expected_kind="target",
+        expected_image_ref=document["target_image_ref"],
+        expected_archive_sha256=document["target_archive_sha256"],
+    )
+    validate_image_recovery_record(
+        predecessor, expected_kind="predecessor",
+        expected_image_ref=document["current_image_ref"],
+    )
+    validate_backup_record(backup)
+    if target.archive_size_bytes != document["target_archive_size"]:
+        raise UpdaterV2Error("ha_usb_install_target_size_drift")
 
 
 def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
@@ -259,6 +285,8 @@ def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
         if not _phase_at_or_after(phase, U6):
             raise UpdaterV2Error("ha_usb_predecessor_start_too_early")
         _validate_predecessor_start(document)
+        if _phase_at_or_after(phase, U8):
+            _validate_recovery_materials(document)
     if restored_before_cutover and (
         not has_start_binding
         or phase not in PRE_CUTOVER_RECOVERY_PHASES
@@ -412,6 +440,8 @@ def transition(
         raise UpdaterV2Error("ha_usb_pre_cutover_recovery_in_progress")
     if next_phase not in _ALLOWED_TRANSITIONS[current_phase]:
         raise UpdaterV2Error("ha_usb_phase_transition_invalid")
+    if next_phase == U4 and current_phase in {U5, U6} and "predecessor_start" in current:
+        raise UpdaterV2Error("ha_usb_install_cannot_defer_after_first_stop")
 
     result = copy.deepcopy(current)
     result["phase"] = next_phase
@@ -425,6 +455,8 @@ def transition(
                 "predecessor_start",
                 "pre_cutover_predecessor_restored",
             }:
+                raise UpdaterV2Error("ha_usb_immutable_field_update_forbidden")
+            if key == "install_recovery_materials" and next_phase != U8:
                 raise UpdaterV2Error("ha_usb_immutable_field_update_forbidden")
             result[key] = copy.deepcopy(value)
 
