@@ -1,52 +1,22 @@
-### 2026-11-20 KF-168 UPDATE — prepare-host subprocess diagnostics / live completion OPEN
+### 2026-11-20 KF-168 UPDATE — migration-executor readiness source repair CLOSED_PASS / read-only preflight next
 
-The one authorized restart of candidate U13B Host blob `437f3e6c...` ended
-with IPC `ERROR / ha_prepare_host_command_failed`. Durable U13B and the
-business runtime remained healthy. See the
-[archived stop](https://github.com/chrenguo-stack/HomeAssistant/blob/0f50f0b98eefeb6780aca597ddd0da798251159d/docs/development/N3W_T1_U9_PLUS_PHASE_A_RESTART_CONVERGENCE_REPAIR_LIVE_REVALIDATION_STOP_20261120.md).
+- Source authority: draft PR [#811](https://github.com/chrenguo-stack/HomeAssistant/pull/811), exact implementation commit `6611c3bcac644e34d81077428fd454f3c8b9d557`, stacked on #810 head `4abebaa61c1db0be41a724c45263e26ac15eb06e`. The #810 permanent IPC-export isolation contract is not modified.
+- Guard implemented: install and rollback use the same bounded monotonic readiness barrier after application-owner start. A short zero-running interval is retryable only if the exact pre-created Manager remains the sole resident Manager and its image/bind stay exact; application owner must remain non-failed, OTA owner active, and Host/Broker invariants unchanged. Manager duplication/replacement, image/bind drift, owner failure, Host/Broker drift or deadline expiry fail closed.
+- Forbidden regression: do not replace the barrier with a fixed sleep; do not restart/retry services inside the barrier; do not loosen Manager identity to "any one running container"; do not suppress image/bind/Host/Broker drift to obtain a green result.
+- Review artifact safety: `PRODUCTION_AUTHORITY=false`, `LIVE_EXECUTION_AUTHORIZED=false`, all prior migration/live authorizations remain consumed/non-replayable. Execute mode fails at `live_execution_not_authorized` before authorization claim or mutation.
+- Validation: isolated offline readiness harness 13 PASS; exact committed successor test file 12 PASS. Exact source CI [44742034850](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44742034850) SUCCESS first attempt, including disposable Linux ext4 regression; public repository safety [44742034856](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44742034856) SUCCESS first attempt.
+- Future physical acceptance still requires fresh real telemetry and same-window HA MQTT transport proof. Source closure does not change the last live rollback state and does not prove Phase-A overall or Phase-B SLA.
+- State: `MIGRATION_EXECUTOR_READINESS=SOURCE_CLOSED_PASS`, `PHASE_A_OVERALL=NOT_YET_PASS`, `NEXT_ONE_GATE=N3W_T1_KF168_IPC_MIGRATION_EXECUTOR_READONLY_DEPLOYMENT_PREFLIGHT`.
 
-The bound ext4 partition was visible to the daemon and remained unmounted
-during the follow-up. The observer and daemon shared a mount namespace.
-The exact inventory, partition parent, type and label queries succeeded
-when observed. A read-only superblock query showed `needs_recovery`; that
-observation does not establish the cause of the historical command failure.
-No command or exit code was recovered from the stopped attempt.
+### 2026-11-20 KF-168 UPDATE — permanent bind isolation CI PASS / migration-executor readiness OPEN
 
-Follow-up used `debugfs` without write mode or mounting. It read the five
-durable transaction JSON files on the single exact UUID-bound, unmounted
-ext4 partition. The existing classifier returned `HOST_USB_EXACT` with
-`U13B_ROLLED_BACK` on both sides. The Host file was unchanged before and
-after. This is a raw on-disk observation; it does not exercise the daemon's
-mount or release path and does not replace the product completion check.
-The active daemon had all five expected tools in PATH, CAP_SYS_ADMIN and
-no seccomp filter. No configured fstab entry matched the bound device or
-target, and retained audit/journal evidence still does not identify the
-historical failing command. The observed metadata is consistent even
-though the superblock recovery flag was set.
+- The earlier prepare-host mount failure was reproduced as exit 32/device busy. The legacy Manager read-only recursive bind retained the exact USB's writable ext4 superblock in its own namespace. The authorized exact unmount succeeded and was consumed. [Root cause](https://github.com/chrenguo-stack/HomeAssistant/blob/b726c7d14732e4a73568ada4c0ad29a59a2f8e27/docs/development/N3W_T1_KF168_MANAGER_RECURSIVE_BIND_USB_EBUSY_ROOT_CAUSE_20261120.md) · [Cleanup](https://github.com/chrenguo-stack/HomeAssistant/blob/b828ccab36416d3152e3a5eff85236d7810bb793/docs/development/N3W_T1_KF168_EXACT_MANAGER_RETAINED_USB_UNMOUNT_PASS_20261120.md)
+- Permanent IPC export isolation at PR #810 exact head `4abebaa61c1db0be41a724c45263e26ac15eb06e` passed the disposable Linux old/new ext4 and socket-restart regression. Execution reached the new OTA endpoints and application owner start. The immediate running-container assertion raised `container_not_unique` before the Docker readiness window; all five assets were restored. The rollback observer repeated that premature assertion before a later independent audit proved runtime healthy. [Linux CI](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44724148347) · [Execution archive](https://github.com/chrenguo-stack/HomeAssistant/blob/3532dd9877bdb4454415068ce52c6290bb743bd1/docs/development/N3W_T1_KF168_IPC_MIGRATION_READYNESS_STOP_AND_ROLLBACK_20261120.md)
+- Regression required: both migration and reversal must use a bounded, monotonic readiness barrier after owner start. While expected stopped Manager and stable identities are still exact, zero running containers may converge. Reject duplicates, unexpected replacement/image/bind, failed owner, Broker or Host drift, and deadline expiry. Do not add a fixed sleep or another service start.
+- The separate Phase-A product oracle was incomplete after rollback; no accepted simplified N3-W events were observed in the assessment window. USB mount/unmount succeeded and no bound mount remained. A future live assessment must have an exact fresh telemetry source and same-window HA MQTT evidence, without weakening the oracle or treating synthetic traffic as live proof.
+- State: physical durable rollback and business recovery PASS, permanent migration rolled back, Phase-A overall `NOT_YET_PASS`, all prior one-shot authorizations consumed. Next gate is execution-wrapper source repair and offline verification.
 
-Guard: log a fixed diagnostic record for a failed USB subprocess, including
-the allowlisted tool, operation, return code and a fixed reason class.
-Never include argv, device paths, stdout or raw stderr. Preserve the stable
-IPC error, strict read-only reconciliation options and fail-closed behavior.
-Unit tests inject failures for mount, mount inspection and unmount and
-require redaction plus the original IPC-facing exception.
-
-The initial review head exposed two CI integration failures: a stale
-prepare-host blob in nested P3 package authorities and an omitted historical
-Manager binding in the current-state index. Bind the nested manifests
-bottom-up, restore the historical reference, and preserve all execution
-and authorization fields. The existing Phase-A transport assertion now
-ignores source line wrapping while retaining the diagnostic contract.
-
-```text
-KF168_PREPARE_HOST_COMMAND_ROOT_CAUSE=UNCONFIRMED
-KF168_USB_COMMAND_DIAGNOSTIC_SOURCE=REVIEW_ONLY
-PHASE_A_OVERALL=NOT_YET_PASS
-PREVIOUS_LIVE_RETRY_AUTHORIZATION=CONSUMED_NO_REPLAY
-NEW_LIVE_AUTHORIZATION=NOT_GRANTED
-```
-
-### 2026-11-20 KF-168 UPDATE — restart-convergence source/test/CI CLOSED_PASS / live retry preflight pending
+### Historical 2026-11-20 KF-168 UPDATE — restart-convergence source/test/CI CLOSED_PASS / live retry preflight pending
 
 The real-T1 `a103...` live revalidation exposed `u13b_predecessor_runtime_not_running` only because the OTA daemon evaluated completion roughly 2–3 seconds before the services owner and Manager/Home Assistant runtime converged. Settled business runtime was healthy.
 

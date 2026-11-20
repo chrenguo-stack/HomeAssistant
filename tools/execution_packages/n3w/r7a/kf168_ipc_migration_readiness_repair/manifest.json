@@ -1,0 +1,72 @@
+{
+  "schema": "gh.n3w-t1-kf168-ipc-migration-readiness-repair/1",
+  "gate_id": "N3W_T1_KF168_IPC_MIGRATION_EXECUTOR_READINESS_SOURCE_REPAIR",
+  "status": "REVIEW_ONLY",
+  "production_authority": false,
+  "phase_a_overall": "NOT_YET_PASS",
+  "live_execution_authorized": false,
+  "authorization_state": {
+    "granted": false,
+    "claimed": false,
+    "consumed": false,
+    "replay_permitted": false
+  },
+  "source_base": {
+    "pr": 810,
+    "head": "4abebaa61c1db0be41a724c45263e26ac15eb06e",
+    "tree": "b34b33ebd7bd477c7f10692c001b8da45768a645"
+  },
+  "historical_spent_executor": {
+    "archive_commit": "3c3feb9af679da64796195d15363b9034922a762",
+    "sha256": "519539f6f67d8a5f37bd9cd28cd90cb7ac61ece35ba7135c4a494c697a220785",
+    "replay_permitted": false
+  },
+  "package_source_authority": {
+    "tools/execution_packages/n3w/r7a/kf168_ipc_migration_readiness_repair/executor.py": "c0a05384dff5b44537a48e9a0dab048e2df7e1ee",
+    "tests/tools/test_n3w_t1_kf168_ipc_migration_readiness_repair.py": "f1399027ed65ec9324481a91b84c3c4b0db9fff8"
+  },
+  "readiness_contract": {
+    "monotonic_deadline": true,
+    "deadline_seconds": 45,
+    "poll_seconds": 0.25,
+    "fixed_startup_sleep": false,
+    "automatic_restart_or_retry": false,
+    "manager_identity_pinned_before_ota_start": true,
+    "zero_running_temporarily_allowed": true,
+    "install_and_rollback_share_barrier": true,
+    "duplicate_or_replaced_manager_fail_closed": true,
+    "image_or_bind_drift_fail_closed": true,
+    "owner_failure_fail_closed": true,
+    "host_or_broker_drift_fail_closed": true
+  },
+  "exact_target_assets": {
+    "candidate:n3w_t1_core_updater_ha_daemon.py": {
+      "previous_git_blob": "941baffc8423a10cfa1436323d109caae17be473",
+      "target_git_blob": "bb048c3641b9f66767d89b20a80aa3049fbed8db"
+    },
+    "candidate:n3w_t1_core_updater_ha_ipc.py": {
+      "previous_git_blob": "48558556169a045da092aef94d4c5244d2c48775",
+      "target_git_blob": "893545a401858c57fd4c0c03b8f486bbe5a3c8d9"
+    },
+    "candidate:n3w_t1_core_updater_ha_prepare_host.py": {
+      "previous_git_blob": "060066bb3495bcf50a373fa7d83633b0eb85276d",
+      "target_git_blob": "ed42956bd5ac9f945c329a020e5645645890ca5c"
+    },
+    "installed:n3w-t1-ha-ota.service": {
+      "previous_sha256": "af8d9755ba13d9300fb5318d077e5d20078229814fdc29e4127806ef78ddb370",
+      "target_sha256": "72edc7d3075f1cbc9843999ade6cedafa261e551b8a8ba878ade46cf992d5c68"
+    },
+    "installed:docker-compose.ha-ota.yml": {
+      "previous_sha256": "1b0fd19cb3f8047d0ce50ecfdd69f0e71d8256bed2198de10d7d78c39eacd618",
+      "target_sha256": "126dd7fc4174171412ab6a623f97216ddaa9054c409941bc9f8ee4448cfd68d5"
+    }
+  },
+  "future_phase_a_oracle_requirements": {
+    "fresh_simplified_n3w_telemetry_required": true,
+    "same_window_ha_mqtt_transport_required": true,
+    "availability_must_be_proven_in_readonly_preflight": true
+  },
+  "next_gate": "N3W_T1_KF168_IPC_MIGRATION_EXECUTOR_READONLY_DEPLOYMENT_PREFLIGHT",
+  "next_gate_scope": "READONLY_T1_PREFLIGHT_ONLY",
+  "merge": false
+}
