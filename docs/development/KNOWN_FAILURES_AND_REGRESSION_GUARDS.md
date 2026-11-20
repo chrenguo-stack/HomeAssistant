@@ -1,3 +1,32 @@
+### 2026-11-20 KF-168 UPDATE — restart-convergence source/test/CI CLOSED_PASS / live retry preflight pending
+
+The real-T1 `a103...` live revalidation exposed `u13b_predecessor_runtime_not_running` only because the OTA daemon evaluated completion roughly 2–3 seconds before the services owner and Manager/Home Assistant runtime converged. Settled business runtime was healthy.
+
+Guard:
+- do not require predecessor runtime to exist before entering the existing bounded readiness loop;
+- do not add a fixed sleep;
+- after convergence, retain strict runtime identity, overlay supervision, listener, MQTT and HA HTTP checks;
+- regression must cover runtime initially absent and then converging;
+- consumed live replacement/restart authorization must not be replayed.
+
+Authorities:
+- repair commit `f8fc67cff39a0b2831a3005ae00d0556fce8351a`;
+- repaired U13B-host blob `437f3e6c4cae53f7d94e244cd312ac454768f8e1`;
+- regression test blob `9ca455c79204632e396530c0e40f654957da2caf`;
+- P3 manifest `fcb8ecd4dd4f68a7fef5c64abe627cedc32dbca7`;
+- Phase-A manifest `2ba6e96aec0f41f7916c852cef37c3fce9ecb966`;
+- final CI head `3d74881e3bfadbecd23721f8c9d500f95ef69696`: 22/22 SUCCESS.
+
+Status:
+```text
+KF168_DURABLE_U13B=PASS
+KF168_BUSINESS_RECOVERY=PASS
+KF168_RESTART_CONVERGENCE_SOURCE_CI=CLOSED_PASS
+KF168_LIVE_437F_REVALIDATION=PENDING_SEPARATE_AUTHORIZATION
+LIVE_A103_RESTART_AUTHORIZATION=CONSUMED_NO_REPLAY
+PHASE_A_OVERALL=NOT_YET_PASS
+```
+
 ### 2026-11-20 KF-168 UPDATE — a103 live revalidation exposed restart-convergence completion false failure / source repair in CI
 
 Real-T1 live revalidation installed exact candidate U13B-host blob `a103a2633aaea5a34efbfed35449b2eb5bace61b` and consumed exactly one authorized OTA-service restart. The socket aggregation repair removed the prior `u9_plus_completion_ha_mqtt_socket_ambiguous` stop, but the restarted recovery worker then reported `u13b_predecessor_runtime_not_running`.
