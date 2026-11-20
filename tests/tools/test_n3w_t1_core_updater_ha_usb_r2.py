@@ -309,6 +309,7 @@ class StartupRuntime(recovery_startup.LocalHaPredecessorRuntime):
         self.saved = PredecessorRuntime(None).binding["images"]
         self.running_ids = {name: item["runtime_id"] for name, item in self.saved.items()}
         self.starts = 0
+        self.rewrites = 0
         self.compose = {
             "services": {
                 name: {"image": image["reference"], "pull_policy": "never", "volumes": []}
@@ -322,6 +323,7 @@ class StartupRuntime(recovery_startup.LocalHaPredecessorRuntime):
                 self.compose["services"][name]["volumes"].append(
                     {"source": str(source), "target": target, "type": "bind"}
                 )
+        self.ha_data_root = root / "homeassistant" / "config"
 
     def _activation_env(self):
         pass
@@ -334,7 +336,7 @@ class StartupRuntime(recovery_startup.LocalHaPredecessorRuntime):
         if argv == ("systemctl", "show", "--property=NeedDaemonReload", "--value", unit):
             return SimpleNamespace(stdout=b"no\n")
         if argv == ("systemctl", "cat", unit):
-            return SimpleNamespace(stdout=b"test unit")
+            return SimpleNamespace(stdout=("test unit\n" + recovery_startup.BOOT_CONDITION).encode())
         if argv == ("systemctl", "start", unit):
             self.starts += 1
             self.owner = "active"
@@ -353,12 +355,26 @@ class StartupRuntime(recovery_startup.LocalHaPredecessorRuntime):
     def render_compose(self):
         return self.compose
 
-    def _image_binding_authority_v2(self, rendered):
-        return {name: item["image"] for name, item in rendered["services"].items()}, {}
+    def _image_binding_authority_v2(self, rendered=None):
+        rendered = self.compose if rendered is None else rendered
+        bindings = {name: item["image"] for name, item in rendered["services"].items()}
+        return bindings, dict.fromkeys(bindings, "dynamic")
+
+    def rewrite_component_image(self, component, expected, replacement):
+        service = self.compose["services"][component]
+        assert service["image"] == expected
+        service["image"] = replacement
+        self.rewrites += 1
+
+    def _homeassistant_http_status(self, *, allow_unavailable=False):
+        return 401
+
+    def _mqtt_authenticated(self, name):
+        return name in self.running
 
     def image_id(self, reference):
-        return next(item["runtime_id"] for item in self.saved.values()
-                    if item["reference"] == reference)
+        return next((item["runtime_id"] for item in self.saved.values()
+                     if item["reference"] == reference), None)
 
     def _running_count(self, service):
         return int(service in self.running)
@@ -427,6 +443,80 @@ def test_boot_entry_leaves_legacy_and_post_cutover_transactions_alone(tmp_path, 
     assert recovery_startup.main() == 0
     assert json.loads(capsys.readouterr().out) == {"status": "NO_PRE_CUTOVER_RECOVERY"}
     assert store.read() == post_cutover
+
+
+def test_boot_reconciles_selected_data_rollback_and_waits_for_health(tmp_path, monkeypatch, capsys):
+    units = Path(__file__).resolve().parents[2] / "infra" / "n3w-t1" / "systemd"
+    guard = units / f"{recovery_startup.SERVICES_UNIT}.d" / "ota-ha-recovery.conf"
+    assert recovery_startup.BOOT_CONDITION in guard.read_text().splitlines()
+    prepared, _, _, _, target, predecessor, backup = drive_to_u8(tmp_path)
+    store = HaUsbStateStore(tmp_path / "state")
+    runtime = StartupRuntime(tmp_path / "application")
+    prepared["predecessor_start"] = runtime.capture_start_binding(prepared)
+    prepared["usb_binding_mode"] = "existing_filesystem"
+    prepared["prepared_image_materials"] = {"target": target.public(), "predecessor": predecessor.public()}
+    prepared["install_recovery_materials"] = {**prepared["prepared_image_materials"], "backup": backup.public()}
+    cutover = record_target_started(record_predecessor_capacity_released(
+        claim_live_authorization(prepared, AUTHORIZATION_ID),
+    ))
+    live = runtime.ha_data_root
+    journal = {"step": "STAGING", "filesystem_id": os.statvfs(live).f_fsid, "original_inode": live.stat().st_ino}
+    store.write({**cutover, "ha_data_restore": journal, "recovery_required": True})
+    runtime.compose["services"]["homeassistant"]["image"] = TARGET
+    runtime.owner = "inactive"
+    runtime.running = {"broker"}
+    monkeypatch.setattr(recovery_startup, "HaUsbStateStore", lambda: HaUsbStateStore(store.root))
+    monkeypatch.setattr(recovery_startup, "LocalHaPredecessorRuntime", lambda: runtime)
+    assert recovery_startup.main(application_condition=True) == 1
+
+    def missing_original(*args):
+        raise recovery_startup.HaRecoveryMediaRequired("original media absent")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(runtime, "mounted_recovery_provider", missing_original)
+        assert recovery_startup.main() == 0
+        assert json.loads(capsys.readouterr().out) == {"status": "RECOVERY_MEDIA_REQUIRED"}
+    assert store.read()["ha_data_restore"] == journal
+    assert runtime.starts == runtime.rewrites == 0
+
+    def publish_data():
+        live.rename(live.with_name("former"))
+        live.mkdir()
+        store.write({**store.read(), "ha_data_restore": {
+            **journal, "step": "PUBLISHED", "staged_inode": live.stat().st_ino,
+        }})
+        assert recovery_startup.main(application_condition=True) == 1
+
+    def health_pending(document):
+        assert recovery_startup.main(application_condition=True) == 0
+        raise recovery_startup.UpdaterError("simulated readiness interruption")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(runtime, "mounted_recovery_provider", lambda *_: SimpleNamespace(
+            restore_preupgrade_data=publish_data,
+        ))
+        patch.setattr(runtime, "verify_published_predecessor_health", health_pending)
+        assert recovery_startup.main() == 1
+        assert json.loads(capsys.readouterr().out) == {"status": "RECOVERY_STARTUP_NEEDS_REVIEW"}
+    assert store.read()["phase"] == U11
+    assert store.read()["ha_data_restore"]["step"] == "PUBLISHED"
+    assert runtime.starts == runtime.rewrites == 1
+
+    monkeypatch.setattr(runtime, "mounted_recovery_provider", lambda *_: pytest.fail("unneeded original media"))
+    manager = runtime.compose["services"]["manager"]
+    original_policy = manager["pull_policy"]
+    manager["pull_policy"] = "always"
+    assert recovery_startup.main(application_condition=True) == 1
+    assert recovery_startup.main() == 1
+    assert json.loads(capsys.readouterr().out) == {"status": "RECOVERY_STARTUP_NEEDS_REVIEW"}
+    assert store.read()["phase"] == U11
+    manager["pull_policy"] = original_policy
+    assert recovery_startup.main() == 0
+    assert json.loads(capsys.readouterr().out) == {"status": "ROLLED_BACK"}
+    closed = store.read()
+    assert closed["phase"] == U13B
+    assert closed["authorization_id_sha256"] == cutover["authorization_id_sha256"]
+    assert runtime.starts == runtime.rewrites == 1
 
 
 class SyntheticUsb:

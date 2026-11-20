@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -24,6 +24,7 @@ from n3w_t1_core_updater_ha_usb_media import (
     validate_filesystem_uuid,
 )
 from n3w_t1_core_updater_ha_usb_state import (
+    HA_DATA_RESTORE_PHASES,
     HA_USB_TERMINAL_STATUSES,
     PHASE_INDEX,
     PRE_CUTOVER_RECOVERY_PHASES,
@@ -70,6 +71,22 @@ class HaPredecessorRuntime(Protocol):
 class HaPredecessorHealth(Protocol):
     def verify_predecessor_health(self, binding: dict[str, Any]) -> None:
         """Verify the old combination and its affected functions have recovered."""
+        ...
+
+
+class HaPublishedRollbackRuntime(Protocol):
+    def quiesce_for_data_restore(self, document: dict[str, Any]) -> None:
+        ...
+
+    def resume_published_predecessor(self, document: dict[str, Any]) -> None:
+        ...
+
+    def verify_published_predecessor_health(self, document: dict[str, Any]) -> None:
+        ...
+
+
+class HaDataRestoreProvider(Protocol):
+    def restore_preupgrade_data(self) -> None:
         ...
 
 
@@ -281,6 +298,37 @@ def resume_pre_cutover_services(
         if current is None or not _can_resume_pre_cutover(current):
             return False
         _start_pre_cutover_predecessor(store, runtime, current)
+        return True
+
+
+def resume_ha_data_rollback(
+    store: HaUsbStateStore,
+    runtime: HaPublishedRollbackRuntime,
+    restore_provider: Callable[[dict[str, Any]], HaDataRestoreProvider],
+) -> bool:
+    """Resume an already selected data rollback, including boot reentry."""
+    with store.lock():
+        current = store.read()
+        if (
+            current is None or current["phase"] not in HA_DATA_RESTORE_PHASES
+            or "ha_data_restore" not in current
+        ):
+            return False
+        if current["status"] != "ACTIVE":
+            raise UpdaterV2Error("ha_usb_data_restore_status_unresolved")
+        if current["ha_data_restore"]["step"] != "PUBLISHED":
+            runtime.quiesce_for_data_restore(current)
+            restore_provider(current).restore_preupgrade_data()
+            published = store.read()
+            if (
+                published is None or published["transaction_id_sha256"] != current["transaction_id_sha256"]
+                or published.get("ha_data_restore", {}).get("step") != "PUBLISHED"
+            ):
+                raise UpdaterV2Error("ha_usb_data_restore_publication_not_recorded")
+            current = published
+        runtime.resume_published_predecessor(current)
+        runtime.verify_published_predecessor_health(current)
+        store.write(transition(current, U13B))
         return True
 
 
