@@ -4,6 +4,7 @@ import json
 import os
 import re
 import stat
+import time
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -557,6 +558,63 @@ class U13BProductionRuntime:
             homeassistant_running=evidence.homeassistant_running,
         ).validate()
 
+    def _wait_predecessor_health(
+        self,
+        *,
+        transaction: Mapping[str, Any],
+        predecessor: ImageRecoveryRecord,
+        timeout: int,
+    ) -> None:
+        deadline = time.monotonic() + timeout
+        last_soft_state = "predecessor_not_ready"
+        while time.monotonic() < deadline:
+            runtime = self._running_predecessor_evidence(
+                transaction,
+                predecessor,
+            )
+            if runtime is None:
+                last_soft_state = "predecessor_runtime_not_running"
+                time.sleep(2)
+                continue
+
+            listeners = self.host._listener_snapshot()
+            if listeners != EXPECTED_LISTENERS:
+                last_soft_state = "listeners=" + json.dumps(
+                    listeners,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                time.sleep(2)
+                continue
+
+            authenticated = {
+                service: self.host._mqtt_authenticated(service)
+                for service in ("manager", "homeassistant")
+            }
+            http_status = self.host._homeassistant_http_status(
+                allow_unavailable=True
+            )
+            if (
+                authenticated["manager"] is True
+                and authenticated["homeassistant"] is True
+                and http_status in {200, 401}
+            ):
+                return
+
+            last_soft_state = (
+                "mqtt_manager="
+                + str(authenticated["manager"])
+                + ",mqtt_homeassistant="
+                + str(authenticated["homeassistant"])
+                + ",ha_http="
+                + str(http_status)
+            )
+            time.sleep(2)
+
+        raise UpdaterError(
+            "services_readiness_timeout:" + last_soft_state[:120]
+        )
+
     def verify_predecessor_health(
         self,
         *,
@@ -571,7 +629,9 @@ class U13BProductionRuntime:
             raise UpdaterV2Error("u13b_predecessor_runtime_not_running")
 
         try:
-            self.host.wait_services(
+            self._wait_predecessor_health(
+                transaction=transaction,
+                predecessor=predecessor,
                 timeout=HOMEASSISTANT_SERVICES_READINESS_TIMEOUT_SECONDS,
             )
         except UpdaterError as error:
