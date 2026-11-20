@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -12,6 +13,40 @@ from n3w_t1_core_updater_ha_prepare_host import SubprocessPrepareBackend
 from n3w_t1_core_updater_v2_common import UpdaterV2Error
 from test_n3w_t1_u13b_controller import USB_UUID, FINGERPRINT, origin_transaction
 from n3w_t1_core_updater_ha_usb_state import U9
+
+
+@pytest.mark.parametrize(
+    ("command", "stderr", "expected"),
+    [
+        (
+            ("mount", "-o", "ro,noload,nodev,nosuid,noexec", "/dev/private", "/private/media"),
+            b"mount: /private/media: permission denied",
+            "tool=mount operation=strict_readonly exit_code=32 reason=permission_denied",
+        ),
+        (
+            ("findmnt", "--noheadings", "--output", "OPTIONS", "--source", "/dev/private"),
+            b"",
+            "tool=findmnt operation=options exit_code=32 reason=unclassified",
+        ),
+        (
+            ("umount", "/private/media"),
+            b"umount: /private/media: target is busy",
+            "tool=umount operation=default exit_code=32 reason=device_busy",
+        ),
+    ],
+)
+def test_usb_command_failure_logs_redacted_context(
+    monkeypatch, caplog, command, stderr, expected
+):
+    def run(argv, **_kwargs):
+        return subprocess.CompletedProcess(argv, 32, b"private stdout", stderr)
+
+    monkeypatch.setattr(hostmod.subprocess, "run", run)
+    with pytest.raises(UpdaterV2Error, match="^ha_prepare_host_command_failed$"):
+        hostmod._run(command)
+    assert expected in caplog.text
+    assert "/private" not in caplog.text
+    assert "private stdout" not in caplog.text
 
 
 def disk(mount_path=None):

@@ -1,3 +1,38 @@
+### 2026-11-20 KF-168 UPDATE — prepare-host subprocess diagnostics / live completion OPEN
+
+The one authorized restart of candidate U13B Host blob `437f3e6c...` ended
+with IPC `ERROR / ha_prepare_host_command_failed`. Durable U13B and the
+business runtime remained healthy. See the
+[archived stop](https://github.com/chrenguo-stack/HomeAssistant/blob/0f50f0b98eefeb6780aca597ddd0da798251159d/docs/development/N3W_T1_U9_PLUS_PHASE_A_RESTART_CONVERGENCE_REPAIR_LIVE_REVALIDATION_STOP_20261120.md).
+
+The bound ext4 partition was visible to the daemon and remained unmounted
+during the follow-up. The observer and daemon shared a mount namespace.
+The exact inventory, partition parent, type and label queries succeeded
+when observed. A read-only superblock query showed `needs_recovery`; that
+observation does not establish the cause of the historical command failure.
+No command or exit code was recovered from the stopped attempt.
+
+Guard: log a fixed diagnostic record for a failed USB subprocess, including
+the allowlisted tool, operation, return code and a fixed reason class.
+Never include argv, device paths, stdout or raw stderr. Preserve the stable
+IPC error, strict read-only reconciliation options and fail-closed behavior.
+Unit tests inject failures for mount, mount inspection and unmount and
+require redaction plus the original IPC-facing exception.
+
+Local validation: 176 relevant tests passed. One Phase-A transport test
+(`test_remote_stdout_empty_preserves_stderr_diagnostic`) also failed on
+the unmodified review base because it expects an older source expression.
+The exact Phase-A source check passed. The local fast helper passed public
+repository safety and stopped on missing legacy Manager Board Lab paths.
+
+```text
+KF168_PREPARE_HOST_COMMAND_ROOT_CAUSE=UNCONFIRMED
+KF168_USB_COMMAND_DIAGNOSTIC_SOURCE=REVIEW_ONLY
+PHASE_A_OVERALL=NOT_YET_PASS
+PREVIOUS_LIVE_RETRY_AUTHORIZATION=CONSUMED_NO_REPLAY
+NEW_LIVE_AUTHORIZATION=NOT_GRANTED
+```
+
 ### 2026-11-20 KF-168 UPDATE — restart-convergence source/test/CI CLOSED_PASS / live retry preflight pending
 
 The real-T1 `a103...` live revalidation exposed `u13b_predecessor_runtime_not_running` only because the OTA daemon evaluated completion roughly 2–3 seconds before the services owner and Manager/Home Assistant runtime converged. Settled business runtime was healthy.
