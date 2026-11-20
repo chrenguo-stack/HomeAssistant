@@ -161,14 +161,12 @@ def _validate_predecessor_start(document: dict[str, Any]) -> None:
         raise UpdaterV2Error("ha_usb_predecessor_homeassistant_image_drift")
 
 
-def _validate_recovery_materials(document: dict[str, Any]) -> None:
-    materials = document.get("install_recovery_materials")
-    if not isinstance(materials, dict) or set(materials) != {"target", "predecessor", "backup"}:
-        raise UpdaterV2Error("ha_usb_install_recovery_materials_invalid")
+def _validated_image_materials(
+    document: dict[str, Any], materials: dict[str, Any]
+) -> tuple[ImageRecoveryRecord, ImageRecoveryRecord]:
     try:
         target = ImageRecoveryRecord(**materials["target"])
         predecessor = ImageRecoveryRecord(**materials["predecessor"])
-        backup = HaDataBackupRecord(**materials["backup"])
     except TypeError as error:
         raise UpdaterV2Error("ha_usb_install_recovery_materials_invalid") from error
     validate_image_recovery_record(
@@ -180,9 +178,39 @@ def _validate_recovery_materials(document: dict[str, Any]) -> None:
         predecessor, expected_kind="predecessor",
         expected_image_ref=document["current_image_ref"],
     )
-    validate_backup_record(backup)
     if target.archive_size_bytes != document["target_archive_size"]:
         raise UpdaterV2Error("ha_usb_install_target_size_drift")
+    return target, predecessor
+
+
+def prepared_image_materials(
+    document: dict[str, Any],
+) -> tuple[ImageRecoveryRecord, ImageRecoveryRecord]:
+    materials = document.get("prepared_image_materials")
+    if not isinstance(materials, dict) or set(materials) != {"target", "predecessor"}:
+        raise UpdaterV2Error("ha_usb_prepared_image_materials_invalid")
+    target, predecessor = _validated_image_materials(document, materials)
+    if document["current_image_identity"].get(
+        "portable_identity_sha256"
+    ) != predecessor.portable_identity_sha256:
+        raise UpdaterV2Error("ha_usb_predecessor_archive_identity_drift")
+    return target, predecessor
+
+
+def _validate_recovery_materials(document: dict[str, Any]) -> None:
+    materials = document.get("install_recovery_materials")
+    if not isinstance(materials, dict) or set(materials) != {"target", "predecessor", "backup"}:
+        raise UpdaterV2Error("ha_usb_install_recovery_materials_invalid")
+    records = _validated_image_materials(document, materials)
+    if document.get("usb_binding_mode") == "existing_filesystem" and (
+        records != prepared_image_materials(document)
+    ):
+        raise UpdaterV2Error("ha_usb_install_recovery_material_identity_drift")
+    try:
+        backup = HaDataBackupRecord(**materials["backup"])
+    except TypeError as error:
+        raise UpdaterV2Error("ha_usb_install_recovery_materials_invalid") from error
+    validate_backup_record(backup)
 
 
 def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
@@ -340,6 +368,11 @@ def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
 
     if _phase_at_or_after(phase, U4) and target_verified is not True:
         raise UpdaterV2Error("ha_usb_target_not_verified")
+    if "usb_binding_mode" in document:
+        if document["usb_binding_mode"] != "existing_filesystem" or not _phase_at_or_after(phase, U2):
+            raise UpdaterV2Error("ha_usb_binding_mode_invalid")
+        if _phase_at_or_after(phase, U4):
+            prepared_image_materials(document)
     if _phase_at_or_after(phase, U7) and predecessor_verified is not True:
         raise UpdaterV2Error("ha_usb_predecessor_not_verified")
     if _phase_at_or_after(phase, U8):
@@ -457,6 +490,10 @@ def transition(
             }:
                 raise UpdaterV2Error("ha_usb_immutable_field_update_forbidden")
             if key == "install_recovery_materials" and next_phase != U8:
+                raise UpdaterV2Error("ha_usb_immutable_field_update_forbidden")
+            if key == "prepared_image_materials" and not (current_phase == U3 and next_phase == U4):
+                raise UpdaterV2Error("ha_usb_immutable_field_update_forbidden")
+            if key == "usb_binding_mode" and next_phase != U2:
                 raise UpdaterV2Error("ha_usb_immutable_field_update_forbidden")
             result[key] = copy.deepcopy(value)
 

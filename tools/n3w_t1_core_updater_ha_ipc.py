@@ -164,6 +164,8 @@ class HaUsbIpcExecutor:
                 "error_code": code,
             }
         phase = _PHASE_MAP.get(document["phase"])
+        if document["phase"] == U2 and document.get("usb_binding_mode") == "existing_filesystem":
+            phase = "USB_QUALIFIED_BOUND"
         if phase is None:
             raise UpdaterV2Error("ha_ota_ipc_phase_invalid")
         return {

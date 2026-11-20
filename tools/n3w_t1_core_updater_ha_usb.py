@@ -21,6 +21,7 @@ from n3w_t1_core_updater_ha_usb_media import (
     FormatAuthorization,
     UsbCapacityReport,
     require_same_filesystem_uuid,
+    validate_filesystem_uuid,
 )
 from n3w_t1_core_updater_ha_usb_state import (
     HA_USB_TERMINAL_STATUSES,
@@ -341,6 +342,28 @@ def record_media_bound(
     )
 
 
+def record_existing_media_bound(
+    document: dict[str, Any], *, filesystem_uuid: str, capacity_report: UsbCapacityReport
+) -> dict[str, Any]:
+    """Bind a qualified existing filesystem without requesting an erase."""
+    current = validate_transaction_document(document)
+    if current["phase"] != U1:
+        raise UpdaterV2Error("ha_usb_media_bind_phase_invalid")
+    if capacity_report.capacity_pass is not True:
+        raise UpdaterV2Error("ha_usb_capacity_not_verified")
+    filesystem_uuid = validate_filesystem_uuid(filesystem_uuid)
+    return transition(current, U2, updates={
+        "usb_binding_mode": "existing_filesystem",
+        "usb_device_identity_public_fingerprint": sha256_bytes(
+            (filesystem_uuid + ":" + current["transaction_id_sha256"]).encode()
+        ),
+        "usb_filesystem_uuid": filesystem_uuid,
+        "usb_measured_usable_bytes": capacity_report.measured_usable_bytes,
+        "usb_mount_authority": f"filesystem_uuid:{filesystem_uuid}",
+        "usb_capacity_verified": True,
+    })
+
+
 def start_target_preparation(document: dict[str, Any]) -> dict[str, Any]:
     current = validate_transaction_document(document)
     if current["phase"] != U2:
@@ -352,6 +375,7 @@ def record_target_ready(
     document: dict[str, Any],
     *,
     target: ImageRecoveryRecord,
+    predecessor: ImageRecoveryRecord | None = None,
 ) -> dict[str, Any]:
     current = validate_transaction_document(document)
     if current["phase"] != U3:
@@ -362,11 +386,14 @@ def record_target_ready(
         expected_image_ref=current["target_image_ref"],
         expected_archive_sha256=current["target_archive_sha256"],
     )
-    return transition(
-        current,
-        U4,
-        updates={"target_artifact_verified": True},
-    )
+    updates: dict[str, Any] = {"target_artifact_verified": True}
+    if current.get("usb_binding_mode") == "existing_filesystem":
+        if predecessor is None:
+            raise UpdaterV2Error("ha_usb_prepared_predecessor_missing")
+        updates["prepared_image_materials"] = {
+            "target": target.public(), "predecessor": predecessor.public(),
+        }
+    return transition(current, U4, updates=updates)
 
 
 def start_predecessor_recovery(document: dict[str, Any]) -> dict[str, Any]:

@@ -17,6 +17,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
+import n3w_t1_core_updater_ha_mounted_media as mounted_media
 import n3w_t1_core_updater_ha_recovery_startup as recovery_startup
 import n3w_t1_core_updater_ha_usb as ha_usb_mod
 from n3w_t1_core_updater_ha_backup import (
@@ -39,6 +40,7 @@ from n3w_t1_core_updater_ha_usb import (
     claim_live_authorization,
     classify_power_loss_reentry,
     record_commit,
+    record_existing_media_bound,
     record_media_bound,
     record_predecessor_capacity_released,
     record_predecessor_recovery_and_ha_quiesced,
@@ -681,6 +683,111 @@ def prepare_to_u4(tmp_path: Path):
     target = media.target_record()
     tx = record_target_ready(tx, target=target)
     return tx, media, docker, ha, target
+
+
+@pytest.mark.parametrize("fault", (
+    None, "wrong_uuid", "duplicate_uuid", "same_disk", "archive_drift",
+    "symlink", "internal_space",
+))
+def test_verify_existing_usb_media_from_bound_archives(tmp_path, monkeypatch, fault):
+    media = SyntheticUsb(tmp_path / "original")
+    media.root.mkdir()
+    sentinel = media.root / "existing-user-file"
+    sentinel.write_bytes(b"keep unchanged")
+    target = media.target_record()
+    predecessor = SyntheticDockerHost().export_predecessor(media)
+    initial = record_existing_media_bound(
+        request_prepare(transaction()), filesystem_uuid=USB_UUID, capacity_report=media.report,
+    )
+    store = HaUsbStateStore(tmp_path / "state")
+    store.write(initial)
+    ipc = HaUsbIpcExecutor(store=store, admission_resolver=SimpleNamespace())
+    assert ipc.status()["phase"] == "USB_QUALIFIED_BOUND"
+    downloading = start_target_preparation(initial)
+    with pytest.raises(UpdaterV2Error, match="prepared_predecessor_missing"):
+        record_target_ready(downloading, target=target)
+    prepared = record_target_ready(downloading, target=target, predecessor=predecessor)
+    pending = request_install(prepared)
+    archive_dir = media.root / "N3W-OTA" / pending["transaction_id_sha256"]
+    archive_dir.mkdir(parents=True)
+    (archive_dir / "target.tar").write_bytes(TARGET_BYTES)
+    (archive_dir / "predecessor.tar").write_bytes(CURRENT_BYTES)
+
+    actual_device = mounted_media._device_number(media.root.stat().st_dev)
+    protected_device = "8:3"
+    partition = {"type": "part", "uuid": USB_UUID, "maj:min": actual_device}
+    children = [partition]
+    if fault == "duplicate_uuid":
+        children.append({**partition, "maj:min": "8:99"})
+    if fault == "same_disk":
+        children.append({"type": "part", "maj:min": protected_device})
+    devices = [{"type": "disk", "tran": "usb", "maj:min": "8:0", "children": children}]
+    mounts = [{
+        "target": str(media.root),
+        "fstype": "ext4", "fsroot": "/", "options": "rw,nosuid",
+        "maj:min": actual_device, "uuid": OTHER_UUID if fault == "wrong_uuid" else USB_UUID,
+    }]
+    commands = []
+
+    def metadata(*argv):
+        commands.append(argv[0])
+        return {"filesystems": mounts} if argv[0] == "findmnt" else {"blockdevices": devices}
+
+    monkeypatch.setattr(mounted_media, "_command_json", metadata)
+    monkeypatch.setattr(mounted_media, "_protected_devices", lambda _: {protected_device})
+    monkeypatch.setattr(mounted_media.os, "fstatvfs", lambda _: SimpleNamespace(
+        f_blocks=USB_BYTES, f_bfree=USB_BYTES // 2, f_bavail=USB_BYTES // 2, f_frsize=1
+    ))
+    monkeypatch.setattr(mounted_media.os, "statvfs", lambda _: SimpleNamespace(
+        f_bavail=0 if fault == "internal_space" else 4096, f_frsize=1
+    ))
+    if fault == "archive_drift":
+        (archive_dir / "target.tar").write_bytes(b"x" * len(TARGET_BYTES))
+    if fault == "symlink":
+        (archive_dir / "target.tar").unlink()
+        (archive_dir / "target.tar").symlink_to(
+            media.root / "target" / "homeassistant-target.bin"
+        )
+
+    verifier = mounted_media.HaMountedInstallMaterialVerifier(
+        mountpoint=media.root,
+        internal_storage=tmp_path,
+        budget=lambda _: mounted_media.HaInstallSpaceBudget(1024, 2048, 1024, 2048),
+        verify_prestate=lambda _: True,
+    )
+    errors = {
+        "wrong_uuid": "usb_filesystem_uuid_mismatch",
+        "duplicate_uuid": "ha_usb_original_filesystem_not_unique",
+        "same_disk": "ha_usb_original_mount_device_mismatch",
+        "archive_drift": "ha_usb_recovery_archive_digest_mismatch",
+        "symlink": "ha_usb_original_material_unavailable",
+    }
+    if fault in errors:
+        with pytest.raises(UpdaterV2Error, match=errors[fault]):
+            verifier.verify_install_materials(pending)
+    else:
+        observed = verifier.verify_install_materials(pending)
+        assert observed.target == target
+        assert observed.predecessor == predecessor
+        assert observed.capacity.capacity_pass is (fault is None)
+        assert commands == ["findmnt", "lsblk", "findmnt", "lsblk"]
+    assert set(commands) <= {"findmnt", "lsblk"}
+    assert sentinel.read_bytes() == b"keep unchanged"
+    if fault is None:
+        store.write(pending)
+        runtime = PredecessorRuntime(store)
+        backups = InstallMaterialFixture(
+            media, target, predecessor, SyntheticHaData(tmp_path / "ha"), runtime, None
+        )
+        recovery = HaPredecessorRecovery(store, runtime, runtime)
+        with (
+            pytest.raises(UpdaterV2Error, match="ha_usb_install_cutover_not_consumed"),
+            recovery.install_recovery_point(verifier, backups) as document,
+        ):
+            assert document["phase"] == U8
+            assert document["install_recovery_materials"]["predecessor"] == predecessor.public()
+        assert store.read()["status"] == "ROLLED_BACK"
+        assert sentinel.read_bytes() == b"keep unchanged"
 
 
 class InstallMaterialFixture:
