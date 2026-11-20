@@ -36,7 +36,7 @@
     "replay_permitted": false
   },
   "p3_candidate_source_manifest": "tools/execution_packages/n3w/r7a/u13b_p3_live_to_u11/manifest.json",
-  "p3_candidate_source_manifest_blob": "d5b13141712f7ac4758cf1cf983e024e42773dda",
+  "p3_candidate_source_manifest_blob": "57671ba8e42cb035dbe026e7961f8b26f5182091",
   "package_source_authority": {
     "tools/execution_packages/n3w/r7a/u13b_p3_u1_u4_recovery/u10_preflight.py": "155e7a475fe197e7acfbdc539259b2b6bad26227",
     "tools/execution_packages/n3w/r7a/u13b_p3_u1_u4_recovery/executor.py": "deb0f1536b4e884993cb2b72b60df4b43623b27f",
