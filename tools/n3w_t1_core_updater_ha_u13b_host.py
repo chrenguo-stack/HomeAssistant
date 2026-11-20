@@ -1003,11 +1003,15 @@ class U9PlusProductionCompletionOracle:
             int(match.group(1))
             for match in self._SS_DATA_SEGS_IN_RE.finditer(payload)
         ]
-        if len(received) != 1 or len(segments) != 1:
+        if not received or len(received) != len(segments):
             raise UpdaterV2Error(
                 "u9_plus_completion_ha_mqtt_socket_ambiguous"
             )
-        return received[0], segments[0]
+        # The production HA health contract permits one or more established
+        # loopback 1883 sockets. Preserve the transport-progress oracle by
+        # aggregating their TCP_INFO counters instead of requiring a globally
+        # unique socket.
+        return sum(received), sum(segments)
 
     def _ha_entity_ids(self, node_ids: set[str]) -> tuple[str, ...]:
         registry = (
@@ -1123,9 +1127,11 @@ class U9PlusProductionCompletionOracle:
     ) -> bool:
         deadline = self.clock() + self.telemetry_timeout_s
 
-        # KF-140: bind the exact simplified-N3W Manager event to the unique
-        # HA->Broker loopback MQTT client socket. Recorder last_updated is not
-        # a valid sole receipt oracle when a sensor value may stay unchanged.
+        # KF-140: bind the exact simplified-N3W Manager event to HA loopback
+        # MQTT transport progress. The production HA contract permits one or
+        # more established 1883 sockets, so the counters are aggregated.
+        # Recorder last_updated is not a valid sole receipt oracle when a
+        # sensor value may stay unchanged.
         seen = set(
             self._accepted_simplified_events_since(
                 recovery_started_unix
