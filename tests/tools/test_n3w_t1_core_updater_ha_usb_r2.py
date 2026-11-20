@@ -6,6 +6,7 @@ import inspect
 import json
 import os
 import shutil
+import sqlite3
 import stat
 import sys
 import threading
@@ -21,7 +22,11 @@ import n3w_t1_core_updater_ha_mounted_media as mounted_media
 import n3w_t1_core_updater_ha_recovery_startup as recovery_startup
 import n3w_t1_core_updater_ha_usb as ha_usb_mod
 from n3w_t1_core_updater_ha_backup import (
+    BACKUP_ARCHIVE_NAME,
+    BACKUP_METADATA_NAME,
     HaDataBackupRecord,
+    ProtectedHaDataBackup,
+    backup_record_from_document,
     validate_backup_record,
 )
 from n3w_t1_core_updater_ha_ipc import (
@@ -687,7 +692,7 @@ def prepare_to_u4(tmp_path: Path):
 
 @pytest.mark.parametrize("fault", (
     None, "wrong_uuid", "duplicate_uuid", "same_disk", "archive_drift",
-    "symlink", "internal_space",
+    "symlink", "internal_space", "occupied_backup",
 ))
 def test_verify_existing_usb_media_from_bound_archives(tmp_path, monkeypatch, fault):
     media = SyntheticUsb(tmp_path / "original")
@@ -769,25 +774,79 @@ def test_verify_existing_usb_media_from_bound_archives(tmp_path, monkeypatch, fa
         observed = verifier.verify_install_materials(pending)
         assert observed.target == target
         assert observed.predecessor == predecessor
-        assert observed.capacity.capacity_pass is (fault is None)
+        assert observed.capacity.capacity_pass is (fault != "internal_space")
         assert commands == ["findmnt", "lsblk", "findmnt", "lsblk"]
     assert set(commands) <= {"findmnt", "lsblk"}
     assert sentinel.read_bytes() == b"keep unchanged"
-    if fault is None:
+    if fault in {None, "occupied_backup"}:
         store.write(pending)
         runtime = PredecessorRuntime(store)
-        backups = InstallMaterialFixture(
-            media, target, predecessor, SyntheticHaData(tmp_path / "ha"), runtime, None
+        ha = SyntheticHaData(tmp_path / "ha")
+        work = tmp_path / "internal-work"
+        work.mkdir(mode=0o700)
+        key = work / "fixture-root"
+        key.write_bytes(os.urandom(32))
+        key.chmod(0o600)
+        donor_path = work / "recorder.db"
+        donor = sqlite3.connect(donor_path)
+        try:
+            donor.execute("PRAGMA journal_mode=WAL")
+            donor.execute("PRAGMA wal_autocheckpoint=0")
+            donor.execute("CREATE TABLE records (value TEXT)")
+            donor.execute("INSERT INTO records VALUES ('quiesced test data')")
+            donor.commit()
+            database = ha.root / "home-assistant_v2.db"
+            for suffix in ("", "-wal", "-shm"):
+                shutil.copyfile(str(donor_path) + suffix, str(database) + suffix)
+        finally:
+            donor.close()
+        db_files = sorted(ha.root.glob("home-assistant_v2.db*"))
+        before = {path: sha(path) for path in db_files}
+        backups = mounted_media.HaMountedBackupProvider(
+            store=store, mountpoint=media.root, internal_storage=tmp_path,
+            backup=ProtectedHaDataBackup(
+                work_root=work, ha_data_root=ha.root, system_root_key=key,
+                product_config=work / "fixture-config.yaml",
+            ),
+            verify_quiesced=lambda: runtime.running == {"broker"},
         )
+        backup_dir = archive_dir / "ha-backup"
+        expected = "ha_usb_install_cutover_not_consumed"
+        if fault == "occupied_backup":
+            backup_dir.mkdir()
+            (backup_dir / BACKUP_ARCHIVE_NAME).write_bytes(b"preserve existing backup")
+            expected = "ha_data_backup_destination_occupied"
         recovery = HaPredecessorRecovery(store, runtime, runtime)
         with (
-            pytest.raises(UpdaterV2Error, match="ha_usb_install_cutover_not_consumed"),
+            pytest.raises(UpdaterV2Error, match=expected),
             recovery.install_recovery_point(verifier, backups) as document,
         ):
             assert document["phase"] == U8
             assert document["install_recovery_materials"]["predecessor"] == predecessor.public()
+            record = backup_record_from_document(document["install_recovery_materials"]["backup"])
+            assert backups.verify_backup(record) == record
         assert store.read()["status"] == "ROLLED_BACK"
         assert sentinel.read_bytes() == b"keep unchanged"
+        assert {path: sha(path) for path in db_files} == before
+        archive = backup_dir / BACKUP_ARCHIVE_NAME
+        if fault == "occupied_backup":
+            assert archive.read_bytes() == b"preserve existing backup"
+            assert not (backup_dir / BACKUP_METADATA_NAME).exists()
+        else:
+            ciphertext = archive.read_bytes()
+            assert ciphertext.startswith(b"Salted__")
+            assert b"quiesced test data" not in ciphertext
+            metadata = backup_dir / BACKUP_METADATA_NAME
+            original = metadata.read_bytes()
+            changed = json.loads(original)
+            changed["auth_tag_sha256"] = "0" * 64
+            metadata.write_text(json.dumps(changed))
+            with pytest.raises(UpdaterV2Error, match="backup_authentication_failed"):
+                backups.verify_backup(record)
+            metadata.write_bytes(original)
+            archive.write_bytes(ciphertext[:-1] + bytes([ciphertext[-1] ^ 1]))
+            with pytest.raises(UpdaterV2Error, match="archive_hash_mismatch"):
+                backups.verify_backup(record)
 
 
 class InstallMaterialFixture:

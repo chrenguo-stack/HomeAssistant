@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from n3w_t1_core_updater_common import IMAGE_ID
-from n3w_t1_core_updater_ha_backup import HaDataBackupRecord, validate_backup_record
+from n3w_t1_core_updater_ha_backup import backup_record_from_document
 from n3w_t1_core_updater_ha_recovery import ImageRecoveryRecord, validate_image_recovery_record
 from n3w_t1_core_updater_ha_usb_media import (
     USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
@@ -206,11 +206,7 @@ def _validate_recovery_materials(document: dict[str, Any]) -> None:
         records != prepared_image_materials(document)
     ):
         raise UpdaterV2Error("ha_usb_install_recovery_material_identity_drift")
-    try:
-        backup = HaDataBackupRecord(**materials["backup"])
-    except TypeError as error:
-        raise UpdaterV2Error("ha_usb_install_recovery_materials_invalid") from error
-    validate_backup_record(backup)
+    backup_record_from_document(materials["backup"])
 
 
 def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:

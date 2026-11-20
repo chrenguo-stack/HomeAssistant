@@ -6,11 +6,12 @@ import os
 import stat
 import subprocess
 from collections.abc import Callable, Iterator
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from n3w_t1_core_updater_ha_backup import HaDataBackupRecord, ProtectedHaDataBackup
 from n3w_t1_core_updater_ha_recovery import ImageRecoveryRecord
 from n3w_t1_core_updater_ha_usb import HaInstallMaterials
 from n3w_t1_core_updater_ha_usb_media import (
@@ -20,6 +21,8 @@ from n3w_t1_core_updater_ha_usb_media import (
     require_same_filesystem_uuid,
 )
 from n3w_t1_core_updater_ha_usb_state import (
+    U7,
+    HaUsbStateStore,
     prepared_image_materials,
     validate_transaction_document,
 )
@@ -153,6 +156,47 @@ def _verify_archive(directory: int, name: str, record: ImageRecoveryRecord) -> N
         os.close(fd)
 
 
+@contextmanager
+def _open_transaction_directory(
+    mountpoint: Path, internal_storage: Path, document: dict[str, Any]
+) -> Iterator[tuple[int, int]]:
+    expected_uuid = document["usb_filesystem_uuid"].lower()
+    try:
+        protected = _protected_devices(internal_storage)
+        device = _mount_device(mountpoint, expected_uuid, protected)
+        with ExitStack() as stack:
+            fd = os.open(mountpoint, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            stack.callback(os.close, fd)
+            mount_stat = os.fstat(fd)
+            if _device_number(mount_stat.st_dev) != device:
+                raise UpdaterV2Error("ha_usb_original_mount_device_mismatch")
+            directory = fd
+            opened_directories = []
+            for name in ("N3W-OTA", document["transaction_id_sha256"]):
+                parent = directory
+                directory = os.open(
+                    name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent
+                )
+                stack.callback(os.close, directory)
+                binding = os.fstat(directory)
+                if binding.st_dev != mount_stat.st_dev:
+                    raise UpdaterV2Error("ha_usb_transaction_directory_off_device")
+                opened_directories.append((parent, name, binding))
+            yield fd, directory
+            for parent, name, binding in opened_directories:
+                current = os.stat(name, dir_fd=parent, follow_symlinks=False)
+                if not os.path.samestat(binding, current):
+                    raise UpdaterV2Error("ha_usb_transaction_directory_changed")
+            if (
+                _protected_devices(internal_storage) != protected
+                or _mount_device(mountpoint, expected_uuid, protected) != device
+                or not os.path.samestat(mount_stat, mountpoint.stat())
+            ):
+                raise UpdaterV2Error("ha_usb_original_mount_changed")
+    except OSError as error:
+        raise UpdaterV2Error("ha_usb_original_material_unavailable") from error
+
+
 class HaMountedInstallMaterialVerifier:
     """Read-only verification of archives already materialized by host preparation."""
 
@@ -174,45 +218,16 @@ class HaMountedInstallMaterialVerifier:
         if document.get("usb_binding_mode") != "existing_filesystem":
             raise UpdaterV2Error("ha_usb_existing_filesystem_binding_required")
         target, predecessor = prepared_image_materials(document)
-        expected_uuid = document["usb_filesystem_uuid"].lower()
-        try:
-            protected = _protected_devices(self.internal_storage)
-            device = _mount_device(self.mountpoint, expected_uuid, protected)
-            with ExitStack() as stack:
-                fd = os.open(self.mountpoint, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-                stack.callback(os.close, fd)
-                mount_stat = os.fstat(fd)
-                if _device_number(mount_stat.st_dev) != device:
-                    raise UpdaterV2Error("ha_usb_original_mount_device_mismatch")
-                directory = fd
-                opened_directories = []
-                for name in ("N3W-OTA", document["transaction_id_sha256"]):
-                    parent = directory
-                    directory = os.open(
-                        name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent
-                    )
-                    stack.callback(os.close, directory)
-                    binding = os.fstat(directory)
-                    if binding.st_dev != mount_stat.st_dev:
-                        raise UpdaterV2Error("ha_usb_transaction_directory_off_device")
-                    opened_directories.append((parent, name, binding))
-                _verify_archive(directory, "target.tar", target)
-                _verify_archive(directory, "predecessor.tar", predecessor)
-                capacity = self._capacity(fd, self.budget(document))
-                prestate = self.verify_prestate(document)
-                for parent, name, binding in opened_directories:
-                    current = os.stat(name, dir_fd=parent, follow_symlinks=False)
-                    if not os.path.samestat(binding, current):
-                        raise UpdaterV2Error("ha_usb_transaction_directory_changed")
-                if (
-                    _protected_devices(self.internal_storage) != protected
-                    or _mount_device(self.mountpoint, expected_uuid, protected) != device
-                    or not os.path.samestat(mount_stat, self.mountpoint.stat())
-                ):
-                    raise UpdaterV2Error("ha_usb_original_mount_changed")
-        except OSError as error:
-            raise UpdaterV2Error("ha_usb_original_material_unavailable") from error
-        return HaInstallMaterials(expected_uuid, target, predecessor, capacity, prestate)
+        with _open_transaction_directory(self.mountpoint, self.internal_storage, document) as (
+            mount, directory,
+        ):
+            _verify_archive(directory, "target.tar", target)
+            _verify_archive(directory, "predecessor.tar", predecessor)
+            capacity = self._capacity(mount, self.budget(document))
+            prestate = self.verify_prestate(document)
+        return HaInstallMaterials(
+            document["usb_filesystem_uuid"].lower(), target, predecessor, capacity, prestate
+        )
 
     def _capacity(self, fd: int, budget: HaInstallSpaceBudget) -> UsbCapacityReport:
         values = (
@@ -238,3 +253,88 @@ class HaMountedInstallMaterialVerifier:
             transaction_formula_pass=space_ok,
             capacity_pass=usable >= floor and space_ok,
         )
+
+
+class HaMountedBackupProvider:
+    """Bind the protected backup to the stopped transaction and its original USB."""
+
+    def __init__(
+        self, *, store: HaUsbStateStore, mountpoint: Path, internal_storage: Path,
+        backup: ProtectedHaDataBackup, verify_quiesced: Callable[[], bool],
+    ) -> None:
+        self.store = store
+        self.mountpoint = mountpoint
+        self.internal_storage = internal_storage
+        self.backup = backup
+        self.verify_quiesced = verify_quiesced
+
+    def _document(self) -> dict[str, Any]:
+        current = self.store.read()
+        if (
+            current is None or current.get("usb_binding_mode") != "existing_filesystem"
+            or "predecessor_start" not in current
+        ):
+            raise UpdaterV2Error("ha_data_backup_transaction_unbound")
+        return current
+
+    def _require_stopped(self, current: dict[str, Any]) -> None:
+        if (
+            current["phase"] != U7 or current["status"] != "ACTIVE"
+            or current["recovery_required"] or self.verify_quiesced() is not True
+        ):
+            raise UpdaterV2Error("ha_data_backup_writers_not_quiesced")
+
+    @contextmanager
+    def _backup_directory(
+        self, current: dict[str, Any], *, create: bool = False
+    ) -> Iterator[int]:
+        with _open_transaction_directory(self.mountpoint, self.internal_storage, current) as (
+            _, parent,
+        ):
+            if create:
+                try:
+                    os.mkdir("ha-backup", mode=0o700, dir_fd=parent)
+                except FileExistsError as error:
+                    raise UpdaterV2Error("ha_data_backup_destination_occupied") from error
+                os.fsync(parent)
+            fd = os.open(
+                "ha-backup", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent
+            )
+            try:
+                before = os.fstat(fd)
+                if (
+                    before.st_dev != os.fstat(parent).st_dev
+                    or before.st_uid != os.geteuid()
+                    or stat.S_IMODE(before.st_mode) != 0o700
+                ):
+                    raise UpdaterV2Error("ha_data_backup_directory_identity_invalid")
+                yield fd
+                after = os.stat("ha-backup", dir_fd=parent, follow_symlinks=False)
+                if not os.path.samestat(before, after):
+                    raise UpdaterV2Error("ha_data_backup_directory_changed")
+            finally:
+                os.close(fd)
+
+    def create_consistent_backup(self, *, transaction_id_sha256: str) -> HaDataBackupRecord:
+        current = self._document()
+        if current["transaction_id_sha256"] != transaction_id_sha256:
+            raise UpdaterV2Error("ha_data_backup_transaction_identity_drift")
+        self._require_stopped(current)
+        work_root = self.backup.work_root.resolve(strict=True)
+        internal = self.internal_storage.resolve(strict=True)
+        if not work_root.is_relative_to(internal) or work_root.stat().st_dev != internal.stat().st_dev:
+            raise UpdaterV2Error("ha_data_backup_work_directory_off_internal_storage")
+        with self._backup_directory(current, create=True) as directory:
+            self._require_stopped(self._document())
+            record = self.backup.create(directory, transaction_id_sha256)
+            self._require_stopped(self._document())
+        return record
+
+    def verify_backup(self, record: HaDataBackupRecord) -> HaDataBackupRecord:
+        current = self._document()
+        if current["phase"] == U7:
+            self._require_stopped(current)
+        elif current.get("install_recovery_materials", {}).get("backup") != record.public():
+            raise UpdaterV2Error("ha_data_backup_record_unbound")
+        with self._backup_directory(current) as directory:
+            return self.backup.verify(directory, current["transaction_id_sha256"], record)
