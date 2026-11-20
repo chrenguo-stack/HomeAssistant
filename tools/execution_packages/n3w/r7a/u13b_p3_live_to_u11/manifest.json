@@ -57,7 +57,7 @@
     "tools/n3w_t1_core_updater_finalize.py": "e09a1ca9a6ede687f8e66c08688f256b97ae8562",
     "tools/n3w_t1_core_updater_ha_backup.py": "6ffb762fe8bf2ba4b29a353a0b2a812eaa642e0b",
     "tools/n3w_t1_core_updater_ha_capacity.py": "b3adca96e0d698d5096c005766564c33a5609bcd",
-    "tools/n3w_t1_core_updater_ha_daemon.py": "941baffc8423a10cfa1436323d109caae17be473",
+    "tools/n3w_t1_core_updater_ha_daemon.py": "bb048c3641b9f66767d89b20a80aa3049fbed8db",
     "tools/n3w_t1_core_updater_ha_install.py": "6ef197e0c36010649e3d6b162e184d3fbdb440c3",
     "tools/n3w_t1_core_updater_ha_ipc.py": "893545a401858c57fd4c0c03b8f486bbe5a3c8d9",
     "tools/n3w_t1_core_updater_ha_prepare.py": "c4973a9fa9f114b2d068db5f2166894a41ed2217",

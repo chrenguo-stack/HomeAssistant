@@ -54,8 +54,10 @@ APPROVED_MANIFEST_SOURCE = Path(
     "/etc/n3w-t1-ota/approved-homeassistant.json"
 )
 RUNTIME_ROOT = Path("/run/n3w-t1-ota")
-RUNTIME_MANIFEST = RUNTIME_ROOT / "approved-homeassistant.json"
-SOCKET_PATH = RUNTIME_ROOT / "ha-ota.sock"
+MANAGER_IPC_ROOT = Path("/run/n3w-t1-ota-ipc")
+RUNTIME_MANIFEST = MANAGER_IPC_ROOT / "approved-homeassistant.json"
+SOCKET_PATH = MANAGER_IPC_ROOT / "ha-ota.sock"
+LEGACY_SOCKET_PATH = RUNTIME_ROOT / SOCKET_PATH.name
 STATE_ROOT = Path("/var/lib/n3w-t1-core-updater")
 EXPECTED_MANAGER_UID = 999
 EXPECTED_MANAGER_GID = 999
@@ -375,20 +377,34 @@ def _build_u9_plus_recovery_if_needed(
     return build_production_u9_plus_recovery(transaction_store)
 
 
-def build_server() -> UnixSocketHaOtaServer:
-    if os.geteuid() != 0:
-        raise UpdaterV2Error("ha_ota_daemon_requires_root")
-    if os.getegid() != EXPECTED_MANAGER_GID:
-        raise UpdaterV2Error("ha_ota_daemon_group_invalid")
-    if not RUNTIME_ROOT.is_dir() or RUNTIME_ROOT.is_symlink():
-        raise UpdaterV2Error("ha_ota_runtime_root_invalid")
-    metadata = RUNTIME_ROOT.stat()
+def _validate_runtime_directory(path: Path, *, code: str) -> None:
+    if path.is_symlink() or not path.is_dir():
+        raise UpdaterV2Error(f"{code}_invalid")
+    metadata = path.stat()
     if (
         metadata.st_uid != 0
         or metadata.st_gid != EXPECTED_MANAGER_GID
         or stat.S_IMODE(metadata.st_mode) != 0o750
     ):
-        raise UpdaterV2Error("ha_ota_runtime_root_metadata_invalid")
+        raise UpdaterV2Error(f"{code}_metadata_invalid")
+
+
+def _ensure_legacy_socket_alias(alias: Path, socket_path: Path) -> None:
+    try:
+        alias.symlink_to(socket_path)
+    except FileExistsError as error:
+        if not alias.is_symlink() or alias.readlink() != socket_path:
+            raise UpdaterV2Error("ha_ota_legacy_socket_path_conflict") from error
+
+
+def build_server() -> UnixSocketHaOtaServer:
+    if os.geteuid() != 0:
+        raise UpdaterV2Error("ha_ota_daemon_requires_root")
+    if os.getegid() != EXPECTED_MANAGER_GID:
+        raise UpdaterV2Error("ha_ota_daemon_group_invalid")
+    _validate_runtime_directory(RUNTIME_ROOT, code="ha_ota_runtime_root")
+    _validate_runtime_directory(MANAGER_IPC_ROOT, code="ha_ota_manager_ipc_root")
+    _ensure_legacy_socket_alias(LEGACY_SOCKET_PATH, SOCKET_PATH)
     publish_manager_manifest()
     transaction_store = HaUsbStateStore(STATE_ROOT)
     prepare_store = PrepareStateStore(STATE_ROOT)
