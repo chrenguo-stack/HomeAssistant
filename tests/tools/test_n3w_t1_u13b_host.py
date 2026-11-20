@@ -179,7 +179,8 @@ class Host:
     def _mqtt_authenticated(self, service):
         return True
 
-    def _homeassistant_http_status(self):
+    def _homeassistant_http_status(self, *, allow_unavailable=False):
+        del allow_unavailable
         return 401
 
 
@@ -254,12 +255,28 @@ def test_u13b_predecessor_runtime_start_uses_ha_ota_path():
     assert host.binding == CURRENT
 
 
-def test_u13b_predecessor_health_waits_for_listener_convergence():
+def test_u13b_predecessor_health_waits_for_listener_convergence(monkeypatch):
     host = Host()
     host.owner = "active"
     host.binding = CURRENT
-    host.listener_ready = False
     adapter = runtime(host)
+    pending = [
+        {
+            "tcp_8883": 1,
+            "tcp_47110": 0,
+            "udp_47111": 0,
+            "tcp_47112": 0,
+        },
+        dict(host_mod.EXPECTED_LISTENERS),
+    ]
+
+    def listener_snapshot():
+        if pending:
+            return pending.pop(0)
+        return dict(host_mod.EXPECTED_LISTENERS)
+
+    monkeypatch.setattr(host, "_listener_snapshot", listener_snapshot)
+    monkeypatch.setattr(host_mod.time, "sleep", lambda _seconds: None)
 
     evidence = adapter.verify_predecessor_health(
         transaction=transaction(),
@@ -267,9 +284,8 @@ def test_u13b_predecessor_health_waits_for_listener_convergence():
     )
 
     assert evidence.predecessor_health_verified is True
-    assert host.wait_services_calls == [
-        host_mod.HOMEASSISTANT_SERVICES_READINESS_TIMEOUT_SECONDS
-    ]
+    assert pending == []
+    assert host.wait_services_calls == []
 
 
 def test_u13b_predecessor_health_rejects_binding_drift():
