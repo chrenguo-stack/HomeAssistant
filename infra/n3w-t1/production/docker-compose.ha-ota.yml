@@ -7,6 +7,8 @@ services:
       GH_N3W_T1_OTA_SOCKET_PATH: /run/n3w/t1-ota/ha-ota.sock
     volumes:
       - type: bind
-        source: /run/n3w-t1-ota
+        source: /run/n3w-t1-ota-ipc
         target: /run/n3w/t1-ota
         read_only: true
+        bind:
+          create_host_path: false

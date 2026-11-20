@@ -3,8 +3,13 @@ from __future__ import annotations
 import copy
 import inspect
 import json
+import os
+import socket
 import stat
 import subprocess
+import sys
+import tempfile
+from contextlib import ExitStack
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -497,14 +502,18 @@ def test_inactive_activation_assets_preserve_privilege_boundary() -> None:
     assert "Group=999" in unit
     assert "RuntimeDirectory=n3w-t1-ota" in unit
     assert "RuntimeDirectoryMode=0750" in unit
+    assert "ExecStartPre=/usr/bin/install -d -o root -g 999 -m 0750 /run/n3w-t1-ota-ipc" in unit
+    assert "ExecStopPost=/usr/bin/find /run/n3w-t1-ota-ipc -maxdepth 1 -name ha-ota.sock -type s -user root -delete" in unit
     assert "systemctl" not in unit
     assert "GH_N3W_T1_OTA_ENABLED" in override
     assert ":-false" in override
     assert '${GH_N3W_T1_OTA_INSTALLED_VERSION:-}' in override
     assert ":?GH_N3W_T1_OTA_INSTALLED_VERSION" not in override
-    assert "source: /run/n3w-t1-ota" in override
+    assert "source: /run/n3w-t1-ota-ipc\n" in override
+    assert "source: /run/n3w-t1-ota\n" not in override
     assert "target: /run/n3w/t1-ota" in override
     assert "read_only: true" in override
+    assert "create_host_path: false" in override
     assert "/var/run/docker.sock" not in override
     assert "/dev/" not in override
     assert "Requires=n3w-t1-ha-ota.service" in dropin
@@ -527,9 +536,122 @@ def test_daemon_requires_root_and_manager_group_contract_in_source() -> None:
     source = inspect.getsource(daemon.build_server)
     assert "os.geteuid() != 0" in source
     assert "os.getegid() != EXPECTED_MANAGER_GID" in source
-    assert "stat.S_IMODE(metadata.st_mode) != 0o750" in source
+    assert "stat.S_IMODE(metadata.st_mode) != 0o750" in inspect.getsource(
+        daemon._validate_runtime_directory
+    )
     assert "expected_peer_uid=EXPECTED_MANAGER_UID" in source
     assert "mode=0o660" in source
+
+
+def test_manager_export_contains_only_ipc_endpoints_not_the_usb_tree() -> None:
+    assert daemon.MANAGER_IPC_ROOT != daemon.RUNTIME_ROOT
+    assert daemon.RUNTIME_ROOT not in daemon.MANAGER_IPC_ROOT.parents
+    assert daemon.MANAGER_IPC_ROOT not in daemon.RUNTIME_ROOT.parents
+    assert daemon.RUNTIME_MANIFEST.parent == daemon.SOCKET_PATH.parent == daemon.MANAGER_IPC_ROOT
+    assert daemon.LEGACY_SOCKET_PATH == daemon.RUNTIME_ROOT / "ha-ota.sock"
+
+
+@pytest.mark.skipif(
+    sys.platform != "linux" or os.environ.get("N3W_KF168_DISPOSABLE_MOUNT_TEST") != "1",
+    reason="requires the disposable Linux mount-test runner",
+)
+def test_manager_export_linux_mount_and_socket_restart() -> None:
+    assert os.geteuid() == 0
+    for line in Path("/proc/self/mountinfo").read_text().splitlines():
+        options = line.split(" - ", 1)[0].split()[6:]
+        assert not any(option.startswith(("shared:", "master:")) for option in options)
+
+    def command(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(args, check=check, capture_output=True, text=True, timeout=20)
+
+    def unmount_if_present(path: Path) -> None:
+        if command("mountpoint", "-q", str(path), check=False).returncode == 0:
+            command("umount", str(path))
+
+    with tempfile.TemporaryDirectory(prefix="kf168-", dir="/tmp") as scratch, ExitStack() as cleanup:
+        root = Path(scratch)
+        runtime = root / daemon.RUNTIME_ROOT.name
+        ipc = root / daemon.MANAGER_IPC_ROOT.name
+        media = runtime / "media" / "bound"
+        old_view, new_view, verification = (root / name for name in ("old", "new", "verify"))
+        for directory in (media, ipc, old_view, new_view, verification):
+            directory.mkdir(parents=True)
+        image = root / "disposable.ext4"
+        with image.open("xb") as image_file:
+            image_file.truncate(32 * 1024 * 1024)
+        command("mkfs.ext4", "-q", "-F", str(image))
+        device = command("losetup", "--find", "--show", str(image)).stdout.strip()
+        cleanup.callback(command, "losetup", "--detach", device)
+        pinned = old_view / "media" / "bound"
+        for path in (old_view, pinned, new_view, media, verification):
+            cleanup.callback(unmount_if_present, path)
+
+        command("mount", "-o", "rw", device, str(media))
+        command("mount", "--rbind", str(runtime), str(old_view))
+        command("mount", "-o", "remount,bind,ro", str(pinned))
+        flags = command(
+            "findmnt", "-n", "-o", "VFS-OPTIONS,FS-OPTIONS", "--mountpoint", str(pinned)
+        ).stdout.split()
+        assert "ro" in flags[0].split(",") and "rw" in flags[1].split(",")
+        command("umount", str(media))
+        strict_flags = "ro,noload,nodev,nosuid,noexec"
+        busy = command("mount", "-o", strict_flags, device, str(verification), check=False)
+        assert busy.returncode == 32
+        command("umount", str(pinned))
+        command("umount", str(old_view))
+
+        command("mount", "-o", "rw", device, str(media))
+        command("mount", "--rbind", str(ipc), str(new_view))
+        assert not (new_view / "media").exists()
+        command("umount", str(media))
+        command("mount", "-o", strict_flags, device, str(verification))
+        flags = command(
+            "findmnt", "-n", "-o", "VFS-OPTIONS,FS-OPTIONS", "--mountpoint", str(verification)
+        ).stdout.split()
+        assert "ro" in flags[0].split(",") and "ro" in flags[1].split(",")
+        command("umount", str(verification))
+
+        socket_path = ipc / daemon.SOCKET_PATH.name
+        alias = runtime / daemon.LEGACY_SOCKET_PATH.name
+        daemon._ensure_legacy_socket_alias(alias, socket_path)
+        dispatcher = SimpleNamespace(handle=lambda _payload: b"status-ok\n")
+        for revision in ("first", "second"):
+            manifest = ipc / daemon.RUNTIME_MANIFEST.name
+            updated = ipc / ".manifest-update"
+            updated.write_text(revision)
+            updated.replace(manifest)
+            server = daemon.UnixSocketHaOtaServer(
+                dispatcher=dispatcher, path=socket_path, expected_peer_uid=os.getuid(),
+            )
+            server.start()
+            try:
+                for endpoint in (alias, new_view / socket_path.name):
+                    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+                        client.settimeout(3)
+                        client.connect(str(endpoint))
+                        client.sendall(b"status\n")
+                        client.shutdown(socket.SHUT_WR)
+                        with client.makefile("rb") as reply:
+                            assert reply.readline() == b"status-ok\n"
+                assert (new_view / manifest.name).read_text() == revision
+            finally:
+                server.stop()
+
+
+def test_legacy_socket_alias_rebinds_without_overwriting_an_entry(tmp_path: Path) -> None:
+    alias = tmp_path / "legacy.sock"
+    socket_path = tmp_path / "new.sock"
+    daemon._ensure_legacy_socket_alias(alias, socket_path)
+    daemon._ensure_legacy_socket_alias(alias, socket_path)
+    assert alias.is_symlink() and alias.readlink() == socket_path
+    with pytest.raises(UpdaterV2Error, match="ha_ota_legacy_socket_path_conflict"):
+        daemon._ensure_legacy_socket_alias(alias, tmp_path / "other.sock")
+    assert alias.readlink() == socket_path
+    alias.unlink()
+    alias.write_text("unexpected")
+    with pytest.raises(UpdaterV2Error, match="ha_ota_legacy_socket_path_conflict"):
+        daemon._ensure_legacy_socket_alias(alias, socket_path)
+    assert alias.read_text() == "unexpected"
 
 
 def approved_manifest_vector() -> dict:
