@@ -62,7 +62,7 @@ The IPC difference has a historical source locator. The live blob was the
 U10 status-repair source at `b47e4e5e747a3337f992159e7c65ec1e49c86ca4`.
 The exact candidate adds only the safe error-code-prefix fallback to
 `_public_code()` (`345382410fe18b3f8015c84013094f0550d549cd`).
-Activation unit and Compose overlay old bytes match repository base
+OTA unit and Compose overlay old bytes match repository base
 `06332c58de850c590da83e0971d7576291f371b2`.
 
 ## Sequence guard and stop
@@ -100,3 +100,139 @@ does not authorize or claim a production operation.
 Observer SHA-256 `a9865b156ce695870e9031605858b5c263a3edc5b440397b9270d68c1b459d1c`.
 The observer was fed the exact 33-member product binding from PR #810;
 it emitted only hashes, summarized service state and mount counts.
+
+<details>
+<summary>Read-only observer source</summary>
+
+```text
+import datetime
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import stat
+import subprocess
+import sys
+
+OTA_UNIT = "n3w-t1-ha-ota.service"
+APP_UNIT = "n3wfc4-services-activation.service"
+BROKER_UNIT = "n3wfc4-broker-activation.service"
+TX_PATH = Path("/var/lib/n3w-t1-core-updater/homeassistant-usb-upgrade.json")
+CANDIDATE = TX_PATH.parent / "u9plus-fault-acceptance-r1/candidate-tools"
+OVERLAY = Path("/opt/HomeAssistant/infra/n3w-t1/production/docker-compose.ha-ota.yml")
+NEW_EXPORT = Path("/run/n3w-t1-ota-ipc")
+EXPECTED_TRANSACTION = "4548f591d972576ea4d3f1f078cb55b483d1f63f2244b03c3413da1891e09d3f"
+
+
+def run(*args):
+    return subprocess.check_output(args, stdin=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                                   timeout=20).decode().strip()
+
+
+def prop(unit, field):
+    return run("systemctl", "show", "-p", field, "--value", unit)
+
+
+def digest(path):
+    assert path.is_absolute() and path.is_file() and not path.is_symlink()
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def mounts_for_device(mm):
+    observed = {}
+    for item in Path("/proc").iterdir():
+        if not item.name.isdecimal():
+            continue
+        try:
+            ns = (item / "ns/mnt").stat().st_ino
+            if ns not in observed:
+                observed[ns] = sum(
+                    row.split()[2] == mm for row in (item / "mountinfo").read_text().splitlines()
+                )
+        except (FileNotFoundError, PermissionError, ProcessLookupError):
+            continue
+    return len(observed), sum(observed.values())
+
+
+def manager_id():
+    cid = run("docker", "ps", "-q", "--filter", "label=com.docker.compose.project=n3wfc4",
+              "--filter", "label=com.docker.compose.service=manager")
+    assert re.fullmatch(r"[0-9a-f]{12,64}", cid)
+    return cid
+
+
+def verify(result, expected):
+    result["step"] = "host_and_usb"
+    host_bytes = TX_PATH.read_bytes()
+    assert hashlib.sha256(host_bytes).hexdigest() == EXPECTED_TRANSACTION
+    tx = json.loads(host_bytes)
+    assert tx["phase"] == "U13B_ROLLED_BACK" and tx["status"] == "ROLLED_BACK"
+    assert tx["authorization_claimed"] is True and tx["authorization_consumed"] is True
+    dev = run("blkid", "-c", "/dev/null", "-t", "UUID=" + tx["usb_filesystem_uuid"], "-o", "device")
+    assert re.fullmatch(r"/dev/[A-Za-z0-9_-]+", dev)
+    dev_stat = os.stat(dev)
+    assert stat.S_ISBLK(dev_stat.st_mode)
+    mm = f"{os.major(dev_stat.st_rdev)}:{os.minor(dev_stat.st_rdev)}"
+    parent = Path("/sys/dev/block", mm).resolve().parent
+    root = run("findmnt", "--noheadings", "--output", "MAJ:MIN", "/")
+    assert root and root not in {mm, (parent / "dev").read_text().strip()}
+    assert run("blkid", "-c", "/dev/null", "-s", "TYPE", "-o", "value", dev) == "ext4"
+    assert run("blkid", "-c", "/dev/null", "-s", "LABEL", "-o", "value", dev) == "N3W-UPDATE"
+    result["mount_namespaces_read"], result["bound_usb_mount_count"] = mounts_for_device(mm)
+    assert result["mount_namespaces_read"] > 0 and result["bound_usb_mount_count"] == 0
+    result["host_transaction_sha256"] = EXPECTED_TRANSACTION
+
+    result["step"] = "services_and_overlay"
+    units = (OTA_UNIT, APP_UNIT, BROKER_UNIT)
+    pids = [prop(unit, "MainPID") for unit in units]
+    assert all(value.isdigit() and int(value) > 0 for value in pids)
+    assert all(run("systemctl", "is-active", unit) == "active" for unit in units)
+    assert str(CANDIDATE / "n3w_t1_core_updater_ha_daemon.py") in prop(OTA_UNIT, "ExecStart")
+    assert str(OVERLAY) in prop(APP_UNIT, "ExecStart") and str(OVERLAY) in prop(APP_UNIT, "ExecStop")
+    cid = manager_id()
+    mounts = json.loads(run("docker", "inspect", "-f", "{{json .Mounts}}", cid))
+    manager_bind = [m for m in mounts if m.get("Destination") == "/run/n3w/t1-ota"]
+    assert len(manager_bind) == 1 and manager_bind[0].get("Type") == "bind"
+    assert manager_bind[0].get("Source") == "/run/n3w-t1-ota" and manager_bind[0].get("RW") is False
+    result["manager_current_export"] = "legacy_runtime_root_readonly"
+    result["services_requires_ota"] = OTA_UNIT in prop(APP_UNIT, "Requires").split()
+    result["services_after_ota"] = OTA_UNIT in prop(APP_UNIT, "After").split()
+    result["new_export_absent"] = not NEW_EXPORT.exists() and not NEW_EXPORT.is_symlink()
+    result["approved_manifest_source_present"] = (Path("/etc/n3w-t1-ota") / "approved-homeassistant.json").is_file()
+    result["legacy_runtime_socket_is_socket"] = (Path("/run/n3w-t1-ota") / "ha-ota.sock").is_socket()
+    result["ota_unit_sha256"] = digest(Path(prop(OTA_UNIT, "FragmentPath")))
+    result["ota_dropin_sha256"] = [digest(Path(p)) for p in prop(OTA_UNIT, "DropInPaths").split()]
+    result["manager_overlay_sha256"] = digest(OVERLAY)
+
+    result["step"] = "candidate_member_binding"
+    actual = {}
+    for name, target in sorted(expected.items()):
+        assert re.fullmatch(r"n3w_t1_[a-zA-Z0-9_]+\.py", name)
+        path = CANDIDATE / name
+        if path.is_symlink() or not path.is_file():
+            actual[name] = "MISSING_OR_UNSAFE"
+            continue
+        data = path.read_bytes()
+        blob = hashlib.sha1(f"blob {len(data)}\0".encode() + data).hexdigest()
+        if blob != target:
+            actual[name] = blob
+    result["expected_candidate_members"] = len(expected)
+    result["candidate_member_drift"] = actual
+    assert manager_id() == cid and [prop(unit, "MainPID") for unit in units] == pids
+    assert TX_PATH.read_bytes() == host_bytes
+    result["host_and_services_unchanged"] = True
+    result["status"] = "OBSERVED"
+
+
+result = {"observed_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat()}
+try:
+    verify(result, EXPECTED_CANDIDATE)
+except Exception as error:
+    result.update(status="STOP", error_type=type(error).__name__)
+    print(json.dumps(result, sort_keys=True))
+    sys.exit(1)
+print(json.dumps(result, sort_keys=True))
+```
+
+</details>
