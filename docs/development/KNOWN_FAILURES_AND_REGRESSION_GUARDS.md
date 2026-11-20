@@ -12,6 +12,18 @@ when observed. A read-only superblock query showed `needs_recovery`; that
 observation does not establish the cause of the historical command failure.
 No command or exit code was recovered from the stopped attempt.
 
+Follow-up used `debugfs` without write mode or mounting. It read the five
+durable transaction JSON files on the single exact UUID-bound, unmounted
+ext4 partition. The existing classifier returned `HOST_USB_EXACT` with
+`U13B_ROLLED_BACK` on both sides. The Host file was unchanged before and
+after. This is a raw on-disk observation; it does not exercise the daemon's
+mount or release path and does not replace the product completion check.
+The active daemon had all five expected tools in PATH, CAP_SYS_ADMIN and
+no seccomp filter. No configured fstab entry matched the bound device or
+target, and retained audit/journal evidence still does not identify the
+historical failing command. The observed metadata is consistent even
+though the superblock recovery flag was set.
+
 Guard: log a fixed diagnostic record for a failed USB subprocess, including
 the allowlisted tool, operation, return code and a fixed reason class.
 Never include argv, device paths, stdout or raw stderr. Preserve the stable
@@ -19,11 +31,12 @@ IPC error, strict read-only reconciliation options and fail-closed behavior.
 Unit tests inject failures for mount, mount inspection and unmount and
 require redaction plus the original IPC-facing exception.
 
-Local validation: 176 relevant tests passed. One Phase-A transport test
-(`test_remote_stdout_empty_preserves_stderr_diagnostic`) also failed on
-the unmodified review base because it expects an older source expression.
-The exact Phase-A source check passed. The local fast helper passed public
-repository safety and stopped on missing legacy Manager Board Lab paths.
+The initial review head exposed two CI integration failures: a stale
+prepare-host blob in nested P3 package authorities and an omitted historical
+Manager binding in the current-state index. Bind the nested manifests
+bottom-up, restore the historical reference, and preserve all execution
+and authorization fields. The existing Phase-A transport assertion now
+ignores source line wrapping while retaining the diagnostic contract.
 
 ```text
 KF168_PREPARE_HOST_COMMAND_ROOT_CAUSE=UNCONFIRMED

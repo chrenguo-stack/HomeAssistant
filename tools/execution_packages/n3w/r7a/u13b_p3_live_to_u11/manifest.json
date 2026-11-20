@@ -39,14 +39,14 @@
   "package_source_authority": {
     "tools/execution_packages/n3w/r7a/u13b_p3_live_to_u11/executor.py": "ddf13aa13574b66b245164ed61b5c306e0d60ed2",
     "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/executor.py": "46f4ef06558d3f8e78f892061ba2f33b60663b11",
-    "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/manifest.json": "4ec2140b0255928849d499bff7c626605353ba85",
+    "tools/execution_packages/n3w/r7a/u13b_p3_fresh_readonly_preflight/manifest.json": "a44b842f6e53065c1f21b6293936fb792ab1be05",
     "tools/execution_packages/n3w/r7a/u13b_p3_acceptance_clean_ota_source/executor.py": "360c2587b92e7a390547875ce7e404c40e2e38bf",
     "tools/execution_packages/n3w/r7a/u13b_p3_acceptance_clean_ota_source/manifest.json": "0ba82ff1edb3213ebb57a5456114412010492ffd",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
     "infra/n3w-t1/upgrades/homeassistant-2026.10.4-u13b-same-version-acceptance.json": "d22a38aa3b34590cda3df39a8fb48cf61a01ec59",
     "infra/n3w-t1/upgrades/homeassistant-2026.10.4-u13b-same-version-acceptance-review.json": "3b930c142ebad83f4e6511b46b13e63d8cb955e4",
     "tools/execution_packages/n3w/r7a/u13b_p3_single_usb_reuse_reset/executor.py": "c36b34c4a5a526b0d531193e9b533221f7925b16",
-    "tools/execution_packages/n3w/r7a/u13b_p3_single_usb_reuse_reset/manifest.json": "b554193fefbb7299cdcd508e93a4019d07c01202"
+    "tools/execution_packages/n3w/r7a/u13b_p3_single_usb_reuse_reset/manifest.json": "68967caf418f781e5c1830d4f12c597998c9d6bb"
   },
   "product_source_authority": {
     "tools/n3w_t1_core_updater.py": "2d2fc03c3cbcad324a92741b77e5bd4cbe4d84ed",
@@ -120,7 +120,7 @@
       "infra/n3w-t1/upgrades/homeassistant-2026.10.4-u13b-same-version-acceptance.json": "d22a38aa3b34590cda3df39a8fb48cf61a01ec59",
       "infra/n3w-t1/upgrades/homeassistant-2026.10.4-u13b-same-version-acceptance-review.json": "3b930c142ebad83f4e6511b46b13e63d8cb955e4",
       "tools/execution_packages/n3w/r7a/u13b_p3_single_usb_reuse_reset/executor.py": "c36b34c4a5a526b0d531193e9b533221f7925b16",
-      "tools/execution_packages/n3w/r7a/u13b_p3_single_usb_reuse_reset/manifest.json": "b554193fefbb7299cdcd508e93a4019d07c01202"
+      "tools/execution_packages/n3w/r7a/u13b_p3_single_usb_reuse_reset/manifest.json": "68967caf418f781e5c1830d4f12c597998c9d6bb"
     },
     "expected_terminal_u13a": {
       "transaction_phase": "U13A_COMMITTED",
