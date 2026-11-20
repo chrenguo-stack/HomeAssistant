@@ -26,6 +26,7 @@ from n3w_t1_core_updater_v2_common import (
     sha256_bytes,
 )
 from n3w_t1_core_updater_v2_state import STATE_ROOT_V2, V2StateStore
+from n3w_t1_portable_image_identity import PortableImageIdentityError, identity_from_dict
 
 
 HA_USB_TX_SCHEMA = "gh.n3w-t1-core-updater-homeassistant-usb-transaction/1"
@@ -224,6 +225,21 @@ def _validate_data_restore(document: dict[str, Any]) -> None:
     expected = {"step", "filesystem_id", "original_inode"}
     if step != "STAGING":
         expected.add("staged_inode")
+    if step == "PUBLISHED" and "predecessor_load_identity" in journal:
+        expected.add("predecessor_load_identity")
+        value = journal["predecessor_load_identity"]
+        try:
+            identity = identity_from_dict(value)
+        except (PortableImageIdentityError, TypeError) as error:
+            raise UpdaterV2Error(reason) from error
+        _, predecessor = prepared_image_materials(document)
+        if (
+            (identity.os, identity.architecture) != ("linux", "arm64")
+            or sha256_bytes(canonical(identity.to_dict())) != predecessor.portable_identity_sha256
+            or identity.archive_sha256 != predecessor.archive_sha256
+            or identity.archive_size_bytes != predecessor.archive_size_bytes
+        ):
+            raise UpdaterV2Error(reason)
     if set(journal) != expected or type(journal["filesystem_id"]) is not int:
         raise UpdaterV2Error(reason)
     original = _positive_int(journal["original_inode"], reason)

@@ -32,6 +32,7 @@ def _classic_archive(
     tag: str = "local/manager:test",
     cmd: list[str] | None = None,
     raw_config: bytes | None = None,
+    additional_tags: tuple[str, ...] = (),
 ) -> tuple[dict[str, object], bytes]:
     layer = b"classic-layer-content\n"
     diff_id = "sha256:" + _sha(layer)
@@ -58,7 +59,7 @@ def _classic_archive(
     config_name = _sha(config_bytes) + ".json"
     manifest = [{
         "Config": config_name,
-        "RepoTags": [tag],
+        "RepoTags": [tag, *additional_tags],
         "Layers": ["layer/layer.tar"],
     }]
     with tarfile.open(path, "w") as tar:
@@ -80,6 +81,20 @@ def _runtime(config_doc: dict[str, object], *, runtime_id: str = "sha256:" + "f"
         "Config": config_doc["config"],
         "RootFS": {"Layers": config_doc["rootfs"]["diff_ids"]},
     }
+
+
+def test_authenticated_load_rejects_a_second_repository_tag(tmp_path: Path) -> None:
+    path = tmp_path / "predecessor.tar"
+    tag = "local/n3w-homeassistant:predecessor"
+    _classic_archive(path, tag=tag, additional_tags=("local/other:untouched",))
+    normal = identity.parse_image_archive(path, expected_tag=tag)
+    with path.open("rb") as source, pytest.raises(
+        identity.PortableImageIdentityError, match="image_load_requires_exact_single_tag",
+    ):
+        identity.parse_verified_load_archive(
+            source, archive_sha256=normal.archive_sha256,
+            archive_size_bytes=normal.archive_size_bytes, expected_tag=tag,
+        )
 
 
 def _oci_archive(

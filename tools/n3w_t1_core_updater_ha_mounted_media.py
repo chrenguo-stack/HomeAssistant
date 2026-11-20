@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ctypes
 import hashlib
+import io
 import json
 import os
 import shutil
@@ -12,7 +13,7 @@ from collections.abc import Callable, Iterator
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 
 from n3w_t1_core_updater_ha_backup import (
     HaDataBackupRecord, ProtectedHaDataBackup, backup_record_from_document,
@@ -32,11 +33,15 @@ from n3w_t1_core_updater_ha_usb_state import (
     prepared_image_materials,
     validate_transaction_document,
 )
-from n3w_t1_core_updater_v2_common import UpdaterV2Error
+from n3w_t1_core_updater_v2_common import UpdaterV2Error, canonical, sha256_bytes
+from n3w_t1_portable_image_identity import (
+    MAX_ARCHIVE_BYTES, PortableImageIdentity, PortableImageIdentityError, parse_verified_load_archive,
+)
 
 
 DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
 RENAME_EXCHANGE = 2
+ARCHIVE_BLOCK_BYTES = 1024 * 1024
 
 
 def _directory_identity(parent: int, name: str) -> tuple[int, int]:
@@ -159,7 +164,19 @@ def _mount_device(
     return device
 
 
-def _verify_archive(directory: int, name: str, record: ImageRecoveryRecord) -> None:
+def _require_same_archive(directory: int, name: str, before: os.stat_result) -> None:
+    after = os.stat(name, dir_fd=directory, follow_symlinks=False)
+    if (
+        not os.path.samestat(before, after) or before.st_size != after.st_size
+        or before.st_mtime_ns != after.st_mtime_ns or before.st_ctime_ns != after.st_ctime_ns
+    ):
+        raise UpdaterV2Error("ha_usb_recovery_archive_file_changed")
+
+
+@contextmanager
+def _verified_archive(
+    directory: int, name: str, record: ImageRecoveryRecord, *, for_load: bool = False,
+) -> Iterator[tuple[int, list[bytes]]]:
     fd = os.open(name, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW, dir_fd=directory)
     try:
         before = os.fstat(fd)
@@ -168,28 +185,83 @@ def _verify_archive(directory: int, name: str, record: ImageRecoveryRecord) -> N
             or before.st_nlink != 1
             or before.st_dev != os.fstat(directory).st_dev
             or before.st_size != record.archive_size_bytes
+            or (for_load and before.st_size > MAX_ARCHIVE_BYTES)
         ):
             raise UpdaterV2Error("ha_usb_recovery_archive_file_invalid")
         digest = hashlib.sha256()
-        remaining = before.st_size
-        while remaining > 0:
-            block = os.read(fd, min(1024 * 1024, remaining))
-            if not block:
+        blocks = []
+        for offset in range(0, before.st_size, ARCHIVE_BLOCK_BYTES):
+            size = min(ARCHIVE_BLOCK_BYTES, before.st_size - offset)
+            block = os.pread(fd, size, offset)
+            if len(block) != size:
                 raise UpdaterV2Error("ha_usb_recovery_archive_file_changed")
             digest.update(block)
-            remaining -= len(block)
-        after = os.stat(name, dir_fd=directory, follow_symlinks=False)
-        if (
-            not os.path.samestat(before, after)
-            or before.st_size != after.st_size
-            or before.st_mtime_ns != after.st_mtime_ns
-            or before.st_ctime_ns != after.st_ctime_ns
-        ):
-            raise UpdaterV2Error("ha_usb_recovery_archive_file_changed")
+            if for_load:
+                blocks.append(hashlib.sha256(block).digest())
+        _require_same_archive(directory, name, before)
         if digest.hexdigest() != record.archive_sha256:
             raise UpdaterV2Error("ha_usb_recovery_archive_digest_mismatch")
+        yield fd, blocks
+        _require_same_archive(directory, name, before)
     finally:
         os.close(fd)
+
+
+def _verify_archive(directory: int, name: str, record: ImageRecoveryRecord) -> None:
+    with _verified_archive(directory, name, record):
+        pass
+
+
+class _AuthenticatedArchiveReader(io.RawIOBase):
+    """Read the pinned archive without serving any block whose bytes changed."""
+
+    def __init__(self, fd: int, size: int, blocks: list[bytes]) -> None:
+        self.fd = fd
+        self.size = size
+        self.blocks = blocks
+        self.position = 0
+        self.cached_index = -1
+        self.cached_block = b""
+
+    def readable(self) -> bool:
+        return True
+
+    def seekable(self) -> bool:
+        return True
+
+    def tell(self) -> int:
+        return self.position
+
+    def seek(self, offset: int, whence: int = os.SEEK_SET) -> int:
+        if whence == os.SEEK_CUR:
+            offset += self.position
+        elif whence == os.SEEK_END:
+            offset += self.size
+        elif whence != os.SEEK_SET:
+            raise ValueError("invalid seek mode")
+        if offset < 0:
+            raise ValueError("negative archive position")
+        self.position = offset
+        return offset
+
+    def readinto(self, buffer: bytearray | memoryview) -> int:
+        remaining = min(len(buffer), self.size - self.position)
+        copied = 0
+        while remaining > 0:
+            index, offset = divmod(self.position, ARCHIVE_BLOCK_BYTES)
+            if index != self.cached_index:
+                start = index * ARCHIVE_BLOCK_BYTES
+                size = min(ARCHIVE_BLOCK_BYTES, self.size - start)
+                block = os.pread(self.fd, size, start)
+                if len(block) != size or hashlib.sha256(block).digest() != self.blocks[index]:
+                    raise UpdaterV2Error("ha_usb_recovery_archive_file_changed")
+                self.cached_index, self.cached_block = index, block
+            count = min(remaining, len(self.cached_block) - offset)
+            buffer[copied:copied + count] = self.cached_block[offset:offset + count]
+            self.position += count
+            copied += count
+            remaining -= count
+        return copied
 
 
 @contextmanager
@@ -393,6 +465,41 @@ class HaMountedBackupProvider:
             raise UpdaterV2Error("ha_data_backup_record_unbound")
         with self._backup_directory(current) as directory:
             return self.backup.verify(directory, current["transaction_id_sha256"], record)
+
+    def load_predecessor_image(
+        self, load: Callable[[BinaryIO, PortableImageIdentity], None],
+    ) -> PortableImageIdentity:
+        """Admit only the original, transaction-bound predecessor bytes into the local loader."""
+        current = self._document()
+        if (
+            current["phase"] not in HA_DATA_RESTORE_PHASES or current["status"] != "ACTIVE"
+            or current.get("ha_data_restore", {}).get("step") != "PUBLISHED"
+        ):
+            raise UpdaterV2Error("ha_usb_predecessor_image_restore_phase_invalid")
+        self._require_restore_quiesced()
+        _, record = prepared_image_materials(current)
+        with _open_transaction_directory(
+            self.mountpoint, self.internal_storage, current, allow_read_only=True,
+        ) as (_, directory), _verified_archive(directory, "predecessor.tar", record, for_load=True) as (fd, blocks):
+            def authenticated_stream() -> io.BufferedReader:
+                return io.BufferedReader(_AuthenticatedArchiveReader(fd, record.archive_size_bytes, blocks))
+
+            try:
+                with authenticated_stream() as source:
+                    identity = parse_verified_load_archive(
+                        source, archive_sha256=record.archive_sha256,
+                        archive_size_bytes=record.archive_size_bytes, expected_tag=record.image_ref,
+                    )
+            except PortableImageIdentityError as error:
+                raise UpdaterV2Error("ha_usb_predecessor_archive_identity_invalid") from error
+            if sha256_bytes(canonical(identity.to_dict())) != record.portable_identity_sha256:
+                raise UpdaterV2Error("ha_usb_predecessor_portable_identity_drift")
+            if self._document() != current:
+                raise UpdaterV2Error("ha_usb_predecessor_image_restore_transaction_changed")
+            self._require_restore_quiesced()
+            with authenticated_stream() as source:
+                load(source, identity)
+        return identity
 
     @contextmanager
     def stage_preupgrade_data(self) -> Iterator[Path]:

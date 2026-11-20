@@ -5,10 +5,13 @@ import argparse
 import copy
 import json
 import os
+import shutil
 import subprocess
+import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 
 from n3w_t1_core_updater_common import (
     SERVICES_UNIT,
@@ -18,10 +21,13 @@ from n3w_t1_core_updater_common import (
 )
 from n3w_t1_core_updater_ha_backup import DEFAULT_HA_DATA_ROOT, ProtectedHaDataBackup
 from n3w_t1_core_updater_ha_mounted_media import HaMountedBackupProvider
-from n3w_t1_core_updater_ha_usb import resume_ha_data_rollback, resume_pre_cutover_services
+from n3w_t1_core_updater_ha_usb import HaDataRestoreProvider, resume_ha_data_rollback, resume_pre_cutover_services
 from n3w_t1_core_updater_ha_usb_state import HA_DATA_RESTORE_PHASES, HaUsbStateStore
 from n3w_t1_core_updater_host import DEFAULT_SERVICES_READINESS_TIMEOUT_SECONDS, LocalHost
 from n3w_t1_core_updater_v2_common import COMPONENTS
+from n3w_t1_portable_image_identity import (
+    PortableImageIdentity, identity_from_dict, observe_docker_image, verify_runtime_document,
+)
 
 
 PROTECTED_BINDS = {
@@ -32,6 +38,7 @@ BOOT_CONDITION = (
     "ExecCondition=/usr/bin/python3 /opt/HomeAssistant/tools/"
     "n3w_t1_core_updater_ha_recovery_startup.py --check-application-start"
 )
+IMAGE_LOAD_TIMEOUT_SECONDS = 1800
 
 
 class HaRecoveryMediaRequired(UpdaterError):
@@ -213,6 +220,65 @@ class LocalHaPredecessorRuntime(LocalHost):
 
     def check_rollback_application_start(self, document: dict[str, Any]) -> None:
         self._verify_published_launch(document)
+        value = document["ha_data_restore"].get("predecessor_load_identity")
+        if value is not None:
+            self._verify_loaded_predecessor(document, identity_from_dict(value))
+
+    def _predecessor_image_absent(self, reference: str) -> bool:
+        return observe_docker_image(reference).status == "NOT_FOUND"
+
+    @staticmethod
+    def _load_rollback_image(source: BinaryIO) -> None:
+        with subprocess.Popen(
+            ("docker", "image", "load", "--quiet"), stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        ) as process:
+            assert process.stdin is not None
+            timeout = threading.Timer(IMAGE_LOAD_TIMEOUT_SECONDS, process.kill)
+            timeout.start()
+            try:
+                with process.stdin as sink:
+                    shutil.copyfileobj(source, sink, length=1024 * 1024)
+                if process.wait() != 0:
+                    raise UpdaterError("ha_usb_rollback_predecessor_image_load_failed")
+            finally:
+                timeout.cancel()
+                if process.poll() is None:
+                    process.kill()
+
+    def ensure_rollback_predecessor(
+        self, document: dict[str, Any], original_media: Callable[[], HaDataRestoreProvider],
+        record_load_intent: Callable[[PortableImageIdentity], None],
+    ) -> None:
+        binding = document["predecessor_start"]["images"]["homeassistant"]
+        reference, expected_id = binding["reference"], binding["runtime_id"]
+        local_id = self.image_id(reference)
+        if local_id == expected_id:
+            value = document["ha_data_restore"].get("predecessor_load_identity")
+            if value is not None:
+                self._verify_loaded_predecessor(document, identity_from_dict(value))
+            return
+        if local_id is not None:
+            raise UpdaterError("ha_usb_rollback_predecessor_image_tag_drift")
+        if not self._predecessor_image_absent(reference):
+            raise UpdaterError("ha_usb_rollback_predecessor_image_lookup_unavailable")
+        if not self.rollback_writers_quiesced():
+            raise UpdaterError("ha_usb_rollback_image_load_writers_not_quiesced")
+        def load_with_intent(source: BinaryIO, identity: PortableImageIdentity) -> None:
+            record_load_intent(identity)
+            self._load_rollback_image(source)
+
+        identity = original_media().load_predecessor_image(load_with_intent)
+        self._verify_loaded_predecessor(document, identity)
+
+    def _verify_loaded_predecessor(self, document: dict[str, Any], identity: PortableImageIdentity) -> None:
+        binding = document["predecessor_start"]["images"]["homeassistant"]
+        loaded = self._image_document(binding["reference"])
+        if loaded is None:
+            raise UpdaterError("ha_usb_rollback_predecessor_image_load_unconfirmed")
+        verdict = verify_runtime_document(identity, loaded)
+        if verdict.status != "VERIFIED" or verdict.runtime_image_id != binding["runtime_id"]:
+            raise UpdaterError("ha_usb_rollback_predecessor_loaded_image_drift")
 
     def resume_published_predecessor(self, document: dict[str, Any]) -> None:
         observed = self.image_bindings_v2()["homeassistant"]
@@ -245,9 +311,11 @@ class LocalHaPredecessorRuntime(LocalHost):
             time.sleep(2)
         raise UpdaterError("ha_usb_rollback_predecessor_health_pending")
 
-    def mounted_recovery_provider(self, store: HaUsbStateStore, document: dict[str, Any]) -> HaMountedBackupProvider:
+    def mounted_recovery_provider(
+        self, store: HaUsbStateStore, document: dict[str, Any], *, require_original: bool = False,
+    ) -> HaMountedBackupProvider:
         mountpoint = store.root
-        if document["ha_data_restore"]["step"] == "STAGING":
+        if require_original or document["ha_data_restore"]["step"] == "STAGING":
             result = self._run((
                 "findmnt", "--list", "--json", "--source", f'UUID={document["usb_filesystem_uuid"]}',
                 "--output", "TARGET",
@@ -295,6 +363,7 @@ def main(*, application_condition: bool = False) -> int:
             runtime.require_rollback_boot_guard()
             resumed = resume_ha_data_rollback(
                 store, runtime, lambda document: runtime.mounted_recovery_provider(store, document),
+                lambda document: runtime.mounted_recovery_provider(store, document, require_original=True),
             )
             print(json.dumps({"status": "ROLLED_BACK" if resumed else "NO_PENDING_DATA_ROLLBACK"}))
             return 0

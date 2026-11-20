@@ -4,7 +4,7 @@ import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, BinaryIO, Protocol
 
 from n3w_t1_core_updater_ha_backup import (
     HaDataBackupProvider,
@@ -52,6 +52,7 @@ from n3w_t1_core_updater_v2_common import (
     UpdaterV2Error,
     sha256_bytes,
 )
+from n3w_t1_portable_image_identity import PortableImageIdentity
 
 
 class HaPredecessorRuntime(Protocol):
@@ -81,12 +82,23 @@ class HaPublishedRollbackRuntime(Protocol):
     def resume_published_predecessor(self, document: dict[str, Any]) -> None:
         ...
 
+    def ensure_rollback_predecessor(
+        self, document: dict[str, Any], original_media: Callable[[], HaDataRestoreProvider],
+        record_load_intent: Callable[[PortableImageIdentity], None],
+    ) -> None:
+        ...
+
     def verify_published_predecessor_health(self, document: dict[str, Any]) -> None:
         ...
 
 
 class HaDataRestoreProvider(Protocol):
     def restore_preupgrade_data(self) -> None:
+        ...
+
+    def load_predecessor_image(
+        self, load: Callable[[BinaryIO, PortableImageIdentity], None],
+    ) -> PortableImageIdentity:
         ...
 
 
@@ -305,6 +317,7 @@ def resume_ha_data_rollback(
     store: HaUsbStateStore,
     runtime: HaPublishedRollbackRuntime,
     restore_provider: Callable[[dict[str, Any]], HaDataRestoreProvider],
+    image_provider: Callable[[dict[str, Any]], HaDataRestoreProvider],
 ) -> bool:
     """Resume an already selected data rollback, including boot reentry."""
     with store.lock():
@@ -326,6 +339,19 @@ def resume_ha_data_rollback(
             ):
                 raise UpdaterV2Error("ha_usb_data_restore_publication_not_recorded")
             current = published
+        def record_load_intent(identity: PortableImageIdentity) -> None:
+            nonlocal current
+            value = identity.to_dict()
+            journal = current["ha_data_restore"]
+            existing = journal.get("predecessor_load_identity")
+            if existing is not None:
+                if existing != value:
+                    raise UpdaterV2Error("ha_usb_rollback_predecessor_load_intent_drift")
+                return
+            current = {**current, "ha_data_restore": {**journal, "predecessor_load_identity": value}}
+            store.write(current)
+
+        runtime.ensure_rollback_predecessor(current, lambda: image_provider(current), record_load_intent)
         runtime.resume_published_predecessor(current)
         runtime.verify_published_predecessor_health(current)
         store.write(transition(current, U13B))

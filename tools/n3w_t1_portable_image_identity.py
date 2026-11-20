@@ -9,7 +9,7 @@ import subprocess
 import tarfile
 from dataclasses import asdict, dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any, Callable, Iterable, Sequence
+from typing import Any, BinaryIO, Callable, Iterable, Sequence
 
 SCHEMA = "gh.n3w-t1-portable-image-identity/1"
 VERDICT_SCHEMA = "gh.n3w-t1-portable-image-verdict/1"
@@ -166,14 +166,17 @@ def _safe_name(name: str) -> str:
 
 
 class SafeTar:
-    def __init__(self, path: Path):
-        self.path = path
+    def __init__(self, source: Path | BinaryIO):
+        self.source = source
         self.tar: tarfile.TarFile | None = None
         self.members: dict[str, tarfile.TarInfo] = {}
 
     def __enter__(self) -> "SafeTar":
         try:
-            self.tar = tarfile.open(self.path, mode="r:*")
+            if isinstance(self.source, Path):
+                self.tar = tarfile.open(self.source, mode="r:*")
+            else:
+                self.tar = tarfile.open(fileobj=self.source, mode="r:*")
         except (tarfile.TarError, OSError) as error:
             raise PortableImageIdentityError("archive_open_failed") from error
         member_count = 0
@@ -608,7 +611,60 @@ def parse_image_archive(
             raise PortableImageIdentityError("archive_expected_size_invalid")
         if size != expected_archive_size_bytes:
             raise PortableImageIdentityError("archive_size_mismatch")
-    with SafeTar(path) as archive:
+    return _parse_archive(path, digest, size, expected_tag, platform_os, platform_architecture, platform_variant)
+
+
+def _require_single_load_tag(archive: SafeTar, expected_tag: str) -> None:
+    manifest = strict_json(archive.read("manifest.json"), name="docker_manifest")
+    if (
+        not isinstance(manifest, list) or len(manifest) != 1
+        or not isinstance(manifest[0], dict) or manifest[0].get("RepoTags") != [expected_tag]
+    ):
+        raise PortableImageIdentityError("image_load_requires_exact_single_tag")
+    repository, tag = expected_tag.rsplit(":", 1)
+    if "repositories" in archive.members:
+        repositories = strict_json(archive.read("repositories"), name="docker_repositories")
+        if (
+            not isinstance(repositories, dict) or set(repositories) != {repository}
+            or not isinstance(repositories[repository], dict) or set(repositories[repository]) != {tag}
+        ):
+            raise PortableImageIdentityError("image_load_repository_drift")
+    if "index.json" in archive.members:
+        index = strict_json(archive.read("index.json"), name="oci_index")
+        descriptors = index.get("manifests") if isinstance(index, dict) else None
+        if not isinstance(descriptors, list) or len(descriptors) != 1 or not isinstance(descriptors[0], dict):
+            raise PortableImageIdentityError("image_load_requires_single_manifest")
+        annotations = descriptors[0].get("annotations", {})
+        named = (expected_tag, f"docker.io/{expected_tag}")
+        if (
+            not isinstance(annotations, dict)
+            or annotations.get("io.containerd.image.name", expected_tag) not in named
+            or annotations.get("org.opencontainers.image.ref.name", tag) not in (tag, *named)
+        ):
+            raise PortableImageIdentityError("image_load_oci_reference_drift")
+
+
+def parse_verified_load_archive(
+    source: BinaryIO, *, archive_sha256: str, archive_size_bytes: int, expected_tag: str,
+) -> PortableImageIdentity:
+    """Verify an authenticated, seekable Docker input against the single-image load contract."""
+    if not 0 < archive_size_bytes <= MAX_ARCHIVE_BYTES:
+        raise PortableImageIdentityError("archive_size_limit_exceeded")
+    return _parse_archive(
+        source, archive_sha256, archive_size_bytes, expected_tag, "linux", "arm64", None,
+        single_load_tag=True,
+    )
+
+
+def _parse_archive(
+    source: Path | BinaryIO, digest: str, size: int, expected_tag: str | None,
+    platform_os: str, platform_architecture: str, platform_variant: str | None,
+    *, single_load_tag: bool = False,
+) -> PortableImageIdentity:
+    with SafeTar(source) as archive:
+        if single_load_tag:
+            assert expected_tag is not None
+            _require_single_load_tag(archive, expected_tag)
         if "oci-layout" in archive.members or "index.json" in archive.members:
             if "oci-layout" not in archive.members or "index.json" not in archive.members:
                 raise UnsupportedImageArchive("partial_oci_layout")
@@ -621,12 +677,15 @@ def parse_image_archive(
                 platform_variant=platform_variant,
             )
         if "manifest.json" in archive.members:
-            return _parse_docker_save(
+            identity = _parse_docker_save(
                 archive,
                 archive_sha256=digest,
                 archive_size_bytes=size,
                 expected_tag=expected_tag,
             )
+            if single_load_tag and (identity.os, identity.architecture) != (platform_os, platform_architecture):
+                raise PortableImageIdentityError("image_load_platform_drift")
+            return identity
     raise UnsupportedImageArchive("archive_layout_unsupported")
 
 

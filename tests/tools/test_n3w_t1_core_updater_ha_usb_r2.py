@@ -3,12 +3,14 @@ from __future__ import annotations
 import base64
 import hashlib
 import inspect
+import io
 import json
 import os
 import shutil
 import sqlite3
 import stat
 import sys
+import tarfile
 import threading
 from contextlib import nullcontext
 from dataclasses import replace
@@ -89,7 +91,8 @@ from n3w_t1_core_updater_ha_usb_state import (
     HaUsbStateStore,
     new_transaction,
 )
-from n3w_t1_core_updater_v2_common import UpdaterV2Error
+from n3w_t1_core_updater_v2_common import UpdaterV2Error, canonical, sha256_bytes
+from n3w_t1_portable_image_identity import parse_image_archive
 
 
 CURRENT = "local/n3w-homeassistant:2026.10.0-aaaaaaaa"
@@ -516,6 +519,139 @@ def test_boot_reconciles_selected_data_rollback_and_waits_for_health(tmp_path, m
     closed = store.read()
     assert closed["phase"] == U13B
     assert closed["authorization_id_sha256"] == cutover["authorization_id_sha256"]
+    assert runtime.starts == runtime.rewrites == 1
+
+
+def test_boot_restores_a_released_predecessor_from_bound_media(tmp_path, monkeypatch, capsys):
+    prepared, media, _, _, target, predecessor, backup = drive_to_u8(tmp_path)
+    store = HaUsbStateStore(tmp_path / "state")
+    runtime = StartupRuntime(tmp_path / "application")
+    prepared["predecessor_start"] = runtime.capture_start_binding(prepared)
+    directory = media.root / "N3W-OTA" / prepared["transaction_id_sha256"]
+    directory.mkdir(parents=True)
+    archive = directory / "predecessor.tar"
+    layer = b"image-layer" * (256 * 1024)
+    layers = ["sha256:" + sha256_bytes(layer)]
+    config = canonical({
+        "architecture": "arm64", "os": "linux", "rootfs": {"type": "layers", "diff_ids": layers},
+        "config": {"Entrypoint": ["homeassistant"]},
+    })
+    config_name = sha256_bytes(config) + ".json"
+    manifest = canonical([{"Config": config_name, "Layers": ["layer.tar"], "RepoTags": [CURRENT]}])
+    with tarfile.open(archive, "w") as stream:
+        for name, content in (("manifest.json", manifest), (config_name, config), ("layer.tar", layer)):
+            member = tarfile.TarInfo(name)
+            member.size = len(content)
+            stream.addfile(member, io.BytesIO(content))
+    original = archive.read_bytes()
+    identity = parse_image_archive(archive, expected_tag=CURRENT)
+    portable_sha = sha256_bytes(canonical(identity.to_dict()))
+    predecessor = replace(
+        predecessor, archive_sha256=identity.archive_sha256, archive_size_bytes=identity.archive_size_bytes,
+        portable_identity_sha256=portable_sha,
+    )
+    prepared["current_image_identity"]["portable_identity_sha256"] = portable_sha
+    prepared["usb_binding_mode"] = "existing_filesystem"
+    prepared["prepared_image_materials"] = {"target": target.public(), "predecessor": predecessor.public()}
+    prepared["install_recovery_materials"] = {**prepared["prepared_image_materials"], "backup": backup.public()}
+    cutover = record_target_started(record_predecessor_capacity_released(claim_live_authorization(prepared, AUTHORIZATION_ID)))
+    live = runtime.ha_data_root
+    original_inode = live.stat().st_ino
+    live.rename(live.with_name("former"))
+    live.mkdir()
+    pending = {**cutover, "recovery_required": True, "ha_data_restore": {
+        "step": "PUBLISHED", "filesystem_id": os.statvfs(live).f_fsid,
+        "original_inode": original_inode, "staged_inode": live.stat().st_ino,
+    }}
+    store.write(pending)
+    runtime.compose["services"]["homeassistant"]["image"] = TARGET
+    runtime.owner = "inactive"
+    runtime.running = {"broker"}
+    device = mounted_media._device_number(media.root.stat().st_dev)
+    mounts = [{
+        "target": str(media.root), "fstype": "ext4", "fsroot": "/", "options": "ro,nosuid",
+        "maj:min": device, "uuid": USB_UUID,
+    }]
+    devices = [{"type": "disk", "tran": "usb", "maj:min": "8:0", "children": [
+        {"type": "part", "uuid": USB_UUID, "maj:min": device},
+    ]}]
+    monkeypatch.setattr(mounted_media, "_protected_devices", lambda _: {"8:3"})
+    monkeypatch.setattr(mounted_media, "_command_json", lambda command, *_: (
+        {"filesystems": mounts} if command == "findmnt" else {"blockdevices": devices}
+    ))
+    monkeypatch.setattr(recovery_startup, "HaUsbStateStore", lambda: HaUsbStateStore(store.root))
+    monkeypatch.setattr(recovery_startup, "LocalHaPredecessorRuntime", lambda: runtime)
+    attached = False
+    run = runtime._run
+
+    def mounted_runtime(argv, **kwargs):
+        if argv[0] == "findmnt":
+            assert f"UUID={USB_UUID}" in argv
+            return SimpleNamespace(returncode=0 if attached else 1, stdout=json.dumps({"filesystems": mounts}).encode())
+        return run(argv, **kwargs)
+
+    resident = False
+    image_id = runtime.image_id
+    monkeypatch.setattr(runtime, "_run", mounted_runtime)
+    monkeypatch.setattr(runtime, "image_id", lambda ref: None if ref == CURRENT and not resident else image_id(ref))
+    monkeypatch.setattr(runtime, "_predecessor_image_absent", lambda ref: ref == CURRENT and not resident)
+    monkeypatch.setattr(runtime, "_image_document", lambda ref: {
+        "Id": runtime.image_id(ref), "Os": "linux", "Architecture": "arm64",
+        "Config": json.loads(config)["config"], "RootFS": {"Layers": layers},
+    })
+    assert recovery_startup.main() == 0
+    assert json.loads(capsys.readouterr().out) == {"status": "RECOVERY_MEDIA_REQUIRED"}
+    assert store.read() == pending
+    assert runtime.starts == runtime.rewrites == 0
+
+    attached = True
+    sent = []
+
+    def changed_after_precheck(source):
+        block_size = mounted_media.ARCHIVE_BLOCK_BYTES
+        sent.append(source.read(block_size))
+        with archive.open("r+b") as victim:
+            victim.seek(2 * block_size)
+            victim.write(b"changed bytes")
+        source.read()
+
+    monkeypatch.setattr(runtime, "_load_rollback_image", changed_after_precheck)
+    assert recovery_startup.main() == 1
+    assert json.loads(capsys.readouterr().out) == {"status": "RECOVERY_STARTUP_NEEDS_REVIEW"}
+    assert sent == [original[:mounted_media.ARCHIVE_BLOCK_BYTES]]
+    load_intent = store.read()
+    assert load_intent["ha_data_restore"]["predecessor_load_identity"] == identity.to_dict()
+    assert not resident and load_intent["phase"] == U11
+    assert runtime.starts == runtime.rewrites == 0
+    archive.write_bytes(original)
+
+    def load(source):
+        nonlocal resident
+        assert source.read() == original
+        resident = True
+        raise InterruptedPower()
+
+    monkeypatch.setattr(runtime, "_load_rollback_image", load)
+    with pytest.raises(InterruptedPower):
+        recovery_startup.main()
+    assert resident and store.read() == load_intent
+    assert runtime.starts == runtime.rewrites == 0
+    attached = False
+    inspect_image = runtime._image_document
+    with monkeypatch.context() as patch:
+        patch.setattr(runtime, "_image_document", lambda ref: {
+            **inspect_image(ref), "RootFS": {"Layers": ["sha256:" + "f" * 64]},
+        })
+        assert recovery_startup.main() == 1
+        assert json.loads(capsys.readouterr().out) == {"status": "RECOVERY_STARTUP_NEEDS_REVIEW"}
+        assert store.read() == load_intent
+        assert runtime.starts == runtime.rewrites == 0
+
+    assert recovery_startup.main() == 0
+    assert json.loads(capsys.readouterr().out) == {"status": "ROLLED_BACK"}
+    assert archive.read_bytes() == original
+    assert store.read()["status"] == "ROLLED_BACK"
+    assert store.read()["authorization_id_sha256"] == cutover["authorization_id_sha256"]
     assert runtime.starts == runtime.rewrites == 1
 
 
