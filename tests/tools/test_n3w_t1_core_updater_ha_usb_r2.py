@@ -9,11 +9,13 @@ import shutil
 import stat
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
+import n3w_t1_core_updater_ha_recovery_startup as recovery_startup
 import n3w_t1_core_updater_ha_usb as ha_usb_mod
 from n3w_t1_core_updater_ha_backup import (
     HaDataBackupRecord,
@@ -208,7 +210,7 @@ def test_first_stop_requires_successfully_persisted_restart_binding(tmp_path, mo
     monkeypatch.setattr(store, "write", failed_write)
     with (
         pytest.raises(OSError, match="disk write failure"),
-        HaPredecessorRecovery(store, runtime).quiesced_for_backup(predecessor),
+        HaPredecessorRecovery(store, runtime, runtime).quiesced_for_backup(predecessor),
     ):
         pytest.fail("backup must not run when the durable intent fails")
 
@@ -221,7 +223,7 @@ def test_partial_first_stop_can_restore_without_usb_and_never_restarts_twice(tmp
     runtime.interrupt_stop = True
     with (
         pytest.raises(InterruptedPower),
-        HaPredecessorRecovery(store, runtime).quiesced_for_backup(predecessor),
+        HaPredecessorRecovery(store, runtime, runtime).quiesced_for_backup(predecessor),
     ):
         pytest.fail("backup must not run after interruption")
 
@@ -232,7 +234,7 @@ def test_partial_first_stop_can_restore_without_usb_and_never_restarts_twice(tmp
         store.read(), usb_present=False, observed_usb_filesystem_uuid=None
     ) == "RESTORE_PREDECESSOR_BEFORE_CUTOVER"
     reopened = HaUsbStateStore(store.root)
-    resumed = HaPredecessorRecovery(reopened, runtime)
+    resumed = HaPredecessorRecovery(reopened, runtime, runtime)
     runtime.health_available = False
     with pytest.raises(UpdaterV2Error, match="health_evidence_unavailable"):
         resumed.recover()
@@ -252,7 +254,7 @@ def test_partial_first_stop_can_restore_without_usb_and_never_restarts_twice(tmp
 
 def test_recovery_at_u7_does_not_repeat_first_stop(tmp_path):
     predecessor, store, runtime = first_stop_fixture(tmp_path)
-    recovery = HaPredecessorRecovery(store, runtime)
+    recovery = HaPredecessorRecovery(store, runtime, runtime)
     with recovery.quiesced_for_backup(predecessor) as transaction:
         assert transaction["phase"] == U7
         with pytest.raises(UpdaterV2Error, match="upgrade_transaction_busy"):
@@ -269,7 +271,7 @@ def test_recovery_at_u7_does_not_repeat_first_stop(tmp_path):
 
 def test_backup_failure_restores_predecessor_under_the_same_lock(tmp_path):
     predecessor, store, runtime = first_stop_fixture(tmp_path)
-    recovery = HaPredecessorRecovery(store, runtime)
+    recovery = HaPredecessorRecovery(store, runtime, runtime)
     with (
         pytest.raises(UpdaterV2Error, match="backup_failed"),
         recovery.quiesced_for_backup(predecessor),
@@ -282,6 +284,130 @@ def test_backup_failure_restores_predecessor_under_the_same_lock(tmp_path):
     assert restored["ha_data_backup_verified"] is False
     assert restored["authorization_consumed"] is False
     assert runtime.start_count == 1
+
+
+class StartupRuntime(recovery_startup.LocalHaPredecessorRuntime):
+    def __init__(self, root: Path):
+        self.owner = "active"
+        self.running = {"manager", "homeassistant", "broker"}
+        self.saved = PredecessorRuntime(None).binding["images"]
+        self.running_ids = {name: item["runtime_id"] for name, item in self.saved.items()}
+        self.starts = 0
+        self.compose = {
+            "services": {
+                name: {"image": image["reference"], "pull_policy": "never", "volumes": []}
+                for name, image in self.saved.items()
+            }
+        }
+        for name, targets in recovery_startup.PROTECTED_BINDS.items():
+            for target in targets:
+                source = root / name / Path(target).name
+                source.mkdir(parents=True)
+                self.compose["services"][name]["volumes"].append(
+                    {"source": str(source), "target": target, "type": "bind"}
+                )
+
+    def _activation_env(self):
+        pass
+
+    def _service_unit(self):
+        pass
+
+    def _run(self, argv, **kwargs):
+        unit = recovery_startup.SERVICES_UNIT
+        if argv == ("systemctl", "show", "--property=NeedDaemonReload", "--value", unit):
+            return SimpleNamespace(stdout=b"no\n")
+        if argv == ("systemctl", "cat", unit):
+            return SimpleNamespace(stdout=b"test unit")
+        if argv == ("systemctl", "start", unit):
+            self.starts += 1
+            self.owner = "active"
+            self.running.update(("manager", "homeassistant"))
+            return SimpleNamespace(stdout=b"")
+        if argv[:3] == ("docker", "inspect", "--format"):
+            volumes = self.compose["services"][argv[-1]]["volumes"]
+            mounts = [
+                {"Destination": item["target"], "Source": item["source"],
+                 "Type": "bind", "RW": True}
+                for item in volumes
+            ]
+            return SimpleNamespace(stdout=json.dumps(mounts).encode())
+        raise AssertionError(argv)
+
+    def render_compose(self):
+        return self.compose
+
+    def _image_binding_authority_v2(self, rendered):
+        return {name: item["image"] for name, item in rendered["services"].items()}, {}
+
+    def image_id(self, reference):
+        return next(item["runtime_id"] for item in self.saved.values()
+                    if item["reference"] == reference)
+
+    def _running_count(self, service):
+        return int(service in self.running)
+
+    def _runtime(self, service):
+        return {"container_id": service, "image_ref": self.saved[service]["reference"],
+                "image_id": self.running_ids[service]}
+
+    def _systemctl(self, action, unit):
+        return self.owner
+
+    def stop_services(self):
+        self.running.remove("manager")
+        self.owner = "failed"
+        raise InterruptedPower()
+
+
+@pytest.mark.parametrize("drift", [None, "protected_directory", "running_image"])
+def test_boot_entry_resumes_only_the_bound_predecessor(tmp_path, monkeypatch, capsys, drift):
+    predecessor, store, health = first_stop_fixture(tmp_path)
+    runtime = StartupRuntime(tmp_path / "application")
+    with (
+        pytest.raises(InterruptedPower),
+        HaPredecessorRecovery(store, runtime, health).quiesced_for_backup(predecessor),
+    ):
+        pytest.fail("the interrupted stop must not enter the backup")
+    shutil.rmtree(tmp_path / "synthetic-usb")
+    if drift == "protected_directory":
+        source = Path(runtime.compose["services"]["homeassistant"]["volumes"][0]["source"])
+        source.rename(source.with_name("older-config"))
+        source.mkdir()
+    elif drift == "running_image":
+        runtime.running_ids["homeassistant"] = "sha256:" + "f" * 64
+
+    monkeypatch.setattr(recovery_startup, "HaUsbStateStore", lambda: HaUsbStateStore(store.root))
+    monkeypatch.setattr(recovery_startup, "LocalHaPredecessorRuntime", lambda: runtime)
+    assert recovery_startup.main() == (0 if drift is None else 1)
+    expected = "RECOVERING" if drift is None else "RECOVERY_STARTUP_NEEDS_REVIEW"
+    assert json.loads(capsys.readouterr().out) == {"status": expected}
+    assert runtime.starts == (1 if drift is None else 0)
+    document = store.read()
+    assert document["recovery_required"] is True
+    assert document["status"] == "ACTIVE"
+    assert document["authorization_consumed"] is False
+    if drift is None:
+        assert recovery_startup.main() == 0
+        assert runtime.starts == 1
+
+
+def test_boot_entry_leaves_legacy_and_post_cutover_transactions_alone(tmp_path, monkeypatch, capsys):
+    prepared, *_ = drive_to_u8(tmp_path)
+    store = HaUsbStateStore(tmp_path / "state")
+    monkeypatch.setattr(recovery_startup, "HaUsbStateStore", lambda: store)
+    monkeypatch.setattr(recovery_startup, "LocalHaPredecessorRuntime", object)
+    store.write(prepared)
+    assert recovery_startup.main() == 0
+    assert json.loads(capsys.readouterr().out) == {"status": "NO_PRE_CUTOVER_RECOVERY"}
+    assert store.read() == prepared
+
+    prepared["predecessor_start"] = PredecessorRuntime(store).binding
+    post_cutover = claim_live_authorization(prepared, AUTHORIZATION_ID)
+    store.write(post_cutover)
+    assert recovery_startup.main() == 0
+    assert json.loads(capsys.readouterr().out) == {"status": "NO_PRE_CUTOVER_RECOVERY"}
+    assert store.read() == post_cutover
 
 
 class SyntheticUsb:

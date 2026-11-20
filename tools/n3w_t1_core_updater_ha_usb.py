@@ -63,6 +63,8 @@ class HaPredecessorRuntime(Protocol):
         """Check the binding against the host, then start only missing services."""
         ...
 
+
+class HaPredecessorHealth(Protocol):
     def verify_predecessor_health(self, binding: dict[str, Any]) -> None:
         """Verify the old combination and its affected functions have recovered."""
         ...
@@ -71,9 +73,15 @@ class HaPredecessorRuntime(Protocol):
 class HaPredecessorRecovery:
     """Host recovery point for interruptions before destructive HA cutover."""
 
-    def __init__(self, store: HaUsbStateStore, runtime: HaPredecessorRuntime):
+    def __init__(
+        self,
+        store: HaUsbStateStore,
+        runtime: HaPredecessorRuntime,
+        health: HaPredecessorHealth,
+    ):
         self.store = store
         self.runtime = runtime
+        self.health = health
 
     @contextmanager
     def quiesced_for_backup(
@@ -124,7 +132,7 @@ class HaPredecessorRecovery:
                 yield result
             except Exception:
                 latest = self.store.read()
-                if latest is not None and self._is_recoverable(latest):
+                if latest is not None and _can_resume_pre_cutover(latest):
                     self._restore(latest)
                 raise
 
@@ -132,26 +140,14 @@ class HaPredecessorRecovery:
         """Re-enter after an interruption, independently of USB and IPC."""
         with self.store.lock():
             current = self.store.read()
-            if current is None or not self._is_recoverable(current):
+            if current is None or not _can_resume_pre_cutover(current):
                 return False
             self._restore(current)
             return True
 
-    @staticmethod
-    def _is_recoverable(document: dict[str, Any]) -> bool:
-        return (
-            document["phase"] in PRE_CUTOVER_RECOVERY_PHASES
-            and document["status"] not in HA_USB_TERMINAL_STATUSES
-            and "predecessor_start" in document
-        )
-
     def _restore(self, current: dict[str, Any]) -> None:
-        if not current["recovery_required"]:
-            current = {**current, "recovery_required": True}
-            self.store.write(current)
-        binding = current["predecessor_start"]
-        self.runtime.start_predecessor_if_needed(binding)
-        self.runtime.verify_predecessor_health(binding)
+        current = _start_pre_cutover_predecessor(self.store, self.runtime, current)
+        self.health.verify_predecessor_health(current["predecessor_start"])
         self.store.write(
             {
                 **current,
@@ -162,6 +158,39 @@ class HaPredecessorRecovery:
                 "updated_at_unix": max(current["updated_at_unix"], int(time.time())),
             }
         )
+
+
+def _can_resume_pre_cutover(document: dict[str, Any]) -> bool:
+    return (
+        document["phase"] in PRE_CUTOVER_RECOVERY_PHASES
+        and document["status"] not in HA_USB_TERMINAL_STATUSES
+        and "predecessor_start" in document
+    )
+
+
+def resume_pre_cutover_services(
+    store: HaUsbStateStore, runtime: HaPredecessorRuntime
+) -> bool:
+    """Boot recovery starts the previous services before health verification."""
+    with store.lock():
+        current = store.read()
+        if current is None or not _can_resume_pre_cutover(current):
+            return False
+        _start_pre_cutover_predecessor(store, runtime, current)
+        return True
+
+
+def _start_pre_cutover_predecessor(
+    store: HaUsbStateStore,
+    runtime: HaPredecessorRuntime,
+    current: dict[str, Any],
+) -> dict[str, Any]:
+    """Resume services under the caller's lock and leave verification pending."""
+    if not current["recovery_required"]:
+        current = {**current, "recovery_required": True}
+        store.write(current)
+    runtime.start_predecessor_if_needed(current["predecessor_start"])
+    return current
 
 
 
