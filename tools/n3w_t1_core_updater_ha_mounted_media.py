@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import ctypes
 import hashlib
 import json
 import os
+import shutil
 import stat
 import subprocess
 import tempfile
@@ -24,15 +26,39 @@ from n3w_t1_core_updater_ha_usb_media import (
     require_same_filesystem_uuid,
 )
 from n3w_t1_core_updater_ha_usb_state import (
-    U10,
-    U11,
-    U12,
+    HA_DATA_RESTORE_PHASES,
     U7,
     HaUsbStateStore,
     prepared_image_materials,
     validate_transaction_document,
 )
 from n3w_t1_core_updater_v2_common import UpdaterV2Error
+
+
+DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+RENAME_EXCHANGE = 2
+
+
+def _directory_identity(parent: int, name: str) -> tuple[int, int]:
+    fd = os.open(name, DIRECTORY_FLAGS, dir_fd=parent)
+    try:
+        entry = os.fstat(fd)
+        if entry.st_dev != os.fstat(parent).st_dev:
+            raise UpdaterV2Error("ha_data_restore_directory_off_filesystem")
+        return os.fstatvfs(fd).f_fsid, entry.st_ino
+    finally:
+        os.close(fd)
+
+
+def _exchange_directories(first_parent: int, first: str, second_parent: int, second: str) -> None:
+    # Linux renameat2 leaves neither directory name missing during the swap.
+    exchange = getattr(ctypes.CDLL(None, use_errno=True), "renameat2", None)
+    if exchange is None:
+        raise UpdaterV2Error("ha_data_restore_atomic_exchange_unavailable")
+    exchange.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint)
+    exchange.restype = ctypes.c_int
+    if exchange(first_parent, os.fsencode(first), second_parent, os.fsencode(second), RENAME_EXCHANGE):
+        raise OSError(ctypes.get_errno(), "HA data directory exchange failed")
 
 
 @dataclass(frozen=True, slots=True)
@@ -372,11 +398,20 @@ class HaMountedBackupProvider:
     def stage_preupgrade_data(self) -> Iterator[Path]:
         """Supply a verified tree to the recovery caller while it holds the host lock."""
         current = self._document()
-        if current["phase"] not in {U10, U11, U12}:
+        if current["phase"] not in HA_DATA_RESTORE_PHASES or "ha_data_restore" in current:
             raise UpdaterV2Error("ha_data_restore_phase_invalid")
+        self._require_restore_quiesced()
+        work_root = self._restore_work_root()
+        with tempfile.TemporaryDirectory(prefix=".ha-restore-", dir=work_root) as scratch:
+            stage = Path(scratch) / "data"
+            self._extract_restore(current, stage)
+            yield stage
+
+    def _require_restore_quiesced(self) -> None:
         if self.verify_quiesced() is not True:
             raise UpdaterV2Error("ha_data_restore_writers_not_quiesced")
-        record = backup_record_from_document(current["install_recovery_materials"]["backup"])
+
+    def _restore_work_root(self) -> Path:
         work_root = self._internal_work_root()
         live = self.backup.ha_data_root
         try:
@@ -388,18 +423,95 @@ class HaMountedBackupProvider:
                 raise UpdaterV2Error("ha_data_restore_work_directory_unsafe")
         except OSError as error:
             raise UpdaterV2Error("ha_data_restore_target_unavailable") from error
+        return work_root
 
-        with tempfile.TemporaryDirectory(prefix=".ha-restore-", dir=work_root) as scratch:
-            stage = Path(scratch) / "data"
-            with self._backup_directory(current, allow_read_only=True) as directory:
-                try:
-                    self.backup.restore_to_stage(
-                        directory, current["transaction_id_sha256"], record, stage,
-                    )
-                except OSError as error:
-                    raise UpdaterV2Error("ha_data_restore_stage_io_failed") from error
-            if self._document() != current:
-                raise UpdaterV2Error("ha_data_restore_transaction_changed")
-            if self.verify_quiesced() is not True:
-                raise UpdaterV2Error("ha_data_restore_writers_not_quiesced")
-            yield stage
+    def _extract_restore(self, current: dict[str, Any], stage: Path) -> None:
+        record = backup_record_from_document(current["install_recovery_materials"]["backup"])
+        with self._backup_directory(current, allow_read_only=True) as directory:
+            try:
+                self.backup.restore_to_stage(directory, current["transaction_id_sha256"], record, stage)
+            except OSError as error:
+                raise UpdaterV2Error("ha_data_restore_stage_io_failed") from error
+        if self._document() != current:
+            raise UpdaterV2Error("ha_data_restore_transaction_changed")
+        self._require_restore_quiesced()
+
+    def _write_restore(self, current: dict[str, Any], journal: dict[str, Any]) -> dict[str, Any]:
+        current = {**current, "ha_data_restore": journal, "recovery_required": True}
+        self.store.write(current)
+        return current
+
+    def restore_preupgrade_data(self) -> None:
+        """Publish or reconcile the verified HA tree under the caller's recovery lock."""
+        current = self._document()
+        if current["phase"] not in HA_DATA_RESTORE_PHASES or current["status"] != "ACTIVE":
+            raise UpdaterV2Error("ha_data_restore_phase_invalid")
+        work_root = self._restore_work_root()
+        live = self.backup.ha_data_root
+        workspace = work_root / f'.ha-restore-{current["transaction_id_sha256"]}'
+        try:
+            with ExitStack() as stack:
+                parent = os.open(live.parent, DIRECTORY_FLAGS)
+                stack.callback(os.close, parent)
+                live_id = _directory_identity(parent, live.name)
+                journal = current.get("ha_data_restore")
+                if journal is None:
+                    self._require_restore_quiesced()
+                    if os.path.lexists(workspace):
+                        raise UpdaterV2Error("ha_data_restore_workspace_occupied")
+                    journal = {
+                        "step": "STAGING", "filesystem_id": live_id[0], "original_inode": live_id[1],
+                    }
+                    current = self._write_restore(current, journal)
+                if journal["step"] == "PUBLISHED":
+                    if live_id != (journal["filesystem_id"], journal["staged_inode"]):
+                        raise UpdaterV2Error("ha_data_restore_directory_identity_drift")
+                    return
+                work = os.open(work_root, DIRECTORY_FLAGS)
+                stack.callback(os.close, work)
+                if journal["step"] == "STAGING":
+                    if live_id != (journal["filesystem_id"], journal["original_inode"]):
+                        raise UpdaterV2Error("ha_data_restore_directory_identity_drift")
+                    self._require_restore_quiesced()
+                    try:
+                        os.mkdir(workspace.name, 0o700, dir_fd=work)
+                    except FileExistsError:
+                        pass
+                    os.fsync(work)
+                scratch = os.open(workspace.name, DIRECTORY_FLAGS, dir_fd=work)
+                stack.callback(os.close, scratch)
+                entry = os.fstat(scratch)
+                contents = set(os.listdir(scratch))
+                if (
+                    entry.st_dev != os.fstat(parent).st_dev or entry.st_uid != os.geteuid()
+                    or stat.S_IMODE(entry.st_mode) != 0o700 or contents - {"data"}
+                ):
+                    raise UpdaterV2Error("ha_data_restore_workspace_invalid")
+                if journal["step"] == "STAGING":
+                    stage = workspace / "data"
+                    if "data" in contents:
+                        _directory_identity(scratch, "data")
+                        shutil.rmtree(stage)
+                    self._extract_restore(current, stage)
+                    staged_id = _directory_identity(scratch, "data")
+                    os.fsync(scratch)
+                    journal = {**journal, "step": "EXCHANGE_PENDING", "staged_inode": staged_id[1]}
+                    current = self._write_restore(current, journal)
+                self._publish_restore(current, parent, live.name, scratch)
+        except OSError as error:
+            raise UpdaterV2Error("ha_data_restore_publication_io_failed") from error
+
+    def _publish_restore(self, current: dict[str, Any], parent: int, name: str, scratch: int) -> None:
+        journal = current["ha_data_restore"]
+        original = (journal["filesystem_id"], journal["original_inode"])
+        restored = (journal["filesystem_id"], journal["staged_inode"])
+        observed = (_directory_identity(parent, name), _directory_identity(scratch, "data"))
+        if observed == (original, restored):
+            self._require_restore_quiesced()
+            _exchange_directories(parent, name, scratch, "data")
+            observed = (_directory_identity(parent, name), _directory_identity(scratch, "data"))
+        if observed != (restored, original):
+            raise UpdaterV2Error("ha_data_restore_directory_identity_drift")
+        os.fsync(parent)
+        os.fsync(scratch)
+        self._write_restore(current, {**journal, "step": "PUBLISHED"})

@@ -51,6 +51,7 @@ U12 = "U12_TARGET_ACCEPTANCE"
 U13A = "U13A_COMMITTED"
 U13B = "U13B_ROLLED_BACK"
 PRE_CUTOVER_RECOVERY_PHASES = frozenset({U6, U7, U8})
+HA_DATA_RESTORE_PHASES = frozenset({U10, U11, U12})
 
 PHASES = (
     U0,
@@ -207,6 +208,31 @@ def _validate_recovery_materials(document: dict[str, Any]) -> None:
     ):
         raise UpdaterV2Error("ha_usb_install_recovery_material_identity_drift")
     backup_record_from_document(materials["backup"])
+
+
+def _validate_data_restore(document: dict[str, Any]) -> None:
+    journal = document["ha_data_restore"]
+    reason = "ha_usb_data_restore_journal_invalid"
+    if (
+        document.get("usb_binding_mode") != "existing_filesystem"
+        or "predecessor_start" not in document
+        or not isinstance(journal, dict)
+        or journal.get("step") not in ("STAGING", "EXCHANGE_PENDING", "PUBLISHED")
+    ):
+        raise UpdaterV2Error(reason)
+    step = journal["step"]
+    expected = {"step", "filesystem_id", "original_inode"}
+    if step != "STAGING":
+        expected.add("staged_inode")
+    if set(journal) != expected or type(journal["filesystem_id"]) is not int:
+        raise UpdaterV2Error(reason)
+    original = _positive_int(journal["original_inode"], reason)
+    if step != "STAGING" and _positive_int(journal["staged_inode"], reason) == original:
+        raise UpdaterV2Error(reason)
+    if document["phase"] == U13B and step == "PUBLISHED" and document["recovery_required"] is False:
+        return
+    if document["phase"] not in HA_DATA_RESTORE_PHASES or document["recovery_required"] is not True:
+        raise UpdaterV2Error(reason)
 
 
 def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
@@ -401,6 +427,8 @@ def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
         raise UpdaterV2Error("ha_usb_terminal_status_phase_mismatch")
     if status == "FAILED_EMERGENCY" and recovery_required is not True:
         raise UpdaterV2Error("ha_usb_failed_emergency_without_recovery")
+    if "ha_data_restore" in document:
+        _validate_data_restore(document)
     return copy.deepcopy(document)
 
 
@@ -469,6 +497,8 @@ def transition(
         raise UpdaterV2Error("ha_usb_pre_cutover_recovery_in_progress")
     if next_phase not in _ALLOWED_TRANSITIONS[current_phase]:
         raise UpdaterV2Error("ha_usb_phase_transition_invalid")
+    if "ha_data_restore" in current and next_phase != U13B:
+        raise UpdaterV2Error("ha_usb_data_restore_in_progress")
     if next_phase == U4 and current_phase in {U5, U6} and "predecessor_start" in current:
         raise UpdaterV2Error("ha_usb_install_cannot_defer_after_first_stop")
 
@@ -483,6 +513,7 @@ def transition(
                 "created_at_unix",
                 "predecessor_start",
                 "pre_cutover_predecessor_restored",
+                "ha_data_restore",
             }:
                 raise UpdaterV2Error("ha_usb_immutable_field_update_forbidden")
             if key == "install_recovery_materials" and next_phase != U8:

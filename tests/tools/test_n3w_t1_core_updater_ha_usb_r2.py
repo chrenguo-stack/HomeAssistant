@@ -741,8 +741,10 @@ def test_verify_existing_usb_media_from_bound_archives(tmp_path, monkeypatch, fa
 
     monkeypatch.setattr(mounted_media, "_command_json", metadata)
     monkeypatch.setattr(mounted_media, "_protected_devices", lambda _: {protected_device})
-    monkeypatch.setattr(mounted_media.os, "fstatvfs", lambda _: SimpleNamespace(
-        f_blocks=USB_BYTES, f_bfree=USB_BYTES // 2, f_bavail=USB_BYTES // 2, f_frsize=1
+    fstatvfs = os.fstatvfs
+    monkeypatch.setattr(mounted_media.os, "fstatvfs", lambda fd: SimpleNamespace(
+        f_blocks=USB_BYTES, f_bfree=USB_BYTES // 2, f_bavail=USB_BYTES // 2, f_frsize=1,
+        f_fsid=fstatvfs(fd).f_fsid,
     ))
     monkeypatch.setattr(mounted_media.os, "statvfs", lambda _: SimpleNamespace(
         f_bavail=0 if fault == "internal_space" else 4096, f_frsize=1
@@ -899,6 +901,9 @@ def test_verify_existing_usb_media_from_bound_archives(tmp_path, monkeypatch, fa
             assert ha.root.stat().st_ino == live_inode
             assert sentinel.read_bytes() == b"keep unchanged"
             assert {path: sha(path) for path in db_files} == before
+            _exercise_durable_data_restore(backups, ipc, runtime, mounts, config, original_config, monkeypatch)
+            assert archive.read_bytes() == ciphertext
+            assert sentinel.read_bytes() == b"keep unchanged"
             return
         assert store.read()["status"] == "ROLLED_BACK"
         assert sentinel.read_bytes() == b"keep unchanged"
@@ -922,6 +927,94 @@ def test_verify_existing_usb_media_from_bound_archives(tmp_path, monkeypatch, fa
             archive.write_bytes(ciphertext[:-1] + bytes([ciphertext[-1] ^ 1]))
             with pytest.raises(UpdaterV2Error, match="archive_hash_mismatch"):
                 backups.verify_backup(record)
+
+
+def _exercise_durable_data_restore(backups, ipc, runtime, mounts, config, original_config, monkeypatch):
+    store = backups.store
+    transaction = store.read()
+    live = backups.backup.ha_data_root
+    old_inode = live.stat().st_ino
+    workspace = backups.backup.work_root / f'.ha-restore-{transaction["transaction_id_sha256"]}'
+    workspace.mkdir(mode=0o700)
+    stranger = workspace / "unrelated"
+    stranger.write_bytes(b"keep this")
+    with store.lock(), pytest.raises(UpdaterV2Error, match="restore_workspace_occupied"):
+        backups.restore_preupgrade_data()
+    assert stranger.read_bytes() == b"keep this"
+    assert store.read() == transaction
+    stranger.unlink()
+    workspace.rmdir()
+
+    def interrupt_staging(directory, transaction_id, record, destination):
+        destination.mkdir()
+        (destination / "partial").write_bytes(b"interrupted extraction")
+        raise InterruptedPower()
+
+    with monkeypatch.context() as patch:
+        patch.setattr(backups.backup, "restore_to_stage", interrupt_staging)
+        with store.lock(), pytest.raises(InterruptedPower):
+            backups.restore_preupgrade_data()
+    assert store.read()["ha_data_restore"]["step"] == "STAGING"
+    assert config.read_bytes() == b"new version's data"
+    assert ipc.status()["phase"] == "RECOVERING"
+    assert not ha_usb_mod.destructive_cutover_allowed(store.read())
+
+    exchange = mounted_media._exchange_directories
+
+    def interrupt_before_exchange(*args):
+        raise InterruptedPower()
+
+    with monkeypatch.context() as patch:
+        patch.setattr(mounted_media, "_exchange_directories", interrupt_before_exchange)
+        with store.lock(), pytest.raises(InterruptedPower):
+            backups.restore_preupgrade_data()
+    assert not (workspace / "data" / "partial").exists()
+    pending = store.read()
+    assert pending["ha_data_restore"]["step"] == "EXCHANGE_PENDING"
+    assert live.stat().st_ino == old_inode
+    with pytest.raises(UpdaterV2Error, match="data_restore_journal_invalid"):
+        record_rollback_complete(
+            pending, observed_usb_filesystem_uuid=USB_UUID,
+            predecessor_image_restored=True, ha_data_backup_restored=True,
+        )
+
+    def interrupt_after_exchange(*args):
+        exchange(*args)
+        raise InterruptedPower()
+
+    with monkeypatch.context() as patch:
+        patch.setattr(mounted_media, "_exchange_directories", interrupt_after_exchange)
+        with store.lock(), pytest.raises(InterruptedPower):
+            backups.restore_preupgrade_data()
+    assert store.read() == pending
+    assert config.read_bytes() == original_config
+    assert (workspace / "data").stat().st_ino == old_inode
+    assert (workspace / "data" / config.relative_to(live)).read_bytes() == b"new version's data"
+    assert ipc.status()["phase"] == "RECOVERING"
+
+    with monkeypatch.context() as patch:
+        patch.setattr(mounted_media, "_exchange_directories", lambda *args: pytest.fail("duplicate swap"))
+        patch.setattr(backups.backup, "restore_to_stage", lambda *args: pytest.fail("duplicate extraction"))
+        mounts.clear()
+        reopened = HaUsbStateStore(store.root)
+        backups.store = reopened
+        with reopened.lock():
+            backups.restore_preupgrade_data()
+        published = reopened.read()
+        assert published["ha_data_restore"]["step"] == "PUBLISHED"
+        assert published["authorization_id_sha256"] == transaction["authorization_id_sha256"]
+        runtime.running.add("homeassistant")
+        config.write_bytes(b"legitimate write after predecessor restart")
+        with reopened.lock():
+            backups.restore_preupgrade_data()
+        assert reopened.read() == published
+        assert config.read_bytes() == b"legitimate write after predecessor restart"
+    result = record_rollback_complete(
+        published, observed_usb_filesystem_uuid=USB_UUID,
+        predecessor_image_restored=True, ha_data_backup_restored=True,
+    )
+    assert result["phase"] == U13B
+    assert result["recovery_required"] is False
 
 
 class InstallMaterialFixture:

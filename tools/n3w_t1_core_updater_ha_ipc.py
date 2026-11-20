@@ -144,10 +144,12 @@ class HaUsbIpcExecutor:
             }
         if document.get("pre_cutover_predecessor_restored") is True:
             return {"phase": "ROLLED_BACK", "progress_percent": None, "error_code": None}
-        if (
-            document["phase"] in PRE_CUTOVER_RECOVERY_PHASES
-            and "predecessor_start" in document
-            and document["recovery_required"]
+        if document["recovery_required"] and (
+            "ha_data_restore" in document
+            or (
+                document["phase"] in PRE_CUTOVER_RECOVERY_PHASES
+                and "predecessor_start" in document
+            )
         ):
             return {"phase": "RECOVERING", "progress_percent": None, "error_code": None}
         if document["status"] == "FAILED_EMERGENCY":

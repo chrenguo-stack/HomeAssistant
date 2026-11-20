@@ -617,6 +617,7 @@ def destructive_cutover_allowed(document: dict[str, Any]) -> bool:
     return (
         current["status"] == "ACTIVE"
         and current["phase"] in {U9, U10, U11, U12}
+        and current["recovery_required"] is False
         and current["authorization_claimed"] is True
         and current["authorization_consumed"] is True
         and current["target_artifact_verified"] is True
