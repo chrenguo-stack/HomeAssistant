@@ -838,23 +838,46 @@ def test_u9_plus_data_plane_rejects_kf140_legacy_manager_log(tmp_path):
     assert oracle._fresh_greenhouse_telemetry_visible(0) is False
 
 
-def test_u9_plus_data_plane_requires_unique_ha_mqtt_socket(tmp_path):
+def test_u9_plus_data_plane_aggregates_multiple_ha_mqtt_sockets(tmp_path):
     from types import SimpleNamespace
 
-    class AmbiguousSocketHost:
+    class MultiSocketHost:
         def _run(self, argv, **_kwargs):
             assert argv[0] == "ss"
             return SimpleNamespace(
                 returncode=0,
                 stdout=(
-                    b"ESTAB a\n bytes_received:1 data_segs_in:1\n"
-                    b"ESTAB b\n bytes_received:2 data_segs_in:2\n"
+                    b"ESTAB a\n bytes_received:1 data_segs_in:2\n"
+                    b"ESTAB b\n bytes_received:3 data_segs_in:4\n"
                 ),
                 stderr=b"",
             )
 
     oracle = host_mod.U9PlusProductionCompletionOracle(
-        runtime=SimpleNamespace(host=AmbiguousSocketHost()),
+        runtime=SimpleNamespace(host=MultiSocketHost()),
+        backend=object(),
+        backup_provider=SimpleNamespace(ha_data_root=tmp_path),
+    )
+    assert oracle._ha_mqtt_socket_counters() == (4, 6)
+
+
+def test_u9_plus_data_plane_rejects_incomplete_ha_mqtt_counters(tmp_path):
+    from types import SimpleNamespace
+
+    class IncompleteSocketHost:
+        def _run(self, argv, **_kwargs):
+            assert argv[0] == "ss"
+            return SimpleNamespace(
+                returncode=0,
+                stdout=(
+                    b"ESTAB a\n bytes_received:1 data_segs_in:2\n"
+                    b"ESTAB b\n bytes_received:3\n"
+                ),
+                stderr=b"",
+            )
+
+    oracle = host_mod.U9PlusProductionCompletionOracle(
+        runtime=SimpleNamespace(host=IncompleteSocketHost()),
         backend=object(),
         backup_provider=SimpleNamespace(ha_data_root=tmp_path),
     )
