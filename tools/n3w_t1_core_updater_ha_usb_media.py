@@ -94,8 +94,6 @@ def _validate_public_fingerprint(value: str) -> str:
 def classify_candidate(candidate: RemovableDeviceCandidate) -> tuple[str, ...]:
     _validate_public_fingerprint(candidate.public_fingerprint)
     reasons: list[str] = []
-    if candidate.newly_inserted is not True:
-        reasons.append("not_newly_inserted")
     if candidate.removable is not True:
         reasons.append("not_removable")
     if candidate.mass_storage is not True:

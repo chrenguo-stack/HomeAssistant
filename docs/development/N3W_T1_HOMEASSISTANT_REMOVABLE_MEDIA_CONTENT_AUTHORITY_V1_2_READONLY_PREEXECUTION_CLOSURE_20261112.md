@@ -1,0 +1,67 @@
+# N3-W T1 Home Assistant removable-media content-authority V1.2 real-T1 read-only preexecution closure
+
+Date: 2026-11-12
+
+GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_READONLY_PREEXECUTION_20261112_01
+STATUS=CLOSED_PASS
+PACKAGE_HEAD=24671c19b72f58e069f63b97992826681caca8e2
+REMOTE_RETURN_CODE=0
+
+## Real-T1 result
+
+READ_ONLY=true
+SOURCE_ACTIVATION_PREFLIGHT_ELIGIBLE=true
+LEGACY_U4_COMPATIBLE=true
+TRANSACTION_PHASE=U4_READY_TO_INSTALL
+TRANSACTION_SHA256=dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259
+
+PHYSICAL_MEDIA_IDENTITY_AUTHORITY=false
+COMPATIBLE_MEDIA_FILESYSTEM=ext4
+COMPATIBLE_MEDIA_LABEL=N3W-UPDATE
+COMPATIBLE_MEDIA_MOUNT_STATE=UNMOUNTED
+COMPATIBLE_MEDIA_CARDINALITY=1
+
+OTA_SERVICE=active/running
+OTA_SERVICE_RESTARTS=0
+MANAGER_RUNNING=true
+HOMEASSISTANT_RUNNING=true
+BROKER_RUNNING=true
+IPC_PHASE=READY_TO_INSTALL
+IPC_ERROR=null
+
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+REMOTE_STAGING=false
+MOUNT_ATTEMPTED=false
+UMOUNT_ATTEMPTED=false
+HOST_SOURCE_MUTATION=false
+HOST_STATE_MUTATION=false
+USB_MUTATION=false
+TRANSACTION_MUTATION=false
+U5_TRANSITION=false
+U6_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+
+## Predecessor source authority collected from real T1
+
+- n3w_t1_core_updater_ha_usb_state.py = 5c687bf1c266717b6dae1014f438f693872d4f2e0f911b62519c815d46b59d96
+- n3w_t1_core_updater_ha_usb.py = b657e12684ec18aa6d2997b633d31aae0f7c4accd3ca290786e4a28b643aa492
+- n3w_t1_core_updater_ha_usb_media.py = 4e0c5cc2e5b7d76288f8fb71b3ce11ddef9f4ff4a7a915a5220139d9f69b3134
+- n3w_t1_core_updater_ha_backup.py = 2226ac26b977a80478c2e82552bbae4ca1a46ca543cd87061bc8d48035013d44
+- n3w_t1_core_updater_ha_recovery.py = 711a61cc6eca15392eade6c8e8bae7144004455d31c2963685ae3eed72a40126
+- n3w_t1_core_updater_ha_prepare.py = 4dc6226ae493f18b3dab2c8773c1d3687a8f5f1750a6b4d9fa791cebe22db596
+- n3w_t1_core_updater_ha_prepare_host.py = d7f1e5468e24446f3ade0e22778cebecc8cda0fed07179a8fccb55b9f7e4ff8a
+- n3w_t1_core_updater_ha_ipc.py = a7d335c597771b0297f690d0e97fb3288f5f1c83fd670d8af00d76ca983e56ac
+
+The private local evidence path and SSH material are intentionally not recorded in the public repository.
+
+## Architecture evidence
+
+The currently observed removable-media device enumeration differs from an earlier real-T1 observation while the exact U4 transaction remains valid and the compatible N3W-UPDATE media is rediscovered safely. This is direct real-T1 evidence that physical /dev enumeration is not a valid cross-session business authority.
+
+## Next gate
+
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_ACTIVATION_20261112_01
+NEXT_GATE_MODE=SOURCE_ACTIVATION_PACKAGE_PREPARATION
+LIVE_EXECUTION_AUTHORIZED=false

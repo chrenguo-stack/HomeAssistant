@@ -9,6 +9,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from n3w_t1_core_updater_ha_backup import backup_record_from_document
+from n3w_t1_core_updater_ha_recovery import image_recovery_record_from_document
 from n3w_t1_core_updater_ha_usb_media import (
     USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
     validate_filesystem_uuid,
@@ -24,6 +26,10 @@ from n3w_t1_core_updater_v2_state import STATE_ROOT_V2, V2StateStore
 
 
 HA_USB_TX_SCHEMA = "gh.n3w-t1-core-updater-homeassistant-usb-transaction/1"
+USB_TX_MANIFEST_SCHEMA = "gh.n3w-t1-ha-usb-transaction-manifest/1"
+USB_TX_PHASE_SCHEMA = "gh.n3w-t1-ha-usb-transaction-phase/1"
+USB_TX_CHECKSUM_SCHEMA = "gh.n3w-t1-ha-usb-checksums/1"
+USB_TX_CONTENT_AUTHORITY_SCHEMA = "gh.n3w-t1-ha-usb-content-authority/1"
 HA_USB_ACTIVE_FILE = "homeassistant-usb-upgrade.json"
 HA_USB_TERMINAL_STATUSES = frozenset({"COMMITTED", "ROLLED_BACK"})
 HA_USB_STATUSES = frozenset(
@@ -44,7 +50,15 @@ U10 = "U10_INTERNAL_PREDECESSOR_CAPACITY_RELEASED"
 U11 = "U11_TARGET_INSTALLED_STARTED"
 U12 = "U12_TARGET_ACCEPTANCE"
 U13A = "U13A_COMMITTED"
+U13B0 = "U13B0_ROLLBACK_IN_PROGRESS"
+U13B1 = "U13B1_TARGET_CLEANUP_COMPLETE"
+U13B2 = "U13B2_PREDECESSOR_IMAGE_RESTORED"
+U13B3 = "U13B3_HA_DATA_RESTORED"
+U13B4 = "U13B4_PREDECESSOR_RUNTIME_STARTED"
 U13B = "U13B_ROLLED_BACK"
+
+U13B_ENTRY_PHASES = frozenset({U9, U10, U11, U12})
+U13B_PROGRESS_PHASES = frozenset({U13B0, U13B1, U13B2, U13B3, U13B4})
 
 PHASES = (
     U0,
@@ -61,25 +75,116 @@ PHASES = (
     U11,
     U12,
     U13A,
+    U13B0,
+    U13B1,
+    U13B2,
+    U13B3,
+    U13B4,
     U13B,
 )
 PHASE_INDEX = {phase: index for index, phase in enumerate(PHASES)}
+_FORWARD_PHASES = (
+    U0, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13A
+)
+_FORWARD_PHASE_INDEX = {
+    phase: index for index, phase in enumerate(_FORWARD_PHASES)
+}
 _ALLOWED_TRANSITIONS = {
     U0: frozenset({U1}),
     U1: frozenset({U2}),
     U2: frozenset({U3}),
     U3: frozenset({U4}),
-    U4: frozenset({U5}),
+    U4: frozenset({U3, U5}),
     U5: frozenset({U6}),
     U6: frozenset({U7}),
     U7: frozenset({U8}),
     U8: frozenset({U9}),
-    U9: frozenset({U10, U13B}),
-    U10: frozenset({U11, U13B}),
-    U11: frozenset({U12, U13B}),
-    U12: frozenset({U13A, U13B}),
+    U9: frozenset({U10, U13B0}),
+    U10: frozenset({U11, U13B0}),
+    U11: frozenset({U12, U13B0}),
+    U12: frozenset({U13A, U13B0}),
     U13A: frozenset(),
+    U13B0: frozenset({U13B1}),
+    U13B1: frozenset({U13B2}),
+    U13B2: frozenset({U13B3}),
+    U13B3: frozenset({U13B4}),
+    U13B4: frozenset({U13B}),
     U13B: frozenset(),
+}
+
+_TRANSITION_UPDATE_KEYS = {
+    (U0, U1): frozenset(),
+    (U1, U2): frozenset({
+        "usb_device_identity_public_fingerprint",
+        "usb_filesystem_uuid",
+        "usb_measured_usable_bytes",
+        "usb_mount_authority",
+        "usb_capacity_verified",
+    }),
+    (U2, U3): frozenset(),
+    (U3, U4): frozenset({
+        "target_artifact_verified",
+        "target_artifact_identity",
+    }),
+    (U4, U3): frozenset({
+        "target_artifact_verified",
+        "target_artifact_identity",
+    }),
+    (U4, U5): frozenset({
+        "target_artifact_verified",
+        "target_artifact_identity",
+    }),
+    (U5, U6): frozenset(),
+    (U6, U7): frozenset({
+        "predecessor_recovery_verified",
+        "predecessor_recovery_identity",
+    }),
+    (U7, U8): frozenset({
+        "predecessor_recovery_verified",
+        "ha_data_backup_verified",
+        "ha_data_backup_identity",
+        "production_prestate_verified",
+        "usb_capacity_verified",
+        "recovery_content_manifest_sha256",
+    }),
+    (U8, U9): frozenset({
+        "authorization_id_sha256",
+        "authorization_claimed",
+        "authorization_consumed",
+    }),
+    (U9, U10): frozenset(),
+    (U10, U11): frozenset(),
+    (U11, U12): frozenset(),
+    (U12, U13A): frozenset(),
+    (U9, U13B0): frozenset({
+        "failure_code",
+        "recovery_required",
+        "rollback_origin_phase",
+        "rollback_recovery_content_verified",
+    }),
+    (U10, U13B0): frozenset({
+        "failure_code",
+        "recovery_required",
+        "rollback_origin_phase",
+        "rollback_recovery_content_verified",
+    }),
+    (U11, U13B0): frozenset({
+        "failure_code",
+        "recovery_required",
+        "rollback_origin_phase",
+        "rollback_recovery_content_verified",
+    }),
+    (U12, U13B0): frozenset({
+        "failure_code",
+        "recovery_required",
+        "rollback_origin_phase",
+        "rollback_recovery_content_verified",
+    }),
+    (U13B0, U13B1): frozenset({"rollback_target_cleanup_verified"}),
+    (U13B1, U13B2): frozenset({"rollback_predecessor_image_restored"}),
+    (U13B2, U13B3): frozenset({"rollback_ha_data_restored"}),
+    (U13B3, U13B4): frozenset({"rollback_predecessor_runtime_started"}),
+    (U13B4, U13B): frozenset({"rollback_health_verified"}),
 }
 
 _FORBIDDEN_KEY_FRAGMENTS = (
@@ -127,7 +232,48 @@ def _bool(value: Any, reason: str) -> bool:
 
 
 def _phase_at_or_after(phase: str, threshold: str) -> bool:
-    return PHASE_INDEX[phase] >= PHASE_INDEX[threshold]
+    if threshold not in _FORWARD_PHASE_INDEX:
+        raise UpdaterV2Error("ha_usb_phase_threshold_invalid")
+    threshold_index = _FORWARD_PHASE_INDEX[threshold]
+    if phase in U13B_PROGRESS_PHASES or phase == U13B:
+        return _FORWARD_PHASE_INDEX[U9] >= threshold_index
+    if phase not in _FORWARD_PHASE_INDEX:
+        raise UpdaterV2Error("ha_usb_forward_phase_invalid")
+    return _FORWARD_PHASE_INDEX[phase] >= threshold_index
+
+
+def compute_recovery_content_manifest_sha256(document: dict[str, Any]) -> str:
+    transaction_id = document.get("transaction_id_sha256")
+    manifest = document.get("target_manifest_identity")
+    release_identity = (
+        manifest.get("release_identity")
+        if isinstance(manifest, dict)
+        else None
+    )
+    target = document.get("target_artifact_identity")
+    predecessor = document.get("predecessor_recovery_identity")
+    backup = document.get("ha_data_backup_identity")
+    if (
+        not isinstance(transaction_id, str)
+        or SHA256.fullmatch(transaction_id) is None
+        or not isinstance(release_identity, str)
+        or not release_identity
+        or not isinstance(target, dict)
+        or not isinstance(predecessor, dict)
+        or not isinstance(backup, dict)
+    ):
+        raise UpdaterV2Error("ha_usb_recovery_content_authority_incomplete")
+    return sha256_bytes(
+        canonical(
+            {
+                "transaction_id_sha256": transaction_id,
+                "release_identity": release_identity,
+                "target_artifact_identity": target,
+                "predecessor_recovery_identity": predecessor,
+                "ha_data_backup_identity": backup,
+            }
+        )
+    )
 
 
 def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
@@ -172,7 +318,7 @@ def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
     target_sha = document.get("target_archive_sha256")
     if not isinstance(target_sha, str) or SHA256.fullmatch(target_sha) is None:
         raise UpdaterV2Error("ha_usb_target_archive_sha256_invalid")
-    _positive_int(
+    target_size = _positive_int(
         document.get("target_archive_size"),
         "ha_usb_target_archive_size_invalid",
     )
@@ -232,6 +378,58 @@ def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
     ):
         raise UpdaterV2Error("ha_usb_failure_code_invalid")
 
+    rollback_origin_phase = document.get("rollback_origin_phase")
+    rollback_evidence = (
+        _bool(
+            document.get("rollback_recovery_content_verified", False),
+            "ha_usb_rollback_recovery_content_verified_invalid",
+        ),
+        _bool(
+            document.get("rollback_target_cleanup_verified", False),
+            "ha_usb_rollback_target_cleanup_verified_invalid",
+        ),
+        _bool(
+            document.get("rollback_predecessor_image_restored", False),
+            "ha_usb_rollback_predecessor_image_restored_invalid",
+        ),
+        _bool(
+            document.get("rollback_ha_data_restored", False),
+            "ha_usb_rollback_ha_data_restored_invalid",
+        ),
+        _bool(
+            document.get("rollback_predecessor_runtime_started", False),
+            "ha_usb_rollback_predecessor_runtime_started_invalid",
+        ),
+        _bool(
+            document.get("rollback_health_verified", False),
+            "ha_usb_rollback_health_verified_invalid",
+        ),
+    )
+    rollback_expected = {
+        U13B0: (True, False, False, False, False, False),
+        U13B1: (True, True, False, False, False, False),
+        U13B2: (True, True, True, False, False, False),
+        U13B3: (True, True, True, True, False, False),
+        U13B4: (True, True, True, True, True, False),
+        U13B: (True, True, True, True, True, True),
+    }
+    if phase in U13B_PROGRESS_PHASES or phase == U13B:
+        if rollback_origin_phase not in U13B_ENTRY_PHASES:
+            raise UpdaterV2Error("ha_usb_rollback_origin_phase_invalid")
+        if failure_code is None:
+            raise UpdaterV2Error("ha_usb_rollback_failure_code_missing")
+        if rollback_evidence != rollback_expected[phase]:
+            raise UpdaterV2Error("ha_usb_rollback_durable_evidence_invalid")
+    else:
+        if rollback_origin_phase is not None:
+            raise UpdaterV2Error("ha_usb_rollback_origin_phase_too_early")
+        if any(rollback_evidence):
+            raise UpdaterV2Error("ha_usb_rollback_evidence_too_early")
+
+    if phase in U13B_PROGRESS_PHASES:
+        if status != "ACTIVE" or recovery_required is not True:
+            raise UpdaterV2Error("ha_usb_rollback_progress_state_invalid")
+
     if _phase_at_or_after(phase, U2):
         fingerprint = document.get("usb_device_identity_public_fingerprint")
         if not isinstance(fingerprint, str) or SHA256.fullmatch(fingerprint) is None:
@@ -269,13 +467,53 @@ def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
 
     if _phase_at_or_after(phase, U4) and target_verified is not True:
         raise UpdaterV2Error("ha_usb_target_not_verified")
+
+    target_identity = document.get("target_artifact_identity")
+    if target_identity is not None:
+        target_record = image_recovery_record_from_document(
+            target_identity,
+            expected_kind="target",
+            expected_image_ref=target_ref,
+            expected_archive_sha256=target_sha,
+        )
+        if target_record.archive_size_bytes != target_size:
+            raise UpdaterV2Error("ha_usb_target_archive_size_mismatch")
+    elif _phase_at_or_after(phase, U5):
+        raise UpdaterV2Error("ha_usb_target_identity_missing")
+
     if _phase_at_or_after(phase, U7) and predecessor_verified is not True:
         raise UpdaterV2Error("ha_usb_predecessor_not_verified")
+    predecessor_identity = document.get("predecessor_recovery_identity")
+    if predecessor_identity is not None:
+        image_recovery_record_from_document(
+            predecessor_identity,
+            expected_kind="predecessor",
+            expected_image_ref=current_ref,
+        )
+    elif _phase_at_or_after(phase, U7):
+        raise UpdaterV2Error("ha_usb_predecessor_identity_missing")
+
+    backup_identity = document.get("ha_data_backup_identity")
+    if backup_identity is not None:
+        backup_record_from_document(backup_identity)
+    elif _phase_at_or_after(phase, U8):
+        raise UpdaterV2Error("ha_usb_backup_identity_missing")
+
+    recovery_manifest = document.get("recovery_content_manifest_sha256")
     if _phase_at_or_after(phase, U8):
         if backup_verified is not True:
             raise UpdaterV2Error("ha_usb_backup_not_verified")
         if prestate_verified is not True:
             raise UpdaterV2Error("ha_usb_prestate_not_verified")
+        if (
+            not isinstance(recovery_manifest, str)
+            or SHA256.fullmatch(recovery_manifest) is None
+            or recovery_manifest
+            != compute_recovery_content_manifest_sha256(document)
+        ):
+            raise UpdaterV2Error("ha_usb_recovery_content_manifest_invalid")
+    elif recovery_manifest is not None:
+        raise UpdaterV2Error("ha_usb_recovery_content_manifest_too_early")
 
     auth_sha = document.get("authorization_id_sha256")
     if _phase_at_or_after(phase, U9):
@@ -333,20 +571,31 @@ def new_transaction(
         "usb_mount_authority": None,
         "usb_capacity_verified": False,
         "target_artifact_verified": False,
+        "target_artifact_identity": None,
         "predecessor_recovery_verified": False,
+        "predecessor_recovery_identity": None,
         "ha_data_backup_verified": False,
+        "ha_data_backup_identity": None,
+        "recovery_content_manifest_sha256": None,
         "production_prestate_verified": False,
         "authorization_id_sha256": None,
         "authorization_claimed": False,
         "authorization_consumed": False,
         "failure_code": None,
         "recovery_required": False,
+        "rollback_origin_phase": None,
+        "rollback_recovery_content_verified": False,
+        "rollback_target_cleanup_verified": False,
+        "rollback_predecessor_image_restored": False,
+        "rollback_ha_data_restored": False,
+        "rollback_predecessor_runtime_started": False,
+        "rollback_health_verified": False,
         "updated_at_unix": created,
     }
     return validate_transaction_document(document)
 
 
-def transition(
+def _transition_impl(
     document: dict[str, Any],
     next_phase: str,
     *,
@@ -359,9 +608,22 @@ def transition(
         raise UpdaterV2Error("ha_usb_transaction_not_active")
     if next_phase not in _ALLOWED_TRANSITIONS[current_phase]:
         raise UpdaterV2Error("ha_usb_phase_transition_invalid")
-
     result = copy.deepcopy(current)
     result["phase"] = next_phase
+    if current_phase == U4 and next_phase == U3:
+        if (
+            current["authorization_claimed"]
+            or current["authorization_consumed"]
+            or current["predecessor_recovery_verified"]
+            or current["ha_data_backup_verified"]
+        ):
+            raise UpdaterV2Error("ha_usb_target_reprepare_not_allowed")
+        if (
+            not isinstance(updates, dict)
+            or updates.get("target_artifact_verified") is not False
+            or updates.get("target_artifact_identity", "__missing__") is not None
+        ):
+            raise UpdaterV2Error("ha_usb_target_reprepare_contract_invalid")
     if updates:
         for key, value in updates.items():
             if key in {"schema", "transaction_id_sha256", "component", "created_at_unix"}:
@@ -371,6 +633,9 @@ def transition(
     if next_phase == U13A:
         result["status"] = "COMMITTED"
         result["recovery_required"] = False
+    elif next_phase in U13B_PROGRESS_PHASES:
+        result["status"] = "ACTIVE"
+        result["recovery_required"] = True
     elif next_phase == U13B:
         result["status"] = "ROLLED_BACK"
         result["recovery_required"] = False
@@ -378,6 +643,63 @@ def transition(
     now = int(time.time()) if updated_at_unix is None else updated_at_unix
     result["updated_at_unix"] = max(int(result["created_at_unix"]), now)
     return validate_transaction_document(result)
+
+
+def transition(
+    document: dict[str, Any],
+    next_phase: str,
+    *,
+    updates: dict[str, Any] | None = None,
+    updated_at_unix: int | None = None,
+) -> dict[str, Any]:
+    current = validate_transaction_document(document)
+    current_phase = current["phase"]
+    if (
+        current_phase in U13B_PROGRESS_PHASES
+        or next_phase in U13B_PROGRESS_PHASES
+        or next_phase == U13B
+    ):
+        raise UpdaterV2Error(
+            "ha_usb_rollback_transition_requires_domain_helper"
+        )
+    return _transition_impl(
+        current,
+        next_phase,
+        updates=updates,
+        updated_at_unix=updated_at_unix,
+    )
+
+
+def _rollback_transition(
+    document: dict[str, Any],
+    next_phase: str,
+    *,
+    updates: dict[str, Any],
+    updated_at_unix: int | None = None,
+) -> dict[str, Any]:
+    current = validate_transaction_document(document)
+    if (
+        next_phase not in U13B_PROGRESS_PHASES
+        and next_phase != U13B
+    ):
+        raise UpdaterV2Error("ha_usb_rollback_transition_target_invalid")
+    expected_update_keys = _TRANSITION_UPDATE_KEYS.get(
+        (current["phase"], next_phase)
+    )
+    if expected_update_keys is None:
+        raise UpdaterV2Error(
+            "ha_usb_rollback_transition_contract_missing"
+        )
+    if frozenset(updates) != expected_update_keys:
+        raise UpdaterV2Error(
+            "ha_usb_rollback_transition_update_contract_invalid"
+        )
+    return _transition_impl(
+        current,
+        next_phase,
+        updates=updates,
+        updated_at_unix=updated_at_unix,
+    )
 
 
 def mark_failed_emergency(

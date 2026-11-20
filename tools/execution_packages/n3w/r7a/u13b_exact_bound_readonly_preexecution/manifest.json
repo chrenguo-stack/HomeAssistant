@@ -1,0 +1,122 @@
+{
+  "schema": "gh.n3w-t1-u13b-p2-exact-bound-readonly-preexecution-manifest/1",
+  "gate_id": "N3W_T1_U13B_P2_EXACT_BOUND_READONLY_PREEXECUTION_PACKAGE_20261117_01",
+  "read_only_preexecution": true,
+  "real_t1_readonly_execution_authorized": false,
+  "u13b_live_execution_authorized": false,
+  "new_clean_ota_mutation_authorized": false,
+  "controlled_rollback_mutation_authorized": false,
+  "source_authority": {
+    "main": "3e7faf258d670c9eaf3be6ede9bbb02df2ac009d",
+    "pr": 807,
+    "u13b_readonly_preexecution_source_head": "c02335e728797c953e623cf439d314c0affc3d32",
+    "p1_execution_package": "e41723d8fa278021db95fc497426678a8a52d3c2",
+    "p1_execution_id": "u13b-p1-readonly02-20261117T122835Z",
+    "p1_result": "U13B_REAL_T1_READONLY_BINDING_PASS",
+    "p1_state_alignment_head": "a23ab5f4ca280bdb2a71fa9f5fd0572c7cab3f95",
+    "physical_plan": "docs/development/N3W_T1_U13B_REAL_T1_PHYSICAL_ACCEPTANCE_AND_READONLY_PREEXECUTION_PLAN_20261117.md"
+  },
+  "package_source_authority": {
+    "tools/execution_packages/n3w/r7a/u13b_exact_bound_readonly_preexecution/executor.py": "0af6168c7026bb58be53f2cfee3105226cecde78",
+    "tools/execution_packages/n3w/r7a/u13b_real_t1_readonly_binding_preflight/executor.py": "d4370a3962558f156db722dc9370154e0800fb23",
+    "tools/execution_packages/n3w/r7a/u13b_real_t1_readonly_binding_preflight/manifest.json": "081b92c7e15e6b98147fdbc4014e5b686491e121",
+    "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
+    "tools/n3w_t1_core_updater_ha_u13b.py": "ed9dcec5cad32381da37834604fbd6f031e5a77f",
+    "tools/n3w_t1_core_updater_ha_u13b_host.py": "fa022f832f3df904a731f74e4ad6db18a7cd70dc",
+    "tools/n3w_t1_core_updater_ha_u13b_postcondition.py": "5372bff38323d4f3c65a24775298dc804cc376df",
+    "tools/n3w_t1_core_updater_ha_u13b_preexecution.py": "b02230f0287f32bd26e5de38829f97e68bc5ba8e"
+  },
+  "fresh_binding": {
+    "phase": "U13A_COMMITTED",
+    "status": "COMMITTED",
+    "recovery_required": false,
+    "transaction_sha256": "06951ac4d8a8723ae808f25d955560052eee02f884ab78f5c6ffe0580e84b600",
+    "transaction_id_sha256": "ca89774eb4254d0f861cc2aef136eee41e90fd6106559c0fd8d66e3ee00a3738",
+    "filesystem_uuid": "967cf065-abe5-49ee-8499-7c3f50d2c48f",
+    "usb_metadata_sha256": {
+      "manifest": "3aa5e247636b1bb891aa151a8fb0219294d4803ea22dc7b66d821f6250d9e728",
+      "phase": "11d150bc3828a0e400a90670671a607a02f6d1a53350ef53b3366d95fcb64288",
+      "content_authority": "3da14eb03447beaf38579a3fa5e4e076d4f3e806f7a787cbc0bba6b2cb1b8727",
+      "checksums": "2a21aa2b8fb362242fa087a49a2ebfb93caf65d1dd8a6f9c6da44edbb9f8c7f2"
+    },
+    "target": {
+      "image_ref": "local/n3w-homeassistant:2026.10.4-5881590f",
+      "runtime_image_id": "sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365",
+      "archive_sha256": "eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973",
+      "archive_size_bytes": 835309535,
+      "platform": "linux/arm64"
+    },
+    "predecessor_identity": {
+      "kind": "predecessor",
+      "image_ref": "local/n3w-homeassistant:2026.10.0-0c73235a",
+      "archive_sha256": "34cec37ab021e1081e236502bfd06760894f6bca93bd8d6bf99d8d90bb89848d",
+      "archive_size_bytes": 743074537,
+      "portable_identity_sha256": "8b4d4376e2ab339347abb4aa554d3a5cc6f93ea20b0ee3c22ca8e29ae14b16c3",
+      "platform": "linux/arm64",
+      "verified": true,
+      "fsynced": true
+    },
+    "backup_identity": {
+      "archive_sha256": "9473d5d199fd16c185425f5f0a0676d6cfab1888db28617f5ac4c9e4fa9e1c4c",
+      "archive_size_bytes": 2178281,
+      "manifest_sha256": "fd9a2f279a6e9fed99c2af6c2d4502227cafebe4d0ea5d5bb0a467e34415a704",
+      "verified": true,
+      "fsynced": true,
+      "consistent_preupgrade_point": true,
+      "complete_production_config": true,
+      "storage_integrity_verified": true,
+      "ownership_metadata_present": true,
+      "confidentiality_protected": true,
+      "authenticity_protected": true,
+      "unsupported_external_state": false
+    },
+    "recovery_content_manifest_sha256": "18698bcded28d0497ae3dcd3363ace68f54a3cbc1c42a1fd5710173a24d900f3",
+    "runtime": {
+      "homeassistant": {
+        "image": "local/n3w-homeassistant:2026.10.4-5881590f",
+        "runtime_image_id": "sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365"
+      },
+      "manager": {
+        "image": "local/greenhouse-manager:fresh-44e7d7472714",
+        "container_id": "07228043f774e1545cf4ff6156659d8fb3d10912c80e8f2241a5c88b401f0a0f",
+        "runtime_image_id": "sha256:1471828ab07cf9b71c01a6e78994711a5954f0a178b8be087a28bb65a967c7d2"
+      },
+      "broker": {
+        "image": "local/n3w-mosquitto:2.1.2-3184566d",
+        "container_id": "927aea04a062caf57c8d75d73ba8902f35eef035214e85ce7e8b1c066903d963",
+        "runtime_image_id": "sha256:df265f1e2b2e3dc35d5eb194e698c598e01c5ebca370da307b34332f9bf0a563"
+      },
+      "persistent_homeassistant_binding": "local/n3w-homeassistant:2026.10.4-5881590f"
+    }
+  },
+  "p1_expected_terminal": {
+    "transaction_phase": "U13A_COMMITTED",
+    "transaction_status": "COMMITTED",
+    "transaction_sha256": "06951ac4d8a8723ae808f25d955560052eee02f884ab78f5c6ffe0580e84b600",
+    "target_image": "local/n3w-homeassistant:2026.10.4-5881590f",
+    "target_runtime_image_id": "sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365",
+    "filesystem_uuid": "967cf065-abe5-49ee-8499-7c3f50d2c48f",
+    "transaction_id_sha256": "ca89774eb4254d0f861cc2aef136eee41e90fd6106559c0fd8d66e3ee00a3738"
+  },
+  "execution_contract": {
+    "exact_p1_fresh_binding_required": true,
+    "exact_u13b_source_hashes_required": true,
+    "terminal_u13a_outside_domain_expected": true,
+    "expected_safe_stop": true,
+    "rollback_eligible_expected": false,
+    "host_transaction_write": false,
+    "usb_metadata_write": false,
+    "service_mutation": false,
+    "image_mutation": false,
+    "ha_data_mutation": false,
+    "authorization_claim": false,
+    "u13a_transition": false,
+    "u13b_transition": false,
+    "live_execution_requires_separate_authorization": true,
+    "p3_new_clean_ota_requires_separate_authorization": true,
+    "board_access": false,
+    "merge": false
+  },
+  "next_boundary": "P2_SOURCE_PACKAGE_CI_CLOSURE",
+  "stop_boundary": "STOP_BEFORE_ANY_P2_REAL_T1_ACCESS_OR_P3_NEW_CLEAN_OTA_MUTATION"
+}

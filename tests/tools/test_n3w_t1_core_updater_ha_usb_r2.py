@@ -30,9 +30,15 @@ from n3w_t1_core_updater_ha_usb import (
     record_commit,
     record_media_bound,
     record_predecessor_capacity_released,
+    record_ha_data_backup_verified,
     record_predecessor_recovery_and_ha_quiesced,
     record_recovery_admission,
     record_rollback_complete,
+    record_rollback_ha_data_restored,
+    record_rollback_predecessor_image_restored,
+    record_rollback_predecessor_runtime_started,
+    record_rollback_target_cleanup,
+    start_rollback,
     record_target_accepted,
     record_target_ready,
     record_target_started,
@@ -66,9 +72,15 @@ from n3w_t1_core_updater_ha_usb_state import (
     U11,
     U12,
     U13A,
+    U13B0,
+    U13B1,
+    U13B2,
+    U13B3,
+    U13B4,
     U13B,
     HaUsbStateStore,
     new_transaction,
+    transition,
 )
 from n3w_t1_core_updater_v2_common import UpdaterV2Error
 
@@ -259,6 +271,12 @@ class SyntheticDockerHost:
         self.identities[TARGET] = TARGET_IDENTITY
         self.active = TARGET
 
+    def cleanup_target(self) -> None:
+        self.images.pop(TARGET, None)
+        self.identities.pop(TARGET, None)
+        if self.active == TARGET:
+            self.active = None
+
     def restore_predecessor(
         self,
         media: SyntheticUsb,
@@ -398,6 +416,10 @@ class SyntheticHaData:
                 base64.b64decode(entry["payload"].encode("ascii"), validate=True)
             )
             os.chmod(destination, entry["mode"])
+        self.running = False
+
+    def start_predecessor(self) -> None:
+        assert self.running is False
         self.running = True
 
 
@@ -422,7 +444,7 @@ def prepare_to_u4(tmp_path: Path):
 
 def drive_to_u8(tmp_path: Path):
     tx, media, docker, ha, target = prepare_to_u4(tmp_path)
-    tx = request_install(tx)
+    tx = request_install(tx, target=target)
     assert tx["phase"] == U5
     assert tx["authorization_claimed"] is False
     assert tx["authorization_consumed"] is False
@@ -444,12 +466,12 @@ def drive_to_u8(tmp_path: Path):
 
     backup = ha.create_backup(media)
     backup = ha.verify_backup(media, backup)
+    tx = record_ha_data_backup_verified(tx, backup=backup)
     tx = record_recovery_admission(
         tx,
         target=target,
         predecessor=predecessor,
         backup=backup,
-        observed_usb_filesystem_uuid=USB_UUID,
         capacity_report=media.report,
         recovery_capacity=passing_recovery_capacity(
             target,
@@ -463,7 +485,7 @@ def drive_to_u8(tmp_path: Path):
 
 
 def test_r2_prepare_reaches_ready_without_stopping_ha_or_exporting_predecessor(tmp_path):
-    tx, media, docker, ha, _target = prepare_to_u4(tmp_path)
+    tx, media, docker, ha, target = prepare_to_u4(tmp_path)
     assert tx["phase"] == U4
     assert tx["target_artifact_verified"] is True
     assert tx["authorization_claimed"] is False
@@ -504,8 +526,8 @@ def test_r2_corrupt_target_stops_before_ready_and_leaves_production_unchanged(tm
 
 
 def test_r2_install_capacity_growth_blocks_before_u6(tmp_path):
-    tx, _media, _docker, _ha, _target = prepare_to_u4(tmp_path)
-    tx = request_install(tx)
+    tx, _media, _docker, _ha, target = prepare_to_u4(tmp_path)
+    tx = request_install(tx, target=target)
     evidence = passing_install_capacity(observed_free_bytes=1)
 
     assert evidence.capacity_pass is False
@@ -520,7 +542,7 @@ def test_r2_install_capacity_growth_blocks_before_u6(tmp_path):
 
 def test_r2_u8_actual_free_space_blocks_before_authorization(tmp_path):
     tx, media, docker, ha, target = prepare_to_u4(tmp_path)
-    tx = request_install(tx)
+    tx = request_install(tx, target=target)
     tx = start_predecessor_recovery(
         tx,
         install_capacity=passing_install_capacity(),
@@ -536,6 +558,7 @@ def test_r2_u8_actual_free_space_blocks_before_authorization(tmp_path):
         ha_quiesced=True,
     )
     backup = ha.verify_backup(media, ha.create_backup(media))
+    tx = record_ha_data_backup_verified(tx, backup=backup)
     insufficient = passing_recovery_capacity(
         target,
         predecessor,
@@ -553,7 +576,6 @@ def test_r2_u8_actual_free_space_blocks_before_authorization(tmp_path):
             target=target,
             predecessor=predecessor,
             backup=backup,
-            observed_usb_filesystem_uuid=USB_UUID,
             capacity_report=media.report,
             recovery_capacity=insufficient,
             production_prestate_exact=True,
@@ -563,9 +585,9 @@ def test_r2_u8_actual_free_space_blocks_before_authorization(tmp_path):
 
 
 def test_r2_predecessor_corruption_stops_before_u7_and_u9(tmp_path):
-    tx, media, docker, ha, _target = prepare_to_u4(tmp_path)
+    tx, media, docker, ha, target = prepare_to_u4(tmp_path)
     tx = start_predecessor_recovery(
-        request_install(tx),
+        request_install(tx, target=target),
         install_capacity=passing_install_capacity(),
     )
     predecessor = docker.export_predecessor(media)
@@ -579,9 +601,9 @@ def test_r2_predecessor_corruption_stops_before_u7_and_u9(tmp_path):
 
 
 def test_r2_backup_corruption_stops_before_u8_and_u9(tmp_path):
-    tx, media, docker, ha, _target = prepare_to_u4(tmp_path)
+    tx, media, docker, ha, target = prepare_to_u4(tmp_path)
     tx = start_predecessor_recovery(
-        request_install(tx),
+        request_install(tx, target=target),
         install_capacity=passing_install_capacity(),
     )
     predecessor = docker.verify_predecessor(
@@ -604,13 +626,58 @@ def test_r2_backup_corruption_stops_before_u8_and_u9(tmp_path):
     assert docker.active == CURRENT
 
 
+def test_r2_u10_requires_observed_capacity_release_evidence(tmp_path):
+    tx, _media, _docker, _ha, _target, _predecessor, _backup = drive_to_u8(
+        tmp_path
+    )
+    tx = claim_live_authorization(tx, AUTHORIZATION_ID)
+    assert tx["phase"] == U9
+
+    cases = (
+        (
+            {
+                "predecessor_runtime_released": False,
+                "predecessor_image_released": True,
+                "target_internal_image_absent": True,
+            },
+            "ha_usb_predecessor_runtime_not_released",
+        ),
+        (
+            {
+                "predecessor_runtime_released": True,
+                "predecessor_image_released": False,
+                "target_internal_image_absent": True,
+            },
+            "ha_usb_predecessor_image_not_released",
+        ),
+        (
+            {
+                "predecessor_runtime_released": True,
+                "predecessor_image_released": True,
+                "target_internal_image_absent": False,
+            },
+            "ha_usb_target_loaded_before_u10",
+        ),
+    )
+    for evidence, reason in cases:
+        with pytest.raises(UpdaterV2Error, match=reason):
+            record_predecessor_capacity_released(tx, **evidence)
+
+    assert tx["phase"] == U9
+
+
 def test_r2_success_keeps_target_migrated_config(tmp_path):
     tx, media, docker, ha, target, predecessor, backup = drive_to_u8(tmp_path)
     tx = claim_live_authorization(tx, AUTHORIZATION_ID)
     assert tx["phase"] == U9
 
     docker.remove_predecessor(predecessor)
-    tx = record_predecessor_capacity_released(tx)
+    tx = record_predecessor_capacity_released(
+        tx,
+        predecessor_runtime_released=(docker.active is None),
+        predecessor_image_released=(CURRENT not in docker.images),
+        target_internal_image_absent=(TARGET not in docker.images),
+    )
     assert tx["phase"] == U10
     assert CURRENT not in docker.images
 
@@ -631,69 +698,258 @@ def test_r2_success_keeps_target_migrated_config(tmp_path):
     assert backup is not None
 
 
-def test_r2_failed_target_restores_predecessor_and_preupgrade_data(tmp_path):
+def test_r2_failed_target_rollback_is_durable_and_staged(tmp_path):
     tx, media, docker, ha, target, predecessor, backup = drive_to_u8(tmp_path)
     tx = claim_live_authorization(tx, AUTHORIZATION_ID)
     docker.remove_predecessor(predecessor)
-    tx = record_predecessor_capacity_released(tx)
+    tx = record_predecessor_capacity_released(
+        tx,
+        predecessor_runtime_released=(docker.active is None),
+        predecessor_image_released=(CURRENT not in docker.images),
+        target_internal_image_absent=(TARGET not in docker.images),
+    )
     docker.load_target(target)
     ha.start_target()
     tx = record_target_started(tx)
     assert tx["phase"] == U11
     assert (ha.root / ".storage" / "r2-target-marker").exists()
 
-    docker.restore_predecessor(media, predecessor)
-    ha.restore_backup(media, backup)
-    tx = record_rollback_complete(
+    tx = start_rollback(
         tx,
-        observed_usb_filesystem_uuid=USB_UUID,
-        predecessor_image_restored=(docker.active == CURRENT),
+        failure_code="target_health_acceptance_failed",
+        target=target,
+        predecessor=predecessor,
+        backup=backup,
+    )
+    assert tx["phase"] == U13B0
+    assert tx["status"] == "ACTIVE"
+    assert tx["recovery_required"] is True
+    assert tx["rollback_origin_phase"] == U11
+    assert tx["rollback_recovery_content_verified"] is True
+    assert tx["rollback_target_cleanup_verified"] is False
+    assert classify_power_loss_reentry(
+        tx,
+        recovery_media_present=True,
+        exact_recovery_content_verified=True,
+    ) == "ROLLBACK_REQUIRED"
+
+    ha.quiesce()
+    docker.cleanup_target()
+    tx = record_rollback_target_cleanup(
+        tx,
+        services_quiesced=(ha.running is False),
+        target_runtime_absent=(docker.active is None),
+        target_image_absent=(TARGET not in docker.images),
+    )
+    assert tx["phase"] == U13B1
+    assert tx["rollback_target_cleanup_verified"] is True
+
+    docker.restore_predecessor(media, predecessor)
+    tx = record_rollback_predecessor_image_restored(
+        tx,
+        predecessor=predecessor,
+        predecessor_image_exact_present=(docker.active == CURRENT),
+    )
+    assert tx["phase"] == U13B2
+    assert tx["rollback_predecessor_image_restored"] is True
+
+    ha.restore_backup(media, backup)
+    tx = record_rollback_ha_data_restored(
+        tx,
+        backup=backup,
         ha_data_backup_restored=(
             "preupgrade"
             in (ha.root / ".storage" / "core.config").read_text(encoding="utf-8")
         ),
     )
+    assert tx["phase"] == U13B3
+    assert tx["rollback_ha_data_restored"] is True
+    assert ha.running is False
+
+    ha.start_predecessor()
+    tx = record_rollback_predecessor_runtime_started(
+        tx,
+        predecessor_runtime_started=(docker.active == CURRENT),
+        production_config_mounted=True,
+        manager_running=True,
+        broker_running=True,
+        homeassistant_running=ha.running,
+    )
+    assert tx["phase"] == U13B4
+    assert tx["rollback_predecessor_runtime_started"] is True
+
+    tx = record_rollback_complete(
+        tx,
+        predecessor_health_verified=True,
+        manager_mqtt_authenticated=True,
+        homeassistant_mqtt_authenticated=True,
+        homeassistant_http_ready=True,
+    )
     assert tx["phase"] == U13B
     assert tx["status"] == "ROLLED_BACK"
+    assert tx["recovery_required"] is False
+    assert tx["rollback_health_verified"] is True
     assert docker.active == CURRENT
-    assert TARGET in docker.images
+    assert TARGET not in docker.images
     assert not (ha.root / ".storage" / "r2-target-marker").exists()
     assert ha.running is True
 
 
-def test_r2_rollback_requires_both_image_and_data_restore(tmp_path):
-    tx, media, docker, ha, _target, predecessor, backup = drive_to_u8(tmp_path)
+def test_r2_rollback_cannot_skip_required_evidence(tmp_path):
+    tx, _media, _docker, _ha, target, predecessor, backup = drive_to_u8(tmp_path)
     tx = claim_live_authorization(tx, AUTHORIZATION_ID)
+    tx = start_rollback(
+        tx,
+        failure_code="postclaim_failure",
+        target=target,
+        predecessor=predecessor,
+        backup=backup,
+    )
+    assert tx["phase"] == U13B0
+
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_usb_rollback_services_not_quiesced",
+    ):
+        record_rollback_target_cleanup(
+            tx,
+            services_quiesced=False,
+            target_runtime_absent=True,
+            target_image_absent=True,
+        )
+
+    tx = record_rollback_target_cleanup(
+        tx,
+        services_quiesced=True,
+        target_runtime_absent=True,
+        target_image_absent=True,
+    )
     with pytest.raises(
         UpdaterV2Error,
         match="ha_usb_rollback_predecessor_not_restored",
     ):
-        record_rollback_complete(
+        record_rollback_predecessor_image_restored(
             tx,
-            observed_usb_filesystem_uuid=USB_UUID,
-            predecessor_image_restored=False,
-            ha_data_backup_restored=True,
+            predecessor=predecessor,
+            predecessor_image_exact_present=False,
         )
+
+    tx = record_rollback_predecessor_image_restored(
+        tx,
+        predecessor=predecessor,
+        predecessor_image_exact_present=True,
+    )
     with pytest.raises(
         UpdaterV2Error,
         match="ha_usb_rollback_data_not_restored",
     ):
-        record_rollback_complete(
+        record_rollback_ha_data_restored(
             tx,
-            observed_usb_filesystem_uuid=USB_UUID,
-            predecessor_image_restored=True,
+            backup=backup,
             ha_data_backup_restored=False,
         )
-    assert predecessor is not None
-    assert backup is not None
-    assert docker.active == CURRENT
-    assert ha.running is False
+
+    tx = record_rollback_ha_data_restored(
+        tx,
+        backup=backup,
+        ha_data_backup_restored=True,
+    )
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_usb_rollback_runtime_not_started",
+    ):
+        record_rollback_predecessor_runtime_started(
+            tx,
+            predecessor_runtime_started=True,
+            production_config_mounted=True,
+            manager_running=True,
+            broker_running=True,
+            homeassistant_running=False,
+        )
+
+    tx = record_rollback_predecessor_runtime_started(
+        tx,
+        predecessor_runtime_started=True,
+        production_config_mounted=True,
+        manager_running=True,
+        broker_running=True,
+        homeassistant_running=True,
+    )
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_usb_rollback_health_not_verified",
+    ):
+        record_rollback_complete(
+            tx,
+            predecessor_health_verified=True,
+            manager_mqtt_authenticated=True,
+            homeassistant_mqtt_authenticated=False,
+            homeassistant_http_ready=True,
+        )
+
+
+def test_r2_generic_transition_cannot_bypass_rollback_evidence(tmp_path):
+    tx, _media, _docker, _ha, target, predecessor, backup = drive_to_u8(tmp_path)
+    tx = claim_live_authorization(tx, AUTHORIZATION_ID)
+    tx = start_rollback(
+        tx,
+        failure_code="target_health_acceptance_failed",
+        target=target,
+        predecessor=predecessor,
+        backup=backup,
+    )
+    assert tx["phase"] == U13B0
+
+    for updates in (
+        None,
+        {"rollback_target_cleanup_verified": True},
+    ):
+        with pytest.raises(
+            UpdaterV2Error,
+            match="ha_usb_rollback_transition_requires_domain_helper",
+        ):
+            transition(tx, U13B1, updates=updates)
+
+    tx = record_rollback_target_cleanup(
+        tx,
+        services_quiesced=True,
+        target_runtime_absent=True,
+        target_image_absent=True,
+    )
+    tx = record_rollback_predecessor_image_restored(
+        tx,
+        predecessor=predecessor,
+        predecessor_image_exact_present=True,
+    )
+    tx = record_rollback_ha_data_restored(
+        tx,
+        backup=backup,
+        ha_data_backup_restored=True,
+    )
+    tx = record_rollback_predecessor_runtime_started(
+        tx,
+        predecessor_runtime_started=True,
+        production_config_mounted=True,
+        manager_running=True,
+        broker_running=True,
+        homeassistant_running=True,
+    )
+    assert tx["phase"] == U13B4
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_usb_rollback_transition_requires_domain_helper",
+    ):
+        transition(
+            tx,
+            U13B,
+            updates={"rollback_health_verified": True},
+        )
 
 
 def test_r2_power_loss_before_u9_keeps_predecessor_authority(tmp_path):
-    tx, media, docker, ha, _target = prepare_to_u4(tmp_path)
+    tx, media, docker, ha, target = prepare_to_u4(tmp_path)
     tx = start_predecessor_recovery(
-        request_install(tx),
+        request_install(tx, target=target),
         install_capacity=passing_install_capacity(),
     )
     predecessor = docker.verify_predecessor(
@@ -715,12 +971,12 @@ def test_r2_power_loss_before_u9_keeps_predecessor_authority(tmp_path):
     assert CURRENT in docker.images
     assert classify_power_loss_reentry(
         recovered,
-        usb_present=False,
-        observed_usb_filesystem_uuid=None,
+        recovery_media_present=False,
+        exact_recovery_content_verified=False,
     ) == "PRE_U9_PREDECESSOR_AUTHORITY"
 
 
-def test_r2_power_loss_after_u9_requires_same_recovery_media(tmp_path):
+def test_r2_power_loss_after_u9_requires_exact_recovery_content(tmp_path):
     tx, _media, _docker, _ha, _target, _predecessor, _backup = drive_to_u8(tmp_path)
     tx = claim_live_authorization(tx, AUTHORIZATION_ID)
     store = HaUsbStateStore(tmp_path / "state")
@@ -731,27 +987,31 @@ def test_r2_power_loss_after_u9_requires_same_recovery_media(tmp_path):
 
     assert classify_power_loss_reentry(
         recovered,
-        usb_present=False,
-        observed_usb_filesystem_uuid=None,
+        recovery_media_present=False,
+        exact_recovery_content_verified=False,
     ) == "RECOVERY_MEDIA_REQUIRED"
     assert classify_power_loss_reentry(
         recovered,
-        usb_present=True,
-        observed_usb_filesystem_uuid=USB_UUID,
+        recovery_media_present=True,
+        exact_recovery_content_verified=True,
     ) == "ROLLBACK_REQUIRED"
-    with pytest.raises(UpdaterV2Error, match="usb_filesystem_uuid_mismatch"):
-        classify_power_loss_reentry(
-            recovered,
-            usb_present=True,
-            observed_usb_filesystem_uuid=OTHER_UUID,
-        )
+    assert classify_power_loss_reentry(
+        recovered,
+        recovery_media_present=True,
+        exact_recovery_content_verified=False,
+    ) == "RECOVERY_MEDIA_REQUIRED"
 
 
-def test_r2_u12_power_loss_can_only_forward_commit_with_same_media(tmp_path):
+def test_r2_u12_power_loss_can_forward_commit_with_exact_recovery_content(tmp_path):
     tx, _media, docker, ha, target, predecessor, _backup = drive_to_u8(tmp_path)
     tx = claim_live_authorization(tx, AUTHORIZATION_ID)
     docker.remove_predecessor(predecessor)
-    tx = record_predecessor_capacity_released(tx)
+    tx = record_predecessor_capacity_released(
+        tx,
+        predecessor_runtime_released=(docker.active is None),
+        predecessor_image_released=(CURRENT not in docker.images),
+        target_internal_image_absent=(TARGET not in docker.images),
+    )
     docker.load_target(target)
     ha.start_target()
     tx = record_target_started(tx)
@@ -759,9 +1019,109 @@ def test_r2_u12_power_loss_can_only_forward_commit_with_same_media(tmp_path):
     assert tx["phase"] == U12
     assert classify_power_loss_reentry(
         tx,
-        usb_present=True,
-        observed_usb_filesystem_uuid=USB_UUID,
+        recovery_media_present=True,
+        exact_recovery_content_verified=True,
     ) == "FORWARD_COMMIT_ELIGIBLE"
+
+
+def test_r2_u13a_success_is_terminal_and_cannot_enter_rollback(tmp_path):
+    tx, _media, docker, ha, target, predecessor, backup = drive_to_u8(tmp_path)
+    tx = claim_live_authorization(tx, AUTHORIZATION_ID)
+    docker.remove_predecessor(predecessor)
+    tx = record_predecessor_capacity_released(
+        tx,
+        predecessor_runtime_released=(docker.active is None),
+        predecessor_image_released=(CURRENT not in docker.images),
+        target_internal_image_absent=(TARGET not in docker.images),
+    )
+    docker.load_target(target)
+    ha.start_target()
+    tx = record_target_started(tx)
+    tx = record_target_accepted(tx)
+    tx = record_commit(tx)
+    assert tx["phase"] == U13A
+    assert classify_power_loss_reentry(
+        tx,
+        recovery_media_present=True,
+        exact_recovery_content_verified=True,
+    ) == "TERMINAL"
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_usb_rollback_phase_invalid",
+    ):
+        start_rollback(
+            tx,
+            failure_code="late_failure_must_not_reopen_commit",
+            target=target,
+            predecessor=predecessor,
+            backup=backup,
+        )
+
+
+def test_r2_all_u13b_progress_phases_require_recovery_media_and_resume_rollback(
+    tmp_path,
+):
+    tx, _media, _docker, _ha, target, predecessor, backup = drive_to_u8(tmp_path)
+    tx = claim_live_authorization(tx, AUTHORIZATION_ID)
+    snapshots = []
+
+    tx = start_rollback(
+        tx,
+        failure_code="target_health_acceptance_failed",
+        target=target,
+        predecessor=predecessor,
+        backup=backup,
+    )
+    snapshots.append(tx)
+    tx = record_rollback_target_cleanup(
+        tx,
+        services_quiesced=True,
+        target_runtime_absent=True,
+        target_image_absent=True,
+    )
+    snapshots.append(tx)
+    tx = record_rollback_predecessor_image_restored(
+        tx,
+        predecessor=predecessor,
+        predecessor_image_exact_present=True,
+    )
+    snapshots.append(tx)
+    tx = record_rollback_ha_data_restored(
+        tx,
+        backup=backup,
+        ha_data_backup_restored=True,
+    )
+    snapshots.append(tx)
+    tx = record_rollback_predecessor_runtime_started(
+        tx,
+        predecessor_runtime_started=True,
+        production_config_mounted=True,
+        manager_running=True,
+        broker_running=True,
+        homeassistant_running=True,
+    )
+    snapshots.append(tx)
+
+    assert [item["phase"] for item in snapshots] == [
+        U13B0,
+        U13B1,
+        U13B2,
+        U13B3,
+        U13B4,
+    ]
+    for item in snapshots:
+        assert item["status"] == "ACTIVE"
+        assert item["recovery_required"] is True
+        assert classify_power_loss_reentry(
+            item,
+            recovery_media_present=False,
+            exact_recovery_content_verified=False,
+        ) == "RECOVERY_MEDIA_REQUIRED"
+        assert classify_power_loss_reentry(
+            item,
+            recovery_media_present=True,
+            exact_recovery_content_verified=True,
+        ) == "ROLLBACK_REQUIRED"
 
 
 def test_r2_media_binding_rejects_wrong_label(tmp_path):
@@ -815,7 +1175,7 @@ def test_r2_power_loss_classification_is_deterministic_u0_through_u11(tmp_path):
     tx = record_target_ready(tx, target=target)
     snapshots[U4] = tx
 
-    tx = request_install(tx)
+    tx = request_install(tx, target=target)
     snapshots[U5] = tx
 
     tx = start_predecessor_recovery(
@@ -837,12 +1197,12 @@ def test_r2_power_loss_classification_is_deterministic_u0_through_u11(tmp_path):
     snapshots[U7] = tx
 
     backup = ha.verify_backup(media, ha.create_backup(media))
+    tx = record_ha_data_backup_verified(tx, backup=backup)
     tx = record_recovery_admission(
         tx,
         target=target,
         predecessor=predecessor,
         backup=backup,
-        observed_usb_filesystem_uuid=USB_UUID,
         capacity_report=media.report,
         recovery_capacity=passing_recovery_capacity(
             target,
@@ -857,7 +1217,12 @@ def test_r2_power_loss_classification_is_deterministic_u0_through_u11(tmp_path):
     snapshots[U9] = tx
 
     docker.remove_predecessor(predecessor)
-    tx = record_predecessor_capacity_released(tx)
+    tx = record_predecessor_capacity_released(
+        tx,
+        predecessor_runtime_released=(docker.active is None),
+        predecessor_image_released=(CURRENT not in docker.images),
+        target_internal_image_absent=(TARGET not in docker.images),
+    )
     snapshots[U10] = tx
 
     docker.load_target(target)
@@ -872,20 +1237,20 @@ def test_r2_power_loss_classification_is_deterministic_u0_through_u11(tmp_path):
     for phase in (U0, U1, U2, U3, U4, U5, U6, U7, U8):
         assert classify_power_loss_reentry(
             snapshots[phase],
-            usb_present=False,
-            observed_usb_filesystem_uuid=None,
+            recovery_media_present=False,
+            exact_recovery_content_verified=False,
         ) == "PRE_U9_PREDECESSOR_AUTHORITY"
 
     for phase in (U9, U10, U11):
         assert classify_power_loss_reentry(
             snapshots[phase],
-            usb_present=False,
-            observed_usb_filesystem_uuid=None,
+            recovery_media_present=False,
+            exact_recovery_content_verified=False,
         ) == "RECOVERY_MEDIA_REQUIRED"
         assert classify_power_loss_reentry(
             snapshots[phase],
-            usb_present=True,
-            observed_usb_filesystem_uuid=USB_UUID,
+            recovery_media_present=True,
+            exact_recovery_content_verified=True,
         ) == "ROLLBACK_REQUIRED"
 
 
@@ -912,3 +1277,82 @@ def test_r2_orchestrator_remains_command_free():
     assert "docker system prune" not in source
     assert "docker image prune" not in source
     assert "systemctl" not in source
+
+
+
+def test_r2_rollback_rejects_wrong_recovery_content(tmp_path):
+    tx, _media, _docker, _ha, target, predecessor, backup = drive_to_u8(tmp_path)
+    tx = claim_live_authorization(tx, AUTHORIZATION_ID)
+    wrong_target = ImageRecoveryRecord(
+        kind=target.kind,
+        image_ref=target.image_ref,
+        archive_sha256=target.archive_sha256,
+        archive_size_bytes=target.archive_size_bytes,
+        portable_identity_sha256="9" * 64,
+        platform=target.platform,
+        verified=True,
+        fsynced=True,
+    )
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_usb_recovery_content_manifest_mismatch",
+    ):
+        start_rollback(
+            tx,
+            failure_code="target_health_acceptance_failed",
+            target=wrong_target,
+            predecessor=predecessor,
+            backup=backup,
+        )
+
+
+def test_r2_physical_uuid_is_not_recovery_authority(tmp_path):
+    tx, _media, _docker, _ha, _target, _predecessor, _backup = drive_to_u8(tmp_path)
+    tx = claim_live_authorization(tx, AUTHORIZATION_ID)
+    assert tx["usb_filesystem_uuid"] == USB_UUID
+    assert OTHER_UUID != tx["usb_filesystem_uuid"]
+    assert classify_power_loss_reentry(
+        tx,
+        recovery_media_present=True,
+        exact_recovery_content_verified=True,
+    ) == "ROLLBACK_REQUIRED"
+
+
+def test_u8_rejects_backup_that_was_not_durably_recorded_in_u7(
+    tmp_path: Path,
+) -> None:
+    tx, media, docker, ha, target = prepare_to_u4(tmp_path)
+    tx = request_install(tx, target=target)
+    tx = start_predecessor_recovery(
+        tx,
+        install_capacity=passing_install_capacity(),
+    )
+    predecessor = docker.verify_predecessor(
+        media,
+        docker.export_predecessor(media),
+    )
+    ha.quiesce()
+    tx = record_predecessor_recovery_and_ha_quiesced(
+        tx,
+        predecessor=predecessor,
+        ha_quiesced=True,
+    )
+    backup = ha.verify_backup(media, ha.create_backup(media))
+
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_usb_backup_not_durably_verified",
+    ):
+        record_recovery_admission(
+            tx,
+            target=target,
+            predecessor=predecessor,
+            backup=backup,
+            capacity_report=media.report,
+            recovery_capacity=passing_recovery_capacity(
+                target,
+                predecessor,
+                backup,
+            ),
+            production_prestate_exact=True,
+        )

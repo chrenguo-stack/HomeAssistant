@@ -1,0 +1,80 @@
+{
+  "schema": "gh.n3w-t1-u8-r34-readonly-reconciliation-manifest/1",
+  "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U8_POST_R33_READONLY_RECONCILIATION_R34_20261115_01",
+  "read_only": true,
+  "live_execution_authorized": false,
+  "package_source_authority": {
+    "tools/execution_packages/n3w/r7a/u8_post_r33_readonly_reconciliation_r34/executor.py": "01a0ac59195fb523cc9eeff84cba7347812a5c38",
+    "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
+    "tools/execution_packages/n3w/r7a/u6_source_activation_r25/executor.py": "f3e3ad25cda278f8ed5888bfee11573ac5fdd29e"
+  },
+  "source_authority": {
+    "r33_execution_head": "d0f7a9813e9f15343df6ab0ed4a84c00adb87214",
+    "r33_executor_blob": "cc721209002f588d00da35785a38dee7313d4d42",
+    "r33_execution_id": "r33-live01-20261115T144821Z",
+    "r33_result": "STOP_POSTCLAIM",
+    "r33_first_failed_operation": "Stop:r33_terminal_usb_mirror_mismatch",
+    "r33_authorization_claimed": true,
+    "r33_authorization_consumed": true,
+    "r33_replay_permitted": false,
+    "readonly_diag_result": "PASS",
+    "readonly_diag_unique_mismatch": "manifest.public_fingerprint"
+  },
+  "r33_state_root": "/var/lib/n3w-t1-core-updater/u8-r33-recovery-admission-20261115-01",
+  "mount_target": "/run/n3w-t1-ota/media/ca89774eb4254d0f",
+  "expected_live_entry": {
+    "transaction_id_sha256": "ca89774eb4254d0f861cc2aef136eee41e90fd6106559c0fd8d66e3ee00a3738",
+    "transaction_sha256": "b483236e9439e3e8bc5d6c3cce51bed6649c3feaecdef09cf8fa66a0afab5a3f",
+    "recovery_content_manifest_sha256": "18698bcded28d0497ae3dcd3363ace68f54a3cbc1c42a1fd5710173a24d900f3",
+    "r33_gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U8_RECOVERY_ADMISSION_R33_20261115_01",
+    "r33_execution_id": "r33-live01-20261115T144821Z",
+    "predecessor_image": "local/n3w-homeassistant:2026.10.0-0c73235a",
+    "predecessor_runtime_image_id": "sha256:c261fa53f30508951833492ba2a19af6cfbb6aa8f2806b531d8f5c6599265306",
+    "target_image": "local/n3w-homeassistant:2026.10.4-5881590f",
+    "mirror_sha256": {
+      "manifest": "3aa5e247636b1bb891aa151a8fb0219294d4803ea22dc7b66d821f6250d9e728",
+      "phase": "9560a7136db37aabe3323d1379af4b3a6ae6fe6e2d2d8f2f37f92f8d8fbbab20",
+      "content_authority": "3da14eb03447beaf38579a3fa5e4e076d4f3e806f7a787cbc0bba6b2cb1b8727",
+      "checksums": "2a21aa2b8fb362242fa087a49a2ebfb93caf65d1dd8a6f9c6da44edbb9f8c7f2"
+    },
+    "containers": {
+      "broker": {
+        "image": "local/n3w-mosquitto:2.1.2-3184566d",
+        "container_id": "927aea04a062caf57c8d75d73ba8902f35eef035214e85ce7e8b1c066903d963",
+        "runtime_image_id": "sha256:df265f1e2b2e3dc35d5eb194e698c598e01c5ebca370da307b34332f9bf0a563"
+      },
+      "homeassistant": {
+        "image": "local/n3w-homeassistant:2026.10.0-0c73235a",
+        "container_id": "26b095e1ba8aa3a009f02a2460234eae45764debf61d878b965761ce75212676",
+        "runtime_image_id": "sha256:c261fa53f30508951833492ba2a19af6cfbb6aa8f2806b531d8f5c6599265306"
+      },
+      "manager": {
+        "image": "local/greenhouse-manager:fresh-44e7d7472714",
+        "container_id": "07228043f774e1545cf4ff6156659d8fb3d10912c80e8f2241a5c88b401f0a0f",
+        "runtime_image_id": "sha256:1471828ab07cf9b71c01a6e78994711a5954f0a178b8be087a28bb65a967c7d2"
+      }
+    }
+  },
+  "reconciliation_contract": {
+    "transaction_u8_exact": true,
+    "r33_consumed_no_replay_required": true,
+    "mirror_file_hashes_exact": true,
+    "durable_mirror_fields_exact": true,
+    "session_public_fingerprint_may_differ": true,
+    "session_public_fingerprint_cross_session_authority": false,
+    "filesystem_uuid_cross_session_authority": true,
+    "recovery_manifest_recompute_required": true,
+    "runtime_quiesced_required": true,
+    "broker_continuity_required": true,
+    "predecessor_internal_image_preserved": true,
+    "target_internal_image_absent": true,
+    "transaction_mutation": false,
+    "usb_mutation": false,
+    "service_mutation": false,
+    "u9_plus": false,
+    "destructive_cutover": false,
+    "board_access": false,
+    "merge": false
+  },
+  "stop_boundary": "STOP_AFTER_R34_READONLY_U8_RECONCILIATION_BEFORE_U9"
+}

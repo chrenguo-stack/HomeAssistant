@@ -13,6 +13,9 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from n3w_t1_core_updater_ha_prepare import HaUsbPrepareController
+from n3w_t1_core_updater_ha_u13b_auto import (
+    U9PlusBoundedRecoveryCoordinator,
+)
 from n3w_t1_core_updater_ha_usb import request_prepare
 from n3w_t1_core_updater_ha_usb_state import (
     U0,
@@ -29,6 +32,11 @@ from n3w_t1_core_updater_ha_usb_state import (
     U11,
     U12,
     U13A,
+    U13B0,
+    U13B1,
+    U13B2,
+    U13B3,
+    U13B4,
     U13B,
     HaUsbStateStore,
     new_transaction,
@@ -57,6 +65,8 @@ _RECOVERABLE_MEDIA_CODES = frozenset(
         "usb_mount_source_invalid",
         "usb_filesystem_uuid_mismatch",
         "usb_bound_filesystem_contract_invalid",
+        "usb_transaction_media_unavailable",
+        "ha_usb_target_reprepare_required",
     }
 )
 
@@ -75,6 +85,11 @@ _PHASE_MAP = {
     U11: "TARGET_INSTALLED_STARTED",
     U12: "TARGET_ACCEPTANCE",
     U13A: "COMMITTED",
+    U13B0: "ROLLBACK_IN_PROGRESS",
+    U13B1: "ROLLBACK_IN_PROGRESS",
+    U13B2: "ROLLBACK_IN_PROGRESS",
+    U13B3: "ROLLBACK_IN_PROGRESS",
+    U13B4: "ROLLBACK_IN_PROGRESS",
     U13B: "ROLLED_BACK",
 }
 
@@ -133,15 +148,20 @@ class HaUsbIpcExecutor:
         store: HaUsbStateStore,
         admission_resolver: HostOtaAdmissionResolver,
         prepare_controller: HaUsbPrepareController | None = None,
+        recovery_coordinator: U9PlusBoundedRecoveryCoordinator | None = None,
     ) -> None:
         self.store = store
         self.admission_resolver = admission_resolver
         self.prepare_controller = prepare_controller
+        self.recovery_coordinator = recovery_coordinator
         self._prepare_thread: threading.Thread | None = None
         self._prepare_error: str | None = None
         self._discovery_thread: threading.Thread | None = None
         self._discovery_error: str | None = None
+        self._recovery_thread: threading.Thread | None = None
+        self._recovery_error: str | None = None
         self._prepare_lock = threading.Lock()
+        self._recovery_lock = threading.Lock()
         self._controller_lock = threading.Lock()
         self._stop_workers = threading.Event()
 
@@ -184,7 +204,12 @@ class HaUsbIpcExecutor:
         }
         if self.prepare_controller is None:
             return defaults
-        projection = self.prepare_controller.public_status()
+        try:
+            projection = self.prepare_controller.public_status()
+        except UpdaterV2Error as error:
+            if str(error) == "ha_usb_prepare_status_phase_invalid":
+                return defaults
+            raise
         return {
             "usb_required_bytes_or_null": projection.get(
                 "usb_required_bytes_or_null"
@@ -268,11 +293,48 @@ class HaUsbIpcExecutor:
             self._discovery_thread.start()
             return True
 
+    def _start_u9_plus_recovery_worker(self) -> bool:
+        if self.recovery_coordinator is None:
+            return False
+        with self._recovery_lock:
+            if (
+                self._recovery_thread is not None
+                and self._recovery_thread.is_alive()
+            ):
+                return False
+            self._recovery_error = None
+            self._recovery_thread = threading.Thread(
+                target=self._u9_plus_recovery_worker,
+                name="n3w-t1-ha-u9-plus-recovery",
+                daemon=True,
+            )
+            self._recovery_thread.start()
+            return True
+
+    def _u9_plus_recovery_worker(self) -> None:
+        try:
+            assert self.recovery_coordinator is not None
+            self.recovery_coordinator.recover_once()
+            with self._recovery_lock:
+                self._recovery_error = None
+        except UpdaterV2Error as error:
+            with self._recovery_lock:
+                self._recovery_error = _public_code(error)
+        except Exception:
+            with self._recovery_lock:
+                self._recovery_error = "u9_plus_recovery_failed"
+
     def start_background_recovery(self) -> None:
-        if self.prepare_controller is None:
-            return
         document = self.store.read()
         if document is None:
+            return
+        if document["phase"] in {
+            U9, U10, U11, U12,
+            U13B0, U13B1, U13B2, U13B3, U13B4, U13B,
+        }:
+            self._start_u9_plus_recovery_worker()
+            return
+        if self.prepare_controller is None:
             return
         if document["phase"] == U1:
             self._start_discovery_worker()
@@ -291,7 +353,6 @@ class HaUsbIpcExecutor:
                     self.prepare_controller.refresh_candidate()
                 with self._prepare_lock:
                     self._discovery_error = None
-                    self._prepare_error = None
             except UpdaterV2Error as error:
                 with self._prepare_lock:
                     self._discovery_error = _public_code(error)
@@ -303,7 +364,11 @@ class HaUsbIpcExecutor:
 
     def stop_background_workers(self, timeout_s: float = 2.0) -> None:
         self._stop_workers.set()
-        for thread in (self._discovery_thread, self._prepare_thread):
+        for thread in (
+            self._discovery_thread,
+            self._prepare_thread,
+            self._recovery_thread,
+        ):
             if thread is not None and thread.is_alive():
                 thread.join(timeout_s)
 
@@ -436,6 +501,53 @@ class HaUsbIpcExecutor:
                 **self._capacity_projection(),
             )
 
+        if (
+            document["phase"] in {
+                U9, U10, U11, U12,
+                U13B0, U13B1, U13B2, U13B3, U13B4, U13B,
+            }
+            and self.recovery_coordinator is not None
+        ):
+            with self._recovery_lock:
+                recovery_error = self._recovery_error
+                recovery_alive = bool(
+                    self._recovery_thread
+                    and self._recovery_thread.is_alive()
+                )
+            projection = self.recovery_coordinator.public_status()
+            projected_phase = projection.get("phase")
+            projected_error = projection.get("error_code")
+            if recovery_error is not None:
+                return self._extended_status(
+                    document=document,
+                    phase="ERROR",
+                    error_code=recovery_error,
+                    **self._capacity_projection(),
+                )
+            if projected_phase in {
+                "ROLLING_BACK",
+                "RECOVERY_MEDIA_REQUIRED",
+                "ROLLED_BACK",
+                "ERROR",
+            }:
+                return self._extended_status(
+                    document=document,
+                    phase=str(projected_phase),
+                    error_code=(
+                        str(projected_error)
+                        if isinstance(projected_error, str)
+                        else None
+                    ),
+                    **self._capacity_projection(),
+                )
+            if not recovery_alive:
+                return self._extended_status(
+                    document=document,
+                    phase="ERROR",
+                    error_code="u9_plus_recovery_worker_inactive",
+                    **self._capacity_projection(),
+                )
+
         phase = _PHASE_MAP.get(document["phase"])
         if phase is None:
             raise UpdaterV2Error("ha_ota_ipc_phase_invalid")
@@ -508,9 +620,24 @@ class HaUsbIpcExecutor:
                 raise UpdaterV2Error("ha_ota_ipc_admission_drift")
 
     def submit(self, action: str, release_identity: str) -> dict[str, object]:
-        if action not in {"PREPARE", "CONFIRM_USB_ERASE"}:
+        if action not in {"PREPARE", "CONFIRM_USB_ERASE", "INSTALL"}:
             raise UpdaterV2Error("ha_ota_ipc_action_invalid")
         admission = self._resolve(release_identity)
+        if action == "INSTALL":
+            if self.prepare_controller is None:
+                raise UpdaterV2Error("ha_usb_prepare_controller_unavailable")
+            document = self.store.read()
+            if document is None:
+                raise UpdaterV2Error("ha_ota_ipc_transaction_missing")
+            self._require_same_admission(document, admission)
+            try:
+                with self._controller_lock:
+                    self.prepare_controller.revalidate_and_request_install()
+            except UpdaterV2Error as error:
+                if str(error) != "ha_usb_target_reprepare_required":
+                    raise
+                self._start_prepare_worker("resume", fail_if_running=False)
+            return self.status()
         if action == "CONFIRM_USB_ERASE":
             if self.prepare_controller is None:
                 raise UpdaterV2Error("ha_usb_prepare_controller_unavailable")
@@ -587,9 +714,12 @@ def _read_frame(connection: socket.socket) -> bytes:
 
 def _public_code(error: Exception) -> str:
     code = str(error)
-    if _PUBLIC_CODE_RE.fullmatch(code) is None:
-        return "ota_host_rejected"
-    return code
+    if _PUBLIC_CODE_RE.fullmatch(code) is not None:
+        return code
+    stable = code.split(":", 1)[0]
+    if _PUBLIC_CODE_RE.fullmatch(stable) is not None:
+        return stable
+    return "ota_host_rejected"
 
 
 class HaUsbIpcDispatcher:
@@ -843,4 +973,9 @@ class UnixSocketHaOtaServer:
                         accepted=False,
                         code=_public_code(error),
                     )
-                connection.sendall(response)
+                try:
+                    connection.sendall(response)
+                except OSError:
+                    if self._stop.is_set():
+                        return
+                    continue

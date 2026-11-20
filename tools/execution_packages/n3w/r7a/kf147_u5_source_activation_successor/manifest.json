@@ -1,0 +1,120 @@
+{
+  "schema": "gh.n3w-t1-kf147-u5-source-activation-successor-manifest/1",
+  "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U5_SOURCE_ACTIVATION_R10_20261111_01",
+  "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U5_SOURCE_ACTIVATION_R10_20261111_01",
+  "confirmation": "EXECUTE KF147 U5 SOURCE ACTIVATION R10: YES",
+  "live_execution_authorized": false,
+  "authorization_state": {
+    "granted": false,
+    "claimed": false,
+    "consumed": false,
+    "replay_permitted": false
+  },
+  "package_source_authority": {
+    "tools/execution_packages/n3w/r7a/kf147_u5_source_activation_successor/executor.py": "40b2908dfb4904a8ef47a7ea35db403591c538bc",
+    "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7"
+  },
+  "source_files": [
+    {
+      "repo_path": "tools/n3w_t1_core_updater_ha_prepare.py",
+      "remote_path": "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_prepare.py",
+      "stage_name": "n3w_t1_core_updater_ha_prepare.py",
+      "predecessor_sha256": "9139dc652eb992963c21d4fda171eef2bf685e1bbe0cbcea2319244c7e963475",
+      "target_sha256": "4dc6226ae493f18b3dab2c8773c1d3687a8f5f1750a6b4d9fa791cebe22db596",
+      "target_blob": "9ca7f0411a9e45d488e6cba4a3526bfaa7c77e20"
+    },
+    {
+      "repo_path": "tools/n3w_t1_core_updater_ha_prepare_host.py",
+      "remote_path": "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_prepare_host.py",
+      "stage_name": "n3w_t1_core_updater_ha_prepare_host.py",
+      "predecessor_sha256": "a11089ef57cf68c40a648c85ac7e7569a281f7fad13f75a09c0a3b04bad80ecf",
+      "target_sha256": "d7f1e5468e24446f3ade0e22778cebecc8cda0fed07179a8fccb55b9f7e4ff8a",
+      "target_blob": "85f0765050c025f3d68a5667fda0d4772b4f15a6"
+    },
+    {
+      "repo_path": "tools/n3w_t1_core_updater_ha_ipc.py",
+      "remote_path": "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_ipc.py",
+      "stage_name": "n3w_t1_core_updater_ha_ipc.py",
+      "predecessor_sha256": "3aca46350c2fce9818dbc635f5343f01b06ff80081d93205ce7d28fc4ca2f771",
+      "target_sha256": "a7d335c597771b0297f690d0e97fb3288f5f1c83fd670d8af00d76ca983e56ac",
+      "target_blob": "ebd71331eaef4ef5a9fb76a130a66c714370d92e"
+    }
+  ],
+  "runtime_git_blob_sha1": {
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_daemon.py": "98c879f65840c237e7ee8855412806e346d880f5",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_usb.py": "495dc29d7d4850cd485a07b739199a282446477f",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_usb_state.py": "64cfcab9d1c62acd28ef4abeb161b88f8a63d2bc",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_recovery.py": "1ca6648968eb75ed7fbe2d405fc36c141bfdc801",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_usb_media.py": "44afe444c8db5ff380e9aa74120cf5382a345baa",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_capacity.py": "0e532679ad030e71fdddabeae0a178173e7e1eea",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_v2_common.py": "b9c6561a1a8e33bdf586e6a4bd04d025f3c5d7e6",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_v2_state.py": "d89d4696409d7c451ec0b37a8be87e29092806b6",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_backup.py": "39da0f7f95603445b0dc523ce7fbbf1c4fb145ad",
+    "/opt/HomeAssistant/tools/n3w_t1_portable_image_identity.py": "4877f4801dd7a4364feb0cda4f9a3f79072e8214"
+  },
+  "expected_live_entry": {
+    "r9_state_root": "/var/lib/n3w-t1-core-updater/kf147-u4-u5-install-intent-r9-20261111-01",
+    "transaction_id_sha256": "ca89774eb4254d0f861cc2aef136eee41e90fd6106559c0fd8d66e3ee00a3738",
+    "transaction_sha256": "dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259",
+    "usb_filesystem_uuid": "967cf065-abe5-49ee-8499-7c3f50d2c48f",
+    "usb_public_fingerprint": "e45fba0ad3e9997be2738c7a8f25d5c342ebba66ddbf822b1f6bf6a016c2ed93",
+    "mount_target": "/run/n3w-t1-ota/media/ca89774eb4254d0f",
+    "mount_required_options": [
+      "rw",
+      "nodev",
+      "nosuid",
+      "noexec"
+    ],
+    "mount_forbidden_options": [
+      "ro",
+      "noload",
+      "norecovery"
+    ],
+    "target_size_bytes": 835309535,
+    "target_sha256": "eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973",
+    "target_release_id": "homeassistant-2026.10.4",
+    "containers": {
+      "manager": {
+        "image": "local/greenhouse-manager:fresh-44e7d7472714",
+        "container_id": "07228043f774e1545cf4ff6156659d8fb3d10912c80e8f2241a5c88b401f0a0f",
+        "runtime_image_id": "sha256:1471828ab07cf9b71c01a6e78994711a5954f0a178b8be087a28bb65a967c7d2"
+      },
+      "homeassistant": {
+        "image": "local/n3w-homeassistant:2026.10.0-0c73235a",
+        "container_id": "26b095e1ba8aa3a009f02a2460234eae45764debf61d878b965761ce75212676",
+        "runtime_image_id": "sha256:c261fa53f30508951833492ba2a19af6cfbb6aa8f2806b531d8f5c6599265306"
+      },
+      "broker": {
+        "image": "local/n3w-mosquitto:2.1.2-3184566d",
+        "container_id": "927aea04a062caf57c8d75d73ba8902f35eef035214e85ce7e8b1c066903d963",
+        "runtime_image_id": "sha256:df265f1e2b2e3dc35d5eb194e698c598e01c5ebca370da307b34332f9bf0a563"
+      }
+    }
+  },
+  "state_root": "/var/lib/n3w-t1-core-updater/kf147-u5-source-activation-r10-20261111-01",
+  "remote_staging_root": "/var/tmp/n3w-kf147-u5-source-activation-r10-20261111-01",
+  "execution_contract": {
+    "read_only_preflight": true,
+    "source_deployment_on_execute": true,
+    "exact_three_file_source_slice": true,
+    "host_daemon_restart_on_execute": true,
+    "services_owner_restart_on_execute": true,
+    "transaction_mutation": false,
+    "usb_mutation": false,
+    "target_archive_mutation": false,
+    "u5_transition": false,
+    "u6_plus": false,
+    "homeassistant_mutation": false,
+    "manager_mutation": false,
+    "broker_mutation": false,
+    "automatic_retry": false,
+    "automatic_source_rollback": true,
+    "maximum_rollback_attempts": 1,
+    "board_access": false,
+    "merge": false
+  },
+  "stop_boundary": "STOP_AFTER_U5_SOURCE_ACTIVATION_AND_U4_POSTVALIDATION_BEFORE_NEW_INSTALL_INTENT_PREFLIGHT",
+  "superseded": true,
+  "superseded_by": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_ACTIVATION_R2_20261113_01",
+  "superseded_reason": "superseded_by_completed_v1_2_r2_source_activation"
+}

@@ -18,6 +18,8 @@ from n3w_t1_core_updater_ha_recovery import ImageRecoveryRecord
 from n3w_t1_core_updater_ha_usb import (
     claim_live_authorization,
     destructive_cutover_allowed,
+    record_ha_data_backup_verified,
+    record_predecessor_recovery_and_ha_quiesced,
     record_recovery_admission,
     request_install,
 )
@@ -164,13 +166,12 @@ def backup_record(**overrides):
 
 
 def u7_transaction():
-    tx = request_install(ready_to_install())
+    tx = request_install(ready_to_install(), target=target_record())
     tx = transition(tx, U6, updated_at_unix=1_800_000_006)
-    return transition(
+    return record_predecessor_recovery_and_ha_quiesced(
         tx,
-        U7,
-        updates={"predecessor_recovery_verified": True},
-        updated_at_unix=1_800_000_007,
+        predecessor=predecessor_record(),
+        ha_quiesced=True,
     )
 
 
@@ -207,12 +208,15 @@ def recovery_capacity(
 
 
 def u8_transaction():
-    return record_recovery_admission(
+    tx = record_ha_data_backup_verified(
         u7_transaction(),
+        backup=backup_record(),
+    )
+    return record_recovery_admission(
+        tx,
         target=target_record(),
         predecessor=predecessor_record(),
         backup=backup_record(),
-        observed_usb_filesystem_uuid=USB_UUID,
         capacity_report=passing_capacity_report(),
         recovery_capacity=recovery_capacity(),
         production_prestate_exact=True,
@@ -327,37 +331,50 @@ def test_production_mount_device_is_never_eligible():
 
 
 def test_install_intent_does_not_claim_or_consume_authorization():
-    tx = request_install(ready_to_install())
+    tx = request_install(ready_to_install(), target=target_record())
     assert tx["authorization_claimed"] is False
     assert tx["authorization_consumed"] is False
     assert tx["authorization_id_sha256"] is None
     assert destructive_cutover_allowed(tx) is False
 
 
-def test_u8_requires_backup_predecessor_and_target_recovery_authority():
-    tx = u7_transaction()
+def test_u8_requires_exact_content_authority():
+    tx = record_ha_data_backup_verified(
+        u7_transaction(),
+        backup=backup_record(),
+    )
     with pytest.raises(UpdaterV2Error, match="ha_data_backup_contract_incomplete"):
         record_recovery_admission(
             tx,
             target=target_record(),
             predecessor=predecessor_record(),
             backup=backup_record(verified=False),
-            observed_usb_filesystem_uuid=USB_UUID,
             capacity_report=passing_capacity_report(),
             recovery_capacity=recovery_capacity(),
             production_prestate_exact=True,
         )
-    with pytest.raises(UpdaterV2Error, match="usb_filesystem_uuid_mismatch"):
-        record_recovery_admission(
-            tx,
-            target=target_record(),
-            predecessor=predecessor_record(),
-            backup=backup_record(),
-            observed_usb_filesystem_uuid="87654321-4321-8765-4321-876543218765",
-            capacity_report=passing_capacity_report(),
-            recovery_capacity=recovery_capacity(),
-            production_prestate_exact=True,
-        )
+
+    accepted = record_recovery_admission(
+        tx,
+        target=target_record(),
+        predecessor=predecessor_record(),
+        backup=backup_record(),
+        capacity_report=passing_capacity_report(),
+        recovery_capacity=recovery_capacity(),
+        production_prestate_exact=True,
+    )
+    assert accepted["target_artifact_identity"] == target_record().public()
+    assert accepted["predecessor_recovery_identity"] == predecessor_record().public()
+    assert accepted["ha_data_backup_identity"] == backup_record().public()
+    assert len(accepted["recovery_content_manifest_sha256"]) == 64
+
+    tampered = dict(accepted)
+    tampered["recovery_content_manifest_sha256"] = "0" * 64
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_usb_recovery_content_manifest_invalid",
+    ):
+        validate_transaction_document(tampered)
 
 
 def test_u8_then_u9_claim_is_one_shot_and_enables_destructive_boundary():

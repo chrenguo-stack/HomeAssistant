@@ -24,7 +24,22 @@ from n3w_t1_core_updater_ha_prepare import (
 from n3w_t1_core_updater_ha_prepare_host import (
     SubprocessPrepareBackend,
 )
-from n3w_t1_core_updater_ha_usb_state import HaUsbStateStore
+from n3w_t1_core_updater_ha_usb_state import (
+    U9,
+    U10,
+    U11,
+    U12,
+    U13B0,
+    U13B1,
+    U13B2,
+    U13B3,
+    U13B4,
+    U13B,
+    HaUsbStateStore,
+)
+from n3w_t1_core_updater_ha_u13b_host import (
+    build_production_u9_plus_recovery,
+)
 from n3w_t1_core_updater_v2_common import (
     A1_CLASSIFICATION_SHA256,
     SHA256,
@@ -343,6 +358,23 @@ def publish_manager_manifest(
     return True
 
 
+_U9_PLUS_RECOVERY_PHASES = frozenset(
+    {U9, U10, U11, U12, U13B0, U13B1, U13B2, U13B3, U13B4, U13B}
+)
+
+
+def _build_u9_plus_recovery_if_needed(
+    transaction_store: HaUsbStateStore,
+):
+    current = transaction_store.read()
+    if (
+        current is None
+        or current.get("phase") not in _U9_PLUS_RECOVERY_PHASES
+    ):
+        return None
+    return build_production_u9_plus_recovery(transaction_store)
+
+
 def build_server() -> UnixSocketHaOtaServer:
     if os.geteuid() != 0:
         raise UpdaterV2Error("ha_ota_daemon_requires_root")
@@ -366,10 +398,14 @@ def build_server() -> UnixSocketHaOtaServer:
         prepare_store=prepare_store,
         backend=backend,
     )
+    recovery_coordinator = _build_u9_plus_recovery_if_needed(
+        transaction_store
+    )
     executor = HaUsbIpcExecutor(
         store=transaction_store,
         admission_resolver=FixedHostOtaAdmissionResolver(),
         prepare_controller=controller,
+        recovery_coordinator=recovery_coordinator,
     )
     executor.start_background_recovery()
     return UnixSocketHaOtaServer(

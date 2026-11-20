@@ -1,0 +1,124 @@
+{
+  "schema": "gh.n3w-t1-u12-live-acceptance-manifest/1",
+  "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U12_TARGET_ACCEPTANCE_LIVE_20261117_01",
+  "authorization_id": "N3W_T1_CORE_UPDATER_HOMEASSISTANT_USB_U12_LIVE_20261117_01",
+  "confirmation": "EXECUTE U12 LIVE TARGET ACCEPTANCE: YES",
+  "u12_live_execution_authorized": true,
+  "authorization_state": {
+    "granted": true,
+    "claimed": false,
+    "consumed": false,
+    "replay_permitted": false
+  },
+  "source_authority": {
+    "main": "3e7faf258d670c9eaf3be6ede9bbb02df2ac009d",
+    "pr": 807,
+    "readonly_source_head": "f535284fc1095c8cba214ac671a4c2793dadc1eb",
+    "readonly_result": "U12_READONLY_PREFLIGHT_PASS",
+    "readonly_execution_id": "u12-readonly01-20261116T235054Z",
+    "readonly_rc": 0,
+    "readonly_closure_commit": "5ecb9345bffa2c4334ae81f6aaae14dfa1720113",
+    "live_executor_source_head": "1a3cf9a4bfd0345da792830e7d43550a28ca927e",
+    "design": "docs/development/N3W_T1_U12_LIVE_ACCEPTANCE_SOURCE_DESIGN_20261117.md"
+  },
+  "package_source_authority": {
+    "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
+    "tools/execution_packages/n3w/r7a/u10_predecessor_capacity_release_readonly_preflight_r37/executor.py": "392564926eeba6e5d38cbca9c8a43e5a0ae5f51a",
+    "tools/execution_packages/n3w/r7a/u12_target_acceptance_readonly_preflight/executor.py": "e1dc98c589879ffb1a6f7e99ec7641f1c0119137",
+    "tools/n3w_t1_core_updater_ha_usb.py": "01ced6d4b643cc9a0881d48efc9b7601dc5fb4f6",
+    "tools/execution_packages/n3w/r7a/u12_target_acceptance_live/executor.py": "7d0dac95b86fb4390ed38ea2b9d6f39f97d4e663"
+  },
+  "readonly_authority": {
+    "r42": {
+      "state_root": "/var/lib/n3w-t1-core-updater/u11-r42-post-r40-successor-recovery-20261116-01",
+      "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_U11_POST_R40_SUCCESSOR_LIVE_RECOVERY_R42_20261116_01",
+      "authorization_id": "N3W_T1_CORE_UPDATER_HOMEASSISTANT_USB_U11_R42_20261116_01",
+      "execution_id": "u11-r42-live02-20261116T152940Z",
+      "claim_sha256": "41644089e17cf0190faf5694180053e78dc4e7f5fc0e502388ca64e7659914e2",
+      "success_sha256": "a68199255967d63dd8f009aa71e254c16dee895649e57656d3da5c46ac011921",
+      "replay_permitted": false
+    }
+  },
+  "mount_target": "/run/n3w-t1-ota/media/ca89774eb4254d0f",
+  "u12_state_root": "/var/lib/n3w-t1-core-updater/u12-target-acceptance-20261117-01",
+  "installed_source_sha256": {
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_backup.py": "6dc2eef25bc633a3cdd4066b7b25b043cec7fcab7c9623a349785afccd5c50c9",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_capacity.py": "75fcbd9e5bc70521123a52043a7387b4fc9cc5c33106d4150b438ce83eaf9d3d",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_usb.py": "544defbae76f00695a5475a8bc18f5235b63535fbc0b34cd8f89776584696496",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_install.py": "726f58d3bae8fa9544bc1d42a72dc8e163fc2f59e61fbc9dca32a1de0ba18b62",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_host.py": "0992f45b4093957382cc6e5864721e34c9479db403a78b95d2194f08ebe1344e",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_common.py": "84b735c84bbb3ae5d41bc9acb6d0f23240e98aa7e555d601533611871837fb38",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_v2_state.py": "26e137bac43c6826e1b923871ef25c842884d9a7a6684d1441b2ffff24edda90",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_ipc.py": "12cb70cdcbebfd7430aef0d5a55a83eaa17e3c3ebd5bed2846fcb047dcac6358",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_prepare.py": "cc69aac8e2eab764a8d9d497b323e3f72816b9dd127d53dd356471a80101d892",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_prepare_host.py": "72cdbc94e9e3e4694ac00ad8fb01f5a2877d8f80a4b07e9c0236b546e43874c2",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_recovery.py": "2b8f9917b3eddb016eec6703c7048e2a08ce65e8d547fd00d2b8d86c0c8a4b7a",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_usb_media.py": "8579da19258829231eacb7b961d7ef151f2a2e1c49cb9506f7c7824dccbb31f8",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_usb_state.py": "05a380caca20d95e80771807aa44a3c8a687162a2eac19ab376d85d65ffa10ee",
+    "/opt/HomeAssistant/tools/n3w_t1_core_updater_v2_common.py": "57ac8f7451ca1c8cfd27f24753d5ea9bf96608f219983c14234d7e87886a3d14",
+    "/opt/HomeAssistant/tools/n3w_t1_portable_image_identity.py": "8ef59ffb177eae0f3cbfc7afd133211205afac9d6a9e9e53b13f3484073f5f39"
+  },
+  "expected_u11_entry": {
+    "transaction_id_sha256": "ca89774eb4254d0f861cc2aef136eee41e90fd6106559c0fd8d66e3ee00a3738",
+    "transaction_sha256": "33350ba47e0af43b4f0e11fac990e24924f22057da60d980b26453b4e80e0471",
+    "predecessor_image": "local/n3w-homeassistant:2026.10.0-0c73235a",
+    "target_image": "local/n3w-homeassistant:2026.10.4-5881590f",
+    "target_runtime_image_id": "sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365",
+    "target_archive_sha256": "eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973",
+    "target_archive_size_bytes": 835309535,
+    "recovery_content_manifest_sha256": "18698bcded28d0497ae3dcd3363ace68f54a3cbc1c42a1fd5710173a24d900f3",
+    "filesystem_uuid": "967cf065-abe5-49ee-8499-7c3f50d2c48f",
+    "authorization_id_sha256": "cd6c24c972c17c2b5cdbb0152a892676cf21cce153895bd48b8a8b25a9b53bf0",
+    "mirror_sha256": {
+      "manifest": "3aa5e247636b1bb891aa151a8fb0219294d4803ea22dc7b66d821f6250d9e728",
+      "phase": "8f2ba37e93577452ffd2b6dfc1cc5febbf717d1bf8c3ed2de8ec57ccf69e6921",
+      "content_authority": "3da14eb03447beaf38579a3fa5e4e076d4f3e806f7a787cbc0bba6b2cb1b8727",
+      "checksums": "2a21aa2b8fb362242fa087a49a2ebfb93caf65d1dd8a6f9c6da44edbb9f8c7f2"
+    },
+    "containers": {
+      "broker": {
+        "image": "local/n3w-mosquitto:2.1.2-3184566d",
+        "container_id": "927aea04a062caf57c8d75d73ba8902f35eef035214e85ce7e8b1c066903d963",
+        "runtime_image_id": "sha256:df265f1e2b2e3dc35d5eb194e698c598e01c5ebca370da307b34332f9bf0a563"
+      },
+      "manager": {
+        "image": "local/greenhouse-manager:fresh-44e7d7472714",
+        "container_id": "07228043f774e1545cf4ff6156659d8fb3d10912c80e8f2241a5c88b401f0a0f",
+        "runtime_image_id": "sha256:1471828ab07cf9b71c01a6e78994711a5954f0a178b8be087a28bb65a967c7d2"
+      }
+    }
+  },
+  "performance_targets": {
+    "user_visible_service_downtime_target_seconds": 300,
+    "user_visible_service_downtime_hard_limit_seconds": 600,
+    "no_progress_visibility_limit_seconds": 300,
+    "ota_total_target_seconds": 1800
+  },
+  "normal_ota_baseline_available": false,
+  "execution_contract": {
+    "fresh_u12_readonly_preflight_required": true,
+    "exact_u11_transaction_required": true,
+    "exact_u11_usb_mirror_required": true,
+    "r42_consumed_no_replay_required": true,
+    "r42_failure_ledger_absent_required": true,
+    "exact_target_runtime_required": true,
+    "current_mqtt_authentication_required": true,
+    "homeassistant_http_ready_required": true,
+    "one_shot_outer_authorization": true,
+    "explicit_u12_user_authorization_granted": true,
+    "exact_transition_source_in_memory": true,
+    "live_source_mutation": false,
+    "usb_u12_metadata_sync_before_host_transaction": true,
+    "service_mutation": false,
+    "image_mutation": false,
+    "r42_replay": false,
+    "u13_plus": false,
+    "board_access": false,
+    "merge": false,
+    "postclaim_replay_forbidden": true,
+    "transport_ambiguity_requires_readonly_reconciliation": true,
+    "supplemental_performance_evidence_failure_must_not_replay_u12": true
+  },
+  "next_boundary": "EXECUTE_REAL_T1_U12_LIVE_ACCEPTANCE_ONCE",
+  "stop_boundary": "STOP_AFTER_DURABLE_U12_BEFORE_U13_PLUS"
+}

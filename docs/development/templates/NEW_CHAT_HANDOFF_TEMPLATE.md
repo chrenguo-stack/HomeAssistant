@@ -1,491 +1,72 @@
-# <PROJECT NAME>
-# <STAGE / SUBJECT>
-# 新会话交接文档 V<version> — <YYYY-MM-DD>
+# N3-W 新会话交接模板 V1.4
+
+`HANDOFF_TEMPLATE_VERSION=1.4`
+
+新交接统一使用本模板。V1.3 及更早版本和已生成的旧交接保留作历史记录。历史提交可继续提供其适用的流程或执行依据。
+填写下方六部分。普通任务只写本次增量，省略不适用的字段。涉及实机、生产或发布时补齐文末相应信息。
+
+## 1. 目标与停点
+
+- 任务／交接原因：<目标、完成条件和本次切换原因>
+- 已完成到：<最后有证据支持的步骤>
+- 当前状态：<可继续／等 CI／等用户／阻塞／已完成；说明原因>
+
+## 2. 代码与证据
+
+- 仓库／分支／PR：<适用链接>
+- 核对时 main／本任务源码：<适用的完整 SHA；相同时只写一次>
+- 证据入口：<固定提交的文件、CI run 或证据链接>
+
+按需要区分仓库主线、候选源码、产物来源和实际部署版本。
+
+## 3. 必须继承的结论
+
+- 已证实：<结论＋证据；区分源码、本地测试、CI 和实机结果>
+- 待确认：<未知状态或推断＋最小核对方法>
+- 已排除：<会影响下一步的失败路线及原因，适用时填写>
+
+## 4. 执行范围与授权
+
+- 可继续：<已授权操作与范围>
+- 暂停边界：<需要用户操作或决定的位置，明确禁止项和本任务的临时例外>
+- 授权状态：<来源、目标、候选、有效条件和当前状态；无则写“无”>
+
+交接本身不授予新权限。适用的一次性授权须标明是否已认领、消费或被替代。
+
+## 5. 下一步
+
+- 行动：<最小状态核对 → 已授权的下一项完整任务，必要时给执行入口>
+- 完成条件：<适用检查、验收结果和证据保存位置>
+- 失败／停点：<失败后的处理、暂停条件和恢复入口>
+
+授权范围内的开发、测试、复核和归档可连续推进。已固定的阶段边界及其执行合同继续适用。
+
+## 6. 必读定位与归档
+
+- 仓库规则：<适用 AGENTS.md，以及[工作上下文的读取规则](../N3W_PROJECT_WORKING_CONTEXT.md#12-minimum-new-chat-read-set)>
+- 任务资料：<路径＋章节／KF 条目＋用途，注明按需补读条件>
+- 已归档：<GitHub 固定链接>
+- 未归档重要资料：<无，或原因及可恢复位置／摘要>
 
 ```text
-HANDOFF_TEMPLATE_VERSION=1.3
-SOLE_VALID_HANDOFF_TEMPLATE_VERSION=1.3
-OLDER_HANDOFF_TEMPLATE_VERSIONS=INVALID_FOR_NEW_HANDOFF_GENERATION
-HISTORICAL_TEMPLATE_COPIES=HISTORICAL_EVIDENCE_ONLY
-HISTORICAL_HANDOFF_STANDARD_DOES_NOT_AUTHORIZE_OLD_TEMPLATE=true
-PROJECT_WORKING_CONTEXT_VERSION=1.5
-PROJECT_WORKING_CONTEXT=docs/development/N3W_PROJECT_WORKING_CONTEXT.md
-NEXT_ONE_GATE_ONLY=true
 TEAM_SHARED_WORKSPACE=GITHUB
+IMPORTANT_CHAT_ONLY_ARTIFACT_COUNT=<n>
+TEAM_SHARE_COMPLETENESS=<PASS|FAIL>
 ```
 
-> 本文只保存“当前阶段增量”。长期工作规则统一引用 `N3W_PROJECT_WORKING_CONTEXT.md`，不要重复抄写。  
-> **V1.3 是当前唯一有效的新会话交接模板。V1.0/V1.1/V1.2 及任何 historical template copy 仅作历史证据，禁止用于生成新的 formal handoff。**  
-> 如 handoff 指定 exact handoff standard authority，只读取其 standard/process 规则；除非该 authority 本身就是当前 V1.3 blob，否则不得回退使用其中旧 template。  
-> fresh repository/runtime/live evidence 与本文冲突时，以 fresh 直接证据为准并先停止执行。
+归档审计按[归档规则](../development-artifact-archive-rules.md)执行，交接只引用结果和未解决项。
 
----
+新会话启动语：阅读本交接和适用仓库指令，按必读定位恢复任务。先核对下一步所需状态，在明确授权范围内继续，到达所列暂停边界时停止。
 
-## 0. 会话切换结论
+### 按需补充到对应部分
 
-```text
-CURRENT_STAGE=
-CURRENT_STOP_POINT=
-NEXT_ONE_GATE=
+| 涉及事项 | 应补信息 |
+|---|---|
+| CI 等待／复核 | PR、完整 head SHA、run 直链、适用检查状态、剩余复核、已查询次数 |
+| 构建或发布 | 产物 ID、摘要、源码／配置／工具链绑定、必要清单；发布与运行证据分列 |
+| T1／板卡只读 | 目标脱敏身份、访问范围、证据时间、需要复查的基线；未核对标 `UNKNOWN_FRESH` |
+| T1／板卡／服务写入或恢复 | 目标与候选精确绑定、授权状态、写前基线、回滚入口与摘要、可否重启或重试、写后验证。失败时记录最后成功步骤、实际变更和恢复状态 |
+| 同一 boot 的实机试验 | boot 绑定、供电及位置、操作对象和禁止改变的试验条件 |
+| 生产版本判断 | 分开列实际接受的生产组成、组件回滚基线和不可变 Stack release，按任务取用 |
 
-LIVE_MUTATION_DEFAULT=false
-BOARD_ACCESS_DEFAULT=false
-HANDOFF_READY_FOR_NEW_CHAT=<true|false>
-```
-
-一句话说明为什么切换会话，以及新会话从哪里继续。
-
----
-
-## 1. 长期上下文引用与本阶段例外
-
-```text
-PROJECT_WORKING_CONTEXT_LOADED=true
-PROJECT_WORKING_CONTEXT_VERSION=1.5
-LONG_TERM_RULES_REPEATED_IN_HANDOFF=false
-
-STAGE_SPECIFIC_OVERRIDE_COUNT=
-STAGE_OVERRIDES=
-```
-
-没有临时例外时写：
-
-```text
-STAGE_SPECIFIC_OVERRIDE_COUNT=0
-STAGE_OVERRIDES=NONE
-```
-
----
-
-## 2. Product North Star
-
-```text
-CURRENT_PRODUCT_ROUTE=
-FINAL_ACCEPTANCE_TARGET=
-DEFERRED_OR_OUT_OF_SCOPE=
-```
-
----
-
-## 3. Frozen Authorities
-
-只列下一 gate 真正需要的当前精确信息。
-
-```text
-REPOSITORY=
-MAIN=
-TREE=
-
-CANDIDATE_REF=
-CANDIDATE_HEAD=
-CANDIDATE_TREE=
-
-ARTIFACT_ID=
-ARTIFACT_SHA256=
-
-DEPLOYED_SOURCE_HEAD=
-DEPLOYED_SOURCE_TREE=
-
-OTHER_REQUIRED_AUTHORITY=
-
-CURRENT_PRODUCTION_AUTHORITY=
-CURRENT_STACK_RELEASE=
-STACK_RELEASE_ROLE=
-COMPONENT_UPGRADE_BASELINE=
-```
-
-不适用的字段写 `NOT_APPLICABLE:<reason>`。
-
-公开 handoff 不写私有 SSH 地址、私网地址、密码、凭据、原始设备身份等私有 locator。
-
----
-
-## 4. Current Live Baseline
-
-只写交接时刚确认的状态；没 fresh 确认就写 `UNKNOWN_FRESH`。
-
-```text
-MANAGER_STATE=
-MANAGER_RESTART_STATE=
-BROKER_STATE=
-HOMEASSISTANT_STATE=
-
-BOARD_A_POWER_STATE=
-BOARD_A_LOCATION_ROLE=
-BOARD_B_POWER_STATE=
-BOARD_B_LOCATION_ROLE=
-
-APPLICATION_SERIAL_OPEN=false
-FLASH_MUTATION=false
-NVS_MUTATION=false
-T1_RUNTIME_MUTATION=false
-```
-
-需要新会话重新确认的项目：
-
-```text
-<FIELD>=UNKNOWN_FRESH
-<FIELD>_REQUIRES_FRESH_READONLY_RECHECK=true
-```
-
----
-
-## 5. Proven Current Facts
-
-只写对下一步仍有用、已有直接证据支持的事实。
-
-```text
-<FACT_1>=
-<FACT_2>=
-```
-
-推断必须单独写：
-
-```text
-INFERENCE_<NAME>=
-```
-
----
-
-## 6. Current Root Cause / Blockers
-
-```text
-CURRENT_BLOCKER_COUNT=
-CURRENT_BLOCKER=
-ROOT_CAUSE=
-PROVEN_BY=
-SOURCE_DEFECT_PROVEN=
-RUNTIME_DEFECT_PROVEN=
-```
-
-没有 blocker 时写 `CURRENT_BLOCKER_COUNT=0`。
-
----
-
-## 7. Closed / Forbidden Routes
-
-只保留下一个会话真正需要知道的关闭路线：
-
-```text
-<CLOSED_ROUTE_1>=CLOSED:<reason>
-<CLOSED_ROUTE_2>=CLOSED:<reason>
-```
-
-完整历史留在 current state / known failures。
-
----
-
-## 8. Authorization Ledger
-
-只列仍会影响下一步执行的授权。
-
-```text
-AUTHORIZATION=
-CLAIMED=
-CONSUMED=
-RESULT=
-REPLAY_PERMITTED=
-SUPERSEDED_BY=
-```
-
-如下一授权尚未获得：
-
-```text
-PROPOSED_AUTHORIZATION=
-GRANTED=false
-```
-
----
-
-## 9. Rollback Authority
-
-有 mutation 风险时：
-
-```text
-ROLLBACK_BASELINE=
-FRESH_PRECHANGE_SNAPSHOT_REQUIRED=
-ROLLBACK_AUTHORITY_PATH_OR_ID=
-RESTART_SCOPE_ALLOWED=
-SECOND_ATTEMPT_ALLOWED=
-ROLLBACK_FAILURE_CLASS=ROLLBACK_INCOMPLETE
-```
-
-完全只读时：
-
-```text
-ROLLBACK_AUTHORITY=NOT_APPLICABLE:READONLY_GATE
-```
-
----
-
-## 10. Next ONE Gate
-
-```text
-NEXT_ONE_GATE=<exact gate name>
-```
-
-### Purpose
-
-用几句话说明：
-
-- 这一步要证明什么；
-- 为什么现在做；
-- 这一步不能证明什么。
-
-### Inputs
-
-```text
-<INPUT_1>=
-<INPUT_2>=
-```
-
-### Operations
-
-```text
-1. ...
-2. ...
-3. ...
-```
-
-### PASS / FAIL / STOP
-
-```text
-PASS_IF=
-FAIL_IF=
-STOP_BOUNDARY=
-
-AUTO_EXECUTE_NEXT_GATE=false
-```
-
----
-
-## 11. Hard Allowed / Forbidden Scope
-
-```text
-LIVE_MUTATION_DEFAULT=false
-BOARD_ACCESS_DEFAULT=false
-```
-
-### ALLOWED
-
-```text
-- ...
-```
-
-### FORBIDDEN
-
-```text
-- ...
-```
-
-如允许有限证据写入：
-
-```text
-LIVE_RUNTIME_MUTATION=false
-BOUNDED_EVIDENCE_FILESYSTEM_WRITE=true
-BOUNDED_WRITE_SCOPE=
-```
-
----
-
-## 12. Execution Contract
-
-```text
-EXECUTOR=
-EXECUTION_METHOD=<chat-tool|mac-terminal|script|manual-physical|other>
-DIRECT_CODE_SUPPLIED=true|false
-DSL_COMPILATION_USED=true|false
-CI_POLL_MAX=3
-CI_PENDING_DIRECT_LINKS_REQUIRED=true
-CI_ALL_GREEN_CONTINUE_REQUIRED_REVIEW=true
-SAME_GATE_LOW_RISK_REPAIR_CONTINUE=true
-```
-
-只写当前 gate 的实际执行方法和停止条件。
-
-原则：
-
-- 能直接给完整 Mac Terminal 命令时，不额外制造 executor；
-- 只有前一步会决定后一步是否安全时才拆成多段；
-- GitHub 操作按长期工作上下文要求分阶段、短调用执行；
-- 同一已授权 Gate 内已明确定位的低风险源码/测试/CI 小问题可直接修复并继续；
-- CI 同一 HEAD 最多轮询 3 次；仍未结束时必须给出未完成 workflow 的直接链接；
-- CI 全绿后，如当前 Gate 已约定源码/closure review，必须在同一轮直接继续复核；
-- 不自动跨越下一 gate，不自动进入 live/T1/board/service/credential mutation，不自动 merge。
-
----
-
-## 13. Expected Closure
-
-```text
-=== <GATE NAME> CLOSURE ===
-
-EXECUTION_ID=
-AUTHORIZATION=
-AUTHORIZATION_CLAIMED=
-AUTHORIZATION_CONSUMED=
-
-<EXACT EVIDENCE FIELDS>
-
-LIVE_RUNTIME_MUTATION=
-BOARD_ACCESS=
-
-<GATE_RESULT>=
-NEXT_ROUTE=
-STOP=true
-
-=== END ===
-```
-
----
-
-## 14. After PASS / FAIL
-
-```text
-AFTER_PASS_NEXT_STAGE=
-AUTO_EXECUTE_AFTER_PASS=false
-NEW_AUTHORIZATION_REQUIRED=
-
-AUTO_REPAIR_AFTER_FAIL=false
-AUTO_RETRY_AFTER_FAIL=false
-STOP_AND_REVIEW_AFTER_FAIL=true
-```
-
----
-
-## 15. KNOWN_FAILURES Updates
-
-```text
-KNOWN_FAILURES_UPDATE_REQUIRED=true|false
-EXISTING_KF_GUARD_USED=
-NEW_KF_REQUIRED=
-```
-
-新 KF 需要时再填写：
-
-```text
-KF_ID=
-SYMPTOM=
-ROOT_CAUSE=
-FIX_OR_GUARD=
-STATUS=
-```
-
-根因未证明写 `TBD`。
-
----
-
-## 16. New Chat Start Prompt
-
-默认读取集：
-
-```text
-1. 本 handoff
-2. docs/development/N3W_PROJECT_WORKING_CONTEXT.md
-3. docs/development/N3W_CURRENT_STATE.md
-4. docs/development/N3W_CURRENT_STATE_INDEX.md
-5. docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md
-6. exact handoff standard authority（仅当本 handoff 指定）
-```
-
-建议启动文本：
-
-```text
-阅读《<handoff file>》。
-
-同时读取：
-- docs/development/N3W_PROJECT_WORKING_CONTEXT.md
-- docs/development/N3W_CURRENT_STATE.md
-- docs/development/N3W_CURRENT_STATE_INDEX.md
-- docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md
-
-如果 handoff 指定 exact handoff standard authority，再按指定 commit 读取。
-
-继续“<project>”。
-
-先做当前 gate 所需的最小 fresh 只读确认，然后只进入：
-
-NEXT_ONE_GATE=<...>
-
-LIVE_MUTATION_DEFAULT=false
-BOARD_ACCESS_DEFAULT=false
-
-不要重放 consumed authorization，不要重新进入 closed routes，不要自动跨越下一阶段。
-```
-
-如存在用户私有工作上下文，可在新会话单独读取；不要把私有值复制到公开 GitHub。
-
----
-
-## 17. Final Frozen State
-
-```text
-CURRENT_STAGE=
-CURRENT_STOP_POINT=
-CURRENT_BLOCKER=
-LIVE_SYSTEM_STATE=
-NEXT_ONE_GATE=
-
-TEAM_SHARED_WORKSPACE=GITHUB
-IMPORTANT_CHAT_ONLY_ARTIFACT_COUNT=
-TEAM_SHARE_COMPLETENESS=PASS|FAIL
-
-PROJECT_WORKING_CONTEXT_VERSION=1.5
-HANDOFF_TEMPLATE_VERSION=1.3
-
-LIVE_MUTATION_DEFAULT=false
-BOARD_ACCESS_DEFAULT=false
-```
-
-如有重要工程产物尚未进入 GitHub，列出公开安全的 locator/hash 和原因。
-
----
-
-## 18. Handoff Compliance Audit
-
-```text
-=== HANDOFF COMPLIANCE AUDIT ===
-
-HANDOFF_TEMPLATE_VERSION=1.3
-PROJECT_WORKING_CONTEXT_VERSION=1.5
-
-PROJECT_WORKING_CONTEXT_REFERENCED=PASS
-LONG_TERM_RULE_DUPLICATION_MINIMIZED=PASS
-STAGE_SPECIFIC_OVERRIDES_EXPLICIT=PASS
-PRIVATE_CONTEXT_EXCLUDED_FROM_PUBLIC_HANDOFF=PASS
-
-PRODUCT_NORTH_STAR_PRESENT=PASS
-FROZEN_AUTHORITIES_COMPLETE=PASS
-CURRENT_LIVE_BASELINE_COMPLETE=PASS
-PROVEN_FACTS_SEPARATED_FROM_INFERENCE=PASS
-CURRENT_BLOCKERS_EXPLICIT=PASS
-CLOSED_ROUTES_EXPLICIT=PASS
-
-AUTHORIZATION_LEDGER_COMPLETE=PASS
-CONSUMED_AUTH_REPLAY_GUARD=PASS
-ROLLBACK_AUTHORITY_EXPLICIT=PASS
-
-NEXT_ONE_GATE_EXPLICIT=PASS
-NEXT_GATE_SCOPE_BOUNDED=PASS
-ALLOWED_FORBIDDEN_SCOPE_EXPLICIT=PASS
-EXECUTION_CONTRACT_SELF_CONTAINED=PASS
-CI_CONTINUATION_HARD_RULES_PRESENT=PASS
-EXPECTED_CLOSURE_PRESENT=PASS
-AFTER_PASS_DOES_NOT_AUTO_EXECUTE=PASS
-
-KNOWN_FAILURES_UPDATE_CLASSIFIED=PASS
-NEW_CHAT_START_PROMPT_PRESENT=PASS
-TEAM_WORKSPACE_STATUS_PRESENT=PASS
-FINAL_FROZEN_STATE_PRESENT=PASS
-
-HANDOFF_STATE_COMPLETENESS=PASS
-HANDOFF_READY_FOR_NEW_CHAT=true
-
-=== END ===
-```
-
-任一适用项不能 PASS 时：
-
-```text
-HANDOFF_READY_FOR_NEW_CHAT=false
-```
+执行前实际核对所引用执行包。目标、授权、来源或证据漂移时暂停受影响操作。已消费、过期或被替代的一次性授权不可重用。公开交接只使用脱敏证据，私有地址、凭据和原始设备身份保存在私有上下文。

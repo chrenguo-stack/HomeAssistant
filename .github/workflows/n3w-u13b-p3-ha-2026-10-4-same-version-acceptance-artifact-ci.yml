@@ -1,0 +1,558 @@
+name: N3W U13B P3 Home Assistant 2026.10.4 same-version acceptance artifact CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/n3w-u13b-p3-ha-2026-10-4-same-version-acceptance-artifact-ci.yml"
+      - "infra/n3w-t1/upgrades/homeassistant-2026.10.4-u13b-same-version-acceptance-review.json"
+      - "docs/development/N3W_T1_U13B_P3_SAME_VERSION_DISTINCT_IMAGE_TARGET_DESIGN_20261117.md"
+      - "tools/n3w_t1_portable_image_identity.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: n3w-u13b-p3-ha-2026-10-4-same-version-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      REVIEW: infra/n3w-t1/upgrades/homeassistant-2026.10.4-u13b-same-version-acceptance-review.json
+      REVIEW_CANONICAL_SHA256: 7fedbd10fcf9fa35727bee654c49d3ff9c6c1dfadfbe2fc55f3f9af039c0104e
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_HEAD }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate same-version acceptance source review
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_HEAD"
+          python - "$REVIEW" "$REVIEW_CANONICAL_SHA256" <<'PY'
+          import hashlib
+          import json
+          import sys
+          from pathlib import Path
+
+          document = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          canonical = json.dumps(document, sort_keys=True, separators=(",", ":")).encode()
+          assert hashlib.sha256(canonical).hexdigest() == sys.argv[2]
+          assert document["purpose"] == "U13B_P3_PHYSICAL_ACCEPTANCE_SAME_VERSION_DISTINCT_IMAGE_IDENTITY"
+          assert document["application_version"] == "2026.10.4"
+          assert document["predecessor"]["artifact_run_id"] == 41976542377
+          assert document["predecessor"]["artifact_id"] == 13391983948
+          assert document["predecessor"]["runtime_image_id"] == "sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365"
+          assert document["candidate"]["application_version"] == "2026.10.4"
+          assert document["candidate"]["derivation"] == "LABEL_ONLY_FROM_FROZEN_PREDECESSOR_ARTIFACT"
+          invariants = document["required_invariants"]
+          assert invariants["rootfs_diff_ids_identical"] is True
+          assert invariants["runtime_config_except_labels_identical"] is True
+          assert invariants["target_runtime_image_id_distinct"] is True
+          assert invariants["base_artifact_reused_without_registry_pull"] is True
+          assert invariants["homeassistant_data_schema_change"] is False
+          assert document["supersedes"]["candidate_version"] == "2026.10.3"
+          assert document["new_clean_ota_authorized"] is False
+          assert document["u13b_live_rollback_authorized"] is False
+          assert document["t1_access"] is False
+          assert document["t1_mutation"] is False
+          print("U13B_P3_SAME_VERSION_SOURCE_REVIEW=PASS")
+          PY
+
+  exact-artifact:
+    needs: source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CONTROL_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      BASE_RUN_ID: "41976542377"
+      BASE_ARTIFACT_ID: "13391983948"
+      BASE_ARTIFACT_NAME: n3w-t1-core-updater-homeassistant-2026.10.4-arm64-fb7cfc857003ace3d368521d76ca2320ba399736
+      BASE_ARTIFACT_DIGEST_SHA256: df95749cec1e48796d2cf3241d19739601fe7be78c48638284d10eec786e4fd2
+      BASE_ARCHIVE_SHA256: eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973
+      BASE_ARCHIVE_SIZE_BYTES: "835309535"
+      BASE_IMAGE: local/n3w-homeassistant:2026.10.4-5881590f
+      BASE_RUNTIME_IMAGE_ID: sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365
+      TARGET_IMAGE: local/n3w-homeassistant:2026.10.4-u13b-acceptance-v1
+      ACCEPTANCE_LABEL_KEY: org.hahub.n3w.u13b.acceptance
+      ACCEPTANCE_LABEL_VALUE: p3-same-version-distinct-image-v1
+      REVIEW_CANONICAL_SHA256: 7fedbd10fcf9fa35727bee654c49d3ff9c6c1dfadfbe2fc55f3f9af039c0104e
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CONTROL_HEAD }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify frozen predecessor artifact identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BASE_RUN_ID/artifacts?per_page=100" > "$RUNNER_TEMP/base-artifacts.json"
+          python - "$RUNNER_TEMP/base-artifacts.json" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          metadata = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          matches = [
+              item for item in metadata.get("artifacts", [])
+              if item.get("name") == os.environ["BASE_ARTIFACT_NAME"]
+          ]
+          assert len(matches) == 1
+          artifact = matches[0]
+          assert artifact["id"] == int(os.environ["BASE_ARTIFACT_ID"])
+          assert artifact.get("expired") is False
+          assert artifact.get("digest") == "sha256:" + os.environ["BASE_ARTIFACT_DIGEST_SHA256"]
+          print("U13B_P3_BASE_GITHUB_ARTIFACT_IDENTITY=PASS")
+          PY
+
+      - name: Download frozen exact 2026.10.4 predecessor artifact
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.BASE_RUN_ID }}
+          name: ${{ env.BASE_ARTIFACT_NAME }}
+          path: ${{ runner.temp }}/base
+
+      - name: Verify and load exact predecessor
+        env:
+          PYTHONPATH: tools
+        run: |
+          set -euo pipefail
+          python - "$RUNNER_TEMP/base" <<'PY'
+          import hashlib
+          import json
+          import os
+          import sys
+          from pathlib import Path
+          import n3w_t1_portable_image_identity as portable
+
+          root = Path(sys.argv[1])
+          assert {p.name for p in root.iterdir()} == {
+              "homeassistant-arm64.tar.gz",
+              "portable-image-identity.json",
+              "upstream-binding.json",
+          }
+          archive = root / "homeassistant-arm64.tar.gz"
+          digest = hashlib.sha256()
+          with archive.open("rb") as stream:
+              for block in iter(lambda: stream.read(1024 * 1024), b""):
+                  digest.update(block)
+          assert archive.stat().st_size == int(os.environ["BASE_ARCHIVE_SIZE_BYTES"])
+          assert digest.hexdigest() == os.environ["BASE_ARCHIVE_SHA256"]
+          identity = portable.parse_image_archive(
+              archive,
+              expected_archive_sha256=os.environ["BASE_ARCHIVE_SHA256"],
+              expected_archive_size_bytes=int(os.environ["BASE_ARCHIVE_SIZE_BYTES"]),
+              expected_tag=os.environ["BASE_IMAGE"],
+              platform_os="linux",
+              platform_architecture="arm64",
+          )
+          frozen = portable.identity_from_dict(
+              json.loads((root / "portable-image-identity.json").read_text())
+          )
+          assert identity.to_dict() == frozen.to_dict()
+          PY
+          docker load -i "$RUNNER_TEMP/base/homeassistant-arm64.tar.gz"
+          docker image inspect "$BASE_IMAGE" > "$RUNNER_TEMP/base-inspect.json"
+          python - "$RUNNER_TEMP/base/portable-image-identity.json" "$RUNNER_TEMP/base-inspect.json" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+          import n3w_t1_portable_image_identity as portable
+
+          identity = portable.identity_from_dict(
+              json.loads(Path(sys.argv[1]).read_text())
+          )
+          base = json.loads(Path(sys.argv[2]).read_text())[0]
+          verdict = portable.verify_runtime_document(identity, base)
+          assert verdict.status == "VERIFIED"
+          runtime_id = base.get("Id")
+          assert (
+              isinstance(runtime_id, str)
+              and runtime_id.startswith("sha256:")
+              and len(runtime_id) == 71
+          )
+          live_predecessor_runtime_id = os.environ["BASE_RUNTIME_IMAGE_ID"]
+          assert (
+              live_predecessor_runtime_id.startswith("sha256:")
+              and len(live_predecessor_runtime_id) == 71
+          )
+          print("U13B_P3_BASE_CI_RUNTIME_PORTABLE_IDENTITY=PASS")
+          print("U13B_P3_BASE_CI_RUNTIME_IMAGE_ID=" + runtime_id)
+          print("U13B_P3_BASE_PORTABLE_CONFIG_DIGEST=" + identity.config_digest)
+          print(
+              "U13B_P3_LIVE_PREDECESSOR_RUNTIME_IMAGE_ID="
+              + live_predecessor_runtime_id
+          )
+          PY
+
+      - name: Derive metadata-only same-version acceptance image
+        env:
+          PYTHONPATH: tools
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/package"
+          python - "$RUNNER_TEMP/base/homeassistant-arm64.tar.gz" "$RUNNER_TEMP/target.tar" <<'PY'
+          import hashlib
+          import io
+          import json
+          import os
+          import sys
+          import tarfile
+          from pathlib import Path
+
+          source_path = Path(sys.argv[1])
+          target_tar = Path(sys.argv[2])
+
+          with tarfile.open(source_path, "r:*") as source:
+              manifest_member = source.getmember("manifest.json")
+              manifest = json.loads(source.extractfile(manifest_member).read())
+              assert isinstance(manifest, list) and len(manifest) == 1
+              entry = manifest[0]
+              assert entry["RepoTags"] == [os.environ["BASE_IMAGE"]]
+              old_config_name = entry["Config"]
+              old_config_raw = source.extractfile(old_config_name).read()
+              old_config = json.loads(old_config_raw)
+              config = old_config.setdefault("config", {})
+              labels = config.get("Labels")
+              if labels is None:
+                  labels = {}
+              assert isinstance(labels, dict)
+              labels = dict(labels)
+              assert os.environ["ACCEPTANCE_LABEL_KEY"] not in labels
+              labels[os.environ["ACCEPTANCE_LABEL_KEY"]] = os.environ["ACCEPTANCE_LABEL_VALUE"]
+              config["Labels"] = labels
+
+              config_raw = json.dumps(
+                  old_config, sort_keys=True, separators=(",", ":")
+              ).encode()
+              new_config_name = hashlib.sha256(config_raw).hexdigest() + ".json"
+              assert new_config_name != old_config_name
+
+              new_manifest = [dict(entry)]
+              new_manifest[0]["Config"] = new_config_name
+              new_manifest[0]["RepoTags"] = [os.environ["TARGET_IMAGE"]]
+              manifest_raw = json.dumps(
+                  new_manifest, sort_keys=True, separators=(",", ":")
+              ).encode()
+
+              def encoded(document):
+                  return json.dumps(
+                      document, sort_keys=True, separators=(",", ":")
+                  ).encode()
+
+              def digest_path(payload):
+                  return "blobs/sha256/" + hashlib.sha256(payload).hexdigest()
+
+              def read_json_member(name):
+                  return json.loads(source.extractfile(name).read())
+
+              # Docker 29 archives contain both docker-save and OCI metadata.
+              # The docker-save Config filename is not a portable content-digest
+              # oracle. Join the two representations by exact config bytes.
+              index = read_json_member("index.json")
+              assert index["schemaVersion"] == 2
+              assert isinstance(index["manifests"], list)
+              updated = 0
+              new_blobs = {digest_path(config_raw): config_raw}
+              for descriptor in index["manifests"]:
+                  old_manifest_path = "blobs/sha256/" + descriptor["digest"].split(":")[1]
+                  oci_manifest = read_json_member(old_manifest_path)
+                  config_descriptor = oci_manifest["config"]
+                  old_oci_config_path = (
+                      "blobs/sha256/" + config_descriptor["digest"].split(":")[1]
+                  )
+                  old_oci_config = source.extractfile(old_oci_config_path).read()
+                  assert (
+                      hashlib.sha256(old_oci_config).hexdigest()
+                      == config_descriptor["digest"].split(":")[1]
+                  )
+                  if old_oci_config != old_config_raw:
+                      continue
+                  assert updated == 0
+                  oci_manifest["config"]["digest"] = (
+                      "sha256:" + hashlib.sha256(config_raw).hexdigest()
+                  )
+                  oci_manifest["config"]["size"] = len(config_raw)
+                  new_oci_manifest_raw = encoded(oci_manifest)
+                  new_blobs[digest_path(new_oci_manifest_raw)] = new_oci_manifest_raw
+                  descriptor["digest"] = (
+                      "sha256:" + hashlib.sha256(new_oci_manifest_raw).hexdigest()
+                  )
+                  descriptor["size"] = len(new_oci_manifest_raw)
+                  annotations = descriptor.get("annotations")
+                  assert isinstance(annotations, dict)
+                  base_ref = os.environ["BASE_IMAGE"]
+                  target_ref = os.environ["TARGET_IMAGE"]
+                  base_tag = base_ref.rsplit(":", 1)[1]
+                  target_tag = target_ref.rsplit(":", 1)[1]
+                  image_name = annotations.get("io.containerd.image.name")
+                  assert isinstance(image_name, str)
+                  assert image_name.endswith(base_ref)
+                  annotations["io.containerd.image.name"] = (
+                      image_name[:-len(base_ref)] + target_ref
+                  )
+                  ref_name = annotations.get("org.opencontainers.image.ref.name")
+                  assert isinstance(ref_name, str)
+                  if ref_name == base_tag:
+                      annotations["org.opencontainers.image.ref.name"] = target_tag
+                  elif ref_name == base_ref:
+                      annotations["org.opencontainers.image.ref.name"] = target_ref
+                  elif ref_name.endswith(base_ref):
+                      annotations["org.opencontainers.image.ref.name"] = (
+                          ref_name[:-len(base_ref)] + target_ref
+                      )
+                  else:
+                      raise AssertionError("oci_ref_name_not_bound_to_base")
+                  updated += 1
+              assert updated == 1
+              index_raw = encoded(index)
+
+              def add_bytes(target, name, payload, mode=0o644):
+                  info = tarfile.TarInfo(name)
+                  info.size = len(payload)
+                  info.mode = mode
+                  info.uid = 0
+                  info.gid = 0
+                  info.mtime = 0
+                  target.addfile(info, io.BytesIO(payload))
+
+              with tarfile.open(target_tar, "w") as target:
+                  add_bytes(target, "manifest.json", manifest_raw)
+                  add_bytes(target, "index.json", index_raw)
+                  add_bytes(target, new_config_name, config_raw)
+                  for name, payload in sorted(new_blobs.items()):
+                      add_bytes(target, name, payload)
+                  for member in source.getmembers():
+                      if member.name in {
+                          "manifest.json", "index.json",
+                          old_config_name, "repositories",
+                      }:
+                          continue
+                      if member.name in new_blobs:
+                          raise AssertionError("new_oci_blob_already_exists")
+                      fileobj = source.extractfile(member) if member.isfile() else None
+                      target.addfile(member, fileobj)
+
+          print("TARGET_CONFIG_DIGEST=sha256:" + new_config_name.removesuffix(".json"))
+          PY
+          gzip -n -1 -c "$RUNNER_TEMP/target.tar" > "$RUNNER_TEMP/package/homeassistant-arm64.tar.gz"
+          rm -f "$RUNNER_TEMP/target.tar"
+          python - "$RUNNER_TEMP/package/homeassistant-arm64.tar.gz" "$RUNNER_TEMP/package/portable-image-identity.json" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+          import n3w_t1_portable_image_identity as portable
+
+          archive = Path(sys.argv[1])
+          identity = portable.parse_image_archive(
+              archive,
+              expected_tag=os.environ["TARGET_IMAGE"],
+              platform_os="linux",
+              platform_architecture="arm64",
+          )
+          Path(sys.argv[2]).write_text(
+              json.dumps(identity.to_dict(), sort_keys=True, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          print("TARGET_ARCHIVE_SHA256=" + identity.archive_sha256)
+          print("TARGET_ARCHIVE_SIZE_BYTES=" + str(identity.archive_size_bytes))
+          print("TARGET_CONFIG_DIGEST=" + identity.config_digest)
+          PY
+
+      - name: Prove same runtime semantics and distinct image identity
+        env:
+          PYTHONPATH: tools
+        run: |
+          set -euo pipefail
+          docker load -i "$RUNNER_TEMP/package/homeassistant-arm64.tar.gz"
+          docker image inspect "$TARGET_IMAGE" > "$RUNNER_TEMP/target-inspect.json"
+          python - "$RUNNER_TEMP/base-inspect.json" "$RUNNER_TEMP/target-inspect.json" "$RUNNER_TEMP/package/portable-image-identity.json" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+          import n3w_t1_portable_image_identity as portable
+
+          base = json.loads(Path(sys.argv[1]).read_text())[0]
+          target = json.loads(Path(sys.argv[2]).read_text())[0]
+          identity = portable.identity_from_dict(json.loads(Path(sys.argv[3]).read_text()))
+
+          live_predecessor_runtime_id = os.environ["BASE_RUNTIME_IMAGE_ID"]
+          assert (
+              isinstance(base["Id"], str)
+              and base["Id"].startswith("sha256:")
+              and len(base["Id"]) == 71
+          )
+          assert (
+              live_predecessor_runtime_id.startswith("sha256:")
+              and len(live_predecessor_runtime_id) == 71
+          )
+          assert target["Id"] != base["Id"]
+          assert base["Os"] == target["Os"] == "linux"
+          assert base["Architecture"] == target["Architecture"] == "arm64"
+          assert base["RootFS"]["Layers"] == target["RootFS"]["Layers"]
+          assert identity.rootfs_diff_ids == tuple(base["RootFS"]["Layers"])
+
+          base_config = dict(base["Config"])
+          target_config = dict(target["Config"])
+          base_labels = dict(base_config.pop("Labels", None) or {})
+          target_labels = dict(target_config.pop("Labels", None) or {})
+          assert base_config == target_config
+          expected_labels = dict(base_labels)
+          expected_labels[os.environ["ACCEPTANCE_LABEL_KEY"]] = os.environ["ACCEPTANCE_LABEL_VALUE"]
+          assert target_labels == expected_labels
+
+          verdict = portable.verify_runtime_document(identity, target)
+          assert verdict.status == "VERIFIED"
+          assert verdict.runtime_image_id == target["Id"]
+
+          print("U13B_P3_ROOTFS_DIFF_IDS_IDENTICAL=PASS")
+          print("U13B_P3_RUNTIME_CONFIG_EXCEPT_LABELS_IDENTICAL=PASS")
+          print("U13B_P3_TARGET_RUNTIME_IMAGE_ID_DISTINCT=PASS")
+          print("U13B_P3_TARGET_RUNTIME_IMAGE_ID=" + target["Id"])
+          PY
+
+      - name: Freeze same-version acceptance binding
+        run: |
+          set -euo pipefail
+          python - "$RUNNER_TEMP/base-inspect.json" "$RUNNER_TEMP/target-inspect.json" "$RUNNER_TEMP/base/portable-image-identity.json" "$RUNNER_TEMP/package/portable-image-identity.json" "$RUNNER_TEMP/package/same-version-binding.json" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          base = json.loads(Path(sys.argv[1]).read_text())[0]
+          target = json.loads(Path(sys.argv[2]).read_text())[0]
+          base_identity = json.loads(Path(sys.argv[3]).read_text())
+          identity = json.loads(Path(sys.argv[4]).read_text())
+          binding = {
+              "schema": "gh.n3w-t1-u13b-p3-same-version-artifact/1",
+              "control_plane_head": os.environ["CONTROL_HEAD"],
+              "component": "homeassistant",
+              "application_version": "2026.10.4",
+              "platform": "linux/arm64",
+              "base_artifact_run_id": int(os.environ["BASE_RUN_ID"]),
+              "base_artifact_id": int(os.environ["BASE_ARTIFACT_ID"]),
+              "base_artifact_digest_sha256": os.environ["BASE_ARTIFACT_DIGEST_SHA256"],
+              "base_archive_sha256": os.environ["BASE_ARCHIVE_SHA256"],
+              "base_image_ref": os.environ["BASE_IMAGE"],
+              "base_ci_runtime_image_id": base["Id"],
+              "base_portable_config_digest": base_identity["config_digest"],
+              "live_predecessor_runtime_image_id": os.environ["BASE_RUNTIME_IMAGE_ID"],
+              "target_image_ref": os.environ["TARGET_IMAGE"],
+              "target_ci_runtime_image_id": target["Id"],
+              "target_runtime_image_id": target["Id"],
+              "target_archive_sha256": identity["archive_sha256"],
+              "target_archive_size_bytes": identity["archive_size_bytes"],
+              "target_config_digest": identity["config_digest"],
+              "target_config_semantics_sha256": identity["config_semantics_sha256"],
+              "target_rootfs_diff_ids_sha256": identity["rootfs_diff_ids_sha256"],
+              "review_canonical_sha256": os.environ["REVIEW_CANONICAL_SHA256"],
+              "derivation": "LABEL_ONLY_FROM_FROZEN_PREDECESSOR_ARTIFACT",
+              "rootfs_diff_ids_identical": True,
+              "runtime_config_except_labels_identical": True,
+              "target_runtime_image_id_distinct": True,
+              "cross_store_runtime_id_rebound_required": True,
+              "live_target_runtime_id_must_differ_from_predecessor": True,
+              "registry_pull_used": False,
+              "t1_access": False,
+              "t1_mutation": False,
+              "new_clean_ota_authorized": False,
+              "u13b_live_rollback_authorized": False,
+          }
+          Path(sys.argv[5]).write_text(
+              json.dumps(binding, sort_keys=True, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(binding, sort_keys=True))
+          PY
+
+      - name: Upload exact same-version acceptance artifact
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: n3w-u13b-p3-homeassistant-2026.10.4-same-version-acceptance-${{ env.CONTROL_HEAD }}
+          path: ${{ runner.temp }}/package/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Re-download and close exact byte binding
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ steps.upload.outputs.artifact-id }}
+          path: ${{ runner.temp }}/redownload
+          merge-multiple: true
+
+      - name: Report exact same-version artifact authority
+        env:
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+          PYTHONPATH: tools
+        run: |
+          set -euo pipefail
+          python - "$RUNNER_TEMP/redownload" <<'PY'
+          import hashlib
+          import json
+          import os
+          import sys
+          from pathlib import Path
+          import n3w_t1_portable_image_identity as portable
+
+          root = Path(sys.argv[1])
+          assert {p.name for p in root.iterdir()} == {
+              "homeassistant-arm64.tar.gz",
+              "portable-image-identity.json",
+              "same-version-binding.json",
+          }
+          archive = root / "homeassistant-arm64.tar.gz"
+          binding = json.loads((root / "same-version-binding.json").read_text())
+          identity = portable.identity_from_dict(
+              json.loads((root / "portable-image-identity.json").read_text())
+          )
+          digest = hashlib.sha256()
+          with archive.open("rb") as stream:
+              for block in iter(lambda: stream.read(1024 * 1024), b""):
+                  digest.update(block)
+          assert digest.hexdigest() == identity.archive_sha256
+          assert archive.stat().st_size == identity.archive_size_bytes
+          assert binding["target_archive_sha256"] == identity.archive_sha256
+          assert binding["target_archive_size_bytes"] == identity.archive_size_bytes
+          assert binding["target_ci_runtime_image_id"] != binding["base_ci_runtime_image_id"]
+          assert binding["target_runtime_image_id"] == binding["target_ci_runtime_image_id"]
+          assert binding["cross_store_runtime_id_rebound_required"] is True
+          assert binding["live_target_runtime_id_must_differ_from_predecessor"] is True
+          assert binding["rootfs_diff_ids_identical"] is True
+          assert binding["runtime_config_except_labels_identical"] is True
+          assert binding["registry_pull_used"] is False
+          assert binding["t1_access"] is False
+          assert binding["t1_mutation"] is False
+          print("U13B_P3_SAME_VERSION_ARTIFACT_ID=" + os.environ["ARTIFACT_ID"])
+          print("U13B_P3_SAME_VERSION_ARTIFACT_DIGEST=" + os.environ["ARTIFACT_DIGEST"])
+          print("U13B_P3_SAME_VERSION_ARCHIVE_SHA256=" + identity.archive_sha256)
+          print("U13B_P3_SAME_VERSION_ARCHIVE_SIZE_BYTES=" + str(identity.archive_size_bytes))
+          print("U13B_P3_SAME_VERSION_TARGET_IMAGE=" + binding["target_image_ref"])
+          print("U13B_P3_SAME_VERSION_TARGET_RUNTIME_IMAGE_ID=" + binding["target_runtime_image_id"])
+          print("U13B_P3_SAME_VERSION_EXACT_ARTIFACT=PASS")
+          PY

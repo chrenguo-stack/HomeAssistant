@@ -1,0 +1,77 @@
+{
+  "schema": "gh.n3w-t1-core-updater-homeassistant-compatibility-review/1",
+  "date": "2026-11-17",
+  "purpose": "U13B_P3_PHYSICAL_ACCEPTANCE_DISTINCT_TARGET",
+  "component": "homeassistant",
+  "mutation_profile": "IMAGE_ONLY_V1",
+  "predecessor": {
+    "version": "2026.10.4",
+    "image": "local/n3w-homeassistant:2026.10.4-5881590f",
+    "upstream_image": "ghcr.io/home-assistant/home-assistant:2026.10.4",
+    "upstream_source_commit": "357cae5c598dfcd7a0ea7dc5b1facccd4ec6037b"
+  },
+  "candidate": {
+    "version": "2026.10.3",
+    "upstream_image": "ghcr.io/home-assistant/home-assistant:2026.10.3",
+    "upstream_source_commit": "1f214b8461dd1fbbd66e10765c6905f49d3c1d86",
+    "local_image": "TO_BE_BOUND_BY_EXACT_ARM64_PACKAGE"
+  },
+  "storage_contract": {
+    "core.config_entries": {
+      "predecessor": {
+        "version": 1,
+        "minor_version": 5
+      },
+      "candidate": {
+        "version": 1,
+        "minor_version": 5
+      }
+    },
+    "core.device_registry": {
+      "predecessor": {
+        "version": 3,
+        "minor_version": 4
+      },
+      "candidate": {
+        "version": 3,
+        "minor_version": 4
+      }
+    },
+    "core.entity_registry": {
+      "predecessor": {
+        "version": 1,
+        "minor_version": 23
+      },
+      "candidate": {
+        "version": 1,
+        "minor_version": 23
+      }
+    }
+  },
+  "source_delta_review": {
+    "base_tag": "2026.10.3",
+    "head_tag": "2026.10.4",
+    "commit_count": 4,
+    "changed_files": [
+      "homeassistant/components/lutron_caseta/manifest.json",
+      "homeassistant/const.py",
+      "homeassistant/helpers/aiohttp_client.py",
+      "pyproject.toml",
+      "requirements_all.txt",
+      "tests/helpers/test_aiohttp_client.py"
+    ],
+    "managed_storage_files_changed": false,
+    "mqtt_contract_files_changed": false,
+    "persistent_binding_contract_changed": false
+  },
+  "peer_contracts_compatible": true,
+  "persistent_schema_compatible": true,
+  "rollback_compatible_source_review": true,
+  "exact_image_artifact_required": true,
+  "runtime_template_convergence_required": false,
+  "live_apply_authorized": false,
+  "acceptance_only_distinct_target": true,
+  "same_image_reapply": false,
+  "new_clean_ota_authorized": false,
+  "u13b_live_rollback_authorized": false
+}

@@ -61,15 +61,22 @@ CERT_LIFECYCLE_TIMER = "n3wfc4-broker-certificate-lifecycle.timer"
 PROVISION_UNIT = "n3wfc4-provision-resume.service"
 BROKER_INGRESS_GUARD_UNIT = "n3wfc4-broker-ingress-guard.service"
 REQUIRED_ACTIVE_ENABLED_UNITS = (
-    PROVISION_UNIT,
     BROKER_INGRESS_GUARD_UNIT,
     REGISTRATION_GUARD_UNIT,
     BROKER_UNIT,
     SERVICES_UNIT,
     CERT_LIFECYCLE_TIMER,
 )
+REQUIRED_ENABLED_UNITS = (
+    PROVISION_UNIT,
+)
 RELEVANT_UNITS = frozenset(
-    (*REQUIRED_ACTIVE_ENABLED_UNITS, CERT_LIFECYCLE_UNIT)
+    (*REQUIRED_ACTIVE_ENABLED_UNITS, *REQUIRED_ENABLED_UNITS, CERT_LIFECYCLE_UNIT)
+)
+RUNTIME_RELEVANT_FAILED_UNITS = frozenset(
+    unit
+    for unit in RELEVANT_UNITS
+    if unit not in REQUIRED_ENABLED_UNITS
 )
 EXPECTED_PLATFORM = "linux/arm64"
 DEFAULT_SERVICES_READINESS_TIMEOUT_SECONDS = 120
@@ -144,27 +151,39 @@ class LocalHost:
         if any(values.get(key) != value for key, value in expected.items()):
             raise UpdaterError("activation_env_authority_drift")
 
-    def _service_unit(self) -> dict[str, str]:
+    @staticmethod
+    def _effective_service_directive(raw: str, name: str) -> str:
+        prefix = name + "="
+        current: str | None = None
+        seen = False
+        for raw_line in raw.splitlines():
+            line = raw_line.strip()
+            if not line.startswith(prefix):
+                continue
+            seen = True
+            current = None if line == prefix else line
+        if not seen or current is None:
+            raise UpdaterError("services_supervision_contract_drift")
+        return current
+
+    def _service_unit(
+        self,
+        *,
+        expected_execstart: str = EXPECTED_EXECSTART,
+        expected_execstop: str = EXPECTED_EXECSTOP,
+    ) -> dict[str, str]:
         raw = self._run(("systemctl", "cat", SERVICES_UNIT)).stdout.decode()
-        starts = [
-            line.strip()
-            for line in raw.splitlines()
-            if line.strip().startswith("ExecStart=")
-        ]
-        stops = [
-            line.strip()
-            for line in raw.splitlines()
-            if line.strip().startswith("ExecStop=")
-        ]
+        start = self._effective_service_directive(raw, "ExecStart")
+        stop = self._effective_service_directive(raw, "ExecStop")
         if (
-            starts != [EXPECTED_EXECSTART]
-            or stops != [EXPECTED_EXECSTOP]
+            start != expected_execstart
+            or stop != expected_execstop
             or "--force-recreate" in raw
         ):
             raise UpdaterError("services_supervision_contract_drift")
         return {
-            "execstart_sha256": sha256_text(starts[0]),
-            "execstop_sha256": sha256_text(stops[0]),
+            "execstart_sha256": sha256_text(start),
+            "execstop_sha256": sha256_text(stop),
         }
 
     def _compose_argv(self) -> tuple[str, ...]:
@@ -345,7 +364,9 @@ class LocalHost:
             for line in failed_result.stdout.decode().splitlines()
             if line.strip()
         ]
-        relevant_failed = sorted(set(failed_units) & RELEVANT_UNITS)
+        relevant_failed = sorted(
+            set(failed_units) & RUNTIME_RELEVANT_FAILED_UNITS
+        )
         if relevant_failed:
             raise UpdaterError(
                 "relevant_failed_units:" + ",".join(relevant_failed)
@@ -360,6 +381,9 @@ class LocalHost:
         for unit in REQUIRED_ACTIVE_ENABLED_UNITS:
             if units[unit] != {"active": "active", "enabled": "enabled"}:
                 raise UpdaterError(f"unit_health_invalid:{unit}")
+        for unit in REQUIRED_ENABLED_UNITS:
+            if units[unit]["enabled"] != "enabled":
+                raise UpdaterError(f"unit_enablement_invalid:{unit}")
         if units[CERT_LIFECYCLE_UNIT]["active"] != "inactive":
             raise UpdaterError("certificate_service_not_quiescent")
 
@@ -1389,6 +1413,33 @@ class LocalHost:
             fcntl.flock(descriptor, fcntl.LOCK_UN)
         finally:
             os.close(descriptor)
+
+    def quiesce_homeassistant_for_backup(self) -> dict[str, bool]:
+        """Stop the production application owner and prove a quiet HA tree."""
+        broker_before = self._container_id("broker")
+        self.stop_services()
+        owner_state = self._systemctl("is-active", SERVICES_UNIT)
+        broker_state = self._systemctl("is-active", BROKER_UNIT)
+        broker_after = self._container_id("broker")
+        evidence = {
+            "owner_inactive": owner_state in {"inactive", "failed"},
+            "homeassistant_stopped": self._running_count("homeassistant") == 0,
+            "manager_stopped": self._running_count("manager") == 0,
+            "broker_preserved": (
+                broker_state == "active"
+                and broker_before == broker_after
+                and self._running_count("broker") == 1
+            ),
+        }
+        if any(value is not True for value in evidence.values()):
+            raise UpdaterError("ha_backup_quiesce_evidence_invalid")
+        return evidence
+
+    def resume_homeassistant_after_backup_failure(self) -> None:
+        """Restore predecessor services after a pre-U9 U7 failure."""
+        self.start_services(
+            readiness_timeout=HOMEASSISTANT_SERVICES_READINESS_TIMEOUT_SECONDS,
+        )
 
     def quiesce_component(self, component: str) -> None:
         if component not in COMPONENTS:

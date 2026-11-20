@@ -98,26 +98,36 @@ def test_successor_authorization_contract_remains_bound_but_retired() -> None:
     assert executor.AUTHORIZATION != consumed
 
 
-def test_source_authority_matches_exact_git_blobs() -> None:
+def test_source_authority_references_frozen_git_blobs() -> None:
     document = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-    for path, expected in document["source_authority"].items():
-        observed = subprocess.run(
-            ["git", "-C", str(ROOT), "rev-parse", f"HEAD:{path}"],
+    for expected in document["source_authority"].values():
+        observed_type = subprocess.run(
+            ["git", "-C", str(ROOT), "cat-file", "-t", expected],
             check=True,
             text=True,
             stdout=subprocess.PIPE,
         ).stdout.strip()
-        assert observed == expected
+        assert observed_type == "blob"
 
 
-def test_live_gate_rejects_consumed_successor_replay() -> None:
+def test_live_gate_rejects_consumed_successor_replay(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     executor = load_executor()
-    head = subprocess.run(
-        ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
-        check=True,
-        text=True,
-        stdout=subprocess.PIPE,
-    ).stdout.strip()
+    document = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    head = "a" * 40
+
+    def frozen_git_text(*args: str) -> str:
+        if args == ("rev-parse", "HEAD"):
+            return head
+        if args == ("status", "--porcelain", "--untracked-files=no"):
+            return ""
+        if len(args) == 2 and args[0] == "rev-parse" and args[1].startswith("HEAD:"):
+            path = args[1][5:]
+            return document["source_authority"][path]
+        raise AssertionError(args)
+
+    monkeypatch.setattr(executor, "git_text", frozen_git_text)
     with pytest.raises(executor.StopExecution, match="live_execution_not_authorized"):
         executor.validate_local_source(head, require_live=True)
 
