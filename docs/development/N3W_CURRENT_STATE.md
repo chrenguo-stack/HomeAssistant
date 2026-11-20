@@ -1,70 +1,84 @@
-## Latest authority — 2026-11-20 Phase-A durable rollback PASS / completion-oracle source repair CI PASS / live revalidation pending
+## Latest authority — 2026-11-20 Phase-A a103 live revalidation: business healthy / restart-convergence false failure source repair in CI
 
-Phase-A real-T1 recovery reached the durable rollback terminal and restored business runtime, but the customer-completion oracle returned `u9_plus_completion_ha_mqtt_socket_ambiguous` after terminal U13B. Exact source review proved a narrow oracle-contract mismatch: the U9+ completion path queried host-wide established `:1883` sockets yet required exactly one TCP_INFO counter record, while existing production HA health contracts explicitly permit one or more Home Assistant-owned established 1883 sockets.
+The real T1 remains durably rolled back and customer business runtime is healthy. The authorized live-revalidation mutation installed exact candidate U13B-host blob `a103a2633aaea5a34efbfed35449b2eb5bace61b` and invoked exactly one `n3w-t1-ha-ota.service` restart. That one restart authorization is consumed and must not be replayed.
 
-The source repair preserves the KF-140-safe dual proof: a fresh deployed simplified-N3-W Manager acceptance event must still coincide with forward progress in HA MQTT transport counters. It removes only the invalid global uniqueness assumption by aggregating complete `bytes_received` and `data_segs_in` counter records and continues to fail closed on missing or structurally incomplete evidence. Regression coverage includes multiple valid socket records and incomplete counter evidence.
+After restart, the repaired socket-counter oracle no longer stopped at `u9_plus_completion_ha_mqtt_socket_ambiguous`; instead the recovery worker reported `u13b_predecessor_runtime_not_running`. Fresh read-only forensic proved this is a restart ordering false failure, not failed business recovery: the OTA daemon started at 15:08:48 CST, the services owner became active at 15:08:50, Manager and Home Assistant started at 15:08:51, and the settled runtime has exact listeners, current Manager/HA MQTT authentication and HA HTTP 401.
+
+Source review found the exact race: `verify_predecessor_health()` performed one immediate `_running_predecessor_evidence()` check and raised before entering the already-existing bounded readiness loop. The minimal repair removes only that premature hard failure so the existing readiness loop can wait for runtime convergence and still performs the same strict terminal runtime/identity/listener/MQTT/HTTP checks afterward. A regression test starts with the services owner inactive, converges it on the first wait, and requires health PASS.
+
+Repository Core Stack authority remains separate from this Phase-A live acceptance state and is preserved below.
 
 ```text
 PR=807
 PR_STATE=OPEN_DRAFT_UNMERGED
 DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
-PHASE_A_SOURCE_HEAD=93610f23472759cf1601d2ad82b9b59b7225f4d6
 
-SOURCE_REPAIR_COMMIT=ecb2b789c25a7fe2369da74f08c0b7fe2bbce5c3
-U13B_HOST_BLOB=a103a2633aaea5a34efbfed35449b2eb5bace61b
-REGRESSION_TEST_COMMIT=9c1b257b2024fbafb30ed634e107d17128fe7b96
-P3_AUTHORITY_REBIND_COMMIT=14ac4308db81ddf3259027d899a3bd2ae811d651
-P3_MANIFEST_BLOB=8b7f67e7c29dd1b276f4c2dd35218c77c2ee5f54
-PHASE_A_AUTHORITY_REBIND_COMMIT=93610f23472759cf1601d2ad82b9b59b7225f4d6
-
-CI_FINAL=22_SUCCESS_0_FAILURE_0_PENDING
-CI_FAST_SOURCE_EXACT_RUN=44679435059_SUCCESS
-CI_P3_ACCEPTANCE_SOURCE_RUN=44679435074_SUCCESS
-CI_P3_LIVE_READONLY_SOURCE_RUN=44679435028_SUCCESS
-CI_HA_2026_10_3_TARGET_BINDING_RUN=44679434989_SUCCESS
-CI_HA_2026_10_4_TARGET_BINDING_RUN=44679435130_SUCCESS
-CI_HA_2026_10_4_SAME_VERSION_ARTIFACT_RUN=44679434940_SUCCESS
-CI_MANAGER_A_TO_B_RUN=44679435008_SUCCESS
-CI_CORE_STACK_AUTHORITY_RUN=44679435015_SUCCESS
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
 
 LIVE_HOST_PHASE=U13B_ROLLED_BACK
 LIVE_HOST_STATUS=ROLLED_BACK
-LIVE_USB_PHASE=U13B_ROLLED_BACK
-LIVE_HOST_USB_TRANSACTION_EQUAL=true
-LIVE_ROLLBACK_RECOVERY_CONTENT_VERIFIED=true
-LIVE_ROLLBACK_PREDECESSOR_IMAGE_RESTORED=true
-LIVE_ROLLBACK_HA_DATA_RESTORED=true
-LIVE_ROLLBACK_PREDECESSOR_RUNTIME_STARTED=true
-LIVE_ROLLBACK_HEALTH_VERIFIED=true
-LIVE_AUTHORIZATION_TUPLE_UNCHANGED=true
+LIVE_HOST_TRANSACTION_SHA256=4548f591d972576ea4d3f1f078cb55b483d1f63f2244b03c3413da1891e09d3f
+LIVE_AUTHORIZATION_CLAIMED=true
+LIVE_AUTHORIZATION_CONSUMED=true
+U9_REPLAY=false
+
+LIVE_CANDIDATE_U13B_HOST_BLOB=a103a2633aaea5a34efbfed35449b2eb5bace61b
+LIVE_CANDIDATE_DAEMON_BLOB=941baffc8423a10cfa1436323d109caae17be473
+LIVE_A103_SINGLE_FILE_REPLACEMENT=COMPLETED
+LIVE_OTA_RESTART_INVOCATION_COUNT=1
+LIVE_OTA_RESTART_AUTHORIZATION=CONSUMED_NO_REPLAY
+
+LIVE_OTA_SERVICE=active
 LIVE_SERVICES_OWNER=active
 LIVE_BROKER_OWNER=active
 LIVE_MANAGER_COUNT=1
 LIVE_HOMEASSISTANT_COUNT=1
 LIVE_BROKER_COUNT=1
-LIVE_PREDECESSOR_IMAGE_PRESENT=true
-LIVE_TARGET_IMAGE_PRESENT=false
-
+LIVE_LISTENERS_EXACT=true
+LIVE_MANAGER_MQTT_AUTHENTICATED=true
+LIVE_HOMEASSISTANT_MQTT_AUTHENTICATED=true
+LIVE_HOMEASSISTANT_HTTP_STATUS=401
+LIVE_HOMEASSISTANT_BINDING=local/n3w-homeassistant:2026.10.4-5881590f
 LIVE_IPC_PHASE=ERROR
-LIVE_IPC_ERROR_CODE=u9_plus_completion_ha_mqtt_socket_ambiguous
+LIVE_IPC_ERROR_CODE=u13b_predecessor_runtime_not_running
+
+RESTART_RACE_SOURCE_REPAIR_COMMIT=f8fc67cff39a0b2831a3005ae00d0556fce8351a
+RESTART_RACE_REPAIRED_U13B_HOST_BLOB=437f3e6c4cae53f7d94e244cd312ac454768f8e1
+RESTART_RACE_REGRESSION_TEST_COMMIT=1ea43b4ac467ca99b83ecf9edc8d3502675fd0b1
+RESTART_RACE_TEST_BLOB=9ca455c79204632e396530c0e40f654957da2caf
+P3_REBIND_COMMIT=3569d385c9f774991af6a528c9c6dff0dcc232f4
+P3_MANIFEST_BLOB=fcb8ecd4dd4f68a7fef5c64abe627cedc32dbca7
+PHASE_A_REBIND_COMMIT=b1f3d5ca6564f38e5bf7638d7781110b878beaf6
+PHASE_A_MANIFEST_BLOB=2ba6e96aec0f41f7916c852cef37c3fce9ecb966
+
+CI_AT_B1F3D5C_FAST_SOURCE_EXACT=SUCCESS
+CI_AT_B1F3D5C_P3_ACCEPTANCE_SOURCE=SUCCESS
+CI_AT_B1F3D5C_CORE_STACK_AUTHORITY=FAIL_STATE_AUTHORITY_LINK_MISSING
+CI_AT_B1F3D5C_MANAGER_A_TO_B=FAIL_SAME_STATE_AUTHORITY_LINK_MISSING
+CI_AT_B1F3D5C_POLLING_STOPPED_AFTER_THREE_CHECKS=true
+
 PHASE_A_DURABLE_AUTOMATIC_ROLLBACK=PASS
 PHASE_A_BUSINESS_RECOVERY=PASS
-PHASE_A_CUSTOMER_COMPLETION_ORACLE=FAIL_OLD_CANDIDATE
+PHASE_A_COMPLETION_ORACLE_LIVE_REVALIDATION=STOP_RESTART_CONVERGENCE_FALSE_FAILURE
 PHASE_A_OVERALL=NOT_YET_PASS
 
-LIVE_CANDIDATE_U13B_HOST=OLD_EXACT_BEFORE_A103_REPAIR
-OFFICIAL_RECOVERED_RECEIPT_PRESENT=false
-U9_AUTHORIZATION=CONSUMED_NO_REPLAY
-U9_REPLAY=false
+NEXT_ONE_GATE=N3W_T1_U9_PLUS_PHASE_A_RESTART_CONVERGENCE_SOURCE_CI_CLOSURE
+NEXT_GATE_SCOPE=SOURCE_TEST_CI_ONLY
+LIVE_REVALIDATION_RETRY_AUTHORIZATION_GRANTED=false
 U11_PLUS=false
 PR807_MERGE=false
-
-NEXT_ONE_GATE=N3W_T1_U9_PLUS_PHASE_A_COMPLETION_ORACLE_REPAIR_LIVE_REVALIDATION_PREFLIGHT
-NEXT_GATE_SCOPE=READ_ONLY
-LIVE_REPAIR_AUTHORIZATION_GRANTED=false
 ```
 
-Do not replay Phase-A U9 authorization or rerun destructive U10. The next chat must first fresh-rebind repository/PR/source/CI and perform a read-only live preflight proving the durable U13B terminal, exact Host/USB authority, candidate override binding, current candidate source blob and current IPC/runtime state. If that preflight is exact, stop at the explicit authorization boundary before replacing the candidate U13B-host source with blob `a103a263...` and restarting the OTA daemon once.
+Do not rerun the consumed a103 live replacement/restart command. No new T1 restart, candidate replacement, transaction/USB mutation, U9 replay, U11+ transition, production source overwrite or merge is authorized. The repaired `437f3e6c...` source must first close source/test/CI and be rebound exactly before any separate live retry decision.
+
+Archive: [N3W_T1_U9_PLUS_PHASE_A_A103_LIVE_REVALIDATION_RESTART_RACE_SOURCE_REPAIR_PROGRESS_20261120.md](./N3W_T1_U9_PLUS_PHASE_A_A103_LIVE_REVALIDATION_RESTART_RACE_SOURCE_REPAIR_PROGRESS_20261120.md)
 
 ## Latest authority — 2026-11-19 U9+ bounded recovery independent source review closed / physical acceptance pending
 
