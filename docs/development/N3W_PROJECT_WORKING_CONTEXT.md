@@ -1,3 +1,42 @@
+## Stable updater authority — 2026-11-20 Phase-A durable rollback PASS / completion-oracle repair CI PASS / live revalidation boundary
+
+```text
+PROJECT_WORKING_CONTEXT_VERSION=8.2
+
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+PHASE_A_SOURCE_HEAD=93610f23472759cf1601d2ad82b9b59b7225f4d6
+
+PHASE_A_DURABLE_AUTOMATIC_ROLLBACK=PASS
+PHASE_A_BUSINESS_RECOVERY=PASS
+LIVE_HOST_PHASE=U13B_ROLLED_BACK
+LIVE_HOST_STATUS=ROLLED_BACK
+LIVE_HOST_USB_TRANSACTION_EQUAL=true
+LIVE_ROLLBACK_HEALTH_VERIFIED=true
+LIVE_IPC_PHASE=ERROR
+LIVE_IPC_ERROR_CODE=u9_plus_completion_ha_mqtt_socket_ambiguous
+
+COMPLETION_ORACLE_REPAIR_COMMIT=ecb2b789c25a7fe2369da74f08c0b7fe2bbce5c3
+COMPLETION_ORACLE_U13B_HOST_BLOB=a103a2633aaea5a34efbfed35449b2eb5bace61b
+PHASE_A_AUTHORITY_REBIND_HEAD=93610f23472759cf1601d2ad82b9b59b7225f4d6
+CI_FINAL=22_SUCCESS_0_FAILURE_0_PENDING
+
+U9_AUTHORIZATION=CONSUMED_NO_REPLAY
+PHASE_A_OVERALL=NOT_YET_PASS
+LIVE_REPAIR_AUTHORIZATION_GRANTED=false
+U9_REPLAY=false
+U11_PLUS=false
+PR807_MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_U9_PLUS_PHASE_A_COMPLETION_ORACLE_REPAIR_LIVE_REVALIDATION_PREFLIGHT
+NEXT_GATE_SCOPE=READ_ONLY
+```
+
+Phase-A has physically proven the automatic U9+ recovery path through exact durable U13B and restored customer runtime. The remaining false failure is limited to the customer-completion oracle's invalid host-wide 1883 socket uniqueness assumption. The repaired source aggregates complete transport counters without weakening the fresh simplified-N3-W Manager-event + HA MQTT progress proof. The repair and authority rebind are 22/22 CI green but have not been installed on the live candidate daemon. The next gate is fresh read-only live preflight only; any candidate source replacement or OTA-daemon restart requires explicit authorization.
+
+Handoff: `docs/development/N3W_T1_U9_PLUS_PHASE_A_DURABLE_ROLLBACK_PASS_COMPLETION_ORACLE_REPAIR_CI_PASS_NEW_CHAT_HANDOFF_V1.0_20261120.md`.
+
 ## Stable updater authority — 2026-11-19 U10 read-only CLOSED_PASS / KF-168 U9+ bounded recovery source-design boundary
 
 ```text

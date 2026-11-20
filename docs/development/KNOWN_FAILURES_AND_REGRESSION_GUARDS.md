@@ -1,3 +1,38 @@
+### 2026-11-20 KF-168 UPDATE — Phase-A durable recovery PASS / completion-oracle socket-uniqueness false failure repaired in source / live revalidation pending
+
+Real-T1 Phase-A evidence closed the product recovery mechanism through durable Host + USB `U13B_ROLLED_BACK` and healthy predecessor business runtime. The remaining terminal failure was customer-completion oracle code `u9_plus_completion_ha_mqtt_socket_ambiguous`.
+
+Root cause:
+- the completion oracle used host-wide `ss -Htin state established dport = :1883`;
+- it then required exactly one `bytes_received` and exactly one `data_segs_in` match;
+- this did not bind the counter record to a Home Assistant-owned process/socket;
+- existing production health contracts already allow one or more Home Assistant-owned established 1883 sockets.
+
+Guard/repair:
+- preserve fresh simplified-N3-W Manager acceptance evidence;
+- preserve same-window forward progress in MQTT TCP counters;
+- aggregate complete established-1883 counter records rather than requiring global uniqueness;
+- continue to reject missing or structurally incomplete counter evidence;
+- do not weaken Manager/HA MQTT authentication, HA HTTP, runtime-count, Host/USB terminal, history or consumed-authorization checks.
+
+Authorities:
+- source repair: `ecb2b789c25a7fe2369da74f08c0b7fe2bbce5c3`;
+- repaired U13B host blob: `a103a2633aaea5a34efbfed35449b2eb5bace61b`;
+- regression tests: `9c1b257b2024fbafb30ed634e107d17128fe7b96`;
+- final source/authority head: `93610f23472759cf1601d2ad82b9b59b7225f4d6`;
+- CI: 22/22 SUCCESS.
+
+Status:
+```text
+KF168_PRODUCT_U9_PLUS_RECOVERY=PHYSICALLY_PROVEN_THROUGH_DURABLE_U13B
+KF168_BUSINESS_RECOVERY=PASS
+KF168_COMPLETION_ORACLE_SOURCE_REPAIR=CI_PASS
+KF168_COMPLETION_ORACLE_LIVE_REVALIDATION=PENDING
+PHASE_A_OVERALL=NOT_YET_PASS
+U9_REPLAY=false
+LIVE_REPAIR_AUTHORIZATION_GRANTED=false
+```
+
 ### 2026-11-19 KF-168 Home Assistant USB OTA U9+ product recovery coordinator — OPEN / SOURCE_REVIEW_CLOSED / PHYSICAL_ACCEPTANCE_PENDING
 
 Original gap:

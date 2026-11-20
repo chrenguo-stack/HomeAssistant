@@ -1,3 +1,71 @@
+## Latest authority — 2026-11-20 Phase-A durable rollback PASS / completion-oracle source repair CI PASS / live revalidation pending
+
+Phase-A real-T1 recovery reached the durable rollback terminal and restored business runtime, but the customer-completion oracle returned `u9_plus_completion_ha_mqtt_socket_ambiguous` after terminal U13B. Exact source review proved a narrow oracle-contract mismatch: the U9+ completion path queried host-wide established `:1883` sockets yet required exactly one TCP_INFO counter record, while existing production HA health contracts explicitly permit one or more Home Assistant-owned established 1883 sockets.
+
+The source repair preserves the KF-140-safe dual proof: a fresh deployed simplified-N3-W Manager acceptance event must still coincide with forward progress in HA MQTT transport counters. It removes only the invalid global uniqueness assumption by aggregating complete `bytes_received` and `data_segs_in` counter records and continues to fail closed on missing or structurally incomplete evidence. Regression coverage includes multiple valid socket records and incomplete counter evidence.
+
+```text
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+DEFAULT_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+PHASE_A_SOURCE_HEAD=93610f23472759cf1601d2ad82b9b59b7225f4d6
+
+SOURCE_REPAIR_COMMIT=ecb2b789c25a7fe2369da74f08c0b7fe2bbce5c3
+U13B_HOST_BLOB=a103a2633aaea5a34efbfed35449b2eb5bace61b
+REGRESSION_TEST_COMMIT=9c1b257b2024fbafb30ed634e107d17128fe7b96
+P3_AUTHORITY_REBIND_COMMIT=14ac4308db81ddf3259027d899a3bd2ae811d651
+P3_MANIFEST_BLOB=8b7f67e7c29dd1b276f4c2dd35218c77c2ee5f54
+PHASE_A_AUTHORITY_REBIND_COMMIT=93610f23472759cf1601d2ad82b9b59b7225f4d6
+
+CI_FINAL=22_SUCCESS_0_FAILURE_0_PENDING
+CI_FAST_SOURCE_EXACT_RUN=44679435059_SUCCESS
+CI_P3_ACCEPTANCE_SOURCE_RUN=44679435074_SUCCESS
+CI_P3_LIVE_READONLY_SOURCE_RUN=44679435028_SUCCESS
+CI_HA_2026_10_3_TARGET_BINDING_RUN=44679434989_SUCCESS
+CI_HA_2026_10_4_TARGET_BINDING_RUN=44679435130_SUCCESS
+CI_HA_2026_10_4_SAME_VERSION_ARTIFACT_RUN=44679434940_SUCCESS
+CI_MANAGER_A_TO_B_RUN=44679435008_SUCCESS
+CI_CORE_STACK_AUTHORITY_RUN=44679435015_SUCCESS
+
+LIVE_HOST_PHASE=U13B_ROLLED_BACK
+LIVE_HOST_STATUS=ROLLED_BACK
+LIVE_USB_PHASE=U13B_ROLLED_BACK
+LIVE_HOST_USB_TRANSACTION_EQUAL=true
+LIVE_ROLLBACK_RECOVERY_CONTENT_VERIFIED=true
+LIVE_ROLLBACK_PREDECESSOR_IMAGE_RESTORED=true
+LIVE_ROLLBACK_HA_DATA_RESTORED=true
+LIVE_ROLLBACK_PREDECESSOR_RUNTIME_STARTED=true
+LIVE_ROLLBACK_HEALTH_VERIFIED=true
+LIVE_AUTHORIZATION_TUPLE_UNCHANGED=true
+LIVE_SERVICES_OWNER=active
+LIVE_BROKER_OWNER=active
+LIVE_MANAGER_COUNT=1
+LIVE_HOMEASSISTANT_COUNT=1
+LIVE_BROKER_COUNT=1
+LIVE_PREDECESSOR_IMAGE_PRESENT=true
+LIVE_TARGET_IMAGE_PRESENT=false
+
+LIVE_IPC_PHASE=ERROR
+LIVE_IPC_ERROR_CODE=u9_plus_completion_ha_mqtt_socket_ambiguous
+PHASE_A_DURABLE_AUTOMATIC_ROLLBACK=PASS
+PHASE_A_BUSINESS_RECOVERY=PASS
+PHASE_A_CUSTOMER_COMPLETION_ORACLE=FAIL_OLD_CANDIDATE
+PHASE_A_OVERALL=NOT_YET_PASS
+
+LIVE_CANDIDATE_U13B_HOST=OLD_EXACT_BEFORE_A103_REPAIR
+OFFICIAL_RECOVERED_RECEIPT_PRESENT=false
+U9_AUTHORIZATION=CONSUMED_NO_REPLAY
+U9_REPLAY=false
+U11_PLUS=false
+PR807_MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_U9_PLUS_PHASE_A_COMPLETION_ORACLE_REPAIR_LIVE_REVALIDATION_PREFLIGHT
+NEXT_GATE_SCOPE=READ_ONLY
+LIVE_REPAIR_AUTHORIZATION_GRANTED=false
+```
+
+Do not replay Phase-A U9 authorization or rerun destructive U10. The next chat must first fresh-rebind repository/PR/source/CI and perform a read-only live preflight proving the durable U13B terminal, exact Host/USB authority, candidate override binding, current candidate source blob and current IPC/runtime state. If that preflight is exact, stop at the explicit authorization boundary before replacing the candidate U13B-host source with blob `a103a263...` and restarting the OTA daemon once.
+
 ## Latest authority — 2026-11-19 U9+ bounded recovery independent source review closed / physical acceptance pending
 
 KF-168's product integration gap is implemented and independently reviewed in source. The always-on HA OTA daemon conditionally constructs one U9+ recovery coordinator for durable U9-U12/U13B states, reuses the existing U13B rollback/reconciliation stack, refuses U9 authorization replay, requires the same bound recovery USB, and projects RECOVERY_MEDIA_REQUIRED instead of substituting media. Restart/re-entry in U9-U12 deliberately selects the legal rollback edge rather than guessing that interrupted forward mutation completed.

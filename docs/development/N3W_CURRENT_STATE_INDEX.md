@@ -1,3 +1,18 @@
+## 2026-11-20 — Phase-A durable rollback PASS / completion-oracle repair CI PASS / live revalidation pending
+
+- PR #807 remains OPEN/DRAFT/unmerged. Main at alignment: `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`; source/authority head: `93610f23472759cf1601d2ad82b9b59b7225f4d6`.
+- Real T1 automatically reached Host + USB `U13B_ROLLED_BACK / ROLLED_BACK`; Host/USB transaction equality passed, rollback recovery content/predecessor image/HA data/runtime health flags are all true, and the consumed U9 authorization tuple remained unchanged.
+- Business runtime is restored: services owner active, broker owner active, Manager/Home Assistant/Broker each exactly one, predecessor image present, target image absent.
+- Final IPC failed only at `u9_plus_completion_ha_mqtt_socket_ambiguous`; therefore durable automatic rollback and business recovery PASS, but Phase-A overall remains NOT_YET_PASS until the repaired customer-completion oracle is live-revalidated.
+- Root cause is a completion-oracle contract mismatch: host-wide `ss ... dport=:1883` required exactly one counter record although existing production HA acceptance permits one or more HA-owned 1883 sockets.
+- Repair `ecb2b789...` aggregates complete `bytes_received` / `data_segs_in` records while retaining the fresh simplified-N3-W Manager-event + MQTT transport-progress conjunction. Incomplete counter evidence remains fail-closed.
+- Regression tests `9c1b257b...`; P3 manifest rebind `14ac4308...` / blob `8b7f67e7...`; Phase-A authority rebind `93610f23472759cf1601d2ad82b9b59b7225f4d6`; new U13B host blob `a103a2633aaea5a34efbfed35449b2eb5bace61b`.
+- Final CI on `93610f23472759cf1601d2ad82b9b59b7225f4d6`: 22 SUCCESS / 0 FAILURE / 0 PENDING. Key runs: fast source/exact `44679435059`, P3 acceptance source `44679435074`, P3 live/read-only `44679435028`, HA 2026.10.3 target binding `44679434989`, HA 2026.10.4 target binding `44679435130`, same-version artifact `44679434940`, Manager A-to-B `44679435008`, Core Stack authority `44679435015`.
+- The live T1 still has the previous exact candidate U13B-host source; the `a103a263...` repair has not been installed live. No second OTA restart occurred after the repair commit.
+- `recovered.json` remains absent because the official `verify-recovered` helper was not run; source review showed that helper writes the receipt despite reporting a read-only mode.
+- Next gate is read-only only: `N3W_T1_U9_PLUS_PHASE_A_COMPLETION_ORACLE_REPAIR_LIVE_REVALIDATION_PREFLIGHT`. A live candidate replacement/restart requires explicit authorization after fresh preflight.
+- Handoff: [N3W_T1_U9_PLUS_PHASE_A_DURABLE_ROLLBACK_PASS_COMPLETION_ORACLE_REPAIR_CI_PASS_NEW_CHAT_HANDOFF_V1.0_20261120.md](./N3W_T1_U9_PLUS_PHASE_A_DURABLE_ROLLBACK_PASS_COMPLETION_ORACLE_REPAIR_CI_PASS_NEW_CHAT_HANDOFF_V1.0_20261120.md)
+
 ## 2026-11-19 — U9+ bounded recovery independent source review closed / physical acceptance pending
 
 - Core Stack repository authority remains `infra/n3w-t1/production/t1-core-stack-current.json` at product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`. Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`.
