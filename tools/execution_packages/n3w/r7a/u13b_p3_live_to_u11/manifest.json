@@ -76,7 +76,7 @@
     "tools/n3w_t1_core_updater_ha_usb.py": "46d5ecfa0c4f74278af5e265a7857c9f9186182a",
     "tools/n3w_t1_core_updater_ha_usb_media.py": "35f83617cccd987a7b001476c539d78974ea5f8b",
     "tools/n3w_t1_core_updater_ha_usb_state.py": "f20f7c6e182aeb19ef47bdec595d85bd08729c9c",
-    "tools/n3w_t1_core_updater_host.py": "fe859feef9f8321aa65289c688ee3d2a8d2d4a3b",
+    "tools/n3w_t1_core_updater_host.py": "8169659c6e08374bce86f6f353634f54857131f2",
     "tools/n3w_t1_core_updater_state.py": "06ca6ce3a5c3703df0f9e06408773d8a607cc77c",
     "tools/n3w_t1_core_updater_v2.py": "76a0133c3c415ffb95c3ffa31c0c77d40bc9b0eb",
     "tools/n3w_t1_core_updater_v2_common.py": "b9c6561a1a8e33bdf586e6a4bd04d025f3c5d7e6",

@@ -61,15 +61,22 @@ CERT_LIFECYCLE_TIMER = "n3wfc4-broker-certificate-lifecycle.timer"
 PROVISION_UNIT = "n3wfc4-provision-resume.service"
 BROKER_INGRESS_GUARD_UNIT = "n3wfc4-broker-ingress-guard.service"
 REQUIRED_ACTIVE_ENABLED_UNITS = (
-    PROVISION_UNIT,
     BROKER_INGRESS_GUARD_UNIT,
     REGISTRATION_GUARD_UNIT,
     BROKER_UNIT,
     SERVICES_UNIT,
     CERT_LIFECYCLE_TIMER,
 )
+REQUIRED_ENABLED_UNITS = (
+    PROVISION_UNIT,
+)
 RELEVANT_UNITS = frozenset(
-    (*REQUIRED_ACTIVE_ENABLED_UNITS, CERT_LIFECYCLE_UNIT)
+    (*REQUIRED_ACTIVE_ENABLED_UNITS, *REQUIRED_ENABLED_UNITS, CERT_LIFECYCLE_UNIT)
+)
+RUNTIME_RELEVANT_FAILED_UNITS = frozenset(
+    unit
+    for unit in RELEVANT_UNITS
+    if unit not in REQUIRED_ENABLED_UNITS
 )
 EXPECTED_PLATFORM = "linux/arm64"
 DEFAULT_SERVICES_READINESS_TIMEOUT_SECONDS = 120
@@ -357,7 +364,9 @@ class LocalHost:
             for line in failed_result.stdout.decode().splitlines()
             if line.strip()
         ]
-        relevant_failed = sorted(set(failed_units) & RELEVANT_UNITS)
+        relevant_failed = sorted(
+            set(failed_units) & RUNTIME_RELEVANT_FAILED_UNITS
+        )
         if relevant_failed:
             raise UpdaterError(
                 "relevant_failed_units:" + ",".join(relevant_failed)
@@ -372,6 +381,9 @@ class LocalHost:
         for unit in REQUIRED_ACTIVE_ENABLED_UNITS:
             if units[unit] != {"active": "active", "enabled": "enabled"}:
                 raise UpdaterError(f"unit_health_invalid:{unit}")
+        for unit in REQUIRED_ENABLED_UNITS:
+            if units[unit]["enabled"] != "enabled":
+                raise UpdaterError(f"unit_enablement_invalid:{unit}")
         if units[CERT_LIFECYCLE_UNIT]["active"] != "inactive":
             raise UpdaterError("certificate_service_not_quiescent")
 

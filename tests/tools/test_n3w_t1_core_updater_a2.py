@@ -1099,6 +1099,105 @@ def test_system_health_accepts_degraded_only_for_unrelated_failure(
     assert result["relevant_failed_units"] == []
 
 
+def test_system_health_accepts_failed_provision_resume_when_enabled(
+    monkeypatch,
+):
+    host = hostmod.LocalHost()
+
+    class Result:
+        def __init__(self, code: int, stdout: bytes):
+            self.returncode = code
+            self.stdout = stdout
+            self.stderr = b""
+
+    def run(argv, *, timeout=60, check=True):
+        del timeout, check
+        if tuple(argv) == ("systemctl", "is-system-running"):
+            return Result(1, b"degraded\n")
+        if tuple(argv) == (
+            "systemctl",
+            "--failed",
+            "--no-legend",
+            "--plain",
+        ):
+            return Result(
+                0,
+                (
+                    hostmod.PROVISION_UNIT
+                    + " loaded failed failed\n"
+                ).encode(),
+            )
+        raise AssertionError(argv)
+
+    def systemctl(action, unit):
+        if unit == hostmod.PROVISION_UNIT:
+            if action == "is-active":
+                return "failed"
+            if action == "is-enabled":
+                return "enabled"
+        if unit == hostmod.CERT_LIFECYCLE_UNIT and action == "is-active":
+            return "inactive"
+        if action in {"is-active", "is-enabled"}:
+            return "active" if action == "is-active" else "enabled"
+        raise AssertionError((action, unit))
+
+    monkeypatch.setattr(host, "_run", run)
+    monkeypatch.setattr(host, "_systemctl", systemctl)
+
+    result = host._system_health_v2()
+
+    assert result["system_state"] == "degraded"
+    assert result["relevant_failed_units"] == []
+    assert result["systemd_units"][hostmod.PROVISION_UNIT] == {
+        "active": "failed",
+        "enabled": "enabled",
+    }
+
+
+def test_system_health_rejects_disabled_provision_resume(monkeypatch):
+    host = hostmod.LocalHost()
+
+    class Result:
+        def __init__(self, code: int, stdout: bytes):
+            self.returncode = code
+            self.stdout = stdout
+            self.stderr = b""
+
+    def run(argv, *, timeout=60, check=True):
+        del timeout, check
+        if tuple(argv) == ("systemctl", "is-system-running"):
+            return Result(1, b"degraded\n")
+        if tuple(argv) == (
+            "systemctl",
+            "--failed",
+            "--no-legend",
+            "--plain",
+        ):
+            return Result(0, b"")
+        raise AssertionError(argv)
+
+    def systemctl(action, unit):
+        if unit == hostmod.PROVISION_UNIT:
+            if action == "is-active":
+                return "inactive"
+            if action == "is-enabled":
+                return "disabled"
+        if unit == hostmod.CERT_LIFECYCLE_UNIT and action == "is-active":
+            return "inactive"
+        if action in {"is-active", "is-enabled"}:
+            return "active" if action == "is-active" else "enabled"
+        raise AssertionError((action, unit))
+
+    monkeypatch.setattr(host, "_run", run)
+    monkeypatch.setattr(host, "_systemctl", systemctl)
+
+    with pytest.raises(
+        Exception,
+        match="unit_enablement_invalid:n3wfc4-provision-resume.service",
+    ):
+        host._system_health_v2()
+
+
 def test_system_health_rejects_relevant_failed_unit(monkeypatch):
     host = hostmod.LocalHost()
 
