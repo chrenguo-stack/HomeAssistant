@@ -9,6 +9,7 @@ from typing import Any, BinaryIO, Protocol
 from n3w_t1_core_updater_ha_backup import (
     HaDataBackupProvider,
     HaDataBackupRecord,
+    backup_record_from_document,
     validate_backup_record,
 )
 from n3w_t1_core_updater_ha_recovery import (
@@ -68,6 +69,9 @@ class HaPredecessorRuntime(Protocol):
         """Check the binding against the host, then start only missing services."""
         ...
 
+    def rollback_writers_quiesced(self) -> bool:
+        ...
+
 
 class HaPredecessorHealth(Protocol):
     def verify_predecessor_health(self, binding: dict[str, Any]) -> None:
@@ -103,12 +107,20 @@ class HaDataRestoreProvider(Protocol):
 
 
 @dataclass(frozen=True, slots=True)
+class HaInternalSpace:
+    available_bytes: int
+    install_required_bytes: int
+    recovery_required_bytes: int
+
+
+@dataclass(frozen=True, slots=True)
 class HaInstallMaterials:
     filesystem_uuid: str
     target: ImageRecoveryRecord
     predecessor: ImageRecoveryRecord
     capacity: UsbCapacityReport
     production_prestate_exact: bool
+    internal_space: HaInternalSpace | None = None
 
 
 class HaInstallMaterialVerifier(Protocol):
@@ -185,6 +197,36 @@ class HaPredecessorRecovery:
                 latest = self.store.read()
                 if latest is None or _can_resume_pre_cutover(latest):
                     raise UpdaterV2Error("ha_usb_install_cutover_not_consumed")
+
+    def admit_predecessor_release(
+        self, materials: HaInstallMaterialVerifier, backups: HaDataBackupProvider, authorization_id: str,
+    ) -> dict[str, Any]:
+        """Claim release while install_recovery_point still owns the transaction lock.
+
+        A resumed worker must reconcile the actual image state; this snapshot is
+        not a fresh observation after interruption.
+        """
+        current = self.store.read()
+        if (
+            current is None or current["phase"] != U8 or not _can_resume_pre_cutover(current)
+            or current["recovery_required"] or current.get("usb_binding_mode") != "existing_filesystem"
+        ):
+            raise UpdaterV2Error("ha_usb_predecessor_release_revalidation_not_admitted")
+        if not self.runtime.rollback_writers_quiesced():
+            raise UpdaterV2Error("ha_usb_predecessor_release_writers_active")
+        backup = backup_record_from_document(current["install_recovery_materials"]["backup"])
+        if backups.verify_backup(backup) != backup:
+            raise UpdaterV2Error("ha_usb_install_backup_identity_drift")
+        proof = materials.verify_install_materials(current)
+        _validate_install_materials(current, proof)
+        frozen = current["install_recovery_materials"]
+        if (proof.target.public(), proof.predecessor.public()) != (frozen["target"], frozen["predecessor"]):
+            raise UpdaterV2Error("ha_usb_install_recovery_material_identity_drift")
+        if self.store.read() != current or not self.runtime.rollback_writers_quiesced():
+            raise UpdaterV2Error("ha_usb_predecessor_release_revalidation_changed")
+        claimed = claim_live_authorization(current, authorization_id, internal_space=proof.internal_space)
+        self.store.write(claimed)
+        return claimed
 
     @contextmanager
     def quiesced_for_backup(
@@ -657,6 +699,7 @@ def record_recovery_admission(
 def claim_live_authorization(
     document: dict[str, Any],
     authorization_id: str,
+    *, internal_space: HaInternalSpace | None = None,
 ) -> dict[str, Any]:
     current = validate_transaction_document(document)
     if current["phase"] != U8:
@@ -673,6 +716,15 @@ def claim_live_authorization(
     ):
         raise UpdaterV2Error("ha_usb_live_authorization_id_invalid")
 
+    release_admission = {}
+    if current.get("usb_binding_mode") == "existing_filesystem":
+        if internal_space is None:
+            raise UpdaterV2Error("ha_usb_predecessor_release_admission_missing")
+        release_admission["predecessor_release_admission"] = {
+            "internal_available_bytes": internal_space.available_bytes,
+            "install_required_bytes": internal_space.install_required_bytes,
+            "recovery_required_bytes": internal_space.recovery_required_bytes,
+        }
     return transition(
         current,
         U9,
@@ -682,15 +734,19 @@ def claim_live_authorization(
             ),
             "authorization_claimed": True,
             "authorization_consumed": True,
+            **release_admission,
         },
     )
 
 
 def destructive_cutover_allowed(document: dict[str, Any]) -> bool:
+    """Check persisted phase prerequisites, separate from current runtime evidence."""
     current = validate_transaction_document(document)
     return (
         current["status"] == "ACTIVE"
         and current["phase"] in {U9, U10, U11, U12}
+        and (current["phase"] != U9 or current.get("usb_binding_mode") != "existing_filesystem"
+             or "predecessor_release_admission" in current)
         and current["recovery_required"] is False
         and current["authorization_claimed"] is True
         and current["authorization_consumed"] is True

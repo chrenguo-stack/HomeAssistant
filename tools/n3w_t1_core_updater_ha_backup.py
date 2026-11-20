@@ -111,6 +111,7 @@ BACKUP_AUTHENTICATION = "hmac-sha256-etm"
 BACKUP_KEY_DERIVATION = "hmac-sha256-system-root-key-v1"
 BACKUP_PBKDF2_ITERATIONS = 200_000
 DEFAULT_HA_DATA_ROOT = Path("/var/lib/n3wfc4-homeassistant")
+HA_DATABASE_NAME = "home-assistant_v2.db"
 DEFAULT_SYSTEM_ROOT_KEY = Path(
     "/var/lib/greenhouse-manager/identity/system-root.key"
 )
@@ -260,7 +261,7 @@ class ProtectedHaDataBackup:
         return argv
 
     def _verify_sqlite(self, data_root: Path) -> None:
-        database = data_root / "home-assistant_v2.db"
+        database = data_root / HA_DATABASE_NAME
         sidecars = [Path(str(database) + suffix) for suffix in ("-wal", "-journal", "-shm")]
         present = [path for path in sidecars if path.exists() or path.is_symlink()]
         if not database.exists() and not present:

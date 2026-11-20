@@ -16,10 +16,10 @@ from pathlib import Path
 from typing import Any, BinaryIO
 
 from n3w_t1_core_updater_ha_backup import (
-    HaDataBackupRecord, ProtectedHaDataBackup, backup_record_from_document,
+    HA_DATABASE_NAME, HaDataBackupRecord, ProtectedHaDataBackup, backup_record_from_document,
 )
 from n3w_t1_core_updater_ha_recovery import ImageRecoveryRecord
-from n3w_t1_core_updater_ha_usb import HaInstallMaterials
+from n3w_t1_core_updater_ha_usb import HaInstallMaterials, HaInternalSpace
 from n3w_t1_core_updater_ha_usb_media import (
     USB_FILESYSTEM,
     USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
@@ -73,7 +73,8 @@ class HaInstallSpaceBudget:
     usb_install_bytes: int
     usb_recovery_bytes: int
     internal_install_bytes: int
-    internal_recovery_bytes: int
+    # Recovery overhead is additional to the measured image layers and HA restore workspace.
+    internal_recovery_overhead_bytes: int
 
 
 def _command_json(*argv: str) -> dict[str, Any]:
@@ -264,6 +265,51 @@ class _AuthenticatedArchiveReader(io.RawIOBase):
         return copied
 
 
+def _authenticate_predecessor(
+    fd: int, blocks: list[bytes], record: ImageRecoveryRecord,
+) -> tuple[PortableImageIdentity, int]:
+    sizes: list[int] = []
+    try:
+        with io.BufferedReader(_AuthenticatedArchiveReader(fd, record.archive_size_bytes, blocks)) as source:
+            identity = parse_verified_load_archive(
+                source, archive_sha256=record.archive_sha256, archive_size_bytes=record.archive_size_bytes,
+                expected_tag=record.image_ref, unpacked_sizes=sizes,
+            )
+    except PortableImageIdentityError as error:
+        raise UpdaterV2Error("ha_usb_predecessor_archive_identity_invalid") from error
+    if sha256_bytes(canonical(identity.to_dict())) != record.portable_identity_sha256:
+        raise UpdaterV2Error("ha_usb_predecessor_portable_identity_drift")
+    return identity, sum(sizes)
+
+
+def _ha_restore_workspace_bytes(root: Path, device: int, block_size: int) -> int:
+    info = root.lstat()
+    if info.st_dev != device or not stat.S_ISDIR(info.st_mode):
+        raise UpdaterV2Error("ha_usb_recovery_workspace_not_on_budgeted_filesystem")
+    total = block_size
+    sqlite_files = {}
+    family = {HA_DATABASE_NAME, *(HA_DATABASE_NAME + suffix for suffix in ("-wal", "-journal", "-shm"))}
+
+    def raise_walk_error(error: OSError) -> None:
+        raise error
+
+    for directory, dirs, files in os.walk(root, onerror=raise_walk_error, followlinks=False):
+        for name in dirs + files:
+            entry = (Path(directory) / name).lstat()
+            if entry.st_dev != device:
+                raise UpdaterV2Error("ha_usb_recovery_workspace_not_on_budgeted_filesystem")
+            if not (stat.S_ISREG(entry.st_mode) or stat.S_ISDIR(entry.st_mode) or stat.S_ISLNK(entry.st_mode)):
+                raise UpdaterV2Error("ha_usb_recovery_workspace_file_unsupported")
+            rounded = max(block_size, ((entry.st_size + block_size - 1) // block_size) * block_size)
+            total += rounded
+            if Path(directory) == root and name in family:
+                sqlite_files[name] = rounded
+    # A database with a WAL or other sidecar is validated using a private copy.
+    if sqlite_files.keys() - {HA_DATABASE_NAME}:
+        total += sum(sqlite_files.values())
+    return total
+
+
 @contextmanager
 def _open_transaction_directory(
     mountpoint: Path, internal_storage: Path, document: dict[str, Any],
@@ -316,13 +362,18 @@ class HaMountedInstallMaterialVerifier:
         *,
         mountpoint: Path,
         internal_storage: Path,
+        image_storage: Path,
+        ha_data_root: Path,
         budget: Callable[[dict[str, Any]], HaInstallSpaceBudget],
         verify_prestate: Callable[[dict[str, Any]], bool],
     ) -> None:
         self.mountpoint = mountpoint
         self.internal_storage = internal_storage
+        self.image_storage = image_storage
+        self.ha_data_root = ha_data_root
         self.budget = budget
         self.verify_prestate = verify_prestate
+        self._verified_predecessor: tuple[ImageRecoveryRecord, int] | None = None
 
     def verify_install_materials(self, transaction: dict[str, Any]) -> HaInstallMaterials:
         document = validate_transaction_document(transaction)
@@ -333,28 +384,51 @@ class HaMountedInstallMaterialVerifier:
             mount, directory,
         ):
             _verify_archive(directory, "target.tar", target)
-            _verify_archive(directory, "predecessor.tar", predecessor)
-            capacity = self._capacity(mount, self.budget(document))
+            cached = self._verified_predecessor
+            if cached is not None and cached[0] == predecessor:
+                _verify_archive(directory, "predecessor.tar", predecessor)
+                unpacked = cached[1]
+            else:
+                with _verified_archive(directory, "predecessor.tar", predecessor, for_load=True) as (fd, blocks):
+                    _, unpacked = _authenticate_predecessor(fd, blocks, predecessor)
             prestate = self.verify_prestate(document)
+            capacity, internal = self._capacity(mount, self.budget(document), unpacked)
+        self._verified_predecessor = predecessor, unpacked
         return HaInstallMaterials(
-            document["usb_filesystem_uuid"].lower(), target, predecessor, capacity, prestate
+            document["usb_filesystem_uuid"].lower(), target, predecessor, capacity, prestate, internal,
         )
 
-    def _capacity(self, fd: int, budget: HaInstallSpaceBudget) -> UsbCapacityReport:
+    def _capacity(
+        self, fd: int, budget: HaInstallSpaceBudget, unpacked: int,
+    ) -> tuple[UsbCapacityReport, HaInternalSpace]:
         values = (
             budget.usb_install_bytes, budget.usb_recovery_bytes,
-            budget.internal_install_bytes, budget.internal_recovery_bytes,
+            budget.internal_install_bytes, budget.internal_recovery_overhead_bytes,
         )
         if any(type(value) is not int or value <= 0 for value in values):
             raise UpdaterV2Error("ha_usb_install_space_budget_invalid")
         usb = os.fstatvfs(fd)
-        internal = os.statvfs(self.internal_storage)
+        try:
+            device = self.internal_storage.stat().st_dev
+            if self.image_storage.stat().st_dev != device:
+                raise UpdaterV2Error("ha_usb_image_storage_not_on_budgeted_filesystem")
+            internal = os.statvfs(self.internal_storage)
+            if internal.f_frsize <= 0:
+                raise UpdaterV2Error("ha_usb_install_space_unavailable")
+            workspace = _ha_restore_workspace_bytes(self.ha_data_root, device, internal.f_frsize)
+        except OSError as error:
+            raise UpdaterV2Error("ha_usb_install_space_unavailable") from error
+        space = HaInternalSpace(
+            available_bytes=internal.f_bavail * internal.f_frsize,
+            install_required_bytes=budget.internal_install_bytes,
+            recovery_required_bytes=unpacked + workspace + budget.internal_recovery_overhead_bytes,
+        )
         usable = (usb.f_blocks - usb.f_bfree + usb.f_bavail) * usb.f_frsize
         required = max(values[:2])
         floor = USB_MEASURED_USABLE_CAPACITY_MIN_BYTES
         space_ok = (
             (usb.f_bavail * usb.f_frsize) >= required
-            and (internal.f_bavail * internal.f_frsize) >= max(values[2:])
+            and space.available_bytes >= max(space.install_required_bytes, space.recovery_required_bytes)
         )
         return UsbCapacityReport(
             measured_usable_bytes=usable,
@@ -363,7 +437,7 @@ class HaMountedInstallMaterialVerifier:
             measured_floor_pass=usable >= floor,
             transaction_formula_pass=space_ok,
             capacity_pass=usable >= floor and space_ok,
-        )
+        ), space
 
 
 class HaMountedBackupProvider:
@@ -481,23 +555,11 @@ class HaMountedBackupProvider:
         with _open_transaction_directory(
             self.mountpoint, self.internal_storage, current, allow_read_only=True,
         ) as (_, directory), _verified_archive(directory, "predecessor.tar", record, for_load=True) as (fd, blocks):
-            def authenticated_stream() -> io.BufferedReader:
-                return io.BufferedReader(_AuthenticatedArchiveReader(fd, record.archive_size_bytes, blocks))
-
-            try:
-                with authenticated_stream() as source:
-                    identity = parse_verified_load_archive(
-                        source, archive_sha256=record.archive_sha256,
-                        archive_size_bytes=record.archive_size_bytes, expected_tag=record.image_ref,
-                    )
-            except PortableImageIdentityError as error:
-                raise UpdaterV2Error("ha_usb_predecessor_archive_identity_invalid") from error
-            if sha256_bytes(canonical(identity.to_dict())) != record.portable_identity_sha256:
-                raise UpdaterV2Error("ha_usb_predecessor_portable_identity_drift")
+            identity, _ = _authenticate_predecessor(fd, blocks, record)
             if self._document() != current:
                 raise UpdaterV2Error("ha_usb_predecessor_image_restore_transaction_changed")
             self._require_restore_quiesced()
-            with authenticated_stream() as source:
+            with io.BufferedReader(_AuthenticatedArchiveReader(fd, record.archive_size_bytes, blocks)) as source:
                 load(source, identity)
         return identity
 

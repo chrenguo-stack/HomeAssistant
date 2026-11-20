@@ -445,6 +445,18 @@ def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
         raise UpdaterV2Error("ha_usb_failed_emergency_without_recovery")
     if "ha_data_restore" in document:
         _validate_data_restore(document)
+    if "predecessor_release_admission" in document:
+        admission = document["predecessor_release_admission"]
+        fields = {"internal_available_bytes", "install_required_bytes", "recovery_required_bytes"}
+        reason = "ha_usb_predecessor_release_admission_invalid"
+        if (
+            not _phase_at_or_after(phase, U9) or document.get("usb_binding_mode") != "existing_filesystem"
+            or not isinstance(admission, dict) or set(admission) != fields
+        ):
+            raise UpdaterV2Error(reason)
+        available = _positive_int(admission["internal_available_bytes"], reason)
+        if any(available < _positive_int(admission[key], reason) for key in fields - {"internal_available_bytes"}):
+            raise UpdaterV2Error(reason)
     return copy.deepcopy(document)
 
 
@@ -515,6 +527,11 @@ def transition(
         raise UpdaterV2Error("ha_usb_phase_transition_invalid")
     if "ha_data_restore" in current and next_phase != U13B:
         raise UpdaterV2Error("ha_usb_data_restore_in_progress")
+    if current.get("usb_binding_mode") == "existing_filesystem":
+        if next_phase == U9 and "predecessor_release_admission" not in (updates or {}):
+            raise UpdaterV2Error("ha_usb_predecessor_release_admission_missing")
+        if current_phase == U9 and next_phase == U10 and "predecessor_release_admission" not in current:
+            raise UpdaterV2Error("ha_usb_predecessor_release_admission_missing")
     if next_phase == U4 and current_phase in {U5, U6} and "predecessor_start" in current:
         raise UpdaterV2Error("ha_usb_install_cannot_defer_after_first_stop")
 
@@ -537,6 +554,8 @@ def transition(
             if key == "prepared_image_materials" and not (current_phase == U3 and next_phase == U4):
                 raise UpdaterV2Error("ha_usb_immutable_field_update_forbidden")
             if key == "usb_binding_mode" and next_phase != U2:
+                raise UpdaterV2Error("ha_usb_immutable_field_update_forbidden")
+            if key == "predecessor_release_admission" and next_phase != U9:
                 raise UpdaterV2Error("ha_usb_immutable_field_update_forbidden")
             result[key] = copy.deepcopy(value)
 

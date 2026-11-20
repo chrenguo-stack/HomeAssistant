@@ -104,6 +104,7 @@ def _oci_archive(
     omit_platform: bool = False,
     descriptor_architecture: str = "arm64",
     descriptor_variant: str | None = None,
+    docker_tag: str | None = None,
 ) -> dict[str, object]:
     uncompressed_layer = b"uncompressed-rootfs"
     layer = gzip.compress(uncompressed_layer, mtime=0)
@@ -174,6 +175,13 @@ def _oci_archive(
         _tar_add(tar, "blobs/sha256/" + config_digest.split(":", 1)[1], config_bytes)
         _tar_add(tar, "blobs/sha256/" + manifest_digest.split(":", 1)[1], manifest_bytes)
         _tar_add(tar, "blobs/sha256/" + layer_digest.split(":", 1)[1], layer)
+        if docker_tag is not None:
+            docker_manifest = [{
+                "Config": "blobs/sha256/" + config_digest.split(":", 1)[1],
+                "Layers": ["blobs/sha256/" + layer_digest.split(":", 1)[1]],
+                "RepoTags": [docker_tag],
+            }]
+            _tar_add(tar, "manifest.json", json.dumps(docker_manifest).encode())
     return config
 
 
@@ -245,6 +253,21 @@ def test_classic_layer_diff_id_is_verified(tmp_path: Path) -> None:
         _tar_add(tar, "layer.tar", b"real-layer")
     with pytest.raises(identity.PortableImageIdentityError, match="docker_layer_diff_id_mismatch"):
         identity.parse_image_archive(archive)
+
+
+def test_rollback_budget_uses_the_expanded_oci_layer(tmp_path: Path) -> None:
+    path = tmp_path / "predecessor.tar"
+    tag = "local/n3w-homeassistant:predecessor"
+    _oci_archive(path, docker_tag=tag)
+    expected = identity.parse_image_archive(path, expected_tag=tag)
+    sizes: list[int] = []
+    with path.open("rb") as source:
+        actual = identity.parse_verified_load_archive(
+            source, archive_sha256=expected.archive_sha256, archive_size_bytes=expected.archive_size_bytes,
+            expected_tag=tag, unpacked_sizes=sizes,
+        )
+    assert actual.to_dict() == expected.to_dict()
+    assert sizes == [len(b"uncompressed-rootfs")]
 
 
 def test_oci_graph_and_platform_are_verified(tmp_path: Path) -> None:

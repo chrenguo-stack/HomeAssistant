@@ -234,7 +234,7 @@ class SafeTar:
             raise PortableImageIdentityError("archive_member_size_mismatch")
         return digest.hexdigest(), size
 
-    def diff_id(self, name: str, media_type: str) -> str:
+    def diff_id_and_size(self, name: str, media_type: str) -> tuple[str, int]:
         member = self._member(name)
         assert self.tar is not None
         source = self.tar.extractfile(member)
@@ -266,7 +266,7 @@ class SafeTar:
             finally:
                 if stream is not source:
                     source.close()
-        return "sha256:" + digest.hexdigest()
+        return "sha256:" + digest.hexdigest(), size
 
 
 def _digest_blob_path(digest: str) -> str:
@@ -410,6 +410,7 @@ def _parse_docker_save(
     archive_sha256: str,
     archive_size_bytes: int,
     expected_tag: str | None,
+    unpacked_sizes: list[int] | None = None,
 ) -> PortableImageIdentity:
     manifest = strict_json(archive.read("manifest.json"), name="docker_manifest")
     if not isinstance(manifest, list) or not manifest:
@@ -446,9 +447,11 @@ def _parse_docker_save(
     if len(rootfs) != len(layers):
         raise PortableImageIdentityError("docker_layer_count_mismatch")
     for layer_path, expected_diff_id in zip(layers, rootfs):
-        actual, _ = archive.hash_and_size(layer_path)
+        actual, size = archive.hash_and_size(layer_path)
         if f"sha256:{actual}" != expected_diff_id:
             raise PortableImageIdentityError("docker_layer_diff_id_mismatch")
+        if unpacked_sizes is not None:
+            unpacked_sizes.append(size)
     return _identity(
         representation="docker-save",
         archive_sha256=archive_sha256,
@@ -468,6 +471,7 @@ def _parse_oci(
     platform_os: str,
     platform_architecture: str,
     platform_variant: str | None,
+    unpacked_sizes: list[int] | None = None,
 ) -> PortableImageIdentity:
     layout = strict_json(archive.read("oci-layout"), name="oci_layout")
     if layout != {"imageLayoutVersion": "1.0.0"}:
@@ -566,8 +570,11 @@ def _parse_oci(
         media_type = layer.get("mediaType") if isinstance(layer, dict) else None
         if not isinstance(media_type, str):
             raise PortableImageIdentityError("oci_layer_media_type_invalid")
-        if archive.diff_id(layer_path, media_type) != expected_diff_id:
+        observed_diff_id, size = archive.diff_id_and_size(layer_path, media_type)
+        if observed_diff_id != expected_diff_id:
             raise PortableImageIdentityError("oci_layer_diff_id_mismatch")
+        if unpacked_sizes is not None:
+            unpacked_sizes.append(size)
     return _identity(
         representation="oci-layout",
         archive_sha256=archive_sha256,
@@ -646,20 +653,21 @@ def _require_single_load_tag(archive: SafeTar, expected_tag: str) -> None:
 
 def parse_verified_load_archive(
     source: BinaryIO, *, archive_sha256: str, archive_size_bytes: int, expected_tag: str,
+    unpacked_sizes: list[int] | None = None,
 ) -> PortableImageIdentity:
     """Verify an authenticated, seekable Docker input against the single-image load contract."""
     if not 0 < archive_size_bytes <= MAX_ARCHIVE_BYTES:
         raise PortableImageIdentityError("archive_size_limit_exceeded")
     return _parse_archive(
         source, archive_sha256, archive_size_bytes, expected_tag, "linux", "arm64", None,
-        single_load_tag=True,
+        single_load_tag=True, unpacked_sizes=unpacked_sizes,
     )
 
 
 def _parse_archive(
     source: Path | BinaryIO, digest: str, size: int, expected_tag: str | None,
     platform_os: str, platform_architecture: str, platform_variant: str | None,
-    *, single_load_tag: bool = False,
+    *, single_load_tag: bool = False, unpacked_sizes: list[int] | None = None,
 ) -> PortableImageIdentity:
     with SafeTar(source) as archive:
         if single_load_tag:
@@ -675,6 +683,7 @@ def _parse_archive(
                 platform_os=platform_os,
                 platform_architecture=platform_architecture,
                 platform_variant=platform_variant,
+                unpacked_sizes=unpacked_sizes,
             )
         if "manifest.json" in archive.members:
             identity = _parse_docker_save(
@@ -682,6 +691,7 @@ def _parse_archive(
                 archive_sha256=digest,
                 archive_size_bytes=size,
                 expected_tag=expected_tag,
+                unpacked_sizes=unpacked_sizes,
             )
             if single_load_tag and (identity.os, identity.architecture) != (platform_os, platform_architecture):
                 raise PortableImageIdentityError("image_load_platform_drift")

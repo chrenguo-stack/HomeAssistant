@@ -44,6 +44,7 @@ from n3w_t1_core_updater_ha_recovery import (
 )
 from n3w_t1_core_updater_ha_usb import (
     HaInstallMaterials,
+    HaInternalSpace,
     HaPredecessorRecovery,
     claim_live_authorization,
     classify_power_loss_reentry,
@@ -185,6 +186,9 @@ class PredecessorRuntime:
     def capture_start_binding(self, transaction):
         assert self.running == {"manager", "homeassistant", "broker"}
         return self.binding
+
+    def rollback_writers_quiesced(self):
+        return self.running == {"broker"}
 
     def resolve_homeassistant_release(self, release_identity):
         pytest.fail("read-only status must not resolve a candidate release")
@@ -460,7 +464,7 @@ def test_boot_reconciles_selected_data_rollback_and_waits_for_health(tmp_path, m
     prepared["prepared_image_materials"] = {"target": target.public(), "predecessor": predecessor.public()}
     prepared["install_recovery_materials"] = {**prepared["prepared_image_materials"], "backup": backup.public()}
     cutover = record_target_started(record_predecessor_capacity_released(
-        claim_live_authorization(prepared, AUTHORIZATION_ID),
+        claim_live_authorization(prepared, AUTHORIZATION_ID, internal_space=HaInternalSpace(1024, 768, 896)),
     ))
     live = runtime.ha_data_root
     journal = {"step": "STAGING", "filesystem_id": os.statvfs(live).f_fsid, "original_inode": live.stat().st_ino}
@@ -522,6 +526,24 @@ def test_boot_reconciles_selected_data_rollback_and_waits_for_health(tmp_path, m
     assert runtime.starts == runtime.rewrites == 1
 
 
+def _write_restorable_image_archive(archive, *, extra_tag=False):
+    layer = b"image-layer" * (256 * 1024)
+    layers = ["sha256:" + sha256_bytes(layer)]
+    config = canonical({
+        "architecture": "arm64", "os": "linux", "rootfs": {"type": "layers", "diff_ids": layers},
+        "config": {"Entrypoint": ["homeassistant"]},
+    })
+    config_name = sha256_bytes(config) + ".json"
+    tags = [CURRENT, "local/unrelated:retained"] if extra_tag else [CURRENT]
+    manifest = canonical([{"Config": config_name, "Layers": ["layer.tar"], "RepoTags": tags}])
+    with tarfile.open(archive, "w") as stream:
+        for name, content in (("manifest.json", manifest), (config_name, config), ("layer.tar", layer)):
+            member = tarfile.TarInfo(name)
+            member.size = len(content)
+            stream.addfile(member, io.BytesIO(content))
+    return config, layers
+
+
 def test_boot_restores_a_released_predecessor_from_bound_media(tmp_path, monkeypatch, capsys):
     prepared, media, _, _, target, predecessor, backup = drive_to_u8(tmp_path)
     store = HaUsbStateStore(tmp_path / "state")
@@ -530,19 +552,7 @@ def test_boot_restores_a_released_predecessor_from_bound_media(tmp_path, monkeyp
     directory = media.root / "N3W-OTA" / prepared["transaction_id_sha256"]
     directory.mkdir(parents=True)
     archive = directory / "predecessor.tar"
-    layer = b"image-layer" * (256 * 1024)
-    layers = ["sha256:" + sha256_bytes(layer)]
-    config = canonical({
-        "architecture": "arm64", "os": "linux", "rootfs": {"type": "layers", "diff_ids": layers},
-        "config": {"Entrypoint": ["homeassistant"]},
-    })
-    config_name = sha256_bytes(config) + ".json"
-    manifest = canonical([{"Config": config_name, "Layers": ["layer.tar"], "RepoTags": [CURRENT]}])
-    with tarfile.open(archive, "w") as stream:
-        for name, content in (("manifest.json", manifest), (config_name, config), ("layer.tar", layer)):
-            member = tarfile.TarInfo(name)
-            member.size = len(content)
-            stream.addfile(member, io.BytesIO(content))
+    config, layers = _write_restorable_image_archive(archive)
     original = archive.read_bytes()
     identity = parse_image_archive(archive, expected_tag=CURRENT)
     portable_sha = sha256_bytes(canonical(identity.to_dict()))
@@ -554,7 +564,8 @@ def test_boot_restores_a_released_predecessor_from_bound_media(tmp_path, monkeyp
     prepared["usb_binding_mode"] = "existing_filesystem"
     prepared["prepared_image_materials"] = {"target": target.public(), "predecessor": predecessor.public()}
     prepared["install_recovery_materials"] = {**prepared["prepared_image_materials"], "backup": backup.public()}
-    cutover = record_target_started(record_predecessor_capacity_released(claim_live_authorization(prepared, AUTHORIZATION_ID)))
+    claimed = claim_live_authorization(prepared, AUTHORIZATION_ID, internal_space=HaInternalSpace(1024, 768, 896))
+    cutover = record_target_started(record_predecessor_capacity_released(claimed))
     live = runtime.ha_data_root
     original_inode = live.stat().st_ino
     live.rename(live.with_name("former"))
@@ -919,7 +930,8 @@ def prepare_to_u4(tmp_path: Path):
 
 @pytest.mark.parametrize("fault", (
     None, "wrong_uuid", "duplicate_uuid", "same_disk", "archive_drift",
-    "symlink", "internal_space", "occupied_backup", "restore",
+    "symlink", "internal_space", "occupied_backup", "restore", "unsafe_load_tag",
+    "release_space_drift", "release_archive_drift",
 ))
 def test_verify_existing_usb_media_from_bound_archives(tmp_path, monkeypatch, fault):
     media = SyntheticUsb(tmp_path / "original")
@@ -928,8 +940,17 @@ def test_verify_existing_usb_media_from_bound_archives(tmp_path, monkeypatch, fa
     sentinel.write_bytes(b"keep unchanged")
     target = media.target_record()
     predecessor = SyntheticDockerHost().export_predecessor(media)
+    original_archive = tmp_path / "predecessor.tar"
+    _write_restorable_image_archive(original_archive, extra_tag=fault == "unsafe_load_tag")
+    identity = parse_image_archive(original_archive, expected_tag=CURRENT)
+    predecessor = replace(
+        predecessor, archive_sha256=identity.archive_sha256, archive_size_bytes=identity.archive_size_bytes,
+        portable_identity_sha256=sha256_bytes(canonical(identity.to_dict())),
+    )
+    created = transaction()
+    created["current_image_identity"]["portable_identity_sha256"] = predecessor.portable_identity_sha256
     initial = record_existing_media_bound(
-        request_prepare(transaction()), filesystem_uuid=USB_UUID, capacity_report=media.report,
+        request_prepare(created), filesystem_uuid=USB_UUID, capacity_report=media.report,
     )
     store = HaUsbStateStore(tmp_path / "state")
     store.write(initial)
@@ -943,7 +964,8 @@ def test_verify_existing_usb_media_from_bound_archives(tmp_path, monkeypatch, fa
     archive_dir = media.root / "N3W-OTA" / pending["transaction_id_sha256"]
     archive_dir.mkdir(parents=True)
     (archive_dir / "target.tar").write_bytes(TARGET_BYTES)
-    (archive_dir / "predecessor.tar").write_bytes(CURRENT_BYTES)
+    shutil.copyfile(original_archive, archive_dir / "predecessor.tar")
+    ha = SyntheticHaData(tmp_path / "ha")
 
     actual_device = mounted_media._device_number(media.root.stat().st_dev)
     protected_device = "8:3"
@@ -972,9 +994,8 @@ def test_verify_existing_usb_media_from_bound_archives(tmp_path, monkeypatch, fa
         f_blocks=USB_BYTES, f_bfree=USB_BYTES // 2, f_bavail=USB_BYTES // 2, f_frsize=1,
         f_fsid=fstatvfs(fd).f_fsid,
     ))
-    monkeypatch.setattr(mounted_media.os, "statvfs", lambda _: SimpleNamespace(
-        f_bavail=0 if fault == "internal_space" else 4096, f_frsize=1
-    ))
+    available = 4096 if fault == "internal_space" else 16 * 1024 * 1024
+    monkeypatch.setattr(mounted_media.os, "statvfs", lambda _: SimpleNamespace(f_bavail=available, f_frsize=1))
     if fault == "archive_drift":
         (archive_dir / "target.tar").write_bytes(b"x" * len(TARGET_BYTES))
     if fault == "symlink":
@@ -986,6 +1007,8 @@ def test_verify_existing_usb_media_from_bound_archives(tmp_path, monkeypatch, fa
     verifier = mounted_media.HaMountedInstallMaterialVerifier(
         mountpoint=media.root,
         internal_storage=tmp_path,
+        image_storage=tmp_path,
+        ha_data_root=ha.root,
         budget=lambda _: mounted_media.HaInstallSpaceBudget(1024, 2048, 1024, 2048),
         verify_prestate=lambda _: True,
     )
@@ -995,6 +1018,7 @@ def test_verify_existing_usb_media_from_bound_archives(tmp_path, monkeypatch, fa
         "same_disk": "ha_usb_original_mount_device_mismatch",
         "archive_drift": "ha_usb_recovery_archive_digest_mismatch",
         "symlink": "ha_usb_original_material_unavailable",
+        "unsafe_load_tag": "ha_usb_predecessor_archive_identity_invalid",
     }
     if fault in errors:
         with pytest.raises(UpdaterV2Error, match=errors[fault]):
@@ -1004,13 +1028,13 @@ def test_verify_existing_usb_media_from_bound_archives(tmp_path, monkeypatch, fa
         assert observed.target == target
         assert observed.predecessor == predecessor
         assert observed.capacity.capacity_pass is (fault != "internal_space")
+        assert observed.internal_space.recovery_required_bytes > 2 * 1024 * 1024
         assert commands == ["findmnt", "lsblk", "findmnt", "lsblk"]
     assert set(commands) <= {"findmnt", "lsblk"}
     assert sentinel.read_bytes() == b"keep unchanged"
-    if fault in {None, "occupied_backup", "restore"}:
+    if fault in {None, "occupied_backup", "restore", "release_space_drift", "release_archive_drift"}:
         store.write(pending)
         runtime = PredecessorRuntime(store)
-        ha = SyntheticHaData(tmp_path / "ha")
         config = ha.root / ".storage" / "core.config"
         config.chmod(0o640)
         original_config = config.read_bytes()
@@ -1048,6 +1072,10 @@ def test_verify_existing_usb_media_from_bound_archives(tmp_path, monkeypatch, fa
         )
         backup_dir = archive_dir / "ha-backup"
         expected = "ha_usb_install_cutover_not_consumed"
+        if fault == "release_space_drift":
+            expected = "ha_usb_install_materials_unavailable"
+        elif fault == "release_archive_drift":
+            expected = "ha_usb_recovery_archive_digest_mismatch"
         if fault == "occupied_backup":
             backup_dir.mkdir()
             (backup_dir / BACKUP_ARCHIVE_NAME).write_bytes(b"preserve existing backup")
@@ -1061,13 +1089,23 @@ def test_verify_existing_usb_media_from_bound_archives(tmp_path, monkeypatch, fa
             assert document["install_recovery_materials"]["predecessor"] == predecessor.public()
             record = backup_record_from_document(document["install_recovery_materials"]["backup"])
             assert backups.verify_backup(record) == record
+            with pytest.raises(UpdaterV2Error, match="release_admission_missing"):
+                claim_live_authorization(document, AUTHORIZATION_ID)
+            if fault == "release_space_drift":
+                available = 4096
+                recovery.admit_predecessor_release(verifier, backups, AUTHORIZATION_ID)
+            if fault == "release_archive_drift":
+                with (archive_dir / "predecessor.tar").open("r+b") as changed:
+                    changed.write(b"changed after admission")
+                recovery.admit_predecessor_release(verifier, backups, AUTHORIZATION_ID)
             if fault == "restore":
                 with (
                     pytest.raises(UpdaterV2Error, match="restore_phase_invalid"),
                     backups.stage_preupgrade_data(),
                 ):
                     pytest.fail("an unclaimed transaction must not stage a restore")
-                claimed = claim_live_authorization(document, AUTHORIZATION_ID)
+                claimed = recovery.admit_predecessor_release(verifier, backups, AUTHORIZATION_ID)
+                assert claimed["predecessor_release_admission"]["recovery_required_bytes"] > 3 * 1024 * 1024
                 cutover = record_target_started(record_predecessor_capacity_released(claimed))
                 store.write(cutover)
         if fault == "restore":
@@ -1132,6 +1170,7 @@ def test_verify_existing_usb_media_from_bound_archives(tmp_path, monkeypatch, fa
             assert sentinel.read_bytes() == b"keep unchanged"
             return
         assert store.read()["status"] == "ROLLED_BACK"
+        assert store.read()["authorization_consumed"] is False
         assert sentinel.read_bytes() == b"keep unchanged"
         assert {path: sha(path) for path in db_files} == before
         archive = backup_dir / BACKUP_ARCHIVE_NAME
