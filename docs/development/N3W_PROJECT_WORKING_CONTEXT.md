@@ -1,3 +1,11 @@
+## Current T1 Core Stack OTA product architecture — V1.2, 2026-11-20
+
+Use [T1 Core Stack OTA V1.2](N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.2_20261119.md) as the design authority for implementation and acceptance.
+Sections 1, 3, 5, 6, 9, 10 and 11 cover the product contract, recovery and release acceptance.
+The executable OTA code and live runtime have yet to align with V1.2. For the active route,
+read the [current state](N3W_CURRENT_STATE.md) before using the historical R4/R5 sections below
+or the old OTA stack (#807, #809, #810 and #811). Earlier live authorizations do not carry forward.
+
 ## Stable updater authority — PR #788 mandatory-USB HA OTA R4 clean successor, 2026-11-06
 
 ```text

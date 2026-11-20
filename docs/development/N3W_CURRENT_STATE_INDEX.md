@@ -1,4 +1,15 @@
-## 2026-11-06 — PR #788 clean successor: mandatory-USB HA OTA R4 source converged
+## Current T1 Core Stack authority index
+
+### 2026-11-20 — T1 Core Stack OTA V1.2 architecture authority
+
+- Product architecture: [T1 Core Stack OTA V1.2](N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.2_20261119.md). Implementation and live alignment are pending.
+- Exact design source: [fixed architecture document](https://github.com/chrenguo-stack/HomeAssistant/blob/480afb109de59477b11f6d1cdf794f656eb39805/docs/development/N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.2_20261119.md),
+  blob `82479d9723aace8555df0f24550c738b1074c977`.
+- Transition evidence: [fixed handoff](https://github.com/chrenguo-stack/HomeAssistant/blob/b63f391ae6e087a648be17d3fac7dcaafcf6442c/docs/development/N3W_T1_CORE_STACK_OTA_V1_2_ARCHITECTURE_AUTHORITY_TO_MAIN_MERGE_NEW_CHAT_HANDOFF_V1.0_20261120.md).
+- PRs #807, #809, #810 and #811 are open drafts. Their classification belongs to
+  `N3W_T1_OTA_V1_2_PRE_ALIGNMENT_REPOSITORY_CONVERGENCE`, which starts separately.
+
+### 2026-11-06 — PR #788 clean successor: mandatory-USB HA OTA R4 source converged
 
 - The successor is based exactly on post-#797 main `a1f2b1e44eb02e4197b42818dafc1acfda9e26f6`.
 - Current authority remains `infra/n3w-t1/production/t1-core-stack-current.json` at product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.

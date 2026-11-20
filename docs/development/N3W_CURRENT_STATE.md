@@ -1,4 +1,26 @@
-## Latest authority — 2026-11-06 PR #788 clean successor: mandatory-USB HA OTA R4 source converged
+## Current T1 Core Stack authority
+
+### OTA product architecture — V1.2, 2026-11-20
+
+[T1 Core Stack OTA V1.2](N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.2_20261119.md) is the product design authority for OTA implementation and acceptance.
+The current executable OTA code and T1 runtime have yet to align with V1.2.
+
+```text
+CURRENT_T1_CORE_STACK_OTA_ARCHITECTURE=docs/development/N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.2_20261119.md
+ARCHITECTURE_VERSION=V1.2
+ARCHITECTURE_STATUS=PRODUCT_ARCHITECTURE_AUTHORITY
+IMPLEMENTATION_STATUS=NOT_YET_ALIGNED
+LIVE_RUNTIME_ALIGNED_TO_V1_2=false
+NEXT_ONE_GATE=N3W_T1_OTA_V1_2_PRE_ALIGNMENT_REPOSITORY_CONVERGENCE
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+PRs [#807](https://github.com/chrenguo-stack/HomeAssistant/pull/807), [#809](https://github.com/chrenguo-stack/HomeAssistant/pull/809), [#810](https://github.com/chrenguo-stack/HomeAssistant/pull/810)
+and [#811](https://github.com/chrenguo-stack/HomeAssistant/pull/811) remain open drafts for later classification.
+The earlier implementation and live-acceptance entries below remain historical evidence.
+Their execution routes and authorization records do not carry forward into V1.2.
+
+### Latest authority — 2026-11-06 PR #788 clean successor: mandatory-USB HA OTA R4 source converged
 
 ```text
 AUTHORITY_STATE=HA_USB_MANDATORY_OTA_R4_SUCCESSOR_SOURCE_CONVERGED
