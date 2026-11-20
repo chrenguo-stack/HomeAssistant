@@ -621,13 +621,6 @@ class U13BProductionRuntime:
         transaction: Mapping[str, Any],
         predecessor: ImageRecoveryRecord,
     ) -> U13BHealthEvidence:
-        runtime = self._running_predecessor_evidence(
-            transaction,
-            predecessor,
-        )
-        if runtime is None:
-            raise UpdaterV2Error("u13b_predecessor_runtime_not_running")
-
         try:
             self._wait_predecessor_health(
                 transaction=transaction,
