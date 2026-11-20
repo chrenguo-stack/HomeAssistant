@@ -288,6 +288,28 @@ def test_u13b_predecessor_health_waits_for_listener_convergence(monkeypatch):
     assert host.wait_services_calls == []
 
 
+def test_u13b_predecessor_health_waits_for_runtime_convergence(monkeypatch):
+    host = Host()
+    host.owner = "inactive"
+    host.binding = CURRENT
+    adapter = runtime(host)
+    sleeps = []
+
+    def converge(seconds):
+        sleeps.append(seconds)
+        host.owner = "active"
+
+    monkeypatch.setattr(host_mod.time, "sleep", converge)
+
+    evidence = adapter.verify_predecessor_health(
+        transaction=transaction(),
+        predecessor=image("predecessor", CURRENT),
+    )
+
+    assert evidence.predecessor_health_verified is True
+    assert sleeps == [2]
+
+
 def test_u13b_predecessor_health_rejects_binding_drift():
     host = Host()
     host.owner = "active"
