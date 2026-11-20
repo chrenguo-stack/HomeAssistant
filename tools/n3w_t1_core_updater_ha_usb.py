@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from typing import Any
+import time
+from collections.abc import Iterator
+from contextlib import contextmanager
+from typing import Any, Protocol
 
 from n3w_t1_core_updater_ha_backup import (
     HaDataBackupRecord,
@@ -18,7 +21,9 @@ from n3w_t1_core_updater_ha_usb_media import (
     require_same_filesystem_uuid,
 )
 from n3w_t1_core_updater_ha_usb_state import (
+    HA_USB_TERMINAL_STATUSES,
     PHASE_INDEX,
+    PRE_CUTOVER_RECOVERY_PHASES,
     U0,
     U1,
     U2,
@@ -34,6 +39,7 @@ from n3w_t1_core_updater_ha_usb_state import (
     U12,
     U13A,
     U13B,
+    HaUsbStateStore,
     transition,
     validate_transaction_document,
 )
@@ -42,6 +48,120 @@ from n3w_t1_core_updater_v2_common import (
     UpdaterV2Error,
     sha256_bytes,
 )
+
+
+class HaPredecessorRuntime(Protocol):
+    def capture_start_binding(self, transaction: dict[str, Any]) -> dict[str, Any]:
+        """Verify the running predecessor and bind its fixed local start configuration."""
+        ...
+
+    def quiesce_for_backup(self) -> None:
+        """Stop application writers and verify they are quiescent."""
+        ...
+
+    def start_predecessor_if_needed(self, binding: dict[str, Any]) -> None:
+        """Check the binding against the host, then start only missing services."""
+        ...
+
+    def verify_predecessor_health(self, binding: dict[str, Any]) -> None:
+        """Verify the old combination and its affected functions have recovered."""
+        ...
+
+
+class HaPredecessorRecovery:
+    """Host recovery point for interruptions before destructive HA cutover."""
+
+    def __init__(self, store: HaUsbStateStore, runtime: HaPredecessorRuntime):
+        self.store = store
+        self.runtime = runtime
+
+    @contextmanager
+    def quiesced_for_backup(
+        self, predecessor: ImageRecoveryRecord
+    ) -> Iterator[dict[str, Any]]:
+        """Keep the shared execution lock held while the caller backs up data."""
+        with self.store.lock():
+            current = self.store.read()
+            if (
+                current is None
+                or current["phase"] != U6
+                or current["status"] != "ACTIVE"
+                or "predecessor_start" in current
+                or current["recovery_required"]
+            ):
+                raise UpdaterV2Error("ha_usb_first_stop_not_admitted")
+            validate_image_recovery_record(
+                predecessor,
+                expected_kind="predecessor",
+                expected_image_ref=current["current_image_ref"],
+            )
+            source_identity = current["current_image_identity"].get(
+                "portable_identity_sha256"
+            )
+            if (
+                source_identity is not None
+                and predecessor.portable_identity_sha256 != source_identity
+            ):
+                raise UpdaterV2Error("ha_usb_predecessor_archive_identity_drift")
+
+            binding = self.runtime.capture_start_binding(current)
+            current = validate_transaction_document(
+                {
+                    **current,
+                    "predecessor_start": binding,
+                    "updated_at_unix": max(current["updated_at_unix"], int(time.time())),
+                }
+            )
+            self.store.write(current)
+            try:
+                self.runtime.quiesce_for_backup()
+                result = record_predecessor_recovery_and_ha_quiesced(
+                    current,
+                    predecessor=predecessor,
+                    ha_quiesced=True,
+                )
+                self.store.write(result)
+                yield result
+            except Exception:
+                latest = self.store.read()
+                if latest is not None and self._is_recoverable(latest):
+                    self._restore(latest)
+                raise
+
+    def recover(self) -> bool:
+        """Re-enter after an interruption, independently of USB and IPC."""
+        with self.store.lock():
+            current = self.store.read()
+            if current is None or not self._is_recoverable(current):
+                return False
+            self._restore(current)
+            return True
+
+    @staticmethod
+    def _is_recoverable(document: dict[str, Any]) -> bool:
+        return (
+            document["phase"] in PRE_CUTOVER_RECOVERY_PHASES
+            and document["status"] not in HA_USB_TERMINAL_STATUSES
+            and "predecessor_start" in document
+        )
+
+    def _restore(self, current: dict[str, Any]) -> None:
+        if not current["recovery_required"]:
+            current = {**current, "recovery_required": True}
+            self.store.write(current)
+        binding = current["predecessor_start"]
+        self.runtime.start_predecessor_if_needed(binding)
+        self.runtime.verify_predecessor_health(binding)
+        self.store.write(
+            {
+                **current,
+                "status": "ROLLED_BACK",
+                "recovery_required": False,
+                "pre_cutover_predecessor_restored": True,
+                "failure_code": "ha_usb_pre_cutover_interrupted",
+                "updated_at_unix": max(current["updated_at_unix"], int(time.time())),
+            }
+        )
 
 
 
@@ -205,8 +325,14 @@ def classify_power_loss_reentry(
     observed_usb_filesystem_uuid: str | None,
 ) -> str:
     current = validate_transaction_document(document)
-    if current["phase"] in {U13A, U13B}:
+    if current["status"] in HA_USB_TERMINAL_STATUSES:
         return "TERMINAL"
+
+    if (
+        current["phase"] in PRE_CUTOVER_RECOVERY_PHASES
+        and "predecessor_start" in current
+    ):
+        return "RESTORE_PREDECESSOR_BEFORE_CUTOVER"
 
     if PHASE_INDEX[current["phase"]] < PHASE_INDEX[U9]:
         return "PRE_U9_PREDECESSOR_AUTHORITY"

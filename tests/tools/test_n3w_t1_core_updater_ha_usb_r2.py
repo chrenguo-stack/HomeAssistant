@@ -19,11 +19,13 @@ from n3w_t1_core_updater_ha_backup import (
     HaDataBackupRecord,
     validate_backup_record,
 )
+from n3w_t1_core_updater_ha_ipc import HaUsbIpcExecutor
 from n3w_t1_core_updater_ha_recovery import (
     ImageRecoveryRecord,
     validate_image_recovery_record,
 )
 from n3w_t1_core_updater_ha_usb import (
+    HaPredecessorRecovery,
     claim_live_authorization,
     classify_power_loss_reentry,
     record_commit,
@@ -130,6 +132,156 @@ def transaction():
         target_archive_size=len(TARGET_BYTES),
         created_at_unix=1_800_100_000,
     )
+
+
+class InterruptedPower(BaseException):
+    pass
+
+
+class PredecessorRuntime:
+    def __init__(self, store):
+        self.store = store
+        self.running = {"manager", "homeassistant", "broker"}
+        self.stop_count = 0
+        self.start_count = 0
+        self.interrupt_stop = False
+        self.health_available = True
+        self.binding = {
+            "launch_sha256": "d" * 64,
+            "images": {
+                "manager": {
+                    "reference": "local/greenhouse-manager:old",
+                    "runtime_id": "sha256:" + "1" * 64,
+                },
+                "homeassistant": {"reference": CURRENT, "runtime_id": "sha256:" + "2" * 64},
+                "broker": {
+                    "reference": "local/n3w-mosquitto:old",
+                    "runtime_id": "sha256:" + "3" * 64,
+                },
+            },
+        }
+
+    def capture_start_binding(self, transaction):
+        assert self.running == {"manager", "homeassistant", "broker"}
+        return self.binding
+
+    def resolve_homeassistant_release(self, release_identity):
+        pytest.fail("read-only status must not resolve a candidate release")
+
+    def quiesce_for_backup(self):
+        assert self.store.read()["predecessor_start"] == self.binding
+        self.stop_count += 1
+        self.running.remove("manager")
+        if self.interrupt_stop:
+            raise InterruptedPower()
+        self.running.remove("homeassistant")
+
+    def start_predecessor_if_needed(self, binding):
+        assert binding == self.binding
+        assert self.store.read()["recovery_required"]
+        if self.running != {"manager", "homeassistant", "broker"}:
+            self.running |= {"manager", "homeassistant"}
+            self.start_count += 1
+
+    def verify_predecessor_health(self, binding):
+        assert binding == self.binding
+        assert self.running == {"manager", "homeassistant", "broker"}
+        if not self.health_available:
+            raise UpdaterV2Error("test_health_evidence_unavailable")
+
+
+def first_stop_fixture(tmp_path):
+    tx, media, docker, _ha, _target = prepare_to_u4(tmp_path)
+    tx = start_predecessor_recovery(request_install(tx))
+    predecessor = docker.verify_predecessor(media, docker.export_predecessor(media))
+    store = HaUsbStateStore(tmp_path / "state")
+    store.write(tx)
+    return predecessor, store, PredecessorRuntime(store)
+
+
+def test_first_stop_requires_successfully_persisted_restart_binding(tmp_path, monkeypatch):
+    predecessor, store, runtime = first_stop_fixture(tmp_path)
+
+    def failed_write(document):
+        raise OSError("test disk write failure")
+
+    monkeypatch.setattr(store, "write", failed_write)
+    with (
+        pytest.raises(OSError, match="disk write failure"),
+        HaPredecessorRecovery(store, runtime).quiesced_for_backup(predecessor),
+    ):
+        pytest.fail("backup must not run when the durable intent fails")
+
+    assert runtime.stop_count == 0
+    assert "predecessor_start" not in store.read()
+
+
+def test_partial_first_stop_can_restore_without_usb_and_never_restarts_twice(tmp_path):
+    predecessor, store, runtime = first_stop_fixture(tmp_path)
+    runtime.interrupt_stop = True
+    with (
+        pytest.raises(InterruptedPower),
+        HaPredecessorRecovery(store, runtime).quiesced_for_backup(predecessor),
+    ):
+        pytest.fail("backup must not run after interruption")
+
+    assert store.read()["phase"] == U6
+    assert runtime.running == {"homeassistant", "broker"}
+    shutil.rmtree(tmp_path / "synthetic-usb")
+    assert classify_power_loss_reentry(
+        store.read(), usb_present=False, observed_usb_filesystem_uuid=None
+    ) == "RESTORE_PREDECESSOR_BEFORE_CUTOVER"
+    reopened = HaUsbStateStore(store.root)
+    resumed = HaPredecessorRecovery(reopened, runtime)
+    runtime.health_available = False
+    with pytest.raises(UpdaterV2Error, match="health_evidence_unavailable"):
+        resumed.recover()
+    status = HaUsbIpcExecutor(store=reopened, admission_resolver=runtime)
+    before = reopened.path.read_bytes()
+    assert status.status()["phase"] == "RECOVERING"
+    assert reopened.path.read_bytes() == before
+    assert runtime.start_count == 1
+
+    runtime.health_available = True
+    assert resumed.recover() is True
+    assert status.status()["phase"] == "ROLLED_BACK"
+    assert reopened.read()["authorization_consumed"] is False
+    assert resumed.recover() is False
+    assert runtime.start_count == 1
+
+
+def test_recovery_at_u7_does_not_repeat_first_stop(tmp_path):
+    predecessor, store, runtime = first_stop_fixture(tmp_path)
+    recovery = HaPredecessorRecovery(store, runtime)
+    with recovery.quiesced_for_backup(predecessor) as transaction:
+        assert transaction["phase"] == U7
+        with pytest.raises(UpdaterV2Error, match="upgrade_transaction_busy"):
+            recovery.recover()
+    assert runtime.running == {"broker"}
+    with (
+        pytest.raises(UpdaterV2Error, match="ha_usb_first_stop_not_admitted"),
+        recovery.quiesced_for_backup(predecessor),
+    ):
+        pytest.fail("an attempted stop cannot be replayed")
+    assert recovery.recover() is True
+    assert runtime.stop_count == runtime.start_count == 1
+
+
+def test_backup_failure_restores_predecessor_under_the_same_lock(tmp_path):
+    predecessor, store, runtime = first_stop_fixture(tmp_path)
+    recovery = HaPredecessorRecovery(store, runtime)
+    with (
+        pytest.raises(UpdaterV2Error, match="backup_failed"),
+        recovery.quiesced_for_backup(predecessor),
+    ):
+        raise UpdaterV2Error("test_backup_failed")
+
+    restored = store.read()
+    assert restored["phase"] == U7
+    assert restored["status"] == "ROLLED_BACK"
+    assert restored["ha_data_backup_verified"] is False
+    assert restored["authorization_consumed"] is False
+    assert runtime.start_count == 1
 
 
 class SyntheticUsb:

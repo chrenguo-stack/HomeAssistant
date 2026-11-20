@@ -241,6 +241,20 @@ def test_status_is_read_only_and_requires_exact_release_binding() -> None:
     assert sink.intents == []
 
 
+def test_predecessor_recovery_blocks_new_ota_intents() -> None:
+    ota, runtime, sink = manager()
+    runtime.phase = "RECOVERING"
+
+    status = ota.project().status
+    assert status.ota_phase == "RECOVERING"
+    assert status.in_progress is True
+    assert ota.handle_control(payload("STATUS")).action == "STATUS"
+    for action in ("PREPARE", "INSTALL"):
+        with pytest.raises(OtaControlError, match="ota_transaction_in_progress"):
+            ota.handle_control(payload(action))
+    assert sink.intents == []
+
+
 @pytest.mark.parametrize(
     "field",
     (

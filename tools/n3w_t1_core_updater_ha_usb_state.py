@@ -9,11 +9,14 @@ import time
 from pathlib import Path
 from typing import Any
 
+from n3w_t1_core_updater_common import IMAGE_ID
 from n3w_t1_core_updater_ha_usb_media import (
     USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
     validate_filesystem_uuid,
 )
 from n3w_t1_core_updater_v2_common import (
+    COMPONENTS,
+    IMAGE_PREFIXES,
     SHA256,
     TERMINAL_TX_V2,
     UpdaterV2Error,
@@ -45,6 +48,7 @@ U11 = "U11_TARGET_INSTALLED_STARTED"
 U12 = "U12_TARGET_ACCEPTANCE"
 U13A = "U13A_COMMITTED"
 U13B = "U13B_ROLLED_BACK"
+PRE_CUTOVER_RECOVERY_PHASES = frozenset({U6, U7, U8})
 
 PHASES = (
     U0,
@@ -128,6 +132,31 @@ def _bool(value: Any, reason: str) -> bool:
 
 def _phase_at_or_after(phase: str, threshold: str) -> bool:
     return PHASE_INDEX[phase] >= PHASE_INDEX[threshold]
+
+
+def _validate_predecessor_start(document: dict[str, Any]) -> None:
+    binding = document["predecessor_start"]
+    if not isinstance(binding, dict) or set(binding) != {"launch_sha256", "images"}:
+        raise UpdaterV2Error("ha_usb_predecessor_start_binding_invalid")
+    digest = binding["launch_sha256"]
+    if not isinstance(digest, str) or SHA256.fullmatch(digest) is None:
+        raise UpdaterV2Error("ha_usb_predecessor_launch_identity_invalid")
+    images = binding["images"]
+    if not isinstance(images, dict) or set(images) != set(COMPONENTS):
+        raise UpdaterV2Error("ha_usb_predecessor_image_set_invalid")
+    for component, image in images.items():
+        if not isinstance(image, dict) or set(image) != {"reference", "runtime_id"}:
+            raise UpdaterV2Error("ha_usb_predecessor_image_binding_invalid")
+        reference, runtime_id = image["reference"], image["runtime_id"]
+        if (
+            not isinstance(reference, str)
+            or not reference.startswith(IMAGE_PREFIXES[component])
+            or not isinstance(runtime_id, str)
+            or IMAGE_ID.fullmatch(runtime_id) is None
+        ):
+            raise UpdaterV2Error("ha_usb_predecessor_image_binding_invalid")
+    if images["homeassistant"]["reference"] != document["current_image_ref"]:
+        raise UpdaterV2Error("ha_usb_predecessor_homeassistant_image_drift")
 
 
 def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
@@ -223,6 +252,20 @@ def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
         document.get("recovery_required"),
         "ha_usb_recovery_required_invalid",
     )
+    has_start_binding = "predecessor_start" in document
+    restored_before_cutover = document.get("pre_cutover_predecessor_restored", False)
+    _bool(restored_before_cutover, "ha_usb_pre_cutover_restoration_invalid")
+    if has_start_binding:
+        if not _phase_at_or_after(phase, U6):
+            raise UpdaterV2Error("ha_usb_predecessor_start_too_early")
+        _validate_predecessor_start(document)
+    if restored_before_cutover and (
+        not has_start_binding
+        or phase not in PRE_CUTOVER_RECOVERY_PHASES
+        or status != "ROLLED_BACK"
+        or recovery_required
+    ):
+        raise UpdaterV2Error("ha_usb_pre_cutover_restoration_invalid")
     failure_code = document.get("failure_code")
     if failure_code is not None and (
         not isinstance(failure_code, str)
@@ -293,7 +336,11 @@ def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
         raise UpdaterV2Error("ha_usb_commit_status_invalid")
     if phase == U13B and status != "ROLLED_BACK":
         raise UpdaterV2Error("ha_usb_rollback_status_invalid")
-    if phase not in {U13A, U13B} and status in HA_USB_TERMINAL_STATUSES:
+    if (
+        phase not in {U13A, U13B}
+        and status in HA_USB_TERMINAL_STATUSES
+        and not restored_before_cutover
+    ):
         raise UpdaterV2Error("ha_usb_terminal_status_phase_mismatch")
     if status == "FAILED_EMERGENCY" and recovery_required is not True:
         raise UpdaterV2Error("ha_usb_failed_emergency_without_recovery")
@@ -357,6 +404,12 @@ def transition(
     current_phase = current["phase"]
     if current["status"] != "ACTIVE":
         raise UpdaterV2Error("ha_usb_transaction_not_active")
+    if (
+        current_phase in PRE_CUTOVER_RECOVERY_PHASES
+        and "predecessor_start" in current
+        and current["recovery_required"]
+    ):
+        raise UpdaterV2Error("ha_usb_pre_cutover_recovery_in_progress")
     if next_phase not in _ALLOWED_TRANSITIONS[current_phase]:
         raise UpdaterV2Error("ha_usb_phase_transition_invalid")
 
@@ -364,7 +417,14 @@ def transition(
     result["phase"] = next_phase
     if updates:
         for key, value in updates.items():
-            if key in {"schema", "transaction_id_sha256", "component", "created_at_unix"}:
+            if key in {
+                "schema",
+                "transaction_id_sha256",
+                "component",
+                "created_at_unix",
+                "predecessor_start",
+                "pre_cutover_predecessor_restored",
+            }:
                 raise UpdaterV2Error("ha_usb_immutable_field_update_forbidden")
             result[key] = copy.deepcopy(value)
 

@@ -13,6 +13,7 @@ from typing import Any, Protocol
 
 from n3w_t1_core_updater_ha_usb import request_install, request_prepare
 from n3w_t1_core_updater_ha_usb_state import (
+    PRE_CUTOVER_RECOVERY_PHASES,
     U0,
     U1,
     U2,
@@ -139,6 +140,14 @@ class HaUsbIpcExecutor:
                 "progress_percent": None,
                 "error_code": None,
             }
+        if document.get("pre_cutover_predecessor_restored") is True:
+            return {"phase": "ROLLED_BACK", "progress_percent": None, "error_code": None}
+        if (
+            document["phase"] in PRE_CUTOVER_RECOVERY_PHASES
+            and "predecessor_start" in document
+            and document["recovery_required"]
+        ):
+            return {"phase": "RECOVERING", "progress_percent": None, "error_code": None}
         if document["status"] == "FAILED_EMERGENCY":
             failure = document.get("failure_code")
             code = (
