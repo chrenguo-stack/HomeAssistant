@@ -257,11 +257,27 @@ jobs:
           compression-level: 0
 
       - name: Re-download and verify Manager-only V2 package
-        uses: actions/download-artifact@v4
-        with:
-          artifact-ids: ${{ steps.upload.outputs.artifact-id }}
-          path: ${{ runner.temp }}/redownload
-          merge-multiple: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE_ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          PACKAGE_ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/manager-package.zip"
+          # The upload can finish before the exact ID is visible for download.
+          for attempt in 1 2; do
+            if gh api "/repos/$GITHUB_REPOSITORY/actions/artifacts/$PACKAGE_ARTIFACT_ID/zip" > "$archive"; then
+              printf '%s  %s\n' "$PACKAGE_ARTIFACT_DIGEST" "$archive" | sha256sum --check -
+              unzip -tq "$archive"
+              unzip -q "$archive" -d "$RUNNER_TEMP/redownload"
+              exit 0
+            fi
+            if [ "$attempt" -eq 1 ]; then
+              sleep 10
+            fi
+          done
+          printf 'Exact artifact %s could not be downloaded\n' "$PACKAGE_ARTIFACT_ID" >&2
+          exit 1
 
       - name: Close exact V2 package binding
         env:

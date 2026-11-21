@@ -173,6 +173,10 @@ class ComponentTarget:
             doc = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, UnicodeError, json.JSONDecodeError) as error:
             raise UpdaterV2Error("target_manifest_invalid") from error
+        return cls.from_document(doc)
+
+    @classmethod
+    def from_document(cls, doc: Any) -> "ComponentTarget":
         if not isinstance(doc, dict) or doc.get("schema") != TARGET_SCHEMA_V2:
             raise UpdaterV2Error("target_manifest_schema_invalid")
 

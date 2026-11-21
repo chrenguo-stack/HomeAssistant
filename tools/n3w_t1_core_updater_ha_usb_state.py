@@ -1,19 +1,32 @@
 from __future__ import annotations
 
 import copy
+import fcntl
 import json
 import os
 import stat
 import tempfile
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
+from n3w_t1_core_updater_common import IMAGE_ID
+from n3w_t1_core_updater_ha_acceptance import (
+    HA_ACCEPTANCE_ATTEMPTS, HA_ACCEPTANCE_RULE, MONITORING_METHODS, NATURAL_MONITORING_METHOD,
+    expected_target_images, valid_evidence_set,
+)
+from n3w_t1_core_updater_ha_backup import backup_record_from_document
+from n3w_t1_core_updater_ha_data_evidence import valid_data_sample
+from n3w_t1_core_updater_ha_recovery import ImageRecoveryRecord, validate_image_recovery_record
 from n3w_t1_core_updater_ha_usb_media import (
     USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
     validate_filesystem_uuid,
 )
 from n3w_t1_core_updater_v2_common import (
+    COMPONENTS,
+    IMAGE_PREFIXES,
     SHA256,
     TERMINAL_TX_V2,
     UpdaterV2Error,
@@ -21,6 +34,7 @@ from n3w_t1_core_updater_v2_common import (
     sha256_bytes,
 )
 from n3w_t1_core_updater_v2_state import STATE_ROOT_V2, V2StateStore
+from n3w_t1_portable_image_identity import PortableImageIdentityError, identity_from_dict
 
 
 HA_USB_TX_SCHEMA = "gh.n3w-t1-core-updater-homeassistant-usb-transaction/1"
@@ -45,6 +59,10 @@ U11 = "U11_TARGET_INSTALLED_STARTED"
 U12 = "U12_TARGET_ACCEPTANCE"
 U13A = "U13A_COMMITTED"
 U13B = "U13B_ROLLED_BACK"
+PRE_CUTOVER_RECOVERY_PHASES = frozenset({U6, U7, U8})
+HA_DATA_RESTORE_PHASES = frozenset({U10, U11, U12})
+TARGET_BINDING = "BINDING"
+TARGET_WRITES_POSSIBLE = "WRITES_POSSIBLE"
 
 PHASES = (
     U0,
@@ -70,8 +88,8 @@ _ALLOWED_TRANSITIONS = {
     U2: frozenset({U3}),
     U3: frozenset({U4}),
     U4: frozenset({U5}),
-    U5: frozenset({U6}),
-    U6: frozenset({U7}),
+    U5: frozenset({U4, U6}),
+    U6: frozenset({U4, U7}),
     U7: frozenset({U8}),
     U8: frozenset({U9}),
     U9: frozenset({U10, U13B}),
@@ -130,6 +148,170 @@ def _phase_at_or_after(phase: str, threshold: str) -> bool:
     return PHASE_INDEX[phase] >= PHASE_INDEX[threshold]
 
 
+def _validate_predecessor_start(document: dict[str, Any]) -> None:
+    binding = document["predecessor_start"]
+    if not isinstance(binding, dict) or set(binding) != {"launch_sha256", "images"}:
+        raise UpdaterV2Error("ha_usb_predecessor_start_binding_invalid")
+    digest = binding["launch_sha256"]
+    if not isinstance(digest, str) or SHA256.fullmatch(digest) is None:
+        raise UpdaterV2Error("ha_usb_predecessor_launch_identity_invalid")
+    images = binding["images"]
+    if not isinstance(images, dict) or set(images) != set(COMPONENTS):
+        raise UpdaterV2Error("ha_usb_predecessor_image_set_invalid")
+    for component, image in images.items():
+        if not isinstance(image, dict) or set(image) != {"reference", "runtime_id"}:
+            raise UpdaterV2Error("ha_usb_predecessor_image_binding_invalid")
+        reference, runtime_id = image["reference"], image["runtime_id"]
+        if (
+            not isinstance(reference, str)
+            or not reference.startswith(IMAGE_PREFIXES[component])
+            or not isinstance(runtime_id, str)
+            or IMAGE_ID.fullmatch(runtime_id) is None
+        ):
+            raise UpdaterV2Error("ha_usb_predecessor_image_binding_invalid")
+    if images["homeassistant"]["reference"] != document["current_image_ref"]:
+        raise UpdaterV2Error("ha_usb_predecessor_homeassistant_image_drift")
+
+
+def _validated_image_materials(
+    document: dict[str, Any], materials: dict[str, Any]
+) -> tuple[ImageRecoveryRecord, ImageRecoveryRecord]:
+    try:
+        target = ImageRecoveryRecord(**materials["target"])
+        predecessor = ImageRecoveryRecord(**materials["predecessor"])
+    except TypeError as error:
+        raise UpdaterV2Error("ha_usb_install_recovery_materials_invalid") from error
+    validate_image_recovery_record(
+        target, expected_kind="target",
+        expected_image_ref=document["target_image_ref"],
+        expected_archive_sha256=document["target_archive_sha256"],
+    )
+    validate_image_recovery_record(
+        predecessor, expected_kind="predecessor",
+        expected_image_ref=document["current_image_ref"],
+    )
+    if target.archive_size_bytes != document["target_archive_size"]:
+        raise UpdaterV2Error("ha_usb_install_target_size_drift")
+    return target, predecessor
+
+
+def prepared_image_materials(
+    document: dict[str, Any],
+) -> tuple[ImageRecoveryRecord, ImageRecoveryRecord]:
+    materials = document.get("prepared_image_materials")
+    if not isinstance(materials, dict) or set(materials) != {"target", "predecessor"}:
+        raise UpdaterV2Error("ha_usb_prepared_image_materials_invalid")
+    target, predecessor = _validated_image_materials(document, materials)
+    if document["current_image_identity"].get(
+        "portable_identity_sha256"
+    ) != predecessor.portable_identity_sha256:
+        raise UpdaterV2Error("ha_usb_predecessor_archive_identity_drift")
+    return target, predecessor
+
+
+def _validate_recovery_materials(document: dict[str, Any]) -> None:
+    materials = document.get("install_recovery_materials")
+    if not isinstance(materials, dict) or set(materials) != {"target", "predecessor", "backup"}:
+        raise UpdaterV2Error("ha_usb_install_recovery_materials_invalid")
+    records = _validated_image_materials(document, materials)
+    if document.get("usb_binding_mode") == "existing_filesystem" and (
+        records != prepared_image_materials(document)
+    ):
+        raise UpdaterV2Error("ha_usb_install_recovery_material_identity_drift")
+    backup_record_from_document(materials["backup"])
+
+
+def _validate_bound_load_identity(value: Any, record: ImageRecoveryRecord, reason: str) -> None:
+    try:
+        identity = identity_from_dict(value)
+    except (PortableImageIdentityError, TypeError) as error:
+        raise UpdaterV2Error(reason) from error
+    if (
+        (identity.os, identity.architecture) != ("linux", "arm64")
+        or sha256_bytes(canonical(identity.to_dict())) != record.portable_identity_sha256
+        or identity.archive_sha256 != record.archive_sha256
+        or identity.archive_size_bytes != record.archive_size_bytes
+    ):
+        raise UpdaterV2Error(reason)
+
+
+def _validate_data_restore(document: dict[str, Any]) -> None:
+    journal = document["ha_data_restore"]
+    reason = "ha_usb_data_restore_journal_invalid"
+    if (
+        document.get("usb_binding_mode") != "existing_filesystem"
+        or "predecessor_start" not in document
+        or not isinstance(journal, dict)
+        or journal.get("step") not in ("STAGING", "EXCHANGE_PENDING", "PUBLISHED")
+    ):
+        raise UpdaterV2Error(reason)
+    step = journal["step"]
+    expected = {"step", "filesystem_id", "original_inode"}
+    if step != "STAGING":
+        expected.add("staged_inode")
+    if step == "PUBLISHED" and "predecessor_load_identity" in journal:
+        expected.add("predecessor_load_identity")
+        _, predecessor = prepared_image_materials(document)
+        _validate_bound_load_identity(journal["predecessor_load_identity"], predecessor, reason)
+    if set(journal) != expected or type(journal["filesystem_id"]) is not int:
+        raise UpdaterV2Error(reason)
+    original = _positive_int(journal["original_inode"], reason)
+    if step != "STAGING" and _positive_int(journal["staged_inode"], reason) == original:
+        raise UpdaterV2Error(reason)
+    if document["phase"] == U13B and step == "PUBLISHED" and document["recovery_required"] is False:
+        return
+    if document["phase"] not in HA_DATA_RESTORE_PHASES or document["recovery_required"] is not True:
+        raise UpdaterV2Error(reason)
+
+
+def _validate_target_acceptance(document: dict[str, Any]) -> None:
+    state = document["target_acceptance"]
+    phase = document["phase"]
+    reason = "ha_usb_target_acceptance_invalid"
+    fields = {"rule", "baseline", "attempts", "receipt", "data_sample", "monitoring_method", "monitoring_fallback_sha256"}
+    if (
+        not isinstance(state, dict) or set(state) - fields
+        or state.get("rule") != HA_ACCEPTANCE_RULE or not valid_evidence_set(state.get("baseline"))
+        or type(state.get("attempts")) is not int or not 0 <= state["attempts"] <= HA_ACCEPTANCE_ATTEMPTS
+        or not _phase_at_or_after(phase, U6)
+        or (state["attempts"] > 0 and not _phase_at_or_after(phase, U11))
+    ):
+        raise UpdaterV2Error(reason)
+    if "monitoring_method" in state and (
+        state["monitoring_method"] not in MONITORING_METHODS or "data_sample" not in state
+    ):
+        raise UpdaterV2Error(reason)
+    if "monitoring_fallback_sha256" in state and (
+        state.get("monitoring_method") != NATURAL_MONITORING_METHOD
+        or not isinstance(state["monitoring_fallback_sha256"], str)
+        or SHA256.fullmatch(state["monitoring_fallback_sha256"]) is None
+    ):
+        raise UpdaterV2Error(reason)
+    if "data_sample" in state and (
+        not valid_data_sample(state["data_sample"])
+        or state["baseline"]["protected_data"] != sha256_bytes(canonical(state["data_sample"]))
+    ):
+        raise UpdaterV2Error(reason)
+    if "receipt" in state:
+        receipt = state["receipt"]
+        if (
+            phase not in {U12, U13A, U13B} or state["attempts"] == 0
+            or document.get("target_activation") != TARGET_WRITES_POSSIBLE
+            or "predecessor_start" not in document or "target_loaded_image_id" not in document
+            or not isinstance(receipt, dict) or set(receipt) != {"runtime_sha256", "images", "observations"}
+            or not isinstance(receipt["runtime_sha256"], str) or not SHA256.fullmatch(receipt["runtime_sha256"])
+            or receipt["images"] != expected_target_images(document)
+            or not valid_evidence_set(receipt["observations"])
+            or (
+                "data_sample" in state
+                and receipt["observations"]["protected_data"] != state["baseline"]["protected_data"]
+            )
+        ):
+            raise UpdaterV2Error(reason)
+    elif phase in {U12, U13A}:
+        raise UpdaterV2Error(reason)
+
+
 def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(document, dict) or document.get("schema") != HA_USB_TX_SCHEMA:
         raise UpdaterV2Error("ha_usb_transaction_schema_invalid")
@@ -168,6 +350,11 @@ def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
         value = document.get(key)
         if not isinstance(value, dict) or not value:
             raise UpdaterV2Error(f"ha_usb_{key}_invalid")
+    manifest = document["target_manifest_identity"]
+    if "predecessor_binding_sha256" in manifest:
+        binding_sha = manifest["predecessor_binding_sha256"]
+        if not isinstance(binding_sha, str) or SHA256.fullmatch(binding_sha) is None:
+            raise UpdaterV2Error("ha_usb_signed_predecessor_binding_invalid")
 
     target_sha = document.get("target_archive_sha256")
     if not isinstance(target_sha, str) or SHA256.fullmatch(target_sha) is None:
@@ -223,6 +410,22 @@ def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
         document.get("recovery_required"),
         "ha_usb_recovery_required_invalid",
     )
+    has_start_binding = "predecessor_start" in document
+    restored_before_cutover = document.get("pre_cutover_predecessor_restored", False)
+    _bool(restored_before_cutover, "ha_usb_pre_cutover_restoration_invalid")
+    if has_start_binding:
+        if not _phase_at_or_after(phase, U6):
+            raise UpdaterV2Error("ha_usb_predecessor_start_too_early")
+        _validate_predecessor_start(document)
+        if _phase_at_or_after(phase, U8):
+            _validate_recovery_materials(document)
+    if restored_before_cutover and (
+        not has_start_binding
+        or phase not in PRE_CUTOVER_RECOVERY_PHASES
+        or status != "ROLLED_BACK"
+        or recovery_required
+    ):
+        raise UpdaterV2Error("ha_usb_pre_cutover_restoration_invalid")
     failure_code = document.get("failure_code")
     if failure_code is not None and (
         not isinstance(failure_code, str)
@@ -269,6 +472,11 @@ def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
 
     if _phase_at_or_after(phase, U4) and target_verified is not True:
         raise UpdaterV2Error("ha_usb_target_not_verified")
+    if "usb_binding_mode" in document:
+        if document["usb_binding_mode"] != "existing_filesystem" or not _phase_at_or_after(phase, U2):
+            raise UpdaterV2Error("ha_usb_binding_mode_invalid")
+        if _phase_at_or_after(phase, U4):
+            prepared_image_materials(document)
     if _phase_at_or_after(phase, U7) and predecessor_verified is not True:
         raise UpdaterV2Error("ha_usb_predecessor_not_verified")
     if _phase_at_or_after(phase, U8):
@@ -293,10 +501,73 @@ def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
         raise UpdaterV2Error("ha_usb_commit_status_invalid")
     if phase == U13B and status != "ROLLED_BACK":
         raise UpdaterV2Error("ha_usb_rollback_status_invalid")
-    if phase not in {U13A, U13B} and status in HA_USB_TERMINAL_STATUSES:
+    if (
+        phase not in {U13A, U13B}
+        and status in HA_USB_TERMINAL_STATUSES
+        and not restored_before_cutover
+    ):
         raise UpdaterV2Error("ha_usb_terminal_status_phase_mismatch")
     if status == "FAILED_EMERGENCY" and recovery_required is not True:
         raise UpdaterV2Error("ha_usb_failed_emergency_without_recovery")
+    if "ha_data_restore" in document:
+        _validate_data_restore(document)
+    if "predecessor_release_admission" in document:
+        admission = document["predecessor_release_admission"]
+        fields = {"internal_available_bytes", "install_required_bytes", "recovery_required_bytes"}
+        reason = "ha_usb_predecessor_release_admission_invalid"
+        if (
+            not _phase_at_or_after(phase, U9) or document.get("usb_binding_mode") != "existing_filesystem"
+            or not isinstance(admission, dict) or set(admission) != fields
+        ):
+            raise UpdaterV2Error(reason)
+        available = _positive_int(admission["internal_available_bytes"], reason)
+        if any(available < _positive_int(admission[key], reason) for key in fields - {"internal_available_bytes"}):
+            raise UpdaterV2Error(reason)
+    if "predecessor_release_intent" in document:
+        intent = document["predecessor_release_intent"]
+        if (
+            "predecessor_release_admission" not in document or "predecessor_start" not in document
+            or not isinstance(intent, dict) or set(intent) != {"container_id"}
+        ):
+            raise UpdaterV2Error("ha_usb_predecessor_release_intent_invalid")
+        container = intent["container_id"]
+        if container is not None and (not isinstance(container, str) or SHA256.fullmatch(container) is None):
+            raise UpdaterV2Error("ha_usb_predecessor_release_container_invalid")
+        if phase in {U10, U11, U12, U13A} and document.get("predecessor_release_observed") is not True:
+            raise UpdaterV2Error("ha_usb_predecessor_release_not_observed")
+    if "predecessor_release_observed" in document and (
+        "predecessor_release_intent" not in document or not _phase_at_or_after(phase, U10)
+        or document["predecessor_release_observed"] is not True
+    ):
+        raise UpdaterV2Error("ha_usb_predecessor_release_observation_invalid")
+    if "target_load_identity" in document or "predecessor_reload_identity" in document:
+        reason = "ha_usb_image_load_intent_invalid"
+        if document.get("predecessor_release_observed") is not True:
+            raise UpdaterV2Error(reason)
+        target, predecessor = prepared_image_materials(document)
+        if "target_load_identity" in document:
+            _validate_bound_load_identity(document["target_load_identity"], target, reason)
+        if "predecessor_reload_identity" in document:
+            if phase not in {U10, U13B} or "ha_data_restore" in document or (phase == U10 and not recovery_required):
+                raise UpdaterV2Error(reason)
+            _validate_bound_load_identity(document["predecessor_reload_identity"], predecessor, reason)
+    if "target_loaded_image_id" in document:
+        loaded = document["target_loaded_image_id"]
+        if "target_load_identity" not in document or not isinstance(loaded, str) or IMAGE_ID.fullmatch(loaded) is None:
+            raise UpdaterV2Error("ha_usb_target_loaded_image_invalid")
+    if "target_activation" in document:
+        activation = document["target_activation"]
+        if (
+            activation not in (TARGET_BINDING, TARGET_WRITES_POSSIBLE)
+            or "target_loaded_image_id" not in document
+            or phase not in {U10, U11, U12, U13A, U13B}
+            or (activation == TARGET_BINDING and (phase not in {U10, U13B} or "ha_data_restore" in document))
+            or (activation == TARGET_WRITES_POSSIBLE and "predecessor_reload_identity" in document)
+            or (activation == TARGET_WRITES_POSSIBLE and phase == U13B and "ha_data_restore" not in document)
+        ):
+            raise UpdaterV2Error("ha_usb_target_activation_state_invalid")
+    if "target_acceptance" in document:
+        _validate_target_acceptance(document)
     return copy.deepcopy(document)
 
 
@@ -357,14 +628,67 @@ def transition(
     current_phase = current["phase"]
     if current["status"] != "ACTIVE":
         raise UpdaterV2Error("ha_usb_transaction_not_active")
+    if (
+        current_phase in PRE_CUTOVER_RECOVERY_PHASES
+        and "predecessor_start" in current
+        and current["recovery_required"]
+    ):
+        raise UpdaterV2Error("ha_usb_pre_cutover_recovery_in_progress")
     if next_phase not in _ALLOWED_TRANSITIONS[current_phase]:
         raise UpdaterV2Error("ha_usb_phase_transition_invalid")
+    if "ha_data_restore" in current and next_phase != U13B:
+        raise UpdaterV2Error("ha_usb_data_restore_in_progress")
+    if (
+        "predecessor_release_intent" in current and next_phase in {U11, U12, U13A}
+        and current.get("target_activation") != TARGET_WRITES_POSSIBLE
+    ):
+        raise UpdaterV2Error("ha_usb_target_write_intent_missing")
+    if "predecessor_release_intent" in current and next_phase in {U12, U13A}:
+        acceptance = (updates or {}).get("target_acceptance", current.get("target_acceptance"))
+        if not isinstance(acceptance, dict) or "receipt" not in acceptance:
+            raise UpdaterV2Error("ha_usb_target_acceptance_receipt_required")
+    if current.get("usb_binding_mode") == "existing_filesystem":
+        if next_phase == U9 and "predecessor_release_admission" not in (updates or {}):
+            raise UpdaterV2Error("ha_usb_predecessor_release_admission_missing")
+        if current_phase == U9 and next_phase == U10 and "predecessor_release_admission" not in current:
+            raise UpdaterV2Error("ha_usb_predecessor_release_admission_missing")
+    if next_phase == U4 and current_phase in {U5, U6} and "predecessor_start" in current:
+        raise UpdaterV2Error("ha_usb_install_cannot_defer_after_first_stop")
 
     result = copy.deepcopy(current)
     result["phase"] = next_phase
+    if next_phase == U4:
+        result.pop("target_acceptance", None)
     if updates:
         for key, value in updates.items():
-            if key in {"schema", "transaction_id_sha256", "component", "created_at_unix"}:
+            if key in {
+                "schema",
+                "transaction_id_sha256",
+                "component",
+                "created_at_unix",
+                "predecessor_start",
+                "pre_cutover_predecessor_restored",
+                "ha_data_restore",
+                "target_load_identity",
+                "target_loaded_image_id",
+                "target_activation",
+                "predecessor_reload_identity",
+            }:
+                raise UpdaterV2Error("ha_usb_immutable_field_update_forbidden")
+            if key == "install_recovery_materials" and next_phase != U8:
+                raise UpdaterV2Error("ha_usb_immutable_field_update_forbidden")
+            if key == "prepared_image_materials" and not (current_phase == U3 and next_phase == U4):
+                raise UpdaterV2Error("ha_usb_immutable_field_update_forbidden")
+            if key == "usb_binding_mode" and next_phase != U2:
+                raise UpdaterV2Error("ha_usb_immutable_field_update_forbidden")
+            if key in {"predecessor_release_admission", "predecessor_release_intent"} and next_phase != U9:
+                raise UpdaterV2Error("ha_usb_immutable_field_update_forbidden")
+            if key == "predecessor_release_observed" and next_phase != U10:
+                raise UpdaterV2Error("ha_usb_immutable_field_update_forbidden")
+            if key == "target_acceptance" and (
+                current_phase != U11 or next_phase != U12 or not isinstance(value, dict)
+                or {k: v for k, v in value.items() if k != "receipt"} != current.get(key)
+            ):
                 raise UpdaterV2Error("ha_usb_immutable_field_update_forbidden")
             result[key] = copy.deepcopy(value)
 
@@ -406,6 +730,43 @@ class HaUsbStateStore:
     def lock(self):
         return V2StateStore(self.root).lock()
 
+    @contextmanager
+    def _activation_descriptor(self, path: Path, flags: int) -> Iterator[int]:
+        # The private inode is stable across transaction record replacements.
+        descriptor = os.open(path, flags | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+        try:
+            metadata = os.fstat(descriptor)
+            if not stat.S_ISREG(metadata.st_mode) or stat.S_IMODE(metadata.st_mode) != 0o600 or metadata.st_uid != os.getuid():
+                raise UpdaterV2Error("ha_usb_target_start_permit_invalid")
+            yield descriptor
+        finally:
+            os.close(descriptor)
+
+    @contextmanager
+    def allow_target_start(self, transaction_id: str) -> Iterator[None]:
+        path = self.root / f".ha-target-start-{transaction_id}"
+        with self._activation_descriptor(path, os.O_RDWR | os.O_CREAT) as descriptor:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            try:
+                yield
+            finally:
+                path.unlink(missing_ok=True)
+
+    def take_target_start_permit(self, transaction_id: str) -> bool:
+        # Process exit and reboot release the permit without replaying a pending start.
+        path = self.root / f".ha-target-start-{transaction_id}"
+        try:
+            with self._activation_descriptor(path, os.O_RDONLY) as descriptor:
+                try:
+                    fcntl.flock(descriptor, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    # Only one systemd start condition may use this live permit.
+                    path.unlink()
+                    return True
+        except FileNotFoundError:
+            pass
+        return False
+
     def _validate_private_dir(self, path: Path) -> None:
         if path.is_symlink() or not path.is_dir():
             raise UpdaterV2Error("transaction_directory_invalid")
@@ -439,30 +800,50 @@ class HaUsbStateStore:
     def read(self) -> dict[str, Any] | None:
         if not self._existing_root() or not self.path.exists():
             return None
-        if self.path.is_symlink() or not self.path.is_file():
+        return self._read_record(self.path)
+
+    @staticmethod
+    def _read_record(path: Path) -> dict[str, Any]:
+        if path.is_symlink() or not path.is_file():
             raise UpdaterV2Error("ha_usb_transaction_invalid")
-        metadata = self.path.stat()
+        metadata = path.stat()
         if stat.S_IMODE(metadata.st_mode) != 0o600:
             raise UpdaterV2Error("ha_usb_transaction_metadata_invalid")
         if metadata.st_uid != os.getuid():
             raise UpdaterV2Error("ha_usb_transaction_owner_invalid")
         try:
-            document = json.loads(self.path.read_text(encoding="utf-8"))
+            document = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, UnicodeError, json.JSONDecodeError) as error:
             raise UpdaterV2Error("ha_usb_transaction_invalid") from error
         return validate_transaction_document(document)
 
-    def _archive_current(self, document: dict[str, Any]) -> None:
+    def was_authorization_consumed(self, authorization_sha256: str) -> bool:
+        if not self.history.exists() and not self.history.is_symlink():
+            return False
+        self._validate_private_dir(self.history)
+        for path in self.history.glob("*-homeassistant-usb-*.json"):
+            recorded = self._read_record(path)
+            if recorded["authorization_consumed"] and recorded["authorization_id_sha256"] == authorization_sha256:
+                return True
+        return False
+
+    def _archive_current(self, document: dict[str, Any], *, retain_current: bool) -> None:
         self._ensure_history()
         digest = sha256_bytes(canonical(document))[:16]
-        destination = (
-            self.history
-            / f"{int(time.time())}-homeassistant-usb-{digest}.json"
-        )
-        if destination.exists() or destination.is_symlink():
-            raise UpdaterV2Error("transaction_history_collision")
-        os.replace(self.path, destination)
-        os.chmod(destination, 0o600)
+        timestamp = document["updated_at_unix"] if retain_current else int(time.time())
+        destination = self.history / f"{timestamp}-homeassistant-usb-{digest}.json"
+        if retain_current:
+            # Keep a readable terminal record until the next transaction is durable.
+            try:
+                os.link(self.path, destination)
+            except FileExistsError:
+                if self._read_record(destination) != document:
+                    raise UpdaterV2Error("transaction_history_collision")
+        else:
+            if destination.exists() or destination.is_symlink():
+                raise UpdaterV2Error("transaction_history_collision")
+            os.replace(self.path, destination)
+            os.chmod(destination, 0o600)
         for path in (self.history, self.root):
             descriptor = os.open(
                 path,
@@ -473,7 +854,7 @@ class HaUsbStateStore:
             finally:
                 os.close(descriptor)
 
-    def prepare_new(self) -> None:
+    def prepare_new(self, *, replacement: dict[str, Any] | None = None) -> None:
         self._ensure_root()
         generic = V2StateStore(self.root)
         current_generic = generic.read()
@@ -492,8 +873,14 @@ class HaUsbStateStore:
         current = self.read()
         if current is not None and current["status"] not in HA_USB_TERMINAL_STATUSES:
             raise UpdaterV2Error("ha_usb_transaction_active")
+        if replacement is not None:
+            replacement = validate_transaction_document(replacement)
+            if replacement["phase"] not in {U0, U1}:
+                raise UpdaterV2Error("ha_usb_replacement_phase_invalid")
         if current is not None:
-            self._archive_current(current)
+            self._archive_current(current, retain_current=replacement is not None)
+        if replacement is not None:
+            self.write(replacement)
 
     def write(self, document: dict[str, Any]) -> None:
         validated = validate_transaction_document(document)

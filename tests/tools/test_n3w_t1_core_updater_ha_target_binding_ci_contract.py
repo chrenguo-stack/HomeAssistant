@@ -48,3 +48,13 @@ def test_target_binding_workflow_keeps_no_live_execution_path() -> None:
     assert "timeout-minutes:" in text
     assert "concurrency:" in text
     assert "cancel-in-progress:" in text
+
+
+def test_exact_binding_checks_the_frozen_archive_through_signed_staging() -> None:
+    text = WORKFLOW.read_text(encoding="utf-8")
+    exact_job = text.split("  exact-binding:\n", 1)[1]
+    assert exact_job.index("Download frozen exact HA artifact") < exact_job.index(
+        "Validate signed distribution with the frozen HA archive"
+    )
+    assert 'test -s "$N3W_T1_HA_EXACT_ARTIFACT_DIR/homeassistant-arm64.tar.gz"' in exact_job
+    assert "test_n3w_t1_core_updater_signed_release.py::test_signed_distribution_stages_frozen_ha_archive" in exact_job

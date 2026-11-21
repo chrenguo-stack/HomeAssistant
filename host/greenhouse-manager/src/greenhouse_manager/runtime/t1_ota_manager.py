@@ -28,8 +28,10 @@ _IDLE_PHASES = {
     "ERROR",
 }
 _IN_PROGRESS_PHASES = {
+    "RECOVERING",
     "PREPARE_REQUESTED",
     "USB_QUALIFIED_FORMATTED_BOUND",
+    "USB_QUALIFIED_BOUND",
     "TARGET_DOWNLOADING_VERIFYING",
     "INSTALL_REQUESTED_REVALIDATING",
     "PREDECESSOR_RECOVERY_PREPARING",
@@ -83,6 +85,7 @@ class OtaRuntimeSnapshot:
     phase: str = "DISCOVERED"
     progress_percent: int | None = None
     error_code: str | None = None
+    installed_version: str | None = None
 
     def validate(self) -> OtaRuntimeSnapshot:
         if self.phase not in _ALLOWED_PHASES:
@@ -94,6 +97,8 @@ class OtaRuntimeSnapshot:
             raise OtaControlError("ota_runtime_progress_invalid")
         if self.error_code is not None:
             _require_public_error_code(self.error_code)
+        if self.installed_version is not None:
+            _stable_version(self.installed_version, code="ota_runtime_installed_version_invalid")
         return self
 
 
@@ -418,43 +423,42 @@ class T1OtaManager:
     def _status(
         self,
         *,
-        manifest: ApprovedManifest,
+        manifest: ApprovedManifest | None,
         runtime: OtaRuntimeSnapshot,
     ) -> OtaStatus:
-        available = compare_versions(manifest.version, self.installed_version) > 0
+        installed = runtime.installed_version or self.installed_version
+        latest = manifest.version if manifest else installed
         return OtaStatus(
-            installed_version=self.installed_version,
-            latest_approved_version=manifest.version,
-            update_available=available,
+            installed_version=installed,
+            latest_approved_version=latest,
+            update_available=compare_versions(latest, installed) > 0,
             ota_phase=runtime.phase,
             progress_percent_or_null=runtime.progress_percent,
-            ready_to_install=runtime.phase == "READY_TO_INSTALL",
+            ready_to_install=manifest is not None and runtime.phase == "READY_TO_INSTALL",
             in_progress=runtime.phase in _IN_PROGRESS_PHASES,
             error_code_or_null=runtime.error_code,
         )
 
     def project(self) -> OtaProjection:
         try:
-            manifest = self._manifest()
             runtime = self._runtime()
-            return OtaProjection(
-                manifest=manifest,
-                status=self._status(manifest=manifest, runtime=runtime),
-            )
         except OtaControlError as error:
             return OtaProjection(
                 manifest=None,
-                status=OtaStatus(
-                    installed_version=self.installed_version,
-                    latest_approved_version=self.installed_version,
-                    update_available=False,
-                    ota_phase="ERROR",
-                    progress_percent_or_null=None,
-                    ready_to_install=False,
-                    in_progress=False,
-                    error_code_or_null=error.code,
+                status=self._status(
+                    manifest=None,
+                    runtime=OtaRuntimeSnapshot(phase="ERROR", error_code=error.code),
                 ),
             )
+        try:
+            manifest = self._manifest()
+        except OtaControlError as error:
+            manifest = None
+            if runtime.phase == "DISCOVERED":
+                runtime = OtaRuntimeSnapshot(
+                    phase="ERROR", error_code=error.code, installed_version=runtime.installed_version,
+                )
+        return OtaProjection(manifest=manifest, status=self._status(manifest=manifest, runtime=runtime))
 
     def handle_control(
         self,

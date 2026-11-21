@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import re
+import stat
 import threading
 import time
+from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -37,6 +41,8 @@ from .topics import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+_OTA_SELF_TEST_REQUEST = Path("/dev/shm/n3w-ota-monitoring-request.json")
+_OTA_SELF_TEST_MAX_AGE_NS = 12_000_000_000
 
 
 def _payload_bytes(payload: dict[str, Any] | bytes | str) -> bytes:
@@ -200,6 +206,53 @@ class ManagerMqttService:
         if publish_failed:
             with self._lifecycle_lock:
                 self.discovery.clear_node_cache(node_id)
+
+    def _publish_ota_monitoring_self_test(self) -> None:
+        if self.ota_manager is None or not self.client.is_connected():
+            return
+        # Claim the one-slot request before reading so a new request cannot be
+        # removed while the current one is being handled.
+        claimed = _OTA_SELF_TEST_REQUEST.with_suffix(".claimed")
+        try:
+            _OTA_SELF_TEST_REQUEST.replace(claimed)
+        except OSError:
+            return
+        try:
+            fd = os.open(claimed, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            with os.fdopen(fd, "rb") as stream:
+                info = os.fstat(stream.fileno())
+                if (
+                    not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o600
+                    or info.st_uid != os.geteuid()
+                ):
+                    return
+                raw = stream.read(257)
+            if len(raw) > 256:
+                return
+            request = json.loads(raw)
+            if not isinstance(request, dict) or set(request) != {"challenge", "requested_ns"}:
+                return
+            challenge, requested = request["challenge"], request["requested_ns"]
+            if (
+                not isinstance(challenge, str) or not re.fullmatch(r"[0-9a-f]{32}", challenge)
+                or type(requested) is not int
+                or not 0 <= time.monotonic_ns() - requested <= _OTA_SELF_TEST_MAX_AGE_NS
+            ):
+                return
+        except (OSError, ValueError, RecursionError):
+            return
+        finally:
+            with suppress(OSError):
+                claimed.unlink(missing_ok=True)
+
+        # Use the normal authenticated publisher. Keep maintenance frames away
+        # from sensor topics, discovery, replay cursors and Recorder state.
+        self._publish(PublishMessage(
+            topic=f"gh/v1/{self.settings.system_id}/state/ota-monitoring/self-test",
+            payload={"schema": "gh.ota-monitoring-self-test/1", "challenge": challenge},
+            qos=0,
+            retain=False,
+        ))
 
     def _publish_ota_surface(self) -> None:
         if self.ota_manager is None or self.ha_update is None:
@@ -598,6 +651,7 @@ class ManagerMqttService:
                     expired = self.pairing_processor.expire_pending()
                     if expired:
                         _LOGGER.info("Expired pairing registrations count=%d", expired)
+                self._publish_ota_monitoring_self_test()
                 self._process_retirement_jobs()
                 if self.ota_manager is not None:
                     self._publish_ota_surface()

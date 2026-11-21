@@ -11,12 +11,15 @@ import pytest
 from greenhouse_manager.runtime.t1_ota_ipc import (
     REQUEST_SCHEMA,
     RESPONSE_SCHEMA,
+    VERSIONED_STATUS_OPERATION,
+    VERSIONED_STATUS_SCHEMA,
     ApprovedManifestFileProvider,
     UnixSocketOtaBridge,
 )
 from greenhouse_manager.runtime.t1_ota_manager import (
     OtaControlError,
     OtaControlIntent,
+    OtaRuntimeSnapshot,
 )
 
 
@@ -70,13 +73,42 @@ def _response(*, phase: str, accepted: bool = True, code: str = "status") -> dic
 def test_bridge_status_uses_exact_narrow_schema(tmp_path: Path) -> None:
     path = tmp_path / "ota.sock"
     captured: list[dict[str, Any]] = []
-    thread = _serve_once(path, _response(phase="DISCOVERED"), captured)
+    response = {
+        **_response(phase="COMMITTED"),
+        "schema": VERSIONED_STATUS_SCHEMA,
+        "installed_version": "2026.10.4",
+    }
+    thread = _serve_once(path, response, captured)
 
     snapshot = UnixSocketOtaBridge(path).get_homeassistant_ota_runtime_state()
     thread.join(2)
 
-    assert snapshot.phase == "DISCOVERED"
-    assert captured == [{"schema": REQUEST_SCHEMA, "operation": "status"}]
+    assert snapshot.phase == "COMMITTED"
+    assert snapshot.installed_version == "2026.10.4"
+    assert captured == [{"schema": REQUEST_SCHEMA, "operation": VERSIONED_STATUS_OPERATION}]
+
+
+@pytest.mark.parametrize("code", ["ha_ota_ipc_operation_invalid", "ota_ipc_unavailable"])
+def test_bridge_falls_back_only_for_legacy_status_operation(tmp_path, monkeypatch, code):
+    bridge = UnixSocketOtaBridge(tmp_path / "ota.sock")
+    operations = []
+
+    def request(document):
+        operation = document["operation"]
+        operations.append(operation)
+        if operation == VERSIONED_STATUS_OPERATION:
+            raise OtaControlError(code)
+        return OtaRuntimeSnapshot(phase="ROLLED_BACK")
+
+    monkeypatch.setattr(bridge, "_request", request)
+    if code == "ha_ota_ipc_operation_invalid":
+        snapshot = bridge.get_homeassistant_ota_runtime_state()
+        assert snapshot.phase == "ROLLED_BACK" and snapshot.installed_version is None
+        assert operations == [VERSIONED_STATUS_OPERATION, "status"]
+    else:
+        with pytest.raises(OtaControlError, match=code):
+            bridge.get_homeassistant_ota_runtime_state()
+        assert operations == [VERSIONED_STATUS_OPERATION]
 
 
 def test_bridge_submit_cannot_carry_host_paths_or_commands(tmp_path: Path) -> None:

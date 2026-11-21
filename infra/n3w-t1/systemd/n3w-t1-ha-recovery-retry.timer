@@ -1,0 +1,9 @@
+[Unit]
+Description=Check for authorized Home Assistant OTA work and retry pending recovery
+
+[Timer]
+OnCalendar=*-*-* *:*:00,30
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

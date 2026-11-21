@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -213,3 +214,35 @@ def test_mqtt_control_rejects_retained_or_wrong_qos_command(client_class) -> Non
     )
 
     assert sink.intents == []
+
+
+@patch("greenhouse_manager.runtime.mqtt_service.mqtt.Client")
+def test_ota_monitoring_self_test_uses_manager_client_once(client_class, monkeypatch, tmp_path) -> None:
+    path = tmp_path / "request.json"
+    monkeypatch.setattr("greenhouse_manager.runtime.mqtt_service._OTA_SELF_TEST_REQUEST", path)
+    client = client_class.return_value
+    client.is_connected.return_value = True
+    client.publish.return_value = Mock(rc=0)
+    service = ManagerMqttService(Settings(system_id="system-001"), ota_manager=Mock())
+
+    def write(requested_ns, *, private=True):
+        path.write_text(json.dumps({"challenge": "a" * 32, "requested_ns": requested_ns}))
+        path.chmod(0o600 if private else 0o644)
+
+    write(time.monotonic_ns(), private=False)
+    service._publish_ota_monitoring_self_test()
+    write(time.monotonic_ns() - 13_000_000_000)
+    service._publish_ota_monitoring_self_test()
+    assert not client.publish.called
+
+    write(time.monotonic_ns())
+    service._publish_ota_monitoring_self_test()
+    service._publish_ota_monitoring_self_test()
+    client.publish.assert_called_once_with(
+        "gh/v1/system-001/state/ota-monitoring/self-test",
+        payload=b'{"challenge":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","schema":"gh.ota-monitoring-self-test/1"}',
+        qos=0,
+        retain=False,
+    )
+    assert not path.exists()
+    assert list(tmp_path.iterdir()) == []

@@ -7,12 +7,16 @@ import socket
 import stat
 import struct
 import threading
-from dataclasses import dataclass
+import time
+from collections.abc import Callable
+from contextlib import suppress
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Protocol
 
 from n3w_t1_core_updater_ha_usb import request_install, request_prepare
 from n3w_t1_core_updater_ha_usb_state import (
+    PRE_CUTOVER_RECOVERY_PHASES,
     U0,
     U1,
     U2,
@@ -31,16 +35,33 @@ from n3w_t1_core_updater_ha_usb_state import (
     HaUsbStateStore,
     new_transaction,
 )
-from n3w_t1_core_updater_v2_common import UpdaterV2Error
+from n3w_t1_core_updater_v2_common import ComponentTarget, UpdaterV2Error, sha256_bytes
 
 REQUEST_SCHEMA = "gh.n3w-t1-ha-ota-ipc-request/1"
 RESPONSE_SCHEMA = "gh.n3w-t1-ha-ota-ipc-response/1"
+VERSIONED_STATUS_SCHEMA = "gh.n3w-t1-ha-ota-ipc-response/2"
+VERSIONED_STATUS_OPERATION = "status_with_version"
 MAX_FRAME_BYTES = 8192
 DEFAULT_SOCKET_MODE = 0o660
+IPC_SOCKET = Path("/run/n3w/t1-ota/ha-ota.sock")
+IPC_SOCKET_UNIT = "n3w-t1-ha-ota-ipc.socket"
+IPC_SERVICE_UNIT = "n3w-t1-ha-ota-ipc.service"
+MANAGER_PEER_UID = 999
+APPROVED_MANIFEST = "approved-homeassistant.json"
+RELEASE_PIN = "ha-release-pin.json"
+RELEASE_PIN_SCHEMA = "gh.n3w-t1-ha-release-pin/1"
+SIGNED_INDEX_STATE = "ha-signed-index.json"
+APPROVED_MANIFEST_SCHEMA = "gh.n3w-t1-ota-approved-manifest/1"
 
 _RELEASE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _PUBLIC_CODE_RE = re.compile(r"^[a-z0-9_]{3,96}$")
+_HA_IMAGE_VERSION = re.compile(r"local/n3w-homeassistant:([0-9]{4}\.[0-9]{1,2}\.[0-9]{1,3})-[0-9a-f]{8,64}")
+
+
+def ha_image_version(reference: object) -> str | None:
+    match = _HA_IMAGE_VERSION.fullmatch(reference) if isinstance(reference, str) else None
+    return match[1] if match else None
 
 _PHASE_MAP = {
     U0: "DISCOVERED",
@@ -106,6 +127,138 @@ class HostOtaAdmissionResolver(Protocol):
         """Independently resolve approved target and current runtime authority."""
 
 
+def read_local_release_input(path: Path, *, limit: int, private: bool) -> bytes:
+    reason = "ha_ota_ipc_release_input_unavailable"
+    try:
+        if path.resolve(strict=True) != path:
+            raise UpdaterV2Error(reason)
+        parent = path.parent.stat()
+        if parent.st_uid != os.geteuid() or parent.st_mode & 0o022:
+            raise UpdaterV2Error(reason)
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(fd, "rb") as stream:
+            entry = os.fstat(stream.fileno())
+            if (
+                not stat.S_ISREG(entry.st_mode) or entry.st_uid != os.geteuid() or entry.st_mode & 0o022
+                or (private and stat.S_IMODE(entry.st_mode) != 0o600) or entry.st_size > limit
+            ):
+                raise UpdaterV2Error(reason)
+            value = stream.read(limit + 1)
+    except OSError as error:
+        raise UpdaterV2Error(reason) from error
+    if not value or len(value) > limit:
+        raise UpdaterV2Error(reason)
+    return value
+
+
+def valid_signed_index(value: object) -> bool:
+    return (
+        isinstance(value, dict) and value.keys() == {"sequence", "sha256"}
+        and type(value["sequence"]) is int and value["sequence"] > 0
+        and isinstance(value["sha256"], str) and _SHA256_RE.fullmatch(value["sha256"]) is not None
+    )
+
+
+def read_signed_index(path: Path) -> dict[str, Any]:
+    try:
+        value = json.loads(read_local_release_input(path, limit=4096, private=True),
+                           object_pairs_hook=reject_duplicate_fields)
+    except ValueError as error:
+        raise UpdaterV2Error("ha_ota_signed_index_state_invalid") from error
+    if not valid_signed_index(value):
+        raise UpdaterV2Error("ha_ota_signed_index_state_invalid")
+    return value
+
+
+def candidate_admission(raw: bytes, current: dict[str, Any]) -> HostOtaAdmission:
+    try:
+        envelope = json.loads(raw, object_pairs_hook=reject_duplicate_fields)
+    except ValueError as error:
+        raise UpdaterV2Error("ha_ota_ipc_release_input_invalid") from error
+    if (
+        not isinstance(envelope, dict) or envelope.get("schema") != APPROVED_MANIFEST_SCHEMA
+        or envelope.get("approval_status") != "APPROVED" or envelope.get("signature_status") != "VERIFIED"
+        or envelope.get("validity_status") != "VALID" or envelope.get("verification_status") != "PASS"
+    ):
+        raise UpdaterV2Error("ha_ota_ipc_release_not_approved")
+    release_identity = envelope.get("release_identity")
+    if not isinstance(release_identity, str) or _RELEASE_RE.fullmatch(release_identity) is None:
+        raise UpdaterV2Error("ha_ota_ipc_release_invalid")
+    target = ComponentTarget.from_document(envelope.get("target"))
+    if target.component != "homeassistant":
+        raise UpdaterV2Error("ha_ota_ipc_release_component_invalid")
+    version = ha_image_version(target.target_image_ref)
+    if version is None or envelope.get("version") != version:
+        raise UpdaterV2Error("ha_ota_ipc_release_version_invalid")
+    image_id = current.get("image_id")
+    if (
+        current.get("image_ref") != target.expected_predecessor_image_ref
+        or current.get("platform") != target.target_platform
+        or not isinstance(image_id, str) or not image_id.startswith("sha256:")
+        or _SHA256_RE.fullmatch(image_id[7:]) is None
+    ):
+        raise UpdaterV2Error("ha_ota_ipc_predecessor_identity_drift")
+    return HostOtaAdmission(
+        release_identity=release_identity,
+        current_image_ref=target.expected_predecessor_image_ref,
+        current_image_identity={"runtime_image_id": image_id, "platform": target.target_platform},
+        target_manifest_identity={"release_identity": release_identity, "manifest_sha256": sha256_bytes(raw)},
+        target_image_ref=target.target_image_ref,
+        target_archive_sha256=target.target_archive_sha256,
+        target_archive_size=envelope.get("target_archive_size_bytes"),
+    ).validate()
+
+
+class LocalApprovedHaRelease:
+    """Resolve a host-pinned HA candidate and independently inspect its predecessor."""
+
+    def __init__(
+        self, pin: Path, manifest: Path, read_current: Callable[[], dict[str, Any]],
+    ) -> None:
+        self.pin = pin
+        self.manifest = manifest
+        self.read_current = read_current
+
+    def resolve_homeassistant_release(self, release_identity: str) -> HostOtaAdmission:
+        fields = {"schema", "manifest_sha256", "predecessor_image_id", "expires_at_unix"}
+        signed_fields = {"signed_index", "predecessor_binding_sha256"}
+        try:
+            pin = json.loads(read_local_release_input(self.pin, limit=4096, private=True),
+                             object_pairs_hook=reject_duplicate_fields)
+            if (
+                not isinstance(pin, dict)
+                or (pin.keys() != fields and pin.keys() != fields | signed_fields)
+                or pin["schema"] != RELEASE_PIN_SCHEMA
+                or type(pin["expires_at_unix"]) is not int or time.time() >= pin["expires_at_unix"]
+                or not isinstance(pin["predecessor_image_id"], str)
+                or not pin["predecessor_image_id"].startswith("sha256:")
+                or _SHA256_RE.fullmatch(pin["predecessor_image_id"][7:]) is None
+            ):
+                raise UpdaterV2Error("ha_ota_ipc_release_pin_invalid")
+            if "signed_index" in pin and (
+                not valid_signed_index(pin["signed_index"])
+                or not isinstance(pin["predecessor_binding_sha256"], str)
+                or _SHA256_RE.fullmatch(pin["predecessor_binding_sha256"]) is None
+                or pin["signed_index"] != read_signed_index(self.pin.with_name(SIGNED_INDEX_STATE))
+            ):
+                raise UpdaterV2Error("ha_ota_ipc_signed_release_pin_invalid")
+            raw = read_local_release_input(self.manifest, limit=32768, private=False)
+            if pin["manifest_sha256"] != sha256_bytes(raw):
+                raise UpdaterV2Error("ha_ota_ipc_release_digest_mismatch")
+        except ValueError as error:
+            raise UpdaterV2Error("ha_ota_ipc_release_input_invalid") from error
+        admission = candidate_admission(raw, self.read_current())
+        if admission.release_identity != release_identity:
+            raise UpdaterV2Error("ha_ota_ipc_release_not_approved")
+        if admission.current_image_identity["runtime_image_id"] != pin["predecessor_image_id"]:
+            raise UpdaterV2Error("ha_ota_ipc_predecessor_identity_drift")
+        if "signed_index" in pin:
+            admission = replace(admission, target_manifest_identity={
+                **admission.target_manifest_identity, "predecessor_binding_sha256": pin["predecessor_binding_sha256"],
+            })
+        return admission
+
+
 class HaUsbIpcExecutor:
     """Bind narrow IPC intent to the durable HA-USB transaction boundary only."""
 
@@ -114,9 +267,11 @@ class HaUsbIpcExecutor:
         *,
         store: HaUsbStateStore,
         admission_resolver: HostOtaAdmissionResolver,
+        install_ready: threading.Event | None = None,
     ) -> None:
         self.store = store
         self.admission_resolver = admission_resolver
+        self.install_ready = install_ready
 
     def _resolve(self, release_identity: str) -> HostOtaAdmission:
         if _RELEASE_RE.fullmatch(release_identity) is None:
@@ -131,14 +286,36 @@ class HaUsbIpcExecutor:
             raise UpdaterV2Error("ha_ota_ipc_release_binding_invalid")
         return admission
 
-    def status(self) -> dict[str, object]:
+    def status(self, *, include_version: bool = False) -> dict[str, object]:
         document = self.store.read()
+        status = self._project_status(document)
+        if include_version:
+            version = None
+            if document is not None:
+                key = "target_image_ref" if document["phase"] == U13A else "current_image_ref"
+                version = ha_image_version(document[key])
+            status["installed_version"] = version
+        return status
+
+    @staticmethod
+    def _project_status(document: dict[str, Any] | None) -> dict[str, object]:
         if document is None:
             return {
                 "phase": "DISCOVERED",
                 "progress_percent": None,
                 "error_code": None,
             }
+        if document.get("pre_cutover_predecessor_restored") is True:
+            return {"phase": "ROLLED_BACK", "progress_percent": None, "error_code": None}
+        if document["recovery_required"] and (
+            "ha_data_restore" in document
+            or "predecessor_release_intent" in document
+            or (
+                document["phase"] in PRE_CUTOVER_RECOVERY_PHASES
+                and "predecessor_start" in document
+            )
+        ):
+            return {"phase": "RECOVERING", "progress_percent": None, "error_code": None}
         if document["status"] == "FAILED_EMERGENCY":
             failure = document.get("failure_code")
             code = (
@@ -153,16 +330,23 @@ class HaUsbIpcExecutor:
                 "error_code": code,
             }
         phase = _PHASE_MAP.get(document["phase"])
+        if document["phase"] == U2 and document.get("usb_binding_mode") == "existing_filesystem":
+            phase = "USB_QUALIFIED_BOUND"
         if phase is None:
             raise UpdaterV2Error("ha_ota_ipc_phase_invalid")
+        failure = document.get("failure_code")
+        public_failures = {
+            U4: ("ha_usb_install_revalidation_failed", "ha_usb_predecessor_acceptance_baseline_unavailable"),
+            U13B: ("ha_usb_target_acceptance_proven_failure", "ha_usb_target_acceptance_evidence_unavailable"),
+        }
         return {
             "phase": phase,
             "progress_percent": None,
-            "error_code": None,
+            "error_code": failure if failure in public_failures.get(document["phase"], ()) else None,
         }
 
     @staticmethod
-    def _require_same_admission(
+    def require_same_admission(
         document: dict[str, Any],
         admission: HostOtaAdmission,
     ) -> None:
@@ -181,10 +365,9 @@ class HaUsbIpcExecutor:
     def submit(self, action: str, release_identity: str) -> dict[str, object]:
         if action not in {"PREPARE", "INSTALL"}:
             raise UpdaterV2Error("ha_ota_ipc_action_invalid")
-        admission = self._resolve(release_identity)
         with self.store.lock():
+            admission = self._resolve(release_identity)
             if action == "PREPARE":
-                self.store.prepare_new()
                 document = new_transaction(
                     current_image_ref=admission.current_image_ref,
                     current_image_identity=dict(admission.current_image_identity),
@@ -193,17 +376,19 @@ class HaUsbIpcExecutor:
                     target_archive_sha256=admission.target_archive_sha256,
                     target_archive_size=admission.target_archive_size,
                 )
-                self.store.write(request_prepare(document))
+                self.store.prepare_new(replacement=request_prepare(document))
             else:
                 document = self.store.read()
                 if document is None:
                     raise UpdaterV2Error("ha_ota_ipc_transaction_missing")
-                self._require_same_admission(document, admission)
+                self.require_same_admission(document, admission)
                 self.store.write(request_install(document))
+        if action == "INSTALL" and self.install_ready is not None:
+            self.install_ready.set()
         return self.status()
 
 
-def _no_duplicate_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+def reject_duplicate_fields(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in pairs:
         if key in result:
@@ -215,7 +400,12 @@ def _no_duplicate_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 def _read_frame(connection: socket.socket) -> bytes:
     payload = bytearray()
     frame_end: int | None = None
+    deadline = time.monotonic() + 2.0
     while len(payload) <= MAX_FRAME_BYTES:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise UpdaterV2Error("ha_ota_ipc_request_timeout")
+        connection.settimeout(remaining)
         block = connection.recv(min(1024, MAX_FRAME_BYTES + 1 - len(payload)))
         if not block:
             break
@@ -272,6 +462,9 @@ class HaUsbIpcDispatcher:
             "progress_percent": status["progress_percent"],
             "error_code": status["error_code"],
         }
+        if "installed_version" in status:
+            document["schema"] = VERSIONED_STATUS_SCHEMA
+            document["installed_version"] = status["installed_version"]
         return (
             json.dumps(document, sort_keys=True, separators=(",", ":")).encode("utf-8")
             + b"\n"
@@ -282,7 +475,7 @@ class HaUsbIpcDispatcher:
             try:
                 document = json.loads(
                     payload.decode("utf-8"),
-                    object_pairs_hook=_no_duplicate_object,
+                    object_pairs_hook=reject_duplicate_fields,
                 )
             except UpdaterV2Error:
                 raise
@@ -291,13 +484,13 @@ class HaUsbIpcDispatcher:
             if not isinstance(document, dict) or document.get("schema") != REQUEST_SCHEMA:
                 raise UpdaterV2Error("ha_ota_ipc_request_invalid")
             operation = document.get("operation")
-            if operation == "status":
+            if operation in ("status", VERSIONED_STATUS_OPERATION):
                 if set(document) != {"schema", "operation"}:
                     raise UpdaterV2Error("ha_ota_ipc_request_fields_invalid")
                 return self._response(
                     accepted=True,
                     code="status",
-                    status=self.executor.status(),
+                    status=self.executor.status(include_version=operation == VERSIONED_STATUS_OPERATION),
                 )
             if operation == "submit":
                 if set(document) != {
@@ -404,6 +597,20 @@ class UnixSocketHaOtaServer:
         self._socket = None
         self.path.unlink(missing_ok=True)
 
+    def serve_activated(self, listener: socket.socket) -> None:
+        if (
+            listener.family != socket.AF_UNIX or listener.type != socket.SOCK_STREAM
+            or listener.getsockname() != str(self.path)
+            or listener.getsockopt(socket.SOL_SOCKET, socket.SO_ACCEPTCONN) != 1
+        ):
+            raise UpdaterV2Error("ha_ota_ipc_activated_socket_invalid")
+        listener.settimeout(0.25)
+        self._socket = listener
+        try:
+            self._serve()
+        finally:
+            self._socket = None
+
     def _peer_uid(self, connection: socket.socket) -> int:
         if not hasattr(socket, "SO_PEERCRED"):
             raise UpdaterV2Error("ha_ota_ipc_peer_credentials_unavailable")
@@ -435,6 +642,7 @@ class UnixSocketHaOtaServer:
                         response = self.dispatcher._response(
                             accepted=False,
                             code="ha_ota_ipc_peer_uid_rejected",
+                            status={"phase": "ERROR", "progress_percent": None, "error_code": None},
                         )
                     else:
                         response = self.dispatcher.handle(_read_frame(connection))
@@ -443,4 +651,16 @@ class UnixSocketHaOtaServer:
                         accepted=False,
                         code=_public_code(error),
                     )
-                connection.sendall(response)
+                with suppress(OSError):
+                    connection.sendall(response)
+
+def serve_activated_ha_ipc(store: HaUsbStateStore, read_current: Callable[[], dict[str, Any]]) -> None:
+    if os.environ.get("LISTEN_PID") != str(os.getpid()) or os.environ.get("LISTEN_FDS") != "1":
+        raise UpdaterV2Error("ha_ota_ipc_socket_activation_required")
+    resolver = LocalApprovedHaRelease(store.root / RELEASE_PIN, IPC_SOCKET.with_name(APPROVED_MANIFEST), read_current)
+    server = UnixSocketHaOtaServer(
+        dispatcher=HaUsbIpcDispatcher(HaUsbIpcExecutor(store=store, admission_resolver=resolver)),
+        path=IPC_SOCKET, expected_peer_uid=MANAGER_PEER_UID,
+    )
+    with socket.socket(fileno=3) as listener:
+        server.serve_activated(listener)
