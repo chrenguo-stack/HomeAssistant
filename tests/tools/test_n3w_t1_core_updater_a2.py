@@ -22,6 +22,7 @@ from n3w_t1_core_updater_v2_common import (
     UpdaterV2Error,
     converge_homeassistant_compose,
     converge_homeassistant_env,
+    converge_legacy_component_env,
     parse_image_bindings,
     restore_homeassistant_compose,
     restore_homeassistant_env,
@@ -1471,3 +1472,169 @@ def test_image_only_postcheck_rejects_ha_storage_minor_migration(
         match="a1_ha_storage_minor_version_drift:entities",
     ):
         policy.validate_post("homeassistant", before, after)
+
+
+def _broker_static_product_files(tmp_path: Path):
+    compose = tmp_path / "docker-compose.yml"
+    env = tmp_path / "docker-compose.env"
+    compose_payload = (
+        "name: n3wfc4\n"
+        "services:\n"
+        "  broker:\n"
+        f"    image: {OLD['broker']}\n"
+        "  manager:\n"
+        '    image: "${GH_MANAGER_IMAGE:?GH_MANAGER_IMAGE required}"\n'
+        "  homeassistant:\n"
+        '    image: "${GH_HOMEASSISTANT_IMAGE:?GH_HOMEASSISTANT_IMAGE required}"\n'
+        "    network_mode: host\n"
+    ).encode()
+    env_payload = (
+        f"GH_MANAGER_IMAGE={OLD['manager']}\n"
+        f"GH_HOMEASSISTANT_IMAGE={OLD['homeassistant']}\n"
+    ).encode()
+    compose.write_bytes(compose_payload)
+    env.write_bytes(env_payload)
+    return compose, env, compose_payload, env_payload
+
+
+def test_component_upgradeable_allows_clean_legacy_static_broker(monkeypatch):
+    host = hostmod.LocalHost()
+    monkeypatch.setattr(host, "component_container_residue", lambda component: [])
+    monkeypatch.setattr(
+        host,
+        "image_binding_modes_v2",
+        lambda: {
+            "manager": "dynamic",
+            "homeassistant": "dynamic",
+            "broker": "legacy_static",
+        },
+    )
+
+    host.assert_component_upgradeable("broker")
+
+
+def test_local_host_broker_binding_round_trip(tmp_path: Path, monkeypatch):
+    compose, env, compose_payload, env_payload = _broker_static_product_files(tmp_path)
+    monkeypatch.setattr(hostmod, "COMPOSE", compose)
+    monkeypatch.setattr(hostmod, "COMPOSE_ENV", env)
+    host = hostmod.LocalHost()
+    monkeypatch.setattr(
+        host,
+        "image_binding_modes_v2",
+        lambda: {
+            "manager": "dynamic",
+            "homeassistant": "dynamic",
+            "broker": "legacy_static",
+        },
+    )
+
+    host.rewrite_component_image(
+        "broker",
+        OLD["broker"],
+        NEW["broker"],
+    )
+
+    assert (
+        b'    image: "${GH_BROKER_IMAGE:?GH_BROKER_IMAGE required}"\n'
+        in compose.read_bytes()
+    )
+    assert f"GH_BROKER_IMAGE={NEW['broker']}\n".encode() in env.read_bytes()
+
+    monkeypatch.setattr(
+        host,
+        "render_compose",
+        lambda: {"services": {"broker": {"image": OLD["broker"]}}},
+    )
+    host.restore_component_binding(
+        "broker",
+        NEW["broker"],
+        OLD["broker"],
+        "legacy_static",
+    )
+
+    assert compose.read_bytes() == compose_payload
+    assert env.read_bytes() == env_payload
+
+
+def test_local_host_broker_convergence_second_write_failure_restores_exact_bytes(
+    tmp_path: Path,
+    monkeypatch,
+):
+    compose, env, compose_payload, env_payload = _broker_static_product_files(tmp_path)
+    monkeypatch.setattr(hostmod, "COMPOSE", compose)
+    monkeypatch.setattr(hostmod, "COMPOSE_ENV", env)
+    host = hostmod.LocalHost()
+    original_replace = host._replace_product_file
+    injected = {"done": False}
+
+    def replace_with_failure(path, updated, *, verify_error):
+        if path == compose and not injected["done"]:
+            injected["done"] = True
+            raise hostmod.UpdaterError("injected_compose_write_failure")
+        return original_replace(path, updated, verify_error=verify_error)
+
+    monkeypatch.setattr(host, "_replace_product_file", replace_with_failure)
+
+    with pytest.raises(
+        hostmod.UpdaterError,
+        match="broker_binding_convergence_failed",
+    ):
+        host._converge_legacy_component_binding("broker", OLD["broker"])
+
+    assert compose.read_bytes() == compose_payload
+    assert env.read_bytes() == env_payload
+
+
+def test_broker_binding_transition_rejects_ambiguous_env():
+    payload = (
+        f"GH_BROKER_IMAGE={OLD['broker']}\n"
+        f"GH_BROKER_IMAGE={OLD['broker']}\n"
+    ).encode()
+    with pytest.raises(
+        UpdaterV2Error,
+        match="broker_image_env_line_count_invalid",
+    ):
+        converge_legacy_component_env(
+            payload,
+            "broker",
+            OLD["broker"],
+            NEW["broker"],
+        )
+
+
+def test_broker_plan_reports_runtime_template_convergence(tmp_path: Path):
+    archive = tmp_path / "broker.tar"
+    archive.write_bytes(b"broker-target")
+    archive_sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+    host = FakeHost()
+    original_inspect = host.inspect_v2
+
+    def legacy_broker_inspect():
+        value = original_inspect()
+        value["image_binding_modes"]["broker"] = "legacy_static"
+        return value
+
+    host.inspect_v2 = legacy_broker_inspect
+    legacy_baseline = UpgradeBaseline(
+        stack_images=dict(OLD),
+        image_binding_modes={
+            "manager": "dynamic",
+            "homeassistant": "dynamic",
+            "broker": "legacy_static",
+        },
+        platforms={name: "linux/arm64" for name in OLD},
+        runtime_contract_sha256=baseline().runtime_contract_sha256,
+        a1_hard_authority={"hard": "stable"},
+        a1_classification_sha256=A1_CLASSIFICATION_SHA256,
+    )
+    result = core.MultiComponentCoreUpdater(
+        host,
+        V2StateStore(tmp_path / "state"),
+        FakePolicy(),
+    ).plan(
+        target("broker", archive_sha),
+        legacy_baseline,
+        archive,
+    )
+
+    assert "converge_broker_runtime_template" in result["actions"]

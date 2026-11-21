@@ -338,8 +338,12 @@ def rewrite_component_env(
 
 
 
-HA_DYNAMIC_IMAGE_BINDING = '"${GH_HOMEASSISTANT_IMAGE:?GH_HOMEASSISTANT_IMAGE required}"'
-HA_DYNAMIC_IMAGE_VALUE = "${GH_HOMEASSISTANT_IMAGE:?GH_HOMEASSISTANT_IMAGE required}"
+def _dynamic_component_image_values(component: str) -> tuple[str, str]:
+    if component not in COMPONENTS:
+        raise UpdaterV2Error("component_invalid")
+    key = IMAGE_BINDINGS[component]
+    value = f"${{{key}:?{key} required}}"
+    return f'"{value}"', value
 
 
 def _unquote_yaml_scalar(value: str) -> str:
@@ -353,9 +357,12 @@ def _unquote_yaml_scalar(value: str) -> str:
     return value
 
 
-def _homeassistant_image_line(
+def _component_image_line(
     payload: bytes,
+    component: str,
 ) -> tuple[list[str], int, str, str]:
+    if component not in COMPONENTS:
+        raise UpdaterV2Error("component_invalid")
     try:
         text = payload.decode("utf-8")
     except UnicodeDecodeError as error:
@@ -366,14 +373,14 @@ def _homeassistant_image_line(
         for index, line in enumerate(lines)
         if re.fullmatch(r"  [A-Za-z0-9_.-]+:\s*(?:#.*)?\r?\n?", line)
     ]
-    ha_starts = [
+    starts = [
         index
         for index in service_starts
-        if re.match(r"^  homeassistant:", lines[index])
+        if re.match(rf"^  {re.escape(component)}:", lines[index])
     ]
-    if len(ha_starts) != 1:
-        raise UpdaterV2Error("homeassistant_service_block_invalid")
-    start = ha_starts[0]
+    if len(starts) != 1:
+        raise UpdaterV2Error(f"{component}_service_block_invalid")
+    start = starts[0]
     end = len(lines)
     for index in service_starts:
         if index > start:
@@ -389,7 +396,7 @@ def _homeassistant_image_line(
         if re.match(r"^    image:\s*", lines[index])
     ]
     if len(image_indexes) != 1:
-        raise UpdaterV2Error("homeassistant_image_line_count_invalid")
+        raise UpdaterV2Error(f"{component}_image_line_count_invalid")
     index = image_indexes[0]
     raw = lines[index]
     ending = "\r\n" if raw.endswith("\r\n") else ("\n" if raw.endswith("\n") else "")
@@ -397,38 +404,45 @@ def _homeassistant_image_line(
     return lines, index, ending, observed
 
 
-def converge_homeassistant_compose(
+def converge_legacy_component_compose(
     payload: bytes,
+    component: str,
     expected_predecessor: str,
 ) -> bytes:
-    if not expected_predecessor.startswith(IMAGE_PREFIXES["homeassistant"]):
+    if component not in COMPONENTS:
+        raise UpdaterV2Error("component_invalid")
+    if not expected_predecessor.startswith(IMAGE_PREFIXES[component]):
         raise UpdaterV2Error("component_image_namespace_invalid")
-    lines, index, ending, observed = _homeassistant_image_line(payload)
+    lines, index, ending, observed = _component_image_line(payload, component)
     if observed != expected_predecessor:
-        raise UpdaterV2Error("homeassistant_compose_predecessor_drift")
-    lines[index] = f"    image: {HA_DYNAMIC_IMAGE_BINDING}{ending}"
+        raise UpdaterV2Error(f"{component}_compose_predecessor_drift")
+    dynamic_binding, _ = _dynamic_component_image_values(component)
+    lines[index] = f"    image: {dynamic_binding}{ending}"
     return "".join(lines).encode("utf-8")
 
 
-def converge_homeassistant_env(
+def converge_legacy_component_env(
     payload: bytes,
+    component: str,
     expected_predecessor: str,
     replacement: str,
 ) -> bytes:
-    prefix = IMAGE_PREFIXES["homeassistant"]
+    if component not in COMPONENTS:
+        raise UpdaterV2Error("component_invalid")
+    prefix = IMAGE_PREFIXES[component]
     if not expected_predecessor.startswith(prefix) or not replacement.startswith(prefix):
         raise UpdaterV2Error("component_image_namespace_invalid")
     try:
         text = payload.decode("utf-8")
     except UnicodeDecodeError as error:
         raise UpdaterV2Error("compose_env_encoding_invalid") from error
-    key = IMAGE_BINDINGS["homeassistant"]
+    key = IMAGE_BINDINGS[component]
     lines = text.splitlines(keepends=True)
     indexes = [
         index for index, line in enumerate(lines) if line.startswith(f"{key}=")
     ]
     if len(indexes) > 1:
-        raise UpdaterV2Error("homeassistant_image_env_line_count_invalid")
+        raise UpdaterV2Error(f"{component}_image_env_line_count_invalid")
     if not indexes:
         ending = "" if not text or text.endswith(("\n", "\r")) else "\n"
         updated = (
@@ -441,7 +455,7 @@ def converge_homeassistant_env(
         raw = lines[index]
         observed = raw.rstrip("\r\n").split("=", 1)[1]
         if observed not in {expected_predecessor, replacement}:
-            raise UpdaterV2Error("homeassistant_image_env_predecessor_drift")
+            raise UpdaterV2Error(f"{component}_image_env_predecessor_drift")
         if observed == replacement:
             updated = payload
         else:
@@ -466,19 +480,84 @@ def converge_homeassistant_env(
     return updated
 
 
-def restore_homeassistant_compose(
+def restore_legacy_component_compose(
     payload: bytes,
+    component: str,
     predecessor: str,
 ) -> bytes:
-    if not predecessor.startswith(IMAGE_PREFIXES["homeassistant"]):
+    if component not in COMPONENTS:
+        raise UpdaterV2Error("component_invalid")
+    if not predecessor.startswith(IMAGE_PREFIXES[component]):
         raise UpdaterV2Error("component_image_namespace_invalid")
-    lines, index, ending, observed = _homeassistant_image_line(payload)
+    lines, index, ending, observed = _component_image_line(payload, component)
     if observed == predecessor:
         return payload
-    if observed != HA_DYNAMIC_IMAGE_VALUE:
-        raise UpdaterV2Error("homeassistant_compose_binding_unknown")
+    _, dynamic_value = _dynamic_component_image_values(component)
+    if observed != dynamic_value:
+        raise UpdaterV2Error(f"{component}_compose_binding_unknown")
     lines[index] = f"    image: {predecessor}{ending}"
     return "".join(lines).encode("utf-8")
+
+
+def restore_legacy_component_env(
+    payload: bytes,
+    component: str,
+    predecessor: str,
+    target: str,
+) -> bytes:
+    if component not in COMPONENTS:
+        raise UpdaterV2Error("component_invalid")
+    prefix = IMAGE_PREFIXES[component]
+    if not predecessor.startswith(prefix) or not target.startswith(prefix):
+        raise UpdaterV2Error("component_image_namespace_invalid")
+    try:
+        text = payload.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise UpdaterV2Error("compose_env_encoding_invalid") from error
+    key = IMAGE_BINDINGS[component]
+    lines = text.splitlines(keepends=True)
+    indexes = [
+        index for index, line in enumerate(lines) if line.startswith(f"{key}=")
+    ]
+    if len(indexes) > 1:
+        raise UpdaterV2Error(f"{component}_image_env_line_count_invalid")
+    if not indexes:
+        return payload
+    index = indexes[0]
+    observed = lines[index].rstrip("\r\n").split("=", 1)[1]
+    if observed not in {predecessor, target}:
+        raise UpdaterV2Error(f"{component}_image_env_rollback_drift")
+    del lines[index]
+    updated = "".join(lines).encode("utf-8")
+    if any(
+        line.startswith(f"{key}=")
+        for line in updated.decode("utf-8").splitlines()
+    ):
+        raise UpdaterV2Error(f"{component}_image_env_remove_verify_failed")
+    return updated
+
+
+# Compatibility wrappers retained for the already-reviewed HA path.
+def converge_homeassistant_compose(payload: bytes, expected_predecessor: str) -> bytes:
+    return converge_legacy_component_compose(
+        payload, "homeassistant", expected_predecessor
+    )
+
+
+def converge_homeassistant_env(
+    payload: bytes,
+    expected_predecessor: str,
+    replacement: str,
+) -> bytes:
+    return converge_legacy_component_env(
+        payload, "homeassistant", expected_predecessor, replacement
+    )
+
+
+def restore_homeassistant_compose(payload: bytes, predecessor: str) -> bytes:
+    return restore_legacy_component_compose(
+        payload, "homeassistant", predecessor
+    )
 
 
 def restore_homeassistant_env(
@@ -486,34 +565,9 @@ def restore_homeassistant_env(
     predecessor: str,
     target: str,
 ) -> bytes:
-    prefix = IMAGE_PREFIXES["homeassistant"]
-    if not predecessor.startswith(prefix) or not target.startswith(prefix):
-        raise UpdaterV2Error("component_image_namespace_invalid")
-    try:
-        text = payload.decode("utf-8")
-    except UnicodeDecodeError as error:
-        raise UpdaterV2Error("compose_env_encoding_invalid") from error
-    key = IMAGE_BINDINGS["homeassistant"]
-    lines = text.splitlines(keepends=True)
-    indexes = [
-        index for index, line in enumerate(lines) if line.startswith(f"{key}=")
-    ]
-    if len(indexes) > 1:
-        raise UpdaterV2Error("homeassistant_image_env_line_count_invalid")
-    if not indexes:
-        return payload
-    index = indexes[0]
-    observed = lines[index].rstrip("\r\n").split("=", 1)[1]
-    if observed not in {predecessor, target}:
-        raise UpdaterV2Error("homeassistant_image_env_rollback_drift")
-    del lines[index]
-    updated = "".join(lines).encode("utf-8")
-    if any(
-        line.startswith(f"{key}=")
-        for line in updated.decode("utf-8").splitlines()
-    ):
-        raise UpdaterV2Error("homeassistant_image_env_remove_verify_failed")
-    return updated
+    return restore_legacy_component_env(
+        payload, "homeassistant", predecessor, target
+    )
 
 
 def validate_component_candidate(
