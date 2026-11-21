@@ -13,6 +13,9 @@ from pathlib import Path
 from typing import Any
 
 from n3w_t1_core_updater_common import IMAGE_ID
+from n3w_t1_core_updater_ha_acceptance import (
+    HA_ACCEPTANCE_ATTEMPTS, HA_ACCEPTANCE_RULE, expected_target_images, valid_evidence_set,
+)
 from n3w_t1_core_updater_ha_backup import backup_record_from_document
 from n3w_t1_core_updater_ha_recovery import ImageRecoveryRecord, validate_image_recovery_record
 from n3w_t1_core_updater_ha_usb_media import (
@@ -256,6 +259,34 @@ def _validate_data_restore(document: dict[str, Any]) -> None:
     if document["phase"] == U13B and step == "PUBLISHED" and document["recovery_required"] is False:
         return
     if document["phase"] not in HA_DATA_RESTORE_PHASES or document["recovery_required"] is not True:
+        raise UpdaterV2Error(reason)
+
+
+def _validate_target_acceptance(document: dict[str, Any]) -> None:
+    state = document["target_acceptance"]
+    phase = document["phase"]
+    reason = "ha_usb_target_acceptance_invalid"
+    if (
+        not isinstance(state, dict) or set(state) - {"rule", "baseline", "attempts", "receipt"}
+        or state.get("rule") != HA_ACCEPTANCE_RULE or not valid_evidence_set(state.get("baseline"))
+        or type(state.get("attempts")) is not int or not 0 <= state["attempts"] <= HA_ACCEPTANCE_ATTEMPTS
+        or not _phase_at_or_after(phase, U6)
+        or (state["attempts"] > 0 and not _phase_at_or_after(phase, U11))
+    ):
+        raise UpdaterV2Error(reason)
+    if "receipt" in state:
+        receipt = state["receipt"]
+        if (
+            phase not in {U12, U13A, U13B} or state["attempts"] == 0
+            or document.get("target_activation") != TARGET_WRITES_POSSIBLE
+            or "predecessor_start" not in document or "target_loaded_image_id" not in document
+            or not isinstance(receipt, dict) or set(receipt) != {"runtime_sha256", "images", "observations"}
+            or not isinstance(receipt["runtime_sha256"], str) or not SHA256.fullmatch(receipt["runtime_sha256"])
+            or receipt["images"] != expected_target_images(document)
+            or not valid_evidence_set(receipt["observations"])
+        ):
+            raise UpdaterV2Error(reason)
+    elif phase in {U12, U13A}:
         raise UpdaterV2Error(reason)
 
 
@@ -508,6 +539,8 @@ def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
             or (activation == TARGET_WRITES_POSSIBLE and phase == U13B and "ha_data_restore" not in document)
         ):
             raise UpdaterV2Error("ha_usb_target_activation_state_invalid")
+    if "target_acceptance" in document:
+        _validate_target_acceptance(document)
     return copy.deepcopy(document)
 
 
@@ -583,6 +616,10 @@ def transition(
         and current.get("target_activation") != TARGET_WRITES_POSSIBLE
     ):
         raise UpdaterV2Error("ha_usb_target_write_intent_missing")
+    if "predecessor_release_intent" in current and next_phase in {U12, U13A}:
+        acceptance = (updates or {}).get("target_acceptance", current.get("target_acceptance"))
+        if not isinstance(acceptance, dict) or "receipt" not in acceptance:
+            raise UpdaterV2Error("ha_usb_target_acceptance_receipt_required")
     if current.get("usb_binding_mode") == "existing_filesystem":
         if next_phase == U9 and "predecessor_release_admission" not in (updates or {}):
             raise UpdaterV2Error("ha_usb_predecessor_release_admission_missing")
@@ -593,6 +630,8 @@ def transition(
 
     result = copy.deepcopy(current)
     result["phase"] = next_phase
+    if next_phase == U4:
+        result.pop("target_acceptance", None)
     if updates:
         for key, value in updates.items():
             if key in {
@@ -618,6 +657,11 @@ def transition(
             if key in {"predecessor_release_admission", "predecessor_release_intent"} and next_phase != U9:
                 raise UpdaterV2Error("ha_usb_immutable_field_update_forbidden")
             if key == "predecessor_release_observed" and next_phase != U10:
+                raise UpdaterV2Error("ha_usb_immutable_field_update_forbidden")
+            if key == "target_acceptance" and (
+                current_phase != U11 or next_phase != U12 or not isinstance(value, dict)
+                or {k: v for k, v in value.items() if k != "receipt"} != current.get(key)
+            ):
                 raise UpdaterV2Error("ha_usb_immutable_field_update_forbidden")
             result[key] = copy.deepcopy(value)
 

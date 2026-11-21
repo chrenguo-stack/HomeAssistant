@@ -171,15 +171,15 @@ class HaUsbIpcExecutor:
             phase = "USB_QUALIFIED_BOUND"
         if phase is None:
             raise UpdaterV2Error("ha_ota_ipc_phase_invalid")
+        failure = document.get("failure_code")
+        public_failures = {
+            U4: ("ha_usb_install_revalidation_failed", "ha_usb_predecessor_acceptance_baseline_unavailable"),
+            U13B: ("ha_usb_target_acceptance_proven_failure", "ha_usb_target_acceptance_evidence_unavailable"),
+        }
         return {
             "phase": phase,
             "progress_percent": None,
-            "error_code": (
-                "ha_usb_install_revalidation_failed"
-                if document["phase"] == U4
-                and document.get("failure_code") == "ha_usb_install_revalidation_failed"
-                else None
-            ),
+            "error_code": failure if failure in public_failures.get(document["phase"], ()) else None,
         }
 
     @staticmethod

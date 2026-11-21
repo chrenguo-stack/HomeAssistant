@@ -137,7 +137,8 @@ class LocalHaPredecessorRuntime(LocalHost):
         return binding, origins
 
     def _check_running_predecessor(
-        self, binding: dict[str, Any], origins: dict[str, dict[str, str]]
+        self, binding: dict[str, Any], origins: dict[str, dict[str, str]],
+        *, observed: dict[str, dict[str, Any]] | None = None,
     ) -> dict[str, int]:
         counts = {name: self._running_count(name) for name in COMPONENTS}
         if counts["broker"] != 1 or any(count > 1 for count in counts.values()):
@@ -152,6 +153,8 @@ class LocalHaPredecessorRuntime(LocalHost):
                     raise UpdaterError("ha_usb_predecessor_running_image_drift")
                 if name in origins:
                     self._check_protected_mounts(runtime["container_id"], origins[name])
+                if observed is not None:
+                    observed[name] = runtime
         return counts
 
     def _check_protected_mounts(self, container_id: str, origins: dict[str, str]) -> None:
@@ -344,6 +347,23 @@ class LocalHaPredecessorRuntime(LocalHost):
                 return
             time.sleep(2)
         raise UpdaterError("ha_usb_target_start_not_observed")
+
+    def target_acceptance_runtime(self, document: dict[str, Any]) -> str:
+        binding, origins = self.check_cutover_target_start(document)
+        observed: dict[str, dict[str, Any]] = {}
+        if self._systemctl("is-active", SERVICES_UNIT) != "active" or not all(
+            self._check_running_predecessor(binding, origins, observed=observed).values()
+        ):
+            raise UpdaterError("ha_usb_target_acceptance_runtime_unavailable")
+        instances = {
+            name: [runtime[key] for key in ("container_id", "started_at", "restart_count", "runtime_contract_sha256")]
+            for name, runtime in observed.items()
+        }
+        return sha256_bytes(canonical({
+            "boot_id": Path("/proc/sys/kernel/random/boot_id").read_text().strip(),
+            "binding": binding,
+            "instances": instances,
+        }))
 
     def verify_untouched_release_launch(self, document: dict[str, Any]) -> None:
         binding, origins = self._verify_original_launch(

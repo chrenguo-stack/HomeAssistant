@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 import n3w_t1_core_updater_ha_mounted_media as mounted_media
 import n3w_t1_core_updater_ha_recovery_startup as recovery_startup
 import n3w_t1_core_updater_ha_usb as ha_usb_mod
+from n3w_t1_core_updater_ha_acceptance import HA_ACCEPTANCE_CHECKS, HaAcceptanceEvidence
 from n3w_t1_core_updater_ha_backup import (
     BACKUP_ARCHIVE_NAME,
     BACKUP_METADATA_NAME,
@@ -158,6 +159,14 @@ def transaction(*, target: ImageRecoveryRecord | None = None, predecessor_portab
 
 class InterruptedPower(BaseException):
     pass
+
+
+class SyntheticAcceptance:
+    def capture_baseline(self, transaction):
+        return {check: sha256_bytes(check.encode()) for check in HA_ACCEPTANCE_CHECKS}
+
+    def observe(self, transaction, check, *, fallback):
+        return HaAcceptanceEvidence("PASS", sha256_bytes(check.encode()))
 
 
 class PredecessorRuntime:
@@ -393,8 +402,11 @@ class StartupRuntime(recovery_startup.LocalHaPredecessorRuntime):
         return int(service in self.running)
 
     def _runtime(self, service):
-        return {"container_id": service, "image_ref": self.saved[service]["reference"],
-                "image_id": self.running_ids[service]}
+        return {
+            "container_id": service, "image_ref": self.saved[service]["reference"],
+            "image_id": self.running_ids[service], "started_at": "fixture",
+            "restart_count": 0, "runtime_contract_sha256": "0" * 64,
+        }
 
     def _systemctl(self, action, unit):
         if action == "is-enabled":
@@ -520,7 +532,7 @@ def test_release_and_boot_reconcile_exact_predecessor(tmp_path, monkeypatch, cap
         outcome = pytest.raises(recovery_startup.UpdaterError, match="test_release_command_interrupted")
     elif fault is not None:
         outcome = pytest.raises(InterruptedPower)
-    with outcome, recovery.install_recovery_point(materials, backups) as ready:
+    with outcome, recovery.install_recovery_point(materials, backups, acceptance=SyntheticAcceptance()) as ready:
         with pytest.raises(recovery_startup.UpdaterError, match="release_action_not_admitted"):
             runtime.release_exact_predecessor(ready)
         released = recovery.release_predecessor_image(materials, backups, AUTHORIZATION_ID)
@@ -719,6 +731,8 @@ def _bind_test_image(record, archive):
     None, "rollback_reserve", "after_target_import", "after_old_reload",
     "target_runtime_drift", "after_target_binding", "write_intent_failed", "before_target_start",
     "after_target_start", "target_start_failed", "after_target_observed",
+    "accept_ok", "accept_fallback", "accept_failed", "accept_unavailable",
+    "commit_interrupted", "commit_runtime_drift",
 ])
 def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, monkeypatch, capsys, fault):
     _, usb, _, _, target, predecessor, backup = drive_to_u8(tmp_path)
@@ -728,11 +742,18 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
     original_file.write_bytes(b"original data")
     original_inode = original_file.stat().st_ino
     live_inode = runtime.ha_data_root.stat().st_ino
-    activation_fault = fault in {
+    acceptance_case = fault in {
+        "accept_ok", "accept_fallback", "accept_failed", "accept_unavailable",
+        "commit_interrupted", "commit_runtime_drift",
+    }
+    activation_fault = acceptance_case or fault in {
         "target_runtime_drift", "after_target_binding", "write_intent_failed", "before_target_start",
         "after_target_start", "target_start_failed", "after_target_observed",
     }
-    data_rollback = fault in {"before_target_start", "after_target_start", "target_start_failed", "after_target_observed"}
+    data_rollback = fault in {
+        "before_target_start", "after_target_start", "target_start_failed", "after_target_observed",
+        "accept_failed", "accept_unavailable", "commit_runtime_drift",
+    }
     target_path, old_path = tmp_path / "target.tar", tmp_path / "predecessor.tar"
     target_config, target_layers = _write_restorable_image_archive(target_path, reference=TARGET)
     old_config, old_layers = _write_restorable_image_archive(old_path)
@@ -788,6 +809,27 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
     prior_rewrite = runtime.rewrite_component_image
     target_starts = []
     loads = []
+    observations = []
+    instance_changed = False
+
+    class Acceptance(SyntheticAcceptance):
+        def capture_baseline(self, transaction):
+            assert runtime.running == {"broker", "manager", "homeassistant"}
+            assert original_file.read_bytes() == b"original data"
+            return super().capture_baseline(transaction)
+
+        def observe(self, transaction, check, *, fallback):
+            assert transaction["target_acceptance"]["attempts"] == store.read()["target_acceptance"]["attempts"]
+            observations.append((check, fallback))
+            if check == "monitoring_path" and fault == "accept_fallback" and not fallback:
+                raise OSError("synthetic temporary observation failure")
+            if check == "protected_data" and fault == "accept_failed":
+                return HaAcceptanceEvidence("PROVEN_FAIL")
+            if check == "monitoring_path" and fault == "accept_unavailable":
+                return HaAcceptanceEvidence("EVIDENCE_UNAVAILABLE")
+            return super().observe(transaction, check, fallback=fallback)
+
+    observer = Acceptance()
 
     def observe(argv, **kwargs):
         if argv == ("docker", "image", "inspect", TARGET) and loaded_target is not None:
@@ -825,7 +867,7 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
     def observed_runtime(name):
         value = prior_runtime(name)
         if name == "homeassistant" and runtime.compose["services"][name]["image"] == TARGET:
-            return {**value, "image_ref": TARGET, "image_id": runtime_id}
+            return {**value, "image_ref": TARGET, "image_id": runtime_id, "restart_count": int(instance_changed)}
         return value
 
     def load(source):
@@ -864,7 +906,10 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
     outcome = nullcontext()
     if fault == "rollback_reserve":
         outcome = pytest.raises(UpdaterV2Error, match="recovery_space_insufficient")
-    elif fault in {"after_target_import", "after_target_binding", "before_target_start", "after_target_start"}:
+    elif fault in {
+        "after_target_import", "after_target_binding", "before_target_start", "after_target_start",
+        "commit_interrupted", "commit_runtime_drift",
+    }:
         outcome = pytest.raises(InterruptedPower)
     elif fault == "target_start_failed":
         outcome = pytest.raises(recovery_startup.UpdaterError, match="synthetic_target_start_failure")
@@ -872,7 +917,7 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
         outcome = pytest.raises(recovery_startup.UpdaterError, match="target_image_runtime_drift")
     elif fault == "write_intent_failed":
         outcome = pytest.raises(OSError, match="synthetic write intent failure")
-    with outcome, recovery.install_recovery_point(verification, backups):
+    with outcome, recovery.install_recovery_point(verification, backups, acceptance=observer):
         recovery.release_predecessor_image(verification, backups, AUTHORIZATION_ID)
         with pytest.raises(UpdaterV2Error, match="target_image_load_not_admitted"):
             HaPredecessorRecovery(store, runtime, runtime).load_target_after_release(provider)
@@ -899,6 +944,52 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
             assert started["phase"] == U11 and not started["recovery_required"]
             assert recovery_startup.main(application_condition=True) == 1
             assert original_file.read_bytes() == b"target migrated data"
+            if acceptance_case:
+                with pytest.raises(UpdaterV2Error, match="target_acceptance_receipt_required"):
+                    record_target_accepted(started)
+                if fault in {"commit_interrupted", "commit_runtime_drift"}:
+                    write = store.write
+
+                    def interrupt_commit(document):
+                        if document["status"] == "COMMITTED":
+                            raise InterruptedPower()
+                        write(document)
+
+                    monkeypatch.setattr(store, "write", interrupt_commit)
+                monkeypatch.setattr(ha_usb_mod.time, "sleep", lambda _: None)
+                result = recovery.accept_and_commit_target(provider)
+                assert result == store.read()
+    if fault in {"commit_interrupted", "commit_runtime_drift"}:
+        assert store.read()["phase"] == U12 and store.read()["status"] == "ACTIVE"
+        instance_changed = fault == "commit_runtime_drift"
+        assert recovery_startup.main() == 0
+        assert json.loads(capsys.readouterr().out)["status"] == ("ROLLED_BACK" if instance_changed else "COMMITTED")
+    if acceptance_case:
+        result = store.read()
+        projected = HaUsbIpcExecutor(store=store, admission_resolver=SimpleNamespace()).status()
+        assert projected["phase"] == result["status"]
+        assert result["target_acceptance"]["attempts"] == (3 if fault == "accept_unavailable" else 1)
+        if not data_rollback:
+            assert result["status"] == "COMMITTED"
+            receipt = result["target_acceptance"]["receipt"]
+            assert receipt["images"]["homeassistant"]["runtime_id"] == runtime_id
+            assert set(receipt["observations"]) == set(HA_ACCEPTANCE_CHECKS)
+            assert original_file.read_bytes() == b"target migrated data"
+            assert loads == [TARGET] and runtime.starts == runtime.rewrites == 1
+            assert recovery_startup.main(application_condition=True) == 0
+            assert recovery_startup.main() == 0
+            assert store.read() == result
+            assert loads == [TARGET] and runtime.starts == runtime.rewrites == 1
+        else:
+            assert result["status"] == "ROLLED_BACK" and original_file.read_bytes() == b"original data"
+            assert loads == [TARGET, CURRENT] and runtime.starts == runtime.rewrites == 2
+            if fault.startswith("accept_"):
+                reason = "proven_failure" if fault == "accept_failed" else "evidence_unavailable"
+                assert result["failure_code"] == f"ha_usb_target_acceptance_{reason}"
+                assert projected["error_code"] == result["failure_code"]
+        if fault == "accept_fallback":
+            assert ("monitoring_path", True) in observations
+        return
     if fault == "after_target_observed":
         assert recovery_startup.main(pending_only=True) == 0
         assert capsys.readouterr().out == ""
@@ -1531,7 +1622,7 @@ def test_verify_existing_usb_media_from_bound_archives(tmp_path, monkeypatch, fa
         outcome = (
             nullcontext() if fault == "restore" else pytest.raises(UpdaterV2Error, match=expected)
         )
-        with outcome, recovery.install_recovery_point(verifier, backups) as document:
+        with outcome, recovery.install_recovery_point(verifier, backups, acceptance=SyntheticAcceptance()) as document:
             assert document["phase"] == U8
             assert document["install_recovery_materials"]["predecessor"] == predecessor.public()
             record = backup_record_from_document(document["install_recovery_materials"]["backup"])
@@ -1769,6 +1860,7 @@ class InstallMaterialFixture:
     ("drift", "expected", "expected_phase"),
     [
         ("target_size", "ha_usb_install_target_size_drift", U4),
+        ("baseline_missing", "ha_usb_predecessor_acceptance_baseline_unavailable", U4),
         ("usb_after_stop", "usb_filesystem_uuid_mismatch", U7),
         (None, "ha_usb_install_cutover_not_consumed", U8),
     ],
@@ -1807,9 +1899,14 @@ def test_ipc_install_request_reaches_qualified_recovery_point(
     assert store.read()["phase"] == U5
     assert install_ready.is_set()
 
+    observer = SyntheticAcceptance()
+    if drift == "baseline_missing":
+        observer.capture_baseline = lambda _: {}
     with (
         pytest.raises(UpdaterV2Error, match=expected),
-        HaPredecessorRecovery(store, runtime, runtime).install_recovery_point(fixture, fixture)
+        HaPredecessorRecovery(store, runtime, runtime).install_recovery_point(
+            fixture, fixture, acceptance=observer,
+        )
         as ready,
     ):
         assert ready["phase"] == U8
@@ -1825,7 +1922,8 @@ def test_ipc_install_request_reaches_qualified_recovery_point(
     if expected_phase == U4:
         assert runtime.stop_count == runtime.start_count == 0
         assert fixture.preflight_phases == [U5]
-        assert executor.status()["error_code"] == "ha_usb_install_revalidation_failed"
+        failure_code = expected if drift == "baseline_missing" else "ha_usb_install_revalidation_failed"
+        assert executor.status()["error_code"] == failure_code
     else:
         assert runtime.stop_count == runtime.start_count == 1
         assert fixture.preflight_phases == [U5, U7]
