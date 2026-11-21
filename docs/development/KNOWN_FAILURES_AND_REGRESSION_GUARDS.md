@@ -1,3 +1,9 @@
+### 2026-11-21 T1 OTA V1.2 R6 · 隔离 Manager 配对控制套接字目录权限
+
+- **现象**：PR #815 隔离 ARM64 运行 `44919242572` 中，HA 完成 MQTT 注册后，Manager 在首个维护自检回执前以退出码 1 结束。清理容器前未采集 Manager 日志。
+- **根因**：隔离测试用 `mkdir(parents=True, mode=0o700)` 创建状态子目录，套接字父目录仍按默认权限创建。在 `umask 022` 下，用实际 Manager 路径校验器复现 `pairing_control_socket_parent_invalid`。
+- **防回归**：显式以 `0700` 创建测试根目录，继续使用实际 Manager 校验器。Manager 退出或等待回执超时时，测试先记录容器状态和脱敏日志，再清理容器。
+
 ### 2026-11-21 T1 OTA V1.2 R6 · Manager startup with OTA enabled
 
 - **现象**：候选启用 OTA 后，Manager 的 N3-W 简化服务初始化抛出 `GH_N3W_T1_OTA_ENABLED requires GH_N3W_RUNTIME_ENABLED`。

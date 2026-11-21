@@ -35,8 +35,9 @@ from greenhouse_manager.runtime.config import Settings
 from greenhouse_manager.runtime.n3w_manager_runtime_wiring import build_manager_mqtt_service
 
 root = Path("/tmp/n3w-ota-fixture")
+root.mkdir(mode=0o700)
 for folder in ("manager", "n3w"):
-    (root / folder).mkdir(parents=True, mode=0o700)
+    (root / folder).mkdir(mode=0o700)
 system_id, username, client_id, password = sys.argv[1:]
 create_fresh_state(root / "manager", root / "n3w",
                    expected_system_id_sha256=hashlib.sha256(system_id.encode()).hexdigest())
@@ -249,6 +250,8 @@ def _sanitize(value: str) -> str:
         PASSWORD,
         USERNAME,
         CLIENT_ID,
+        MANAGER_CLIENT_ID,
+        MANAGER_USERNAME,
     ):
         result = result.replace(
             secret,
@@ -576,14 +579,22 @@ def _assert_monitoring_self_test(
         SYSTEM_ID, Path("/fixture/no-nodes.db"), runtime, host._read_ha_receipts, host._request_ha_monitoring_self_test,
     )
     deadline = time.monotonic() + timeout_s
+    failure = "exact_ha_manager_monitoring_challenge_receipt_unavailable"
     while time.monotonic() < deadline:
         verdict = evidence.run_self_test()
         if verdict.verdict == "PASS":
             assert verdict.sha256 is not None and len(verdict.sha256) == 64
             return
         if not _container_running(manager_name):
-            raise RuntimeError("fixture_manager_stopped " + _container_state(manager_name))
-    raise RuntimeError("exact_ha_manager_monitoring_challenge_receipt_unavailable")
+            failure = "fixture_manager_stopped"
+            break
+    raise RuntimeError(
+        f"{failure} "
+        + _container_state(manager_name)
+        + "\nMANAGER_LOG_TAIL_BEGIN\n"
+        + _safe_logs(manager_name, tail=100)
+        + "\nMANAGER_LOG_TAIL_END"
+    )
 
 
 def test_exact_homeassistant_image_bootstrap_and_recreate(
