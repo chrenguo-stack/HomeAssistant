@@ -29,3 +29,16 @@ nor its receipt creates an entity, invokes discovery or writes sensor
 history. A status query has no request path. During rollback, inconclusive
 monitoring evidence leaves the restored services running and the journal
 pending for a later check.
+
+For the HA-only test candidate, the product installation intent is recorded
+before the host runner is invoked. The recovery archive's
+`--install-requested` mode admits a prepared transaction using a private
+`ha-install-authority.json` in the transaction state directory. The
+authority binds the prepared transaction and original media, the exact
+predecessor launch, the authorized ID, expiry, and checked storage budgets.
+The running predecessor must prove the configured monitoring path before
+the first service stop. An interrupted install is handled by the existing
+recovery entry.
+
+Candidate preparation must supply the approved inputs and arrange host
+worker invocation. The repository does not contain a live authority file.

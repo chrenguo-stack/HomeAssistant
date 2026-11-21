@@ -789,18 +789,32 @@ class HaUsbStateStore:
     def read(self) -> dict[str, Any] | None:
         if not self._existing_root() or not self.path.exists():
             return None
-        if self.path.is_symlink() or not self.path.is_file():
+        return self._read_record(self.path)
+
+    @staticmethod
+    def _read_record(path: Path) -> dict[str, Any]:
+        if path.is_symlink() or not path.is_file():
             raise UpdaterV2Error("ha_usb_transaction_invalid")
-        metadata = self.path.stat()
+        metadata = path.stat()
         if stat.S_IMODE(metadata.st_mode) != 0o600:
             raise UpdaterV2Error("ha_usb_transaction_metadata_invalid")
         if metadata.st_uid != os.getuid():
             raise UpdaterV2Error("ha_usb_transaction_owner_invalid")
         try:
-            document = json.loads(self.path.read_text(encoding="utf-8"))
+            document = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, UnicodeError, json.JSONDecodeError) as error:
             raise UpdaterV2Error("ha_usb_transaction_invalid") from error
         return validate_transaction_document(document)
+
+    def was_authorization_consumed(self, authorization_sha256: str) -> bool:
+        if not self.history.exists() and not self.history.is_symlink():
+            return False
+        self._validate_private_dir(self.history)
+        for path in self.history.glob("*-homeassistant-usb-*.json"):
+            recorded = self._read_record(path)
+            if recorded["authorization_consumed"] and recorded["authorization_id_sha256"] == authorization_sha256:
+                return True
+        return False
 
     def _archive_current(self, document: dict[str, Any]) -> None:
         self._ensure_history()

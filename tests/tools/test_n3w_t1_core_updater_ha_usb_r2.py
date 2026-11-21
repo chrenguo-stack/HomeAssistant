@@ -604,8 +604,11 @@ def test_boot_entry_resumes_only_the_bound_predecessor(tmp_path, monkeypatch, ca
     assert document["status"] == "ACTIVE"
     assert document["authorization_consumed"] is False
     if drift is None:
-        assert recovery_startup.main() == 0
+        # A timer wake can close the orphaned transaction without boot or USB.
+        assert recovery_startup.main(pending_only=True) == 0
+        assert json.loads(capsys.readouterr().out)["status"] == "ROLLED_BACK"
         assert runtime.starts == 1
+        assert store.read()["status"] == "ROLLED_BACK"
 
 
 def test_boot_entry_leaves_legacy_and_post_cutover_transactions_alone(tmp_path, monkeypatch, capsys):
@@ -738,7 +741,7 @@ def _bind_test_image(record, archive):
     "target_runtime_drift", "after_target_binding", "write_intent_failed", "before_target_start",
     "after_target_start", "target_start_failed", "after_target_observed",
     "accept_ok", "accept_fallback", "accept_failed", "accept_unavailable",
-    "commit_interrupted", "commit_runtime_drift",
+    "commit_interrupted", "commit_runtime_drift", "install_worker",
 ])
 def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, monkeypatch, capsys, fault):
     _, usb, _, _, target, predecessor, backup = drive_to_u8(tmp_path)
@@ -750,7 +753,7 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
     live_inode = runtime.ha_data_root.stat().st_ino
     acceptance_case = fault in {
         "accept_ok", "accept_fallback", "accept_failed", "accept_unavailable",
-        "commit_interrupted", "commit_runtime_drift",
+        "commit_interrupted", "commit_runtime_drift", "install_worker",
     }
     activation_fault = acceptance_case or fault in {
         "target_runtime_drift", "after_target_binding", "write_intent_failed", "before_target_start",
@@ -799,7 +802,10 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
         ),
         verify_quiesced=runtime.rollback_writers_quiesced,
     )
-    store.write(request_install(prepared))
+    if fault == "install_worker":
+        store.write(prepared)
+    else:
+        store.write(request_install(prepared))
     verification = SimpleNamespace(verify_install_materials=lambda _: HaInstallMaterials(
         USB_UUID, target, predecessor, usb.report, True, HaInternalSpace(8 * 1024**2, 3 * 1024**2, 3 * 1024**2),
     ))
@@ -946,6 +952,81 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
     monkeypatch.setattr(recovery_startup, "LocalHaPredecessorRuntime", lambda: runtime)
     monkeypatch.setattr(runtime, "mounted_recovery_provider", lambda *_args, **_kwargs: provider)
 
+    if fault == "install_worker":
+        admission = HostOtaAdmission(
+            release_identity=prepared["target_manifest_identity"]["release_identity"],
+            **{field: prepared[field] for field in (
+                "current_image_ref", "current_image_identity", "target_image_ref", "target_manifest_identity",
+                "target_archive_size", "target_archive_sha256",
+            )},
+        )
+        ipc = HaUsbIpcDispatcher(HaUsbIpcExecutor(
+            store=store, admission_resolver=SimpleNamespace(resolve_homeassistant_release=lambda _: admission),
+        ))
+        assert recovery_startup.cli(["--install-requested"]) == 0
+        assert json.loads(capsys.readouterr().out)["status"] == "NO_ADMITTED_INSTALL_REQUEST"
+        result = ipc.handle(json.dumps({
+            "schema": REQUEST_SCHEMA, "operation": "submit", "action": "INSTALL",
+            "target_release_id": admission.release_identity,
+        }).encode())
+        assert json.loads(result)["accepted"] is True
+        requested = store.read()
+        assert requested["phase"] == U5
+        assert recovery_startup.cli(["--install-requested"]) == 1
+        assert json.loads(capsys.readouterr().out)["status"] == "INSTALL_NEEDS_REVIEW"
+        assert store.read() == requested and runtime.starts == runtime.rewrites == 0
+
+        original_run = runtime._run
+
+        def installer_command(argv, **kwargs):
+            if argv == ("docker", "info", "--format", "{{.DockerRootDir}}"):
+                return SimpleNamespace(stdout=str(store.root).encode())
+            return original_run(argv, **kwargs)
+
+        monkeypatch.setattr(runtime, "_run", installer_command)
+        monkeypatch.setattr(runtime, "acceptance_observer", lambda: observer)
+        usable = requested["usb_measured_usable_bytes"]
+        monkeypatch.setattr(mounted_media.os, "fstatvfs", lambda _: SimpleNamespace(
+            f_bavail=usable, f_blocks=usable, f_bfree=usable, f_frsize=1,
+        ))
+        binding = runtime.capture_start_binding(requested)
+        grant_path = store.root / recovery_startup.INSTALL_AUTHORITY_FILE
+        grant = {
+            "schema": recovery_startup.INSTALL_AUTHORITY_SCHEMA,
+            "binding_sha256": recovery_startup.requested_install_binding_sha256(requested),
+            "authorization_id": AUTHORIZATION_ID,
+            "launch_sha256": binding["launch_sha256"],
+            "expires_at_unix": 0x7FFFFFFF,
+            "space": dict.fromkeys(recovery_startup.INSTALL_BUDGET_FIELDS, 1024),
+        }
+        for wrong in (
+            {"binding_sha256": "0" * 64}, {"expires_at_unix": 1}, {"launch_sha256": "0" * 64},
+        ):
+            grant_path.write_text(json.dumps({**grant, **wrong}))
+            grant_path.chmod(0o600)
+            assert recovery_startup.cli(["--install-requested"]) == 1
+            assert json.loads(capsys.readouterr().out)["status"] == "INSTALL_NEEDS_REVIEW"
+            assert runtime.running == {"broker", "manager", "homeassistant"}
+            if store.read()["phase"] == U4:
+                assert json.loads(ipc.handle(json.dumps({
+                    "schema": REQUEST_SCHEMA, "operation": "submit", "action": "INSTALL",
+                    "target_release_id": admission.release_identity,
+                }).encode()))["accepted"] is True
+        grant_path.write_text(json.dumps(grant))
+        assert recovery_startup.cli(["--install-requested"]) == 0
+        assert json.loads(capsys.readouterr().out)["status"] == "COMMITTED"
+        committed = store.read()
+        assert committed["phase"] == U13A and committed["authorization_consumed"] is True
+        assert loads == [TARGET] and target_starts == [U10]
+        assert recovery_startup.cli(["--install-requested"]) == 0
+        assert json.loads(capsys.readouterr().out)["status"] == "NO_ADMITTED_INSTALL_REQUEST"
+        assert store.read() == committed and loads == [TARGET]
+        with store.lock():
+            store.prepare_new()
+            assert store.was_authorization_consumed(sha256_bytes(AUTHORIZATION_ID.encode()))
+            assert not store.was_authorization_consumed("0" * 64)
+        return
+
     outcome = nullcontext()
     if fault == "rollback_reserve":
         outcome = pytest.raises(UpdaterV2Error, match="recovery_space_insufficient")
@@ -1042,7 +1123,8 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
             assert ("monitoring_path", True) in observations
         return
     if fault == "after_target_observed":
-        assert recovery_startup.main(pending_only=True) == 0
+        with store.lock():
+            assert recovery_startup.main(pending_only=True) == 0
         assert capsys.readouterr().out == ""
         assert store.read() == started and runtime.starts == 1
 
@@ -1054,7 +1136,8 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
                 raise recovery_startup.HaRecoveryMediaRequired("original media absent")
 
             patch.setattr(runtime, "mounted_recovery_provider", absent_media)
-            assert recovery_startup.main() == 0
+            patch.setattr(runtime, "mount_original_for_recovery", absent_media)
+            assert recovery_startup.main(pending_only=fault == "after_target_observed") == 0
             assert json.loads(capsys.readouterr().out) == {"status": "RECOVERY_MEDIA_REQUIRED"}
         assert store.read()["recovery_required"]
         assert not {"homeassistant", "manager"} & runtime.running
