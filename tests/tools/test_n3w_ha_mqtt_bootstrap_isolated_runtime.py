@@ -27,6 +27,7 @@ MANAGER_CLIENT_ID = "n3w-ci-manager-ota"
 
 MANAGER_START = """
 import hashlib
+import logging
 import sys
 from pathlib import Path
 
@@ -34,6 +35,7 @@ from greenhouse_manager.bootstrap.fresh_product_state import create_fresh_state
 from greenhouse_manager.runtime.config import Settings
 from greenhouse_manager.runtime.n3w_manager_runtime_wiring import build_manager_mqtt_service
 
+logging.basicConfig(level=logging.INFO)
 root = Path("/tmp/n3w-ota-fixture")
 root.mkdir(mode=0o700)
 for folder in ("manager", "n3w"):
@@ -588,13 +590,10 @@ def _assert_monitoring_self_test(
         if not _container_running(manager_name):
             failure = "fixture_manager_stopped"
             break
-    raise RuntimeError(
-        f"{failure} "
-        + _container_state(manager_name)
-        + "\nMANAGER_LOG_TAIL_BEGIN\n"
-        + _safe_logs(manager_name, tail=100)
-        + "\nMANAGER_LOG_TAIL_END"
-    )
+    details = [f"{failure} {_container_state(manager_name)}"]
+    for source, name in (("MANAGER", manager_name), ("HA", ha_name), ("BROKER", broker_name)):
+        details.extend((f"{source}_LOG_TAIL_BEGIN", _safe_logs(name, tail=80), f"{source}_LOG_TAIL_END"))
+    raise RuntimeError("\n".join(details))
 
 
 def test_exact_homeassistant_image_bootstrap_and_recreate(

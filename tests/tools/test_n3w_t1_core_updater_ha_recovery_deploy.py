@@ -93,7 +93,9 @@ def test_exact_package_installs_and_executes_self_contained_recovery(package, tm
     assert (staged / deploy.MONITORING_MODULE).read_bytes() == (
         REPO / deploy.MONITORING_SOURCE / "__init__.py"
     ).read_bytes()
-    assert json.loads((staged / deploy.MONITORING_MANIFEST).read_bytes())["domain"] == "n3w_ota_monitoring"
+    monitoring_manifest = json.loads((staged / deploy.MONITORING_MANIFEST).read_bytes())
+    assert monitoring_manifest["domain"] == "n3w_ota_monitoring"
+    assert {"mqtt", "n3w_mqtt_bootstrap"} <= set(monitoring_manifest["dependencies"])
     stdout = subprocess.check_output((sys.executable, "-I", installed, "--help"), cwd=tmp_path, text=True)
     assert all(flag in stdout for flag in ("--check-application-start", "--resume-pending", "--install-requested", "--serve-ipc"))
     assert "--issue-prepare-authority" in stdout and "--issue-install-authority" in stdout
