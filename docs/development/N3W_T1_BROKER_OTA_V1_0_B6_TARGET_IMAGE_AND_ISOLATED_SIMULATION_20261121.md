@@ -126,3 +126,34 @@ Attempt 01 exact head = c42c178339974b275d5133b102f28cd6816d995d。
 - contract test 明确禁止 admin 被重新用于 `n3w/b6/#` application retained publish。
 
 Attempt 01 的 exact-artifact 虽然成功，但后续源码 head 已变化，因此不作为最终 frozen target artifact；新 head 必须重新产生 exact artifact 和隔离模拟证据。
+
+
+## 8. Phase 1 Attempt 02 Failure 与局部修复
+
+Attempt 02 exact head = cc8c1e015b5e1d940cf51fa9ba35e2076e783ffd。
+
+结果：
+
+- source = SUCCESS；
+- exact-artifact = SUCCESS；
+- Broker Recovery Support Exact CI = SUCCESS；
+- isolated-a-to-b = FAILURE；
+- Public repository safety = FAILURE。
+
+Attempt 02 仍在 predecessor 2.1.2 fixture 初始化阶段失败，尚未进入 target 2.1.4 与 Recovery Point A→B 核心路径。新增的 raw $CONTROL publish 方式没有形成稳定的管理命令闭环；同时 workflow heredoc 中的非空敏感字段字面量触发 repository safety gate。
+
+Attempt 02 修复为：
+
+- 不再手工拼 raw $CONTROL JSON；
+- 全部 DynSec fixture 变更使用 Mosquitto 2.1.2 官方 mosquitto_ctrl 命令：createRole、addRoleACL、createClient、addClientRole；
+- admin 继续只承担 DynSec 管理；
+- application client 继续只承担 n3w/b6/# 的业务发布/订阅；
+- ADMIN 与 APP_PASSWORD 均在 CI runner 内通过 openssl rand 动态生成，不在仓库保存静态密码；
+- createClient 的新 client password 通过 stdin 提供，不把动态密码写入 tracked YAML。
+
+Mosquitto 2.1.2 官方 Dynamic Security 文档确认：
+- createClient 会交互读取新 client password；
+- addClientRole 语法为 username / rolename / priority；
+- addRoleACL 支持 publishClientSend、publishClientReceive、subscribePattern 及 allow/deny/priority。
+
+Attempt 02 的 exact-artifact 同样不作为最终 frozen target，因为修复后 source head 再次变化。

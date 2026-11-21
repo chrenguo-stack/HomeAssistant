@@ -57,14 +57,20 @@ def test_broker_target_workflow_runs_real_isolated_a_to_b_and_recovery_point():
 
 def test_broker_target_fixture_keeps_dynsec_admin_out_of_application_topics():
     text = WORKFLOW.read_text(encoding="utf-8")
+    assert 'ADMIN="$(openssl rand -hex 24)"' in text
     assert 'APP_USER="b6-app-client"' in text
+    assert 'APP_PASSWORD="$(openssl rand -hex 24)"' in text
     assert 'APP_ROLE="b6-app-role"' in text
-    assert "-t '$CONTROL/dynamic-security/v1'" in text
-    assert '"command": "createRole"' in text
-    assert '"command": "createClient"' in text
-    assert '"acltype": "publishClientSend"' in text
-    assert '"acltype": "subscribePattern"' in text
+    assert 'dynsec createRole "$APP_ROLE"' in text
+    assert "dynsec addRoleACL" in text
+    assert "publishClientSend 'n3w/b6/#' allow 100" in text
+    assert "subscribePattern 'n3w/b6/#' allow 100" in text
+    assert "publishClientReceive 'n3w/b6/#' allow 100" in text
+    assert 'dynsec createClient "$APP_USER"' in text
+    assert 'dynsec addClientRole "$APP_USER" "$APP_ROLE" 100' in text
     assert '-u "$APP_USER" -P "$APP_PASSWORD"' in text
+    assert "CONTROL_PAYLOAD=" not in text
+    assert '"password": password' not in text
     assert '-u admin -P "$ADMIN" \\\n            -r -t n3w/b6/' not in text
 
 

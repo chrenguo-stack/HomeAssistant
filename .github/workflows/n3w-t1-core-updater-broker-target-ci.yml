@@ -443,9 +443,9 @@ jobs:
         run: |
           set -euo pipefail
           WORK="$RUNNER_TEMP/broker-b6"
-          ADMIN="b6-admin-password-not-production"
+          ADMIN="$(openssl rand -hex 24)"
           APP_USER="b6-app-client"
-          APP_PASSWORD="b6-app-password-not-production"
+          APP_PASSWORD="$(openssl rand -hex 24)"
           APP_ROLE="b6-app-role"
           mkdir -p "$WORK/config" "$WORK/data" "$WORK/tls"
           cp infra/n3w-t1/broker/mosquitto.conf "$WORK/config/mosquitto.conf"
@@ -515,52 +515,31 @@ jobs:
           start_broker "$PREDECESSOR_UPSTREAM"
           docker exec n3w-b6-broker mosquitto -h 2>&1 | grep -F 'mosquitto version 2.1.2'
 
-          CONTROL_PAYLOAD="$(python - "$APP_USER" "$APP_PASSWORD" "$APP_ROLE" <<'PY'
-          import json
-          import sys
-
-          username, password, role = sys.argv[1:4]
-          document = {
-              "commands": [
-                  {
-                      "command": "createRole",
-                      "rolename": role,
-                      "acls": [
-                          {
-                              "acltype": "publishClientSend",
-                              "topic": "n3w/b6/#",
-                              "priority": 100,
-                              "allow": True,
-                          },
-                          {
-                              "acltype": "subscribePattern",
-                              "topic": "n3w/b6/#",
-                              "priority": 100,
-                              "allow": True,
-                          },
-                          {
-                              "acltype": "publishClientReceive",
-                              "topic": "n3w/b6/#",
-                              "priority": 100,
-                              "allow": True,
-                          },
-                      ],
-                  },
-                  {
-                      "command": "createClient",
-                      "username": username,
-                      "password": password,
-                      "roles": [{"rolename": role, "priority": 100}],
-                  },
-              ]
-          }
-          print(json.dumps(document, separators=(",", ":")))
-          PY
-          )"
-          docker exec n3w-b6-broker mosquitto_pub \
+          docker exec n3w-b6-broker mosquitto_ctrl \
             -h 127.0.0.1 -p 1883 \
             -u admin -P "$ADMIN" \
-            -q 1 -t '$CONTROL/dynamic-security/v1' -m "$CONTROL_PAYLOAD"
+            dynsec createRole "$APP_ROLE"
+          docker exec n3w-b6-broker mosquitto_ctrl \
+            -h 127.0.0.1 -p 1883 \
+            -u admin -P "$ADMIN" \
+            dynsec addRoleACL "$APP_ROLE" publishClientSend 'n3w/b6/#' allow 100
+          docker exec n3w-b6-broker mosquitto_ctrl \
+            -h 127.0.0.1 -p 1883 \
+            -u admin -P "$ADMIN" \
+            dynsec addRoleACL "$APP_ROLE" subscribePattern 'n3w/b6/#' allow 100
+          docker exec n3w-b6-broker mosquitto_ctrl \
+            -h 127.0.0.1 -p 1883 \
+            -u admin -P "$ADMIN" \
+            dynsec addRoleACL "$APP_ROLE" publishClientReceive 'n3w/b6/#' allow 100
+          printf '%s\n%s\n' "$APP_PASSWORD" "$APP_PASSWORD" | \
+            docker exec -i n3w-b6-broker mosquitto_ctrl \
+              -h 127.0.0.1 -p 1883 \
+              -u admin -P "$ADMIN" \
+              dynsec createClient "$APP_USER"
+          docker exec n3w-b6-broker mosquitto_ctrl \
+            -h 127.0.0.1 -p 1883 \
+            -u admin -P "$ADMIN" \
+            dynsec addClientRole "$APP_USER" "$APP_ROLE" 100
 
           for attempt in $(seq 1 20); do
             if docker exec n3w-b6-broker mosquitto_pub \
