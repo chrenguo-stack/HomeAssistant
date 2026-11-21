@@ -139,6 +139,14 @@ class V2StateStore:
         ):
             raise UpdaterV2Error("upgrade_transaction_active")
         if (
+            current is not None
+            and current.get("component") == "broker"
+            and current.get("status") in TERMINAL_TX_V2
+            and current.get("broker_recovery_point") is not None
+            and current.get("broker_recovery_retired") is not True
+        ):
+            raise UpdaterV2Error("broker_recovery_retirement_required")
+        if (
             legacy is not None
             and legacy.get("status") not in {"COMMITTED", "ROLLED_BACK"}
         ):

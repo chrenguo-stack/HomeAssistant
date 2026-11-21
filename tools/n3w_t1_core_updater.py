@@ -42,6 +42,7 @@ def parser() -> argparse.ArgumentParser:
     apply.add_argument("--confirmation", required=True)
     rollback = sub.add_parser("rollback")
     rollback.add_argument("--confirmation", required=True)
+    sub.add_parser("recover-broker-pending")
     sub.add_parser("status")
     sub.add_parser("runtime-state")
     return command
@@ -131,6 +132,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 if v2_operation
                 else legacy.rollback(confirmation=args.confirmation)
             )
+        elif args.command == "recover-broker-pending":
+            v2_operation = True
+            result = v2.recover_broker_pending()
         elif args.command == "status":
             v2_operation = v2_store.path.exists()
             result = v2.status() if v2_operation else legacy.status()
@@ -151,7 +155,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "reason": safe_reason(error),
                     "t1_mutation": (
                         "UNKNOWN"
-                        if args.command in {"apply", "rollback"}
+                        if args.command in {
+                            "apply",
+                            "rollback",
+                            "recover-broker-pending",
+                        }
                         else False
                     ),
                 },

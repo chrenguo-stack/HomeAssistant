@@ -1,0 +1,20 @@
+[Unit]
+Description=N3W T1 Core Updater pending Broker transaction recovery
+Wants=docker.service
+After=docker.service n3wfc4-broker-activation.service n3wfc4-services-activation.service
+ConditionPathExists=/var/lib/n3w-t1-core-updater/upgrade.json
+StartLimitIntervalSec=120
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+ExecStart=/opt/n3w-t1-core-updater/t1-core-updater.pyz recover-broker-pending
+TimeoutStartSec=600
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

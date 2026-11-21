@@ -1354,6 +1354,16 @@ class LocalHost:
         except module.BrokerRecoveryError as error:
             raise UpdaterError(str(error)) from error
 
+    def retire_broker_recovery_point(
+        self,
+        record: dict[str, Any],
+    ) -> dict[str, Any]:
+        module = self._broker_recovery_module()
+        try:
+            return module.LocalBrokerRecoveryPoint().retire(record)
+        except module.BrokerRecoveryError as error:
+            raise UpdaterError(str(error)) from error
+
     def stop_broker(self) -> None:
         self._run(("systemctl", "stop", BROKER_UNIT), timeout=120)
         if self._systemctl("is-active", BROKER_UNIT) not in {

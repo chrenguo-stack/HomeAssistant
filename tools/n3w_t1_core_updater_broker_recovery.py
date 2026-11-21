@@ -466,3 +466,39 @@ class LocalBrokerRecoveryPoint:
             "source_tree_sha256": restored_sha,
             "file_count": len(restored["files"]),
         }
+
+
+    def retire(self, record: dict[str, Any]) -> dict[str, Any]:
+        if (
+            not isinstance(record, dict)
+            or record.get("schema") != BROKER_RECOVERY_SCHEMA
+            or not isinstance(record.get("key"), str)
+        ):
+            raise BrokerRecoveryError("broker_recovery_record_invalid")
+        key = record["key"]
+        self._validate_key(key)
+        directory = self.recovery_root / key
+        if not directory.exists():
+            if directory.is_symlink():
+                raise BrokerRecoveryError("broker_recovery_snapshot_invalid")
+            return {
+                "schema": BROKER_RECOVERY_SCHEMA,
+                "status": "PASS",
+                "key": key,
+                "retired": True,
+                "already_absent": True,
+            }
+        self._load_verified_manifest(record)
+        if directory.is_symlink() or not directory.is_dir():
+            raise BrokerRecoveryError("broker_recovery_snapshot_invalid")
+        shutil.rmtree(directory)
+        if directory.exists() or directory.is_symlink():
+            raise BrokerRecoveryError("broker_recovery_retire_failed")
+        _fsync_directory(self.recovery_root)
+        return {
+            "schema": BROKER_RECOVERY_SCHEMA,
+            "status": "PASS",
+            "key": key,
+            "retired": True,
+            "already_absent": False,
+        }
