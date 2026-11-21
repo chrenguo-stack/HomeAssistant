@@ -1,6 +1,6 @@
 # N3-W T1 OTA V1.2 R6 Home Assistant 整体复核
 
-2026-11-21 起始复核发现收数回执接线、节点静默和前代恢复验收三项阻断点。2026-11-22 已确认修复提交的隔离自检和精确工件 CI 全部通过，普通节点遥测已在后续隔离 ARM64 测试中通过。最终工件复验状态见文末。
+2026-11-21 起始复核发现收数回执接线、节点静默和前代恢复验收三项阻断点。2026-11-22 已确认修复提交的隔离自检和精确工件 CI 全部通过，普通节点遥测已在后续隔离 ARM64 测试中通过。候选提交的 24 项 CI 与三镜像工件下载复验已全部通过。
 
 ## 复核对象和验证结果
 
@@ -100,3 +100,9 @@ R7 预检按 [V1.2 第 13 节](https://github.com/chrenguo-stack/HomeAssistant/b
 - [ARM64 联调步骤](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44924757245/job/136908307028)已通过。该用例验证两次空节点自检以及普通节点 MQTT 遥测，普通遥测的 HA 回执与 Manager 持久游标一致。第三次查询为 23 项成功、1 项运行，0 项失败；仅三镜像的下载后绑定复验仍在进行。
 - [恢复包 `14715501376`](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44924757335/artifacts/14715501376)绑定 `84da7cd68e2f65fb011c32db1c3683b76a48112b`。ZIP SHA-256 `078500292fba59c2acd187ca3613258a7c6d1c6594113d925e98352d4bc9b055`，清单 SHA-256 `9cfad52a76670474cb328d3d22c0a7d4985f38f3e79fbe68e82a6b6550c8fa48`，pyz SHA-256 `f39629268ffeab9906f9de8cb60362d604d5b9150ef4c13571926b00921e6b84`。11 个交付文件和本地独立重建逐字节一致。
 - [三镜像工件 `14715154066`](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44924757245/artifacts/14715154066)已上传，GitHub 发布的 ZIP 摘要 `sha256:740e66ab1027141e5f8904b308bf695c8fe57172807d84f8627069e6e1926982`。[fresh 交付工件 `14715332642`](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44924757265/artifacts/14715332642)所在工作流已成功，ZIP 摘要 `sha256:dedd4adfecaae74ab1a98cf6cbf825ff00d10970ea6e80e31f17bc88346692f2`。本轮停止主动轮询，备用 T1 R7 现场预检尚未开始。
+
+## R6 验证收口（2026-11-22）
+
+- [PR #815](https://github.com/chrenguo-stack/HomeAssistant/pull/815)仍为打开的草稿。候选 `84da7cd68e2f65fb011c32db1c3683b76a48112b`，源码树 `06bdb7ec703daa60546765e5d63f68451f45c533`，PR 基线 `4fde1b7c5cc0aa224fa3574b8b4cc638edd93647`。同提交 24 个 GitHub Actions 工作流全部通过。
+- [ARM64 运行 44924757245](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44924757245/job/136908307028)的终态日志确认 `HA_EXACT_ARM64_MANAGER_MONITORING_ROUND_TRIP=PASS`、`HA_EXACT_ARM64_NATURAL_MONITORING=PASS` 及 `R6_EXACT_ARM64_POST_UPLOAD_BINDING=PASS`。核验对象是[三镜像工件 14715154066](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44924757245/artifacts/14715154066)。R6 源码、模拟、隔离验证和精确候选材料门槛通过。
+- [恢复包 14715501376](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44924757335/artifacts/14715501376)和 [fresh 交付工件 14715332642](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44924757265/artifacts/14715332642)绑定同一候选。目标 HA 2026.10.4 固定归档仍为 [13391983948](https://github.com/chrenguo-stack/HomeAssistant/actions/artifacts/13391983948)，835,309,535 字节，SHA-256 `eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973`。R7 从备用 T1 的只读取证开始。
