@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import json
 import os
@@ -44,6 +45,8 @@ MANIFEST = "manifest.json"
 ARCHIVE = "ha-recovery.pyz"
 GUARD = "ota-ha-recovery.conf"
 CANDIDATE_COMPOSE = "ha-ota-candidate.compose.yml"
+CANDIDATE_DOWNLOAD_LOCK = ".ha-candidate-download.lock"
+CANDIDATE_DOWNLOAD_PART = ".ha-candidate-download.part"
 BASE_COMPOSE = "infra/n3w-t1/production/docker-compose.fresh.yml"
 PERSISTENT_UNITS = (RECOVERY_STARTUP_UNIT, RECOVERY_TIMER, IPC_SOCKET_UNIT)
 ENABLEMENT_DIRS = ("multi-user.target.wants", "timers.target.wants", "sockets.target.wants")
@@ -327,6 +330,28 @@ def _stage_target_archive(
     runtime: LocalHaPredecessorRuntime, open_archive: Callable[[int], AbstractContextManager[BinaryIO]],
     target: Path, admission: HostOtaAdmission,
 ) -> None:
+    lock = target.parent / CANDIDATE_DOWNLOAD_LOCK
+    descriptor = os.open(lock, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+    try:
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode) or stat.S_IMODE(metadata.st_mode) != 0o600 or metadata.st_uid != os.geteuid():
+            raise UpdaterError("ha_recovery_candidate_download_lock_invalid")
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise UpdaterError("ha_recovery_candidate_download_busy") from error
+        partial = target.parent / CANDIDATE_DOWNLOAD_PART
+        # The previous downloader may have lost power before it could remove this file.
+        partial.unlink(missing_ok=True)
+        _stage_locked_target_archive(runtime, open_archive, target, admission, partial)
+    finally:
+        os.close(descriptor)
+
+
+def _stage_locked_target_archive(
+    runtime: LocalHaPredecessorRuntime, open_archive: Callable[[int], AbstractContextManager[BinaryIO]],
+    target: Path, admission: HostOtaAdmission, partial: Path,
+) -> None:
     size = admission.target_archive_size
     digest = admission.target_archive_sha256
     if os.path.lexists(target):
@@ -342,8 +367,7 @@ def _stage_target_archive(
         return
 
     with open_archive(size) as incoming:
-        fd, temporary_path = tempfile.mkstemp(prefix=".ha-target-", dir=target.parent)
-        temporary = Path(temporary_path)
+        fd = os.open(partial, os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
         try:
             observed = hashlib.sha256()
             remaining = size
@@ -363,10 +387,10 @@ def _stage_target_archive(
                     staged, archive_sha256=digest, archive_size_bytes=size, expected_tag=admission.target_image_ref,
                 )
                 os.fsync(staged.fileno())
-            os.link(temporary, target)
+            os.link(partial, target)
             _sync_directory(target.parent)
         finally:
-            temporary.unlink(missing_ok=True)
+            partial.unlink(missing_ok=True)
 
 
 def _write_candidate_record(path: Path, content: bytes, mode: int) -> None:

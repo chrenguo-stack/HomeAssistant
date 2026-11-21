@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import copy
+import fcntl
 import io
 import json
 import subprocess
@@ -192,6 +193,7 @@ def test_signed_candidate_streams_verified_archive_and_admits_exact_intent(signe
     outbound.mkdir(parents=True)
     store = HaUsbStateStore(root / deploy.STATE_ROOT_V2.relative_to("/"))
     index_file = store.root / SIGNED_INDEX_STATE
+    partial = store.root / deploy.CANDIDATE_DOWNLOAD_PART
     pin = store.root / RELEASE_PIN
     exported = outbound / APPROVED_MANIFEST
     predecessor_ids = release["predecessor_runtime_image_ids"]
@@ -268,12 +270,22 @@ def test_signed_candidate_streams_verified_archive_and_admits_exact_intent(signe
             materialize()
         assert len(archive_requests) == (0 if fault == "runtime_id" else 1)
         assert not pin.exists() and not exported.exists() and not index_file.exists()
-        assert not list(store.root.glob(".ha-target-*"))
+        assert not partial.exists()
         if fault in {"runtime_id", "archive_length", "archive_digest"}:
             assert not list(store.root.glob("*.tar"))
         return
 
+    with store.lock():
+        partial.write_bytes(b"incomplete download from interrupted process")
+    download_lock = store.root / deploy.CANDIDATE_DOWNLOAD_LOCK
+    download_lock.touch(mode=0o600)
+    with download_lock.open("r+b") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with pytest.raises(UpdaterError, match="candidate_download_busy"):
+            materialize()
+        assert partial.exists() and not archive_requests
     result = materialize()
+    assert not partial.exists()
     staged = Path(result["target_source"])
     assert result["index_sequence"] == 7 and result["index_sha256"] == accepted_digest
     assert staged.read_bytes() == payload and staged.stat().st_mode & 0o777 == 0o600
