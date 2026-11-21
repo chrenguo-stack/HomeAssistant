@@ -444,6 +444,9 @@ jobs:
           set -euo pipefail
           WORK="$RUNNER_TEMP/broker-b6"
           ADMIN="b6-admin-password-not-production"
+          APP_USER="b6-app-client"
+          APP_PASSWORD="b6-app-password-not-production"
+          APP_ROLE="b6-app-role"
           mkdir -p "$WORK/config" "$WORK/data" "$WORK/tls"
           cp infra/n3w-t1/broker/mosquitto.conf "$WORK/config/mosquitto.conf"
 
@@ -492,10 +495,10 @@ jobs:
               -v "$WORK/tls:/mosquitto/tls:ro" \
               "$image" >/dev/null
             for attempt in $(seq 1 30); do
-              if docker exec n3w-b6-broker mosquitto_pub \
+              if docker exec n3w-b6-broker mosquitto_ctrl \
                 -h 127.0.0.1 -p 1883 \
                 -u admin -P "$ADMIN" \
-                -t n3w/b6/probe -m "$image" >/dev/null 2>&1; then
+                dynsec listClients >/dev/null 2>&1; then
                 return 0
               fi
               sleep 1
@@ -511,9 +514,71 @@ jobs:
 
           start_broker "$PREDECESSOR_UPSTREAM"
           docker exec n3w-b6-broker mosquitto -h 2>&1 | grep -F 'mosquitto version 2.1.2'
+
+          CONTROL_PAYLOAD="$(python - "$APP_USER" "$APP_PASSWORD" "$APP_ROLE" <<'PY'
+          import json
+          import sys
+
+          username, password, role = sys.argv[1:4]
+          document = {
+              "commands": [
+                  {
+                      "command": "createRole",
+                      "rolename": role,
+                      "acls": [
+                          {
+                              "acltype": "publishClientSend",
+                              "topic": "n3w/b6/#",
+                              "priority": 100,
+                              "allow": True,
+                          },
+                          {
+                              "acltype": "subscribePattern",
+                              "topic": "n3w/b6/#",
+                              "priority": 100,
+                              "allow": True,
+                          },
+                          {
+                              "acltype": "publishClientReceive",
+                              "topic": "n3w/b6/#",
+                              "priority": 100,
+                              "allow": True,
+                          },
+                      ],
+                  },
+                  {
+                      "command": "createClient",
+                      "username": username,
+                      "password": password,
+                      "roles": [{"rolename": role, "priority": 100}],
+                  },
+              ]
+          }
+          print(json.dumps(document, separators=(",", ":")))
+          PY
+          )"
           docker exec n3w-b6-broker mosquitto_pub \
             -h 127.0.0.1 -p 1883 \
             -u admin -P "$ADMIN" \
+            -q 1 -t '$CONTROL/dynamic-security/v1' -m "$CONTROL_PAYLOAD"
+
+          for attempt in $(seq 1 20); do
+            if docker exec n3w-b6-broker mosquitto_pub \
+              -h 127.0.0.1 -p 1883 \
+              -u "$APP_USER" -P "$APP_PASSWORD" \
+              -t n3w/b6/probe -m ready >/dev/null 2>&1; then
+              break
+            fi
+            if test "$attempt" -eq 20; then
+              docker logs n3w-b6-broker
+              exit 1
+            fi
+            sleep 1
+          done
+
+          docker exec n3w-b6-broker mosquitto_pub \
+            -h 127.0.0.1 -p 1883 \
+            -u "$APP_USER" -P "$APP_PASSWORD" \
             -r -t n3w/b6/predecessor -m A
           stop_broker
           test -s "$WORK/data/dynamic-security.json"
@@ -550,11 +615,11 @@ jobs:
           docker exec n3w-b6-broker mosquitto -h 2>&1 | grep -F 'mosquitto version 2.1.4'
           test "$(docker exec n3w-b6-broker mosquitto_sub \
             -h 127.0.0.1 -p 1883 \
-            -u admin -P "$ADMIN" \
+            -u "$APP_USER" -P "$APP_PASSWORD" \
             -t n3w/b6/predecessor -C 1 -W 3)" = "A"
           docker exec n3w-b6-broker mosquitto_pub \
             -h 127.0.0.1 -p 1883 \
-            -u admin -P "$ADMIN" \
+            -u "$APP_USER" -P "$APP_PASSWORD" \
             -r -t n3w/b6/target -m B
           stop_broker
           ! sha256sum -c "$WORK/pre-target.sha256" >/dev/null 2>&1
@@ -587,12 +652,12 @@ jobs:
           start_broker "$PREDECESSOR_UPSTREAM"
           test "$(docker exec n3w-b6-broker mosquitto_sub \
             -h 127.0.0.1 -p 1883 \
-            -u admin -P "$ADMIN" \
+            -u "$APP_USER" -P "$APP_PASSWORD" \
             -t n3w/b6/predecessor -C 1 -W 3)" = "A"
           set +e
           TARGET_VALUE="$(docker exec n3w-b6-broker mosquitto_sub \
             -h 127.0.0.1 -p 1883 \
-            -u admin -P "$ADMIN" \
+            -u "$APP_USER" -P "$APP_PASSWORD" \
             -t n3w/b6/target -C 1 -W 1 2>/dev/null)"
           set -e
           test -z "$TARGET_VALUE"

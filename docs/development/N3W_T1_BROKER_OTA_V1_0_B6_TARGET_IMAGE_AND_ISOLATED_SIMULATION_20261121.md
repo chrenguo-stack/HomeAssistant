@@ -100,3 +100,29 @@ RELEASE=false
 
 - inventory 完成后、source fd open 前把 mosquitto.db 从 0600 改为 0640；
 - snapshot 后把 source root 从 0700 改为仍能通过旧宽松校验的 0750，并确认 restore 拒绝后 target-written 文件保持未被替换。
+
+
+## 7. Phase 1 Attempt 01 Failure 与局部修复
+
+Attempt 01 exact head = c42c178339974b275d5133b102f28cd6816d995d。
+
+结果：
+
+- source = SUCCESS；
+- exact-artifact = SUCCESS；
+- isolated-a-to-b = FAILURE。
+
+失败发生在 predecessor 2.1.2 已成功启动之后。根因与 KNOWN_FAILURES 的 KF-102 相同：`mosquitto_ctrl dynsec init` 创建的 `admin` 是 Dynamic Security 管理员，不具备普通 application topic 的 `publishClientSend` 权限，而 Attempt 01 fixture 错误地使用 admin 对 `n3w/b6/#` 做 readiness/application publish。
+
+这不是 2.1.4 镜像、portable identity、Recovery Point 或 Generic V2 失败。
+
+修复规则：
+
+- admin 只用于 `dynsec listClients` readiness 和 `$CONTROL/dynamic-security/v1` 管理命令；
+- 在 predecessor 2.1.2 中创建独立 throwaway application role/client；
+- application role 仅允许 `n3w/b6/#` 的 publishClientSend、subscribePattern、publishClientReceive；
+- 所有 retained application publish/subscription 使用该 application client；
+- 不扩大 admin 权限，不开启 anonymous，不修改 production mosquitto.conf；
+- contract test 明确禁止 admin 被重新用于 `n3w/b6/#` application retained publish。
+
+Attempt 01 的 exact-artifact 虽然成功，但后续源码 head 已变化，因此不作为最终 frozen target artifact；新 head 必须重新产生 exact artifact 和隔离模拟证据。

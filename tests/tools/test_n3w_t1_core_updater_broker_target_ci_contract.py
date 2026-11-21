@@ -55,6 +55,19 @@ def test_broker_target_workflow_runs_real_isolated_a_to_b_and_recovery_point():
     assert "BROKER_B6_PREDECESSOR_RECOVERY=PASS" in text
 
 
+def test_broker_target_fixture_keeps_dynsec_admin_out_of_application_topics():
+    text = WORKFLOW.read_text(encoding="utf-8")
+    assert 'APP_USER="b6-app-client"' in text
+    assert 'APP_ROLE="b6-app-role"' in text
+    assert "-t '$CONTROL/dynamic-security/v1'" in text
+    assert '"command": "createRole"' in text
+    assert '"command": "createClient"' in text
+    assert '"acltype": "publishClientSend"' in text
+    assert '"acltype": "subscribePattern"' in text
+    assert '-u "$APP_USER" -P "$APP_PASSWORD"' in text
+    assert '-u admin -P "$ADMIN" \\\n            -r -t n3w/b6/' not in text
+
+
 def test_broker_target_workflow_has_no_t1_or_production_execution_path():
     text = WORKFLOW.read_text(encoding="utf-8")
     assert "concurrency:" in text
