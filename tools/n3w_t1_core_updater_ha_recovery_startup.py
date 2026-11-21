@@ -11,7 +11,7 @@ import subprocess
 import tempfile
 import threading
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from typing import Any, BinaryIO
@@ -44,10 +44,12 @@ PROTECTED_BINDS = {
     "homeassistant": {"/config"},
     "manager": {"/var/lib/greenhouse-manager/manager", "/var/lib/greenhouse-manager/n3w"},
 }
-BOOT_CONDITION = (
-    "ExecCondition=/usr/bin/python3 /opt/HomeAssistant/tools/"
-    "n3w_t1_core_updater_ha_recovery_startup.py --check-application-start"
-)
+RECOVERY_ARCHIVE = "/opt/n3w-t1-core-updater/ha-recovery.pyz"
+RECOVERY_COMMAND = f"/usr/bin/python3 -I {RECOVERY_ARCHIVE}"
+RECOVERY_STARTUP_UNIT = "n3w-t1-ha-recovery-startup.service"
+RECOVERY_RETRY_UNIT = "n3w-t1-ha-recovery-retry.service"
+RECOVERY_TIMER = "n3w-t1-ha-recovery-retry.timer"
+BOOT_CONDITION = f"ExecCondition={RECOVERY_COMMAND} --check-application-start"
 IMAGE_LOAD_TIMEOUT_SECONDS = 1800
 
 
@@ -174,6 +176,7 @@ class LocalHaPredecessorRuntime(LocalHost):
                 raise UpdaterError("ha_usb_predecessor_running_mount_drift")
 
     def capture_start_binding(self, transaction: dict[str, Any]) -> dict[str, Any]:
+        self.require_recovery_install()
         binding, origins = self._restart_binding()
         if (
             binding["images"]["homeassistant"]["reference"]
@@ -206,6 +209,28 @@ class LocalHaPredecessorRuntime(LocalHost):
             ("systemctl", "show", "--property=NeedDaemonReload", "--value", SERVICES_UNIT)
         ).stdout.strip() != b"no":
             raise UpdaterError("ha_usb_rollback_boot_guard_unavailable")
+
+    def require_recovery_install(self) -> None:
+        self.require_rollback_boot_guard()
+        for unit, command in (
+            (RECOVERY_STARTUP_UNIT, f"ExecStart={RECOVERY_COMMAND}"),
+            (RECOVERY_RETRY_UNIT, f"ExecStart={RECOVERY_COMMAND} --resume-pending"),
+        ):
+            raw = self._run(("systemctl", "cat", unit)).stdout.decode()
+            starts = [line.strip() for line in raw.splitlines() if line.strip().startswith("ExecStart=")]
+            if starts != [command] or self._run(
+                ("systemctl", "show", "--property=NeedDaemonReload", "--value", unit)
+            ).stdout.strip() != b"no":
+                raise UpdaterError("ha_usb_recovery_unit_unavailable")
+        if (
+            self._systemctl("is-enabled", RECOVERY_STARTUP_UNIT) != "enabled"
+            or self._systemctl("is-enabled", RECOVERY_TIMER) != "enabled"
+            or self._systemctl("is-active", RECOVERY_TIMER) != "active"
+        ):
+            raise UpdaterError("ha_usb_recovery_timer_not_armed")
+        help_text = self._run(("/usr/bin/python3", "-I", RECOVERY_ARCHIVE, "--help"), timeout=10).stdout
+        if not all(option in help_text for option in (b"--check-application-start", b"--resume-pending")):
+            raise UpdaterError("ha_usb_recovery_program_unavailable")
 
     def rollback_writers_quiesced(self) -> bool:
         return (
@@ -670,10 +695,14 @@ def main(*, application_condition: bool = False, pending_only: bool = False) -> 
     return 0
 
 
-if __name__ == "__main__":
+def cli(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     action = parser.add_mutually_exclusive_group()
     action.add_argument("--check-application-start", action="store_true")
     action.add_argument("--resume-pending", action="store_true")
-    args = parser.parse_args()
-    raise SystemExit(main(application_condition=args.check_application_start, pending_only=args.resume_pending))
+    args = parser.parse_args(argv)
+    return main(application_condition=args.check_application_start, pending_only=args.resume_pending)
+
+
+if __name__ == "__main__":
+    raise SystemExit(cli())

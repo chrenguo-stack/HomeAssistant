@@ -115,3 +115,17 @@ This directory currently defines the archive contract only.
 
 No production updater release manifest or new pyz package is created by the semantic Stack
 architecture gate.
+
+## HA recovery installation candidate
+
+The HA target-binding workflow builds the recovery installer from the exact checked-out
+commit. Its source job publishes the candidate artifact and reports the SHA-256 of
+`manifest.json`. The artifact binds the isolated recovery executable, boot service,
+retry service and timer, and application start condition. A candidate is a source-level
+installation artifact. Formal updater releases still follow the archive contract above.
+
+The authorized host installer entry is `ha-recovery.pyz install --manifest-sha256 <digest>`
+under the host Python interpreter. Obtain the digest from the trusted workflow record.
+The installer enables persistence and reloads systemd definitions without starting units.
+The first quiesce requires the boot service to be enabled and the retry timer to be
+enabled and active. Initial installation and byte-identical retries use the same artifact.

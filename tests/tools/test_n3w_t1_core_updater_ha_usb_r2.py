@@ -340,10 +340,16 @@ class StartupRuntime(recovery_startup.LocalHaPredecessorRuntime):
 
     def _run(self, argv, **kwargs):
         unit = recovery_startup.SERVICES_UNIT
-        if argv == ("systemctl", "show", "--property=NeedDaemonReload", "--value", unit):
+        if argv[:4] == ("systemctl", "show", "--property=NeedDaemonReload", "--value"):
             return SimpleNamespace(stdout=b"no\n")
         if argv == ("systemctl", "cat", unit):
             return SimpleNamespace(stdout=("test unit\n" + recovery_startup.BOOT_CONDITION).encode())
+        if argv == ("systemctl", "cat", recovery_startup.RECOVERY_STARTUP_UNIT):
+            return SimpleNamespace(stdout=f"ExecStart={recovery_startup.RECOVERY_COMMAND}".encode())
+        if argv == ("systemctl", "cat", recovery_startup.RECOVERY_RETRY_UNIT):
+            return SimpleNamespace(stdout=f"ExecStart={recovery_startup.RECOVERY_COMMAND} --resume-pending".encode())
+        if argv == ("/usr/bin/python3", "-I", recovery_startup.RECOVERY_ARCHIVE, "--help"):
+            return SimpleNamespace(stdout=b"--check-application-start --resume-pending")
         if argv == ("systemctl", "start", unit):
             self.starts += 1
             self.owner = "active"
@@ -391,6 +397,10 @@ class StartupRuntime(recovery_startup.LocalHaPredecessorRuntime):
                 "image_id": self.running_ids[service]}
 
     def _systemctl(self, action, unit):
+        if action == "is-enabled":
+            return "enabled"
+        if unit == recovery_startup.RECOVERY_TIMER:
+            return "active"
         return self.owner
 
     def stop_services(self):
@@ -463,6 +473,18 @@ class ReleaseStartupRuntime(StartupRuntime):
         if argv[:3] == ("docker", "inspect", "--format") and argv[-1] == self.container_id:
             argv = (*argv[:-1], "homeassistant")
         return super()._run(argv, **kwargs)
+
+
+def test_first_stop_binding_requires_an_armed_recovery_timer(tmp_path, monkeypatch):
+    runtime = StartupRuntime(tmp_path)
+    systemctl = runtime._systemctl
+    monkeypatch.setattr(runtime, "_systemctl", lambda action, unit: (
+        "inactive" if (action, unit) == ("is-active", recovery_startup.RECOVERY_TIMER)
+        else systemctl(action, unit)
+    ))
+    with pytest.raises(recovery_startup.UpdaterError, match="ha_usb_recovery_timer_not_armed"):
+        runtime.capture_start_binding({"current_image_ref": CURRENT})
+    assert runtime.owner == "active" and runtime.running == {"broker", "manager", "homeassistant"}
 
 
 @pytest.mark.parametrize("fault", [None, "shared", "after_container", "after_image", "command_error_after_container"])
@@ -920,7 +942,7 @@ def test_boot_restores_a_released_predecessor_from_bound_media(tmp_path, monkeyp
     units = Path(__file__).resolve().parents[2] / "infra" / "n3w-t1" / "systemd"
     retry = (units / "n3w-t1-ha-recovery-retry.service").read_text()
     timer = (units / "n3w-t1-ha-recovery-retry.timer").read_text()
-    assert "n3w_t1_core_updater_ha_recovery_startup.py --resume-pending" in retry
+    assert f"ExecStart={recovery_startup.RECOVERY_COMMAND} --resume-pending" in retry.splitlines()
     assert "PrivateMounts=yes" in retry.splitlines()
     assert "WantedBy=timers.target" in timer.splitlines()
     prepared, media, _, _, target, predecessor, backup = drive_to_u8(tmp_path)

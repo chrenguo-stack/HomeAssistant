@@ -6,7 +6,7 @@ ConditionPathExists=/var/lib/n3w-t1-core-updater/homeassistant-usb-upgrade.json
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/python3 /opt/HomeAssistant/tools/n3w_t1_core_updater_ha_recovery_startup.py
+ExecStart=/usr/bin/python3 -I /opt/n3w-t1-core-updater/ha-recovery.pyz
 TimeoutStartSec=10min
 
 [Install]
