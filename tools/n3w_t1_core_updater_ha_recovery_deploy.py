@@ -13,7 +13,7 @@ import zipfile
 from pathlib import Path
 
 from n3w_t1_core_updater_common import SERVICES_UNIT, UpdaterError, sha256_bytes
-from n3w_t1_core_updater_ha_ipc import IPC_SERVICE_UNIT, IPC_SOCKET_UNIT
+from n3w_t1_core_updater_ha_ipc import APPROVED_MANIFEST, IPC_SERVICE_UNIT, IPC_SOCKET, IPC_SOCKET_UNIT
 from n3w_t1_core_updater_ha_recovery_startup import (
     RECOVERY_ARCHIVE,
     RECOVERY_RETRY_UNIT,
@@ -29,6 +29,8 @@ SCHEMA = "gh.n3w-t1-ha-recovery-install/1"
 MANIFEST = "manifest.json"
 ARCHIVE = "ha-recovery.pyz"
 GUARD = "ota-ha-recovery.conf"
+CANDIDATE_COMPOSE = "ha-ota-candidate.compose.yml"
+BASE_COMPOSE = "infra/n3w-t1/production/docker-compose.fresh.yml"
 PERSISTENT_UNITS = (RECOVERY_STARTUP_UNIT, RECOVERY_TIMER, IPC_SOCKET_UNIT)
 ENABLEMENT_DIRS = ("multi-user.target.wants", "timers.target.wants", "sockets.target.wants")
 DESTINATIONS = {
@@ -39,6 +41,7 @@ DESTINATIONS = {
     IPC_SOCKET_UNIT: f"etc/systemd/system/{IPC_SOCKET_UNIT}",
     IPC_SERVICE_UNIT: f"etc/systemd/system/{IPC_SERVICE_UNIT}",
     GUARD: f"etc/systemd/system/{SERVICES_UNIT}.d/{GUARD}",
+    CANDIDATE_COMPOSE: str(Path(RECOVERY_ARCHIVE).with_name(CANDIDATE_COMPOSE)).removeprefix("/"),
 }
 MODULES = (
     "n3w_t1_core_updater_common",
@@ -61,6 +64,34 @@ MODULES = (
 )
 
 
+def _candidate_compose(base: bytes) -> bytes:
+    """Create the opt-in candidate from the exact fresh stack Compose template."""
+    prefix, manager_header, rest = base.decode().partition("\n  manager:\n")
+    manager, ha_header, suffix = rest.partition("\n  homeassistant:\n")
+    environment = "    environment:\n"
+    volumes = "    volumes:\n"
+    if (
+        not manager_header or not ha_header or manager.count(environment) != 1 or manager.count(volumes) != 1
+        or "GH_N3W_T1_OTA_" in manager or str(IPC_SOCKET.parent) in manager
+    ):
+        raise UpdaterError("ha_recovery_candidate_compose_template_drift")
+    manager = manager.replace(environment, environment + (
+        '      GH_N3W_T1_OTA_ENABLED: "true"\n'
+        '      GH_N3W_T1_OTA_INSTALLED_VERSION: "${GH_N3W_T1_OTA_INSTALLED_VERSION:?HA predecessor version required}"\n'
+        f'      GH_N3W_T1_OTA_MANIFEST_PATH: "{IPC_SOCKET.with_name(APPROVED_MANIFEST)}"\n'
+        f'      GH_N3W_T1_OTA_SOCKET_PATH: "{IPC_SOCKET}"\n'
+    ))
+    manager = manager.replace(volumes, volumes + (
+        "      - type: bind\n"
+        f"        source: {IPC_SOCKET.parent}\n"
+        f"        target: {IPC_SOCKET.parent}\n"
+        "        read_only: true\n"
+        "        bind:\n"
+        "          create_host_path: false\n"
+    ))
+    return (prefix + manager_header + manager + ha_header + suffix).encode()
+
+
 def build(repo: Path, source_head: str, destination: Path) -> str:
     if re.fullmatch(r"[0-9a-f]{40}", source_head) is None:
         raise UpdaterError("ha_recovery_install_source_invalid")
@@ -76,6 +107,7 @@ def build(repo: Path, source_head: str, destination: Path) -> str:
     unit_source = "infra/n3w-t1/systemd"
     payload = {unit: source(f"{unit_source}/{unit}") for unit in (*PERSISTENT_UNITS, RECOVERY_RETRY_UNIT, IPC_SERVICE_UNIT)}
     payload[GUARD] = source(f"{unit_source}/{SERVICES_UNIT}.d/{GUARD}")
+    payload[CANDIDATE_COMPOSE] = _candidate_compose(source(BASE_COMPOSE))
     destination.mkdir(mode=0o700)
     with zipfile.ZipFile(destination / ARCHIVE, "w") as archive:
         for name, content in sorted(modules.items()):

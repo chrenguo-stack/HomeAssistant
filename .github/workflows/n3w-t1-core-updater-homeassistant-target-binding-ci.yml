@@ -3,6 +3,7 @@ name: N3W T1 Core Updater Home Assistant 2026.10.4 target binding CI
 on:
   pull_request:
     paths:
+      - "infra/n3w-t1/production/docker-compose.fresh.yml"
       - "infra/n3w-t1/upgrades/homeassistant-2026.10.4.json"
       - "infra/n3w-t1/upgrades/homeassistant-2026.10.4-storage-policy.json"
       - "infra/n3w-t1/upgrades/homeassistant-2026.10.4-compatibility-review.json"
@@ -74,6 +75,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$SOURCE_HEAD"
+          docker compose version
           python -m pip install "pytest>=8,<9"
           python -m py_compile \
             tools/n3w_t1_core_updater_v2.py \

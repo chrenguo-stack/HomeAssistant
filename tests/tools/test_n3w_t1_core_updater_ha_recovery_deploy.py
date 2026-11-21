@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -12,6 +14,7 @@ sys.path.insert(0, str(REPO / "tools"))
 
 import n3w_t1_core_updater_ha_recovery_deploy as deploy
 from n3w_t1_core_updater_common import UpdaterError
+from n3w_t1_core_updater_ha_ipc import APPROVED_MANIFEST, IPC_SOCKET
 from n3w_t1_core_updater_v2_state import HA_USB_TX_SCHEMA_GUARD
 
 
@@ -80,7 +83,57 @@ def test_exact_package_installs_and_executes_self_contained_recovery(package, tm
     assert manager.changes[2:] == [("daemon-reload",)]
 
 
-@pytest.mark.parametrize("fault", ["payload", "active_transaction", "existing_file"])
+def test_candidate_compose_renders_only_the_manager_ota_binding(package, tmp_path):
+    if shutil.which("docker") is None:
+        pytest.skip("Docker Compose CLI unavailable")
+    staged, _, _ = package
+    base = REPO / deploy.BASE_COMPOSE
+    candidate = staged / deploy.CANDIDATE_COMPOSE
+    environment = {
+        **os.environ,
+        "GH_BROKER_IMAGE": "local/n3w-mosquitto:fixture",
+        "GH_MANAGER_IMAGE": "local/greenhouse-manager:fixture",
+        "GH_HOMEASSISTANT_IMAGE": "local/n3w-homeassistant:fixture",
+        "GH_MQTT_CLIENT_ID": "fixture-manager",
+        "GH_MQTT_USERNAME": "fixture-manager",
+        "GH_N3W_PAIRING_MANAGER_ID": "fixture-manager",
+        "GH_N3W_PROVISIONING_CLIENT_ID": "fixture-provisioning",
+        "GH_N3W_PROVISIONING_USERNAME": "fixture-provisioning",
+        "GH_SYSTEM_ID": "fixture",
+        "GH_N3W_T1_OTA_INSTALLED_VERSION": "2026.10.0",
+    }
+
+    def render(path):
+        return json.loads(subprocess.check_output(
+            ("docker", "compose", "-f", str(path), "--profile", "application", "config", "--format", "json"),
+            env=environment, cwd=tmp_path,
+        ))
+
+    original = render(base)
+    configured = render(candidate)
+    manager = configured["services"]["manager"]
+    expected = {
+        "GH_N3W_T1_OTA_ENABLED": "true",
+        "GH_N3W_T1_OTA_INSTALLED_VERSION": "2026.10.0",
+        "GH_N3W_T1_OTA_MANIFEST_PATH": str(IPC_SOCKET.with_name(APPROVED_MANIFEST)),
+        "GH_N3W_T1_OTA_SOCKET_PATH": str(IPC_SOCKET),
+    }
+    assert {key: manager["environment"].pop(key) for key in expected} == expected
+    assert "create_host_path: false" in candidate.read_text()
+    ota_mount = next(volume for volume in manager["volumes"] if volume["target"] == str(IPC_SOCKET.parent))
+    assert ota_mount["type"] == "bind"
+    assert ota_mount["source"] == str(IPC_SOCKET.parent)
+    assert ota_mount["read_only"] is True
+    assert ota_mount.get("bind", {}).get("create_host_path", False) is False
+    manager["volumes"].remove(ota_mount)
+    assert configured == original
+    environment["GH_N3W_T1_OTA_INSTALLED_VERSION"] = ""
+    with pytest.raises(subprocess.CalledProcessError):
+        render(candidate)
+    assert render(base) == original
+
+
+@pytest.mark.parametrize("fault", ["payload", "candidate_compose", "active_transaction", "existing_file"])
 def test_recovery_install_rejects_unverified_or_busy_install(package, tmp_path, fault):
     staged, digest, _ = package
     root = tmp_path / "host"
@@ -88,6 +141,9 @@ def test_recovery_install_rejects_unverified_or_busy_install(package, tmp_path, 
     manager = Systemd(root)
     if fault == "payload":
         (staged / deploy.RECOVERY_TIMER).write_bytes(b"changed timer")
+        reason = "payload_digest_mismatch"
+    elif fault == "candidate_compose":
+        (staged / deploy.CANDIDATE_COMPOSE).write_bytes(b"changed compose")
         reason = "payload_digest_mismatch"
     elif fault == "active_transaction":
         store = deploy.V2StateStore(root / "var/lib/n3w-t1-core-updater")

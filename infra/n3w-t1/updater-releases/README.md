@@ -121,7 +121,8 @@ architecture gate.
 The HA target-binding workflow builds the recovery installer from the exact checked-out
 commit. Its source job publishes the candidate artifact and reports the SHA-256 of
 `manifest.json`. The artifact binds the isolated recovery executable, boot service,
-retry service and timer, and application start condition. A candidate is a source-level
+retry service and timer, application start condition, host IPC units and the staged
+Compose candidate. A candidate is a source-level
 installation artifact. Formal updater releases still follow the archive contract above.
 
 The authorized host installer entry is `ha-recovery.pyz install --manifest-sha256 <digest>`
@@ -129,3 +130,14 @@ under the host Python interpreter. Obtain the digest from the trusted workflow r
 The installer enables persistence and reloads systemd definitions without starting units.
 The first quiesce requires the boot service to be enabled and the retry timer to be
 enabled and active. Initial installation and byte-identical retries use the same artifact.
+
+The package builder derives `ha-ota-candidate.compose.yml` from the exact fresh
+stack template. The installer stages it under `/opt/n3w-t1-core-updater`.
+The candidate enables OTA in Manager and binds the host's `/run/n3w/t1-ota`
+directory read-only. Mounting the directory lets Manager see socket recreation
+and atomic replacement of the approved manifest. The mount requires the host
+directory to exist. The candidate also requires
+`GH_N3W_T1_OTA_INSTALLED_VERSION` to be supplied from the observed predecessor.
+The later activation step must verify the staged Compose against the host's
+current configuration and check that the host socket is listening. Installation
+of the recovery bundle leaves the active Compose configuration in place.
