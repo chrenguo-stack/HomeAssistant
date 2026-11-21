@@ -28,6 +28,7 @@ from n3w_t1_core_updater_ha_acceptance import (
 )
 from n3w_t1_core_updater_ha_backup import DEFAULT_HA_DATA_ROOT, HA_DATABASE_NAME, ProtectedHaDataBackup
 from n3w_t1_core_updater_ha_data_evidence import MANAGER_PAIRING_DB, HaProtectedDataEvidence
+from n3w_t1_core_updater_ha_ipc import serve_activated_ha_ipc
 from n3w_t1_core_updater_ha_monitoring_evidence import (
     LocalHaMonitoringEvidence, READ_HA_RECEIPTS, REQUEST_MANAGER_SELF_TEST,
 )
@@ -452,9 +453,13 @@ class LocalHaPredecessorRuntime(LocalHost):
     def capture_start_binding(self, transaction: dict[str, Any]) -> dict[str, Any]:
         self.require_recovery_install()
         binding, origins = self._restart_binding()
+        expected_runtime_id = transaction.get("current_image_identity", {}).get(
+            "runtime_image_id", binding["images"]["homeassistant"]["runtime_id"],
+        )
         if (
             binding["images"]["homeassistant"]["reference"]
             != transaction["current_image_ref"]
+            or expected_runtime_id != binding["images"]["homeassistant"]["runtime_id"]
             or origins["homeassistant"]["/config"] != str(self.ha_data_root.resolve(strict=True))
             or self._systemctl("is-active", SERVICES_UNIT) != "active"
             or not all(self._check_running_predecessor(binding, origins).values())
@@ -991,13 +996,17 @@ def _dispatch_pending_candidate(store: HaUsbStateStore, runtime: LocalHaPredeces
 
 
 def main(
-    *, application_condition: bool = False, pending_only: bool = False, install_requested: bool = False,
+    *, application_condition: bool = False, pending_only: bool = False,
+    install_requested: bool = False, serve_ipc: bool = False,
 ) -> int:
     store = HaUsbStateStore()
     runtime = LocalHaPredecessorRuntime()
     try:
         if application_condition:
             return check_application_start(store, runtime)
+        if serve_ipc:
+            serve_activated_ha_ipc(store, lambda: runtime._runtime("homeassistant"))
+            return 0
         if install_requested:
             status = runtime.install_requested(store)
             print(json.dumps({"status": status}))
@@ -1029,7 +1038,12 @@ def main(
         if pending_only and isinstance(error, UpdaterV2Error) and str(error) == "upgrade_transaction_busy":
             return 0
         if not application_condition:
-            print(json.dumps({"status": "INSTALL_NEEDS_REVIEW" if install_requested else "RECOVERY_STARTUP_NEEDS_REVIEW"}))
+            status = "RECOVERY_STARTUP_NEEDS_REVIEW"
+            if install_requested:
+                status = "INSTALL_NEEDS_REVIEW"
+            elif serve_ipc:
+                status = "IPC_STARTUP_NEEDS_REVIEW"
+            print(json.dumps({"status": status}))
         return 1
     if not pending_only or status != "NO_PENDING_RECOVERY":
         print(json.dumps({"status": status}))
@@ -1042,10 +1056,11 @@ def cli(argv: Sequence[str] | None = None) -> int:
     action.add_argument("--check-application-start", action="store_true")
     action.add_argument("--resume-pending", action="store_true")
     action.add_argument("--install-requested", action="store_true")
+    action.add_argument("--serve-ipc", action="store_true")
     args = parser.parse_args(argv)
     return main(
         application_condition=args.check_application_start, pending_only=args.resume_pending,
-        install_requested=args.install_requested,
+        install_requested=args.install_requested, serve_ipc=args.serve_ipc,
     )
 
 

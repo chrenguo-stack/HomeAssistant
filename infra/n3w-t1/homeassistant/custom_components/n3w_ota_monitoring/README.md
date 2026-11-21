@@ -50,3 +50,20 @@ the first service stop.
 
 Acquisition of the staged release and issuance of both authorities belong
 to the approved candidate inputs. The repository contains no live authority.
+
+### Host IPC for the test candidate
+
+The recovery bundle contains a socket-activated host service at
+`/run/n3w/t1-ota/ha-ota.sock`. The service accepts only the deployed Manager
+peer UID 999. For the candidate, bind the whole host `/run/n3w/t1-ota`
+directory into Manager at the same path, read-only. Enable Manager's existing
+OTA setting and supply the installed Home Assistant version for the candidate.
+
+Place the host-published `approved-homeassistant.json` in the exported
+directory. A separate mode-0600 `ha-release-pin.json` in the private state
+directory binds its exact SHA-256, the running predecessor Docker image ID,
+and the expiry. The host checks the pin, the target contract, and the observed
+predecessor before recording PREPARE or INSTALL. The IPC service does not
+issue the separate preparation or installation authorities. This local
+pin supports the controlled candidate. Product distribution still requires
+the HTTPS signed index and published manifest described by V1.2.

@@ -13,6 +13,7 @@ import zipfile
 from pathlib import Path
 
 from n3w_t1_core_updater_common import SERVICES_UNIT, UpdaterError, sha256_bytes
+from n3w_t1_core_updater_ha_ipc import IPC_SERVICE_UNIT, IPC_SOCKET_UNIT
 from n3w_t1_core_updater_ha_recovery_startup import (
     RECOVERY_ARCHIVE,
     RECOVERY_RETRY_UNIT,
@@ -28,13 +29,15 @@ SCHEMA = "gh.n3w-t1-ha-recovery-install/1"
 MANIFEST = "manifest.json"
 ARCHIVE = "ha-recovery.pyz"
 GUARD = "ota-ha-recovery.conf"
-PERSISTENT_UNITS = (RECOVERY_STARTUP_UNIT, RECOVERY_TIMER)
-ENABLEMENT_DIRS = ("multi-user.target.wants", "timers.target.wants")
+PERSISTENT_UNITS = (RECOVERY_STARTUP_UNIT, RECOVERY_TIMER, IPC_SOCKET_UNIT)
+ENABLEMENT_DIRS = ("multi-user.target.wants", "timers.target.wants", "sockets.target.wants")
 DESTINATIONS = {
     ARCHIVE: RECOVERY_ARCHIVE.removeprefix("/"),
     RECOVERY_STARTUP_UNIT: f"etc/systemd/system/{RECOVERY_STARTUP_UNIT}",
     RECOVERY_RETRY_UNIT: f"etc/systemd/system/{RECOVERY_RETRY_UNIT}",
     RECOVERY_TIMER: f"etc/systemd/system/{RECOVERY_TIMER}",
+    IPC_SOCKET_UNIT: f"etc/systemd/system/{IPC_SOCKET_UNIT}",
+    IPC_SERVICE_UNIT: f"etc/systemd/system/{IPC_SERVICE_UNIT}",
     GUARD: f"etc/systemd/system/{SERVICES_UNIT}.d/{GUARD}",
 }
 MODULES = (
@@ -42,6 +45,7 @@ MODULES = (
     "n3w_t1_core_updater_ha_acceptance",
     "n3w_t1_core_updater_ha_backup",
     "n3w_t1_core_updater_ha_data_evidence",
+    "n3w_t1_core_updater_ha_ipc",
     "n3w_t1_core_updater_ha_monitoring_evidence",
     "n3w_t1_core_updater_ha_mounted_media",
     "n3w_t1_core_updater_ha_recovery",
@@ -70,7 +74,7 @@ def build(repo: Path, source_head: str, destination: Path) -> str:
         b"raise SystemExit(bundle_main())\n"
     )
     unit_source = "infra/n3w-t1/systemd"
-    payload = {unit: source(f"{unit_source}/{unit}") for unit in (*PERSISTENT_UNITS, RECOVERY_RETRY_UNIT)}
+    payload = {unit: source(f"{unit_source}/{unit}") for unit in (*PERSISTENT_UNITS, RECOVERY_RETRY_UNIT, IPC_SERVICE_UNIT)}
     payload[GUARD] = source(f"{unit_source}/{SERVICES_UNIT}.d/{GUARD}")
     destination.mkdir(mode=0o700)
     with zipfile.ZipFile(destination / ARCHIVE, "w") as archive:

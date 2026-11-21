@@ -7,6 +7,9 @@ import socket
 import stat
 import struct
 import threading
+import time
+from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -32,12 +35,20 @@ from n3w_t1_core_updater_ha_usb_state import (
     HaUsbStateStore,
     new_transaction,
 )
-from n3w_t1_core_updater_v2_common import UpdaterV2Error
+from n3w_t1_core_updater_v2_common import ComponentTarget, UpdaterV2Error, sha256_bytes
 
 REQUEST_SCHEMA = "gh.n3w-t1-ha-ota-ipc-request/1"
 RESPONSE_SCHEMA = "gh.n3w-t1-ha-ota-ipc-response/1"
 MAX_FRAME_BYTES = 8192
 DEFAULT_SOCKET_MODE = 0o660
+IPC_SOCKET = Path("/run/n3w/t1-ota/ha-ota.sock")
+IPC_SOCKET_UNIT = "n3w-t1-ha-ota-ipc.socket"
+IPC_SERVICE_UNIT = "n3w-t1-ha-ota-ipc.service"
+MANAGER_PEER_UID = 999
+APPROVED_MANIFEST = "approved-homeassistant.json"
+RELEASE_PIN = "ha-release-pin.json"
+RELEASE_PIN_SCHEMA = "gh.n3w-t1-ha-release-pin/1"
+APPROVED_MANIFEST_SCHEMA = "gh.n3w-t1-ota-approved-manifest/1"
 
 _RELEASE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -105,6 +116,89 @@ class HostOtaAdmissionResolver(Protocol):
         release_identity: str,
     ) -> HostOtaAdmission:
         """Independently resolve approved target and current runtime authority."""
+
+
+def _read_local_release_input(path: Path, *, limit: int, private: bool) -> bytes:
+    reason = "ha_ota_ipc_release_input_unavailable"
+    try:
+        if path.resolve(strict=True) != path:
+            raise UpdaterV2Error(reason)
+        parent = path.parent.stat()
+        if parent.st_uid != os.geteuid() or parent.st_mode & 0o022:
+            raise UpdaterV2Error(reason)
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(fd, "rb") as stream:
+            entry = os.fstat(stream.fileno())
+            if (
+                not stat.S_ISREG(entry.st_mode) or entry.st_uid != os.geteuid() or entry.st_mode & 0o022
+                or (private and stat.S_IMODE(entry.st_mode) != 0o600) or entry.st_size > limit
+            ):
+                raise UpdaterV2Error(reason)
+            value = stream.read(limit + 1)
+    except OSError as error:
+        raise UpdaterV2Error(reason) from error
+    if not value or len(value) > limit:
+        raise UpdaterV2Error(reason)
+    return value
+
+
+class LocalApprovedHaRelease:
+    """Resolve a host-pinned engineering candidate and independently inspect its predecessor."""
+
+    def __init__(
+        self, pin: Path, manifest: Path, read_current: Callable[[], dict[str, Any]],
+    ) -> None:
+        self.pin = pin
+        self.manifest = manifest
+        self.read_current = read_current
+
+    def resolve_homeassistant_release(self, release_identity: str) -> HostOtaAdmission:
+        try:
+            pin = json.loads(_read_local_release_input(self.pin, limit=4096, private=True),
+                             object_pairs_hook=_no_duplicate_object)
+            if (
+                not isinstance(pin, dict)
+                or set(pin) != {"schema", "manifest_sha256", "predecessor_image_id", "expires_at_unix"}
+                or pin["schema"] != RELEASE_PIN_SCHEMA
+                or type(pin["expires_at_unix"]) is not int or time.time() >= pin["expires_at_unix"]
+                or not isinstance(pin["predecessor_image_id"], str)
+                or not pin["predecessor_image_id"].startswith("sha256:")
+                or _SHA256_RE.fullmatch(pin["predecessor_image_id"][7:]) is None
+            ):
+                raise UpdaterV2Error("ha_ota_ipc_release_pin_invalid")
+            raw = _read_local_release_input(self.manifest, limit=32768, private=False)
+            digest = sha256_bytes(raw)
+            if pin["manifest_sha256"] != digest:
+                raise UpdaterV2Error("ha_ota_ipc_release_digest_mismatch")
+            envelope = json.loads(raw, object_pairs_hook=_no_duplicate_object)
+        except ValueError as error:
+            raise UpdaterV2Error("ha_ota_ipc_release_input_invalid") from error
+        if (
+            not isinstance(envelope, dict) or envelope.get("schema") != APPROVED_MANIFEST_SCHEMA
+            or envelope.get("release_identity") != release_identity
+            or envelope.get("approval_status") != "APPROVED" or envelope.get("signature_status") != "VERIFIED"
+            or envelope.get("validity_status") != "VALID" or envelope.get("verification_status") != "PASS"
+        ):
+            raise UpdaterV2Error("ha_ota_ipc_release_not_approved")
+        target = ComponentTarget.from_document(envelope.get("target"))
+        if target.component != "homeassistant":
+            raise UpdaterV2Error("ha_ota_ipc_release_component_invalid")
+        current = self.read_current()
+        if (
+            current.get("image_ref") != target.expected_predecessor_image_ref
+            or current.get("image_id") != pin["predecessor_image_id"]
+            or current.get("platform") != target.target_platform
+        ):
+            raise UpdaterV2Error("ha_ota_ipc_predecessor_identity_drift")
+        return HostOtaAdmission(
+            release_identity=release_identity,
+            current_image_ref=target.expected_predecessor_image_ref,
+            current_image_identity={"runtime_image_id": current["image_id"], "platform": target.target_platform},
+            target_manifest_identity={"release_identity": release_identity, "manifest_sha256": digest},
+            target_image_ref=target.target_image_ref,
+            target_archive_sha256=target.target_archive_sha256,
+            target_archive_size=envelope.get("target_archive_size_bytes"),
+        ).validate()
 
 
 class HaUsbIpcExecutor:
@@ -238,7 +332,12 @@ def _no_duplicate_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 def _read_frame(connection: socket.socket) -> bytes:
     payload = bytearray()
     frame_end: int | None = None
+    deadline = time.monotonic() + 2.0
     while len(payload) <= MAX_FRAME_BYTES:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise UpdaterV2Error("ha_ota_ipc_request_timeout")
+        connection.settimeout(remaining)
         block = connection.recv(min(1024, MAX_FRAME_BYTES + 1 - len(payload)))
         if not block:
             break
@@ -427,6 +526,20 @@ class UnixSocketHaOtaServer:
         self._socket = None
         self.path.unlink(missing_ok=True)
 
+    def serve_activated(self, listener: socket.socket) -> None:
+        if (
+            listener.family != socket.AF_UNIX or listener.type != socket.SOCK_STREAM
+            or listener.getsockname() != str(self.path)
+            or listener.getsockopt(socket.SOL_SOCKET, socket.SO_ACCEPTCONN) != 1
+        ):
+            raise UpdaterV2Error("ha_ota_ipc_activated_socket_invalid")
+        listener.settimeout(0.25)
+        self._socket = listener
+        try:
+            self._serve()
+        finally:
+            self._socket = None
+
     def _peer_uid(self, connection: socket.socket) -> int:
         if not hasattr(socket, "SO_PEERCRED"):
             raise UpdaterV2Error("ha_ota_ipc_peer_credentials_unavailable")
@@ -458,6 +571,7 @@ class UnixSocketHaOtaServer:
                         response = self.dispatcher._response(
                             accepted=False,
                             code="ha_ota_ipc_peer_uid_rejected",
+                            status={"phase": "ERROR", "progress_percent": None, "error_code": None},
                         )
                     else:
                         response = self.dispatcher.handle(_read_frame(connection))
@@ -466,4 +580,16 @@ class UnixSocketHaOtaServer:
                         accepted=False,
                         code=_public_code(error),
                     )
-                connection.sendall(response)
+                with suppress(OSError):
+                    connection.sendall(response)
+
+def serve_activated_ha_ipc(store: HaUsbStateStore, read_current: Callable[[], dict[str, Any]]) -> None:
+    if os.environ.get("LISTEN_PID") != str(os.getpid()) or os.environ.get("LISTEN_FDS") != "1":
+        raise UpdaterV2Error("ha_ota_ipc_socket_activation_required")
+    resolver = LocalApprovedHaRelease(store.root / RELEASE_PIN, IPC_SOCKET.with_name(APPROVED_MANIFEST), read_current)
+    server = UnixSocketHaOtaServer(
+        dispatcher=HaUsbIpcDispatcher(HaUsbIpcExecutor(store=store, admission_resolver=resolver)),
+        path=IPC_SOCKET, expected_peer_uid=MANAGER_PEER_UID,
+    )
+    with socket.socket(fileno=3) as listener:
+        server.serve_activated(listener)

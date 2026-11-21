@@ -3,16 +3,24 @@ from __future__ import annotations
 import json
 import os
 import socket
+import subprocess
+import sys
+import tempfile
 from pathlib import Path
 
 import pytest
 
 from n3w_t1_core_updater_ha_ipc import (
+    APPROVED_MANIFEST,
+    APPROVED_MANIFEST_SCHEMA,
+    RELEASE_PIN,
+    RELEASE_PIN_SCHEMA,
     REQUEST_SCHEMA,
     RESPONSE_SCHEMA,
     HaUsbIpcDispatcher,
     HaUsbIpcExecutor,
     HostOtaAdmission,
+    LocalApprovedHaRelease,
     UnixSocketHaOtaServer,
 )
 from n3w_t1_core_updater_ha_recovery import ImageRecoveryRecord
@@ -30,7 +38,7 @@ from n3w_t1_core_updater_ha_usb_state import (
     U5,
     HaUsbStateStore,
 )
-from n3w_t1_core_updater_v2_common import UpdaterV2Error
+from n3w_t1_core_updater_v2_common import UpdaterV2Error, sha256_bytes
 
 RELEASE = "homeassistant-2026.10.4"
 ARCHIVE_SHA = "a" * 64
@@ -219,3 +227,129 @@ def test_server_rejects_existing_socket_path(tmp_path: Path) -> None:
     )
     with pytest.raises(UpdaterV2Error, match="ha_ota_ipc_socket_path_exists"):
         server.start()
+
+
+def _approved_release(directory: Path, store: HaUsbStateStore):
+    target_path = Path(__file__).resolve().parents[2] / "infra/n3w-t1/upgrades/homeassistant-2026.10.4.json"
+    target = json.loads(target_path.read_bytes())
+    manifest = directory / APPROVED_MANIFEST
+    manifest.write_text(json.dumps({
+        "schema": APPROVED_MANIFEST_SCHEMA, "release_identity": RELEASE, "version": "2026.10.4",
+        "approval_status": "APPROVED", "signature_status": "VERIFIED", "validity_status": "VALID",
+        "verification_status": "PASS", "target_archive_size_bytes": 835309535, "target": target,
+    }))
+    manifest.chmod(0o644)
+    current = {
+        "image_ref": target["expected_predecessor_image_ref"], "image_id": "sha256:" + "3" * 64,
+        "platform": "linux/arm64",
+    }
+    pin = store.root / RELEASE_PIN
+    pin.write_text(json.dumps({
+        "schema": RELEASE_PIN_SCHEMA, "manifest_sha256": sha256_bytes(manifest.read_bytes()),
+        "predecessor_image_id": current["image_id"], "expires_at_unix": 0x7FFFFFFF,
+    }))
+    pin.chmod(0o600)
+    return manifest, pin, current
+
+
+@pytest.mark.parametrize("fault", ["digest", "predecessor", "expired", "pin_mode"])
+def test_local_release_admission_rejects_drift(tmp_path, fault):
+    _, _, store = _executor(tmp_path)
+    manifest, pin, current = _approved_release(tmp_path, store)
+    resolver = LocalApprovedHaRelease(pin, manifest, lambda: current)
+    admission = resolver.resolve_homeassistant_release(RELEASE)
+    assert admission.target_manifest_identity["manifest_sha256"] == sha256_bytes(manifest.read_bytes())
+    assert admission.current_image_identity["runtime_image_id"] == current["image_id"]
+    if fault == "digest":
+        manifest.write_bytes(manifest.read_bytes() + b"\n")
+        expected = "ha_ota_ipc_release_digest_mismatch"
+    elif fault == "predecessor":
+        current["image_id"] = "sha256:" + "4" * 64
+        expected = "ha_ota_ipc_predecessor_identity_drift"
+    elif fault == "expired":
+        pin.write_text(json.dumps({**json.loads(pin.read_bytes()), "expires_at_unix": 1}))
+        expected = "ha_ota_ipc_release_pin_invalid"
+    else:
+        pin.chmod(0o644)
+        expected = "ha_ota_ipc_release_input_unavailable"
+    with pytest.raises(UpdaterV2Error, match=expected):
+        resolver.resolve_homeassistant_release(RELEASE)
+    assert store.read() is None
+
+
+@pytest.mark.parametrize("wrong_uid", [False, True])
+def test_activated_ipc_uses_manager_client_and_pinned_release(tmp_path, monkeypatch, wrong_uid):
+    repo = Path(__file__).resolve().parents[2]
+    monkeypatch.syspath_prepend(str(repo / "host/greenhouse-manager/src"))
+    from greenhouse_manager.runtime.t1_ota_ipc import UnixSocketOtaBridge
+    from greenhouse_manager.runtime.t1_ota_manager import OtaControlError, OtaControlIntent
+
+    _, _, store = _executor(tmp_path)
+    # Keep the Unix socket path below the OS limit even with a long pytest work directory.
+    with tempfile.TemporaryDirectory(prefix="n3w-ipc-") as work:
+        directory = Path(work).resolve()
+        manifest, _, current = _approved_release(directory, store)
+        path = directory / "ha-ota.sock"
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:
+            listener.bind(str(path))
+            listener.listen()
+            descriptor = listener.fileno()
+            process = subprocess.Popen(
+                (sys.executable, "-c", """
+import json
+import os
+import sys
+from pathlib import Path
+from types import SimpleNamespace
+
+import n3w_t1_core_updater_ha_ipc as ipc
+import n3w_t1_core_updater_ha_recovery_startup as startup
+
+descriptor = int(sys.argv[1])
+if descriptor != 3:
+    os.dup2(descriptor, 3)
+    os.close(descriptor)
+os.environ["LISTEN_PID"] = str(os.getpid())
+os.environ["LISTEN_FDS"] = "1"
+ipc.IPC_SOCKET = Path(sys.argv[2])
+ipc.MANAGER_PEER_UID = int(sys.argv[3])
+startup.HaUsbStateStore = lambda: ipc.HaUsbStateStore(Path(sys.argv[4]))
+startup.LocalHaPredecessorRuntime = lambda: SimpleNamespace(_runtime=lambda _: json.loads(sys.argv[5]))
+raise SystemExit(startup.cli(["--serve-ipc"]))
+""", str(descriptor), str(path), str(os.getuid() + int(wrong_uid)), str(store.root), json.dumps(current)),
+                env={**os.environ, "PYTHONPATH": str(repo / "tools")}, pass_fds=(descriptor,),
+            )
+            try:
+                client = UnixSocketOtaBridge(path)
+                if wrong_uid:
+                    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as rejected:
+                        rejected.settimeout(2)
+                        rejected.connect(str(path))
+                        reply = json.loads(rejected.recv(8192))
+                    assert reply["code"] == "ha_ota_ipc_peer_uid_rejected"
+                    assert reply["phase"] == "ERROR" and reply["accepted"] is False
+                    assert store.read() is None
+                    return
+                assert client.get_homeassistant_ota_runtime_state().phase == "DISCOVERED"
+                original = manifest.read_bytes()
+                manifest.write_bytes(original + b"\n")
+                with pytest.raises(OtaControlError, match="ha_ota_ipc_release_digest_mismatch"):
+                    client.submit_homeassistant_ota_intent(OtaControlIntent("PREPARE", RELEASE))
+                assert store.read() is None
+                manifest.write_bytes(original)
+                client.submit_homeassistant_ota_intent(OtaControlIntent("PREPARE", RELEASE))
+                assert client.get_homeassistant_ota_runtime_state().phase == "PREPARE_REQUESTED"
+                queued = store.read()
+                assert queued["phase"] == U1 and queued["authorization_consumed"] is False
+                assert not (store.root / "ha-install-authority.json").exists()
+            finally:
+                process.terminate()
+                process.wait(timeout=5)
+
+def test_ipc_cli_requires_passed_listener(monkeypatch, capsys):
+    import n3w_t1_core_updater_ha_recovery_startup as startup
+
+    monkeypatch.delenv("LISTEN_PID", raising=False)
+    monkeypatch.delenv("LISTEN_FDS", raising=False)
+    assert startup.cli(["--serve-ipc"]) == 1
+    assert json.loads(capsys.readouterr().out) == {"status": "IPC_STARTUP_NEEDS_REVIEW"}

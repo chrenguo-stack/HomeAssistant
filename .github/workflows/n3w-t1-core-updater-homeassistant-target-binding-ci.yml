@@ -12,6 +12,7 @@ on:
       - "tools/n3w_t1_core_updater_ha_*.py"
       - "infra/n3w-t1/homeassistant/custom_components/n3w_ota_monitoring/**"
       - "infra/n3w-t1/systemd/n3w-t1-ha-recovery-*"
+      - "infra/n3w-t1/systemd/n3w-t1-ha-ota-ipc.*"
       - "infra/n3w-t1/systemd/n3wfc4-services-activation.service.d/ota-ha-recovery.conf"
       - "tools/n3w_t1_core_updater_components.py"
       - "tools/n3w_t1_core_updater_host.py"
@@ -127,7 +128,7 @@ jobs:
           dependencies="$RUNNER_TEMP/ha-recovery-verify-dependencies"
           mkdir "$dependencies"
           printf '[Service]\nExecStart=/usr/bin/true\n' > "$dependencies/docker.service"
-          SYSTEMD_UNIT_PATH="$dependencies:" systemd-analyze verify "$package/n3w-t1-ha-recovery-startup.service" "$package/n3w-t1-ha-recovery-retry.service" "$package/n3w-t1-ha-recovery-retry.timer"
+          SYSTEMD_UNIT_PATH="$dependencies:" systemd-analyze verify "$package/n3w-t1-ha-recovery-startup.service" "$package/n3w-t1-ha-recovery-retry.service" "$package/n3w-t1-ha-recovery-retry.timer" "$package/n3w-t1-ha-ota-ipc.socket" "$package/n3w-t1-ha-ota-ipc.service"
           printf 'HA_RECOVERY_INSTALL_MANIFEST_SHA256=%s\n' "$digest" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Upload the HA recovery installation candidate

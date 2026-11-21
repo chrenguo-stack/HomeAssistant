@@ -75,7 +75,7 @@ def test_exact_package_installs_and_executes_self_contained_recovery(package, tm
         assert (root / target).read_bytes() == (staged / name).read_bytes()
         assert (root / target).stat().st_mode & 0o777 == 0o644
     stdout = subprocess.check_output((sys.executable, "-I", installed, "--help"), cwd=tmp_path, text=True)
-    assert all(flag in stdout for flag in ("--check-application-start", "--resume-pending", "--install-requested"))
+    assert all(flag in stdout for flag in ("--check-application-start", "--resume-pending", "--install-requested", "--serve-ipc"))
     assert deploy.install(staged, digest, root=root, systemctl=manager) == result
     assert manager.changes[2:] == [("daemon-reload",)]
 
