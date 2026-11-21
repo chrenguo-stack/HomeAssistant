@@ -45,3 +45,10 @@
 - 首次回归提交 `d1dfe7da5d17` 在 [Manager CI](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44918971415)和 [ARM64 源码预检](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44918971434)触发原有 Phase 5A 源码断言。合并同一行的配对和 OTA 开关写法导致断言失败，隔离容器用例尚未进入运行。[修复提交 `ccac5b714a22`](https://github.com/chrenguo-stack/HomeAssistant/commit/ccac5b714a22be15fe5b0b639d67a710832be3ba)恢复独立的旧配对开关语句，并用启用与关闭 OTA 的输入验证桥接传递。原有断言、语法及变更文件安全扫描在本地通过。
 - `ccac5b714a22` 第三次查询：20 项通过、4 项运行，未见失败。[Manager CI](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44919242498)和 HA 源码任务通过。[ARM64 容器联调](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44919242572/job/136891453609)正在构建 Manager，回执用例尚未启动。[HA 原始镜像绑定](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44919242576/job/136891745368)仍在复验。
 - 同提交 [HA 恢复候选包 14712811990](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44919242576/artifacts/14712811990)已独立回读，ZIP SHA-256 `3675f82dd7ec0c3fd17018e9676fbd6dfb99cc8438be6e4167fbf95e7a87d939`，清单 SHA-256 `6bd494831e32ad0a4346ac27e22474a52f52b0e81cf9d104e961ed53c09403f7`。11 个文件与前版候选逐字节一致，新清单绑定 `ccac5b714a22be15fe5b0b639d67a710832be3ba`。R6 仍等隔离回执与该提交的 CI 结果。
+
+## 隔离 Manager 启动目录修复
+
+- `ccac5b714a22` 最终 23 项通过、1 项失败。[ARM64 运行 44919242572](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44919242572/job/136891453609)观察到 HA 注册和 MQTT 连接完成，随后 Manager 在收到首个维护自检回执前以退出码 1 结束。原用例在清理容器前未采集 Manager 日志。
+- 在 `umask 022` 下，由测试脚本隐式创建的套接字父目录为 `0755`。用当前 Manager 的实际校验器复现 `pairing_control_socket_parent_invalid`。 [修复提交 `8df95b507137`](https://github.com/chrenguo-stack/HomeAssistant/commit/8df95b507137361603308db9f26e4b8541f49d6d)显式创建 `0700` 根目录，并在 Manager 退出或回执超时时保留脱敏日志。源码树 `52cd28094fc5a7ed9167f4a6ecbc66fb04bd8b42`。变更仅涉及隔离用例和故障索引。
+- 本地用精确 Manager 源码、空节点数据库和新目录通过实际构造与套接字路径校验。日志脱敏和变更文件安全扫描通过。OTA 相关用例 412 项通过、2 项跳过、13 项未纳入。Manager 定向用例 25 项通过，3 项需要打开本地套接字，在当前环境未纳入。
+- [新一轮 ARM64 CI 44920633239](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44920633239/job/136895669992)已通过源码预检，成对回执等待容器联调。备用 T1 的 R7 预检继续等待 R6 结果。
