@@ -27,6 +27,7 @@ from n3w_t1_core_updater_ha_recovery_startup import (
     LocalHaPredecessorRuntime,
     cli as recovery_cli,
 )
+from n3w_t1_core_updater_signed_release import check_signed_release
 from n3w_t1_core_updater_v2_common import SHA256, TERMINAL_TX_V2
 from n3w_t1_core_updater_v2_state import STATE_ROOT_V2, V2StateStore
 from n3w_t1_portable_image_identity import parse_verified_load_archive
@@ -51,6 +52,7 @@ DESTINATIONS = {
     CANDIDATE_COMPOSE: str(Path(RECOVERY_ARCHIVE).with_name(CANDIDATE_COMPOSE)).removeprefix("/"),
 }
 MODULES = (
+    "n3w_t1_core_stack_release",
     "n3w_t1_core_updater_common",
     "n3w_t1_core_updater_ha_acceptance",
     "n3w_t1_core_updater_ha_backup",
@@ -65,6 +67,7 @@ MODULES = (
     "n3w_t1_core_updater_ha_usb_media",
     "n3w_t1_core_updater_ha_usb_state",
     "n3w_t1_core_updater_host",
+    "n3w_t1_core_updater_signed_release",
     "n3w_t1_core_updater_v2_common",
     "n3w_t1_core_updater_v2_state",
     "n3w_t1_portable_image_identity",
@@ -470,10 +473,12 @@ def install(package: Path, expected: str, *, root: Path = Path("/"), systemctl=_
 
 def bundle_main() -> int:
     action = sys.argv[1:2]
-    if action not in (["install"], ["check-candidate-activation"], ["materialize-candidate"]):
+    if action not in (["install"], ["check-candidate-activation"], ["materialize-candidate"], ["check-signed-release"]):
         return recovery_cli()
     parser = argparse.ArgumentParser(prog=f"ha-recovery.pyz {action[0]}")
-    if action == ["materialize-candidate"]:
+    if action == ["check-signed-release"]:
+        parser.add_argument("--trust-policy", type=Path, required=True)
+    elif action == ["materialize-candidate"]:
         parser.add_argument("--approved-manifest", type=Path, required=True)
         parser.add_argument("--approved-manifest-sha256", required=True)
         parser.add_argument("--target-archive", type=Path, required=True)
@@ -483,7 +488,9 @@ def bundle_main() -> int:
     args = parser.parse_args(sys.argv[2:])
     if os.geteuid() != 0:
         parser.error("this command requires root")
-    if action == ["materialize-candidate"]:
+    if action == ["check-signed-release"]:
+        result = check_signed_release(args.trust_policy)
+    elif action == ["materialize-candidate"]:
         result = materialize_candidate(
             args.approved_manifest, args.approved_manifest_sha256, args.target_archive, args.expires_at_unix,
         )

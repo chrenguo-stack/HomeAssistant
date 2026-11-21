@@ -98,6 +98,10 @@ def test_exact_package_installs_and_executes_self_contained_recovery(package, tm
         (sys.executable, "-I", installed, "materialize-candidate", "--help"), cwd=tmp_path, text=True,
     )
     assert "--approved-manifest-sha256" in stage_help
+    signed_help = subprocess.check_output(
+        (sys.executable, "-I", installed, "check-signed-release", "--help"), cwd=tmp_path, text=True,
+    )
+    assert "--trust-policy" in signed_help
     assert deploy.install(staged, digest, root=root, systemctl=manager) == result
     assert manager.changes[2:] == [("daemon-reload",)]
 

@@ -166,6 +166,34 @@ manifest block new requests until the command is retried. This operation
 stages engineering inputs only. Signed distribution and separate transaction
 approvals apply at their respective stages.
 
+### Signed HA-only distribution check
+
+The recovery bundle exposes `check-signed-release --trust-policy ABSOLUTE_PATH`.
+Provision the local policy independently of the release server. It has schema
+`gh.n3w-t1-ota-release-trust/1` and fields `base_url`, `minimum_index_sequence`,
+and `public_key_der_base64` (an Ed25519 public key in SubjectPublicKeyInfo DER).
+The updater uses normal HTTPS certificate verification, one configured origin
+and relative paths, with redirects and compressed metadata responses rejected.
+
+`index.json` and its referenced release document each have a detached raw
+64-byte signature in a sibling `.sig` file. Sign the exact file bytes.
+The index schema `gh.n3w-t1-ota-release-index/1` carries `sequence`,
+`expires_at_unix`, `release_id`, `release_path` and `release_sha256`. The
+distribution schema `gh.n3w-t1-ota-ha-release-distribution/1` carries
+`expires_at_unix`, `predecessor`, `target`, `minimum_updater_version`,
+`required_updater_capabilities`, `ha_candidate` and `archive_path`.
+The predecessor and target use the existing Stack release schema. For this
+HA-only contract, Manager, Broker and the runtime contract must have identical
+signed declarations. The target HA Stack identity uses the archive SHA-256.
+The embedded HA candidate retains the Manager approval-manifest schema and
+binds the same Stack release ID, HA predecessor, target image and archive.
+
+This command checks signed metadata and reports the exact identities it verified.
+The local sequence floor comes from policy. Product consumption still needs
+durable replay protection, archive download, live predecessor verification and
+binding to the private candidate materialization step. Production key
+provisioning and release publication follow separate approvals.
+
 For the controlled candidate, the root-owned recovery entry also exposes
 `--issue-prepare-authority PRIVATE_REQUEST` and
 `--issue-install-authority PRIVATE_REQUEST`. The two inputs are separate absolute

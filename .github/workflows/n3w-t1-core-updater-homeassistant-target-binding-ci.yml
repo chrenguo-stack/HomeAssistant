@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "infra/n3w-t1/production/docker-compose.fresh.yml"
+      - "infra/n3w-t1/releases/1.0.0/release.json"
       - "infra/n3w-t1/upgrades/homeassistant-2026.10.4.json"
       - "infra/n3w-t1/upgrades/homeassistant-2026.10.4-storage-policy.json"
       - "infra/n3w-t1/upgrades/homeassistant-2026.10.4-compatibility-review.json"
@@ -11,6 +12,8 @@ on:
       - "tools/n3w_t1_core_updater_v2_common.py"
       - "tools/n3w_t1_core_updater_v2_state.py"
       - "tools/n3w_t1_core_updater_ha_*.py"
+      - "tools/n3w_t1_core_stack_release.py"
+      - "tools/n3w_t1_core_updater_signed_release.py"
       - "infra/n3w-t1/homeassistant/custom_components/n3w_ota_monitoring/**"
       - "infra/n3w-t1/systemd/n3w-t1-ha-recovery-*"
       - "infra/n3w-t1/systemd/n3w-t1-ha-ota-ipc.*"
@@ -24,6 +27,7 @@ on:
       - "tests/tools/test_n3w_t1_core_updater_ha_usb_r1.py"
       - "tests/tools/test_n3w_t1_core_updater_ha_usb_r2.py"
       - "tests/tools/test_n3w_t1_core_updater_ha_recovery_deploy.py"
+      - "tests/tools/test_n3w_t1_core_updater_signed_release.py"
       - "tests/tools/test_n3w_t1_core_updater_ha_data_evidence.py"
       - "tests/tools/test_n3w_t1_core_updater_ha_monitoring_evidence.py"
       - "tests/tools/test_n3w_t1_core_updater_ha_p3_simulation.py"
@@ -108,6 +112,7 @@ jobs:
             tests/tools/test_n3w_t1_core_updater_ha_usb_r1.py \
             tests/tools/test_n3w_t1_core_updater_ha_usb_r2.py \
             tests/tools/test_n3w_t1_core_updater_ha_recovery_deploy.py \
+            tests/tools/test_n3w_t1_core_updater_signed_release.py \
             tests/tools/test_n3w_t1_core_updater_ha_data_evidence.py \
             tests/tools/test_n3w_t1_core_updater_ha_monitoring_evidence.py \
             tests/tools/test_n3w_t1_core_updater_ha_ipc.py \
