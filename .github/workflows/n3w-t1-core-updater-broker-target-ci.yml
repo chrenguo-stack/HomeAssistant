@@ -416,6 +416,172 @@ jobs:
           print("T1_MUTATION=false")
           PY
 
+  exact-binding:
+    needs: source
+    if: needs.source.outputs.target_present == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      TARGET_MANIFEST: infra/n3w-t1/upgrades/broker-2.1.4.json
+      COMPATIBILITY_REVIEW: infra/n3w-t1/upgrades/broker-2.1.4-compatibility-review.json
+      UPSTREAM_RUN_ID: "44921739065"
+      UPSTREAM_ARTIFACT_ID: "14713718457"
+      UPSTREAM_ARTIFACT_NAME: n3w-t1-core-updater-broker-2.1.4-arm64-46d14f7187de68c1500d3051e957109b97a21774
+      UPSTREAM_ARTIFACT_DIGEST_SHA256: 36d2d820b1d793f64014d910d08eace4d7ef90375adb2e43b1ba8e46a5195cf3
+      UPSTREAM_INDEX_DIGEST: sha256:fa12172a051310efe5bcb7a6a11b77bd5faacb82cbacd7742aa758bf024fd8e4
+      UPSTREAM_MANIFEST_DIGEST: sha256:5d96ab48dab65f1198659af538139d999ab474dd78ee1c231ffff0f4d52552e0
+      UPSTREAM_MANIFEST_SIZE: "1558"
+      UPSTREAM_VARIANT: v8
+      ARCHIVE_SHA256: 35630ff4b3ba710d26f1b44ac022b806c3ad53c2f1a015195e48c79690d26f3e
+      ARCHIVE_SIZE_BYTES: "13799035"
+      TARGET_IMAGE: local/n3w-mosquitto:2.1.4-5d96ab48
+      PREDECESSOR_IMAGE: local/n3w-mosquitto:2.1.2-3184566d
+      ARTIFACT_SOURCE_HEAD: 46d14f7187de68c1500d3051e957109b97a21774
+      REVIEW_CANONICAL_SHA256: aeb8c37ad4fa0193944f0dcd8a91bc7e66a67218e66ddc1d49325f5ce9948941
+      PORTABLE_CONFIG_DIGEST: sha256:7242e9c4722390ce92de3f4a9fb4f21ae8b2d4ed27783f4613d431d128f3af3f
+      PORTABLE_CONFIG_SEMANTICS_SHA256: 385bed806ea89babff77b3c1f71f95719c8f06d4b6dbacbc9af95a74a85e625c
+      PORTABLE_ROOTFS_DIFF_IDS_SHA256: 8ca2e9ca3e713739ca7d3615b8c2a376165ad0b5eb46421ddf4f7e95a032db12
+      T1_ACCESS: "false"
+      T1_MUTATION: "false"
+      BOARD_ACCESS: "false"
+      PRODUCTION_SERVICE_START: "false"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_HEAD }}
+          fetch-depth: 0
+
+      - name: Verify frozen Broker target and GitHub artifact identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PYTHONPATH: tools
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$UPSTREAM_RUN_ID/artifacts?per_page=100" > "$RUNNER_TEMP/upstream-artifacts.json"
+          python - "$RUNNER_TEMP/upstream-artifacts.json" "$TARGET_MANIFEST" "$COMPATIBILITY_REVIEW" <<'PY'
+          import hashlib
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          import n3w_t1_core_updater_v2_common as common
+
+          metadata = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          target = common.ComponentTarget.load(Path(sys.argv[2]))
+          review = json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))
+          matches = [item for item in metadata.get("artifacts", []) if item.get("name") == os.environ["UPSTREAM_ARTIFACT_NAME"]]
+          assert len(matches) == 1
+          artifact = matches[0]
+          assert artifact["id"] == int(os.environ["UPSTREAM_ARTIFACT_ID"])
+          assert artifact.get("expired") is False
+          assert artifact.get("digest") == "sha256:" + os.environ["UPSTREAM_ARTIFACT_DIGEST_SHA256"]
+          assert target.component == "broker"
+          assert target.mutation_profile == "IMAGE_ONLY_V1"
+          assert target.target_image_ref == os.environ["TARGET_IMAGE"]
+          assert target.expected_predecessor_image_ref == os.environ["PREDECESSOR_IMAGE"]
+          assert target.target_platform == "linux/arm64"
+          assert target.target_archive_sha256 == os.environ["ARCHIVE_SHA256"]
+          assert target.artifact_identity["artifact_id"] == artifact["id"]
+          assert target.artifact_identity["artifact_name"] == artifact["name"]
+          assert target.artifact_identity["artifact_digest_sha256"] == os.environ["UPSTREAM_ARTIFACT_DIGEST_SHA256"]
+          assert target.compatibility_evidence["review_evidence_sha256"] == os.environ["REVIEW_CANONICAL_SHA256"]
+          assert target.compatibility_evidence["predecessor_manifest_digest_sha256"] == "3184566df484a083411a0e70e92c87a264b8f0648df632f10eb23d54d99f4549"
+          assert target.compatibility_evidence["target_manifest_digest_sha256"] == os.environ["UPSTREAM_MANIFEST_DIGEST"].removeprefix("sha256:")
+          assert target.compatibility_evidence["target_artifact_source_head"] == os.environ["ARTIFACT_SOURCE_HEAD"]
+          canonical = json.dumps(review, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+          assert hashlib.sha256(canonical).hexdigest() == os.environ["REVIEW_CANONICAL_SHA256"]
+          assert review["live_apply_authorized"] is False
+          assert review["t1_access"] is False
+          print("BROKER_2_1_4_FROZEN_TARGET_METADATA=PASS")
+          PY
+
+      - name: Download frozen exact Broker artifact
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.UPSTREAM_RUN_ID }}
+          name: ${{ env.UPSTREAM_ARTIFACT_NAME }}
+          path: ${{ runner.temp }}/upstream
+
+      - name: Verify exact Broker target-to-artifact binding
+        env:
+          PYTHONPATH: tools
+        run: |
+          set -euo pipefail
+          python - "$RUNNER_TEMP/upstream" "$TARGET_MANIFEST" "$COMPATIBILITY_REVIEW" <<'PY'
+          import hashlib
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          import n3w_t1_core_updater_v2_common as common
+          import n3w_t1_portable_image_identity as portable
+
+          root = Path(sys.argv[1])
+          target = common.ComponentTarget.load(Path(sys.argv[2]))
+          review = json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))
+          assert {p.name for p in root.iterdir()} == {"broker-arm64.tar.gz", "portable-image-identity.json", "upstream-binding.json"}
+          archive = root / "broker-arm64.tar.gz"
+          identity_doc = json.loads((root / "portable-image-identity.json").read_text(encoding="utf-8"))
+          binding = json.loads((root / "upstream-binding.json").read_text(encoding="utf-8"))
+          identity = portable.identity_from_dict(identity_doc)
+          def sha(path):
+              digest = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for block in iter(lambda: stream.read(1024 * 1024), b""):
+                      digest.update(block)
+              return digest.hexdigest()
+          assert archive.stat().st_size == int(os.environ["ARCHIVE_SIZE_BYTES"])
+          assert sha(archive) == os.environ["ARCHIVE_SHA256"]
+          assert target.target_archive_sha256 == os.environ["ARCHIVE_SHA256"]
+          assert identity.archive_sha256 == os.environ["ARCHIVE_SHA256"]
+          assert identity.archive_size_bytes == int(os.environ["ARCHIVE_SIZE_BYTES"])
+          assert identity.os == "linux"
+          assert identity.architecture == "arm64"
+          assert identity.config_digest == os.environ["PORTABLE_CONFIG_DIGEST"]
+          assert identity.config_semantics_sha256 == os.environ["PORTABLE_CONFIG_SEMANTICS_SHA256"]
+          assert identity.rootfs_diff_ids_sha256 == os.environ["PORTABLE_ROOTFS_DIFF_IDS_SHA256"]
+          parsed = portable.parse_image_archive(archive, expected_tag=os.environ["TARGET_IMAGE"], expected_archive_sha256=os.environ["ARCHIVE_SHA256"], expected_archive_size_bytes=int(os.environ["ARCHIVE_SIZE_BYTES"]), platform_os="linux", platform_architecture="arm64")
+          assert parsed.to_dict() == identity.to_dict()
+          assert binding["schema"] == "gh.n3w-t1-core-updater-broker-upstream-artifact/1"
+          assert binding["control_plane_head"] == os.environ["ARTIFACT_SOURCE_HEAD"]
+          assert binding["component"] == "broker"
+          assert binding["version"] == "2.1.4"
+          assert binding["platform"] == "linux/arm64"
+          assert binding["upstream_repository"] == "docker.io/library/eclipse-mosquitto"
+          assert binding["upstream_tag"] == "2.1.4-alpine"
+          assert binding["upstream_index_digest"] == os.environ["UPSTREAM_INDEX_DIGEST"]
+          assert binding["upstream_manifest_digest"] == os.environ["UPSTREAM_MANIFEST_DIGEST"]
+          assert binding["upstream_manifest_size"] == int(os.environ["UPSTREAM_MANIFEST_SIZE"])
+          assert binding["upstream_variant"] == os.environ["UPSTREAM_VARIANT"]
+          assert binding["local_image"] == os.environ["TARGET_IMAGE"]
+          assert binding["predecessor_image"] == os.environ["PREDECESSOR_IMAGE"]
+          assert binding["archive_sha256"] == os.environ["ARCHIVE_SHA256"]
+          assert binding["archive_size_bytes"] == int(os.environ["ARCHIVE_SIZE_BYTES"])
+          assert binding["portable_config_digest"] == os.environ["PORTABLE_CONFIG_DIGEST"]
+          assert binding["portable_config_semantics_sha256"] == os.environ["PORTABLE_CONFIG_SEMANTICS_SHA256"]
+          assert binding["portable_rootfs_diff_ids_sha256"] == os.environ["PORTABLE_ROOTFS_DIFF_IDS_SHA256"]
+          assert binding["compatibility_review_canonical_sha256"] == os.environ["REVIEW_CANONICAL_SHA256"]
+          assert binding["secret_values_included"] is False
+          assert binding["t1_access"] is False
+          assert binding["t1_mutation"] is False
+          assert binding["service_restart"] is False
+          assert binding["board_access"] is False
+          review_sha = hashlib.sha256(json.dumps(review, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest()
+          assert review_sha == os.environ["REVIEW_CANONICAL_SHA256"]
+          print("BROKER_2_1_4_FROZEN_EXACT_BINDING=PASS")
+          print(f"BROKER_TARGET_ARTIFACT_ID={target.artifact_identity['artifact_id']}")
+          print(f"BROKER_TARGET_ARCHIVE_SHA256={target.target_archive_sha256}")
+          print(f"BROKER_TARGET_IMAGE={target.target_image_ref}")
+          print(f"BROKER_TARGET_UPSTREAM_MANIFEST_DIGEST={binding['upstream_manifest_digest']}")
+          print("T1_ACCESS=false")
+          print("T1_MUTATION=false")
+          PY
+
   isolated-a-to-b:
     needs: source
     runs-on: ubuntu-24.04

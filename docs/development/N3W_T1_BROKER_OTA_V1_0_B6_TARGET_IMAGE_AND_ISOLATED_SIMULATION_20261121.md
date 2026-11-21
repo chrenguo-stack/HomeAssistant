@@ -1,7 +1,7 @@
 # N3-W T1 Broker OTA V1.0 — B6 Target Image / Manifest 与隔离 A→B 模拟
 
 DATE=2026-11-21  
-STATUS=SOURCE_IMPLEMENTATION_PHASE_1  
+STATUS=PHASE_2_TARGET_FREEZE_IMPLEMENTED_PENDING_CI  
 STACKED_BASE_PR=819  
 STACKED_BASE_HEAD=eb6a5bebb08798ae0f85d46fc6665ee8c59eab1a  
 B5_EXECUTABLE_HEAD=e650f5db373d5cd65fd601c676f3f605998ba132  
@@ -211,3 +211,53 @@ Attempt 05 exact head = 5f20140e8d833b736943ac17ea3e1472284865ad。
 fixture 在初始化后明确执行 `chown -R 1883:1883` 且把 Broker data root 设为 0700，因此普通 GitHub runner 用户不能遍历 `$WORK/data`。Recovery Point 本身已经用 sudo 运行，但紧邻的 `test -s` 与 `sha256sum` 仍以普通 runner 身份执行，形成测试夹具权限不一致。
 
 修复只把 Broker state 文件 presence/hash 检查改为 sudo，包括 pre-target capture、target state-change check 与 restore hash check；不改变生产目录权限、不放宽 0700、不修改 Broker/Recovery Point 产品代码。
+
+
+## 12. Phase 1 Attempt 06 Success 与 Phase 2 exact target freeze
+
+Attempt 06 exact source head = 46d14f7187de68c1500d3051e957109b97a21774。
+
+最终结果：
+
+- source = SUCCESS；
+- exact-artifact = SUCCESS；
+- isolated-a-to-b = SUCCESS；
+- Public repository safety = SUCCESS；
+- Broker Recovery Support Exact CI = SUCCESS。
+
+Phase 1 exact artifact：
+
+- workflow run = 44921739065；
+- artifact ID = 14713718457；
+- artifact name = n3w-t1-core-updater-broker-2.1.4-arm64-46d14f7187de68c1500d3051e957109b97a21774；
+- artifact digest = sha256:36d2d820b1d793f64014d910d08eace4d7ef90375adb2e43b1ba8e46a5195cf3；
+- archive SHA256 = 35630ff4b3ba710d26f1b44ac022b806c3ad53c2f1a015195e48c79690d26f3e；
+- archive size = 13799035 bytes；
+- local image = local/n3w-mosquitto:2.1.4-5d96ab48；
+- upstream index digest = sha256:fa12172a051310efe5bcb7a6a11b77bd5faacb82cbacd7742aa758bf024fd8e4；
+- upstream linux/arm64 manifest = sha256:5d96ab48dab65f1198659af538139d999ab474dd78ee1c231ffff0f4d52552e0；
+- manifest size = 1558；
+- variant = v8；
+- portable config digest = sha256:7242e9c4722390ce92de3f4a9fb4f21ae8b2d4ed27783f4613d431d128f3af3f；
+- portable config semantics SHA256 = 385bed806ea89babff77b3c1f71f95719c8f06d4b6dbacbc9af95a74a85e625c；
+- portable rootfs diff IDs SHA256 = 8ca2e9ca3e713739ca7d3615b8c2a376165ad0b5eb46421ddf4f7e95a032db12。
+
+隔离行为证据已完整通过：Recovery Point create、2.1.4 start/version、读取 predecessor retained、target retained write、target state change、Recovery Point restore、restore hash match、2.1.2 rollback read、DynSec auth compatibility 全部 PASS。
+
+Phase 2 新增 infra/n3w-t1/upgrades/broker-2.1.4.json，使用 Generic V2 gh.n3w-t1-core-updater-target/2，并把 successful Attempt 06 的 exact run/artifact/archive/upstream manifest 全部固定。
+
+冻结后 workflow 行为：
+
+- target manifest 不存在时才允许 exact-artifact build；
+- target manifest 已存在时 exact-artifact build 必须 skip；
+- exact-binding 只从 run 44921739065 下载 artifact 14713718457；
+- exact-binding 不允许 docker pull、docker save 或 tag 再解析；
+- 重新校验 archive、portable identity、upstream-binding、compatibility review 与 target manifest 的 byte identity。
+
+isolated-a-to-b 仍是 GitHub runner 原生架构上的 Mosquitto 状态/DynSec 行为兼容性证明，不把它描述为 ARM64 runtime proof；ARM64 身份由 frozen exact artifact job 单独证明。
+
+T1_ACCESS=false
+T1_MUTATION=false
+BROKER_LIVE_APPLY=false
+MERGE=false
+RELEASE=false
