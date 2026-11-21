@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import os
 import shutil
@@ -24,6 +25,8 @@ PASSWORD = "n3w-ci-homeassistant-password-20261010"
 SYSTEM_ID = "greenhouse"
 MANAGER_USERNAME = "n3w-ci-manager"
 MANAGER_CLIENT_ID = "n3w-ci-manager-ota"
+NODE_USERNAME = "n3w-ci-telemetry-node"
+NODE_ID = "node_ci_receipt"
 
 MANAGER_START = """
 import hashlib
@@ -56,6 +59,34 @@ settings = Settings(
 service = build_manager_mqtt_service(settings)
 assert service.ota_manager is not None
 service.run()
+"""
+
+REGISTER_FIXTURE_NODE = """
+import sys
+
+from greenhouse_manager.runtime.registration import RegistrationRegistry
+
+hardware_id = "ghw-c6-00000000000a"
+pairing_id = "c83aeb0d-8f48-4a39-a34b-ea584a588475"
+with RegistrationRegistry("/tmp/n3w-ota-fixture/manager/manager-state.sqlite3") as registry:
+    registry.observe_hello({
+        "schema": "gh.pair.hello/1", "pairing_id": pairing_id, "pairing_epoch": 1,
+        "hardware_id": hardware_id, "model": "greenhouse-wifi-c6", "fw_version": "ci",
+        "node_nonce": "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY",
+        "capabilities": ["mqtt-runtime-credentials", "lcd-pairing-qr"], "sent_at_ms": 1,
+    })
+    assert registry.approve(hardware_id, pairing_id, node_id=sys.argv[1]).node_id == sys.argv[1]
+"""
+
+SNAPSHOT_FIXTURE_REPLAY = """
+import base64
+import sqlite3
+from contextlib import closing
+
+with closing(sqlite3.connect("file:/tmp/n3w-ota-fixture/n3w/replay.sqlite3?mode=ro", uri=True)) as live:
+    with closing(sqlite3.connect(":memory:")) as snapshot:
+        live.backup(snapshot)
+        print(base64.b64encode(snapshot.serialize()).decode("ascii"))
 """
 
 
@@ -254,6 +285,7 @@ def _sanitize(value: str) -> str:
         CLIENT_ID,
         MANAGER_CLIENT_ID,
         MANAGER_USERNAME,
+        NODE_USERNAME,
     ):
         result = result.replace(
             secret,
@@ -559,11 +591,9 @@ def _assert_entry(entry: dict) -> None:
     assert data.get("certificate") is None
 
 
-def _assert_monitoring_self_test(
-    manager_name: str, broker_name: str, ha_name: str, *, timeout_s: float = 90,
-) -> None:
+def _monitoring_evidence(manager_name: str, broker_name: str, ha_name: str, replay_db: Path):
     from n3w_t1_core_updater_common import UpdaterError
-    from n3w_t1_core_updater_ha_monitoring_evidence import LocalHaMonitoringEvidence, READ_HA_RECEIPTS
+    from n3w_t1_core_updater_ha_monitoring_evidence import LocalHaMonitoringEvidence
     from n3w_t1_core_updater_ha_recovery_startup import LocalHaPredecessorRuntime
 
     containers = {"manager": manager_name, "broker": broker_name, "homeassistant": ha_name}
@@ -577,9 +607,15 @@ def _assert_monitoring_self_test(
         return {"container_id": container_id, "started_at": started}
 
     host = LocalHaPredecessorRuntime()
-    evidence = LocalHaMonitoringEvidence(
-        SYSTEM_ID, Path("/fixture/no-nodes.db"), runtime, host._read_ha_receipts, host._request_ha_monitoring_self_test,
+    return LocalHaMonitoringEvidence(
+        SYSTEM_ID, replay_db, runtime, host._read_ha_receipts, host._request_ha_monitoring_self_test,
     )
+
+
+def _assert_monitoring_self_test(
+    manager_name: str, broker_name: str, ha_name: str, *, timeout_s: float = 90,
+) -> None:
+    evidence = _monitoring_evidence(manager_name, broker_name, ha_name, Path("/fixture/no-nodes.db"))
     deadline = time.monotonic() + timeout_s
     failure = "exact_ha_manager_monitoring_challenge_receipt_unavailable"
     while time.monotonic() < deadline:
@@ -590,6 +626,12 @@ def _assert_monitoring_self_test(
         if not _container_running(manager_name):
             failure = "fixture_manager_stopped"
             break
+    raise _monitoring_failure(failure, manager_name, broker_name, ha_name)
+
+
+def _monitoring_failure(failure: str, manager_name: str, broker_name: str, ha_name: str) -> RuntimeError:
+    from n3w_t1_core_updater_ha_monitoring_evidence import READ_HA_RECEIPTS
+
     details = [f"{failure} {_container_state(manager_name)}"]
     try:
         read = _run(["docker", "exec", ha_name, "python3", "-I", "-c", READ_HA_RECEIPTS], check=False, timeout_s=5)
@@ -599,7 +641,41 @@ def _assert_monitoring_self_test(
         details.append(f"ha_receipt_reader_error={error}")
     for source, name in (("MANAGER", manager_name), ("HA", ha_name), ("BROKER", broker_name)):
         details.extend((f"{source}_LOG_TAIL_BEGIN", _safe_logs(name, tail=80), f"{source}_LOG_TAIL_END"))
-    raise RuntimeError("\n".join(details))
+    return RuntimeError("\n".join(details))
+
+
+def _assert_natural_monitoring(
+    manager_name: str, broker_name: str, ha_name: str, replay_db: Path, *, timeout_s: float = 60,
+) -> None:
+    _run(["docker", "exec", manager_name, "python3", "-I", "-c", REGISTER_FIXTURE_NODE, NODE_ID])
+    evidence = _monitoring_evidence(manager_name, broker_name, ha_name, replay_db)
+    deadline = time.monotonic() + timeout_s
+    sequence = 0
+    while time.monotonic() < deadline:
+        sequence += 1
+        payload = {
+            "schema": "gh.telemetry/1", "node_id": NODE_ID, "boot_id": "boot_0000000000000001",
+            "seq": sequence, "uptime_ms": 1000 + sequence, "cap_hash": "cap_hash_001",
+            "measurements": {"air_temperature_c": 24.5}, "quality": {"air_temperature_c": "ok"},
+            "power": {"source": "main", "low": False},
+        }
+        _run([
+            "docker", "exec", broker_name, "mosquitto_pub", "-h", "127.0.0.1", "-p", "1883",
+            "-u", NODE_USERNAME, "-P", PASSWORD, "-V", "mqttv5", "-q", "1",
+            "-t", f"gh/v1/{SYSTEM_ID}/ingress/node/{NODE_ID}/telemetry", "-m", json.dumps(payload),
+        ], timeout_s=10)
+        for _ in range(2):
+            snapshot = _run(
+                ["docker", "exec", manager_name, "python3", "-I", "-c", SNAPSHOT_FIXTURE_REPLAY],
+                timeout_s=10,
+            )
+            replay_db.write_bytes(base64.b64decode(snapshot.stdout.strip(), validate=True))
+            verdict = evidence.observe({}, fallback=False)
+            if verdict.verdict == "PASS":
+                assert verdict.sha256 is not None and len(verdict.sha256) == 64
+                return
+            time.sleep(0.5)
+    raise _monitoring_failure("exact_ha_natural_monitoring_receipt_unavailable", manager_name, broker_name, ha_name)
 
 
 def test_exact_homeassistant_image_bootstrap_and_recreate(
@@ -647,11 +723,12 @@ def test_exact_homeassistant_image_bootstrap_and_recreate(
                 "broker_password_file_owner_generation_mismatch"
             )
         if manager_image is not None:
-            _run([
-                "docker", "run", "--rm", "--user", f"{os.getuid()}:{os.getgid()}",
-                "--entrypoint", "mosquitto_passwd", "-v", f"{broker_dir}:/work",
-                BROKER_IMAGE, "-b", "/work/passwords", MANAGER_USERNAME, PASSWORD,
-            ])
+            for username in (MANAGER_USERNAME, NODE_USERNAME):
+                _run([
+                    "docker", "run", "--rm", "--user", f"{os.getuid()}:{os.getgid()}",
+                    "--entrypoint", "mosquitto_passwd", "-v", f"{broker_dir}:/work",
+                    BROKER_IMAGE, "-b", "/work/passwords", username, PASSWORD,
+                ])
         (broker_dir / "mosquitto.conf").write_text(
             (
                 "listener 1883 127.0.0.1\n"
@@ -885,6 +962,7 @@ def test_exact_homeassistant_image_bootstrap_and_recreate(
         )
         if manager_image is not None:
             _assert_monitoring_self_test(manager_name, broker_name, ha_name)
+            _assert_natural_monitoring(manager_name, broker_name, ha_name, tmp_path / "manager-replay-snapshot.sqlite3")
     finally:
         if manager_image is not None:
             _run(["docker", "rm", "-f", manager_name], check=False)

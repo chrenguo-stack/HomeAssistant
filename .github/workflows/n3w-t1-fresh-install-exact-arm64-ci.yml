@@ -187,6 +187,7 @@ jobs:
           python -m pytest -q tests/tools/test_n3w_ha_mqtt_bootstrap_isolated_runtime.py
           printf 'HA_EXACT_ARM64_CONFIG_FLOW_RUNTIME=PASS\n'
           printf 'HA_EXACT_ARM64_MANAGER_MONITORING_ROUND_TRIP=PASS\n'
+          printf 'HA_EXACT_ARM64_NATURAL_MONITORING=PASS\n'
 
       - name: Build exact three-image binding manifest
         run: |
