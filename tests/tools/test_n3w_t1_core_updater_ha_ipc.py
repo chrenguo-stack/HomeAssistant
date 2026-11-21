@@ -95,6 +95,9 @@ def test_prepare_creates_only_u1_transaction(tmp_path: Path, monkeypatch) -> Non
     assert document["authorization_claimed"] is False
     assert status["phase"] == "PREPARE_REQUESTED"
     assert resolver.calls == [RELEASE]
+    with pytest.raises(UpdaterV2Error, match="ha_usb_transaction_active"):
+        executor.submit("PREPARE", RELEASE)
+    assert store.read() == document
 
 
 def test_install_requires_exact_existing_u4_admission(tmp_path: Path) -> None:
@@ -146,6 +149,9 @@ def test_install_requires_exact_existing_u4_admission(tmp_path: Path) -> None:
     assert installed["phase"] == U5
     assert status["phase"] == "INSTALL_REQUESTED_REVALIDATING"
     assert installed["authorization_claimed"] is False
+    with pytest.raises(UpdaterV2Error, match="ha_usb_not_ready_to_install"):
+        executor.submit("INSTALL", RELEASE)
+    assert store.read() == installed
 
 
 def test_dispatcher_rejects_path_injection_without_executor_call(tmp_path: Path) -> None:

@@ -504,6 +504,33 @@ def test_first_stop_binding_requires_an_armed_recovery_timer(tmp_path, monkeypat
     assert runtime.owner == "active" and runtime.running == {"broker", "manager", "homeassistant"}
 
 
+@pytest.mark.parametrize("old_container_running", [False, True])
+def test_target_acceptance_counts_only_running_service_instances(tmp_path, monkeypatch, old_container_running):
+    runtime = StartupRuntime(tmp_path)
+    binding, origins = runtime._restart_binding()
+    monkeypatch.setattr(runtime, "check_cutover_target_start", lambda _: (binding, origins))
+    monkeypatch.setattr(runtime, "_running_count", recovery_startup.LocalHost._running_count.__get__(runtime))
+    run = runtime._run
+
+    def observe(argv, **kwargs):
+        if argv[:2] != ("docker", "ps"):
+            return run(argv, **kwargs)
+        service = argv[-1].rsplit("=", 1)[-1]
+        containers = [(service, True)]
+        if service == "homeassistant":
+            containers.append(("old-homeassistant", old_container_running))
+        visible = [name for name, running in containers if running or "-a" in argv or "--all" in argv]
+        return SimpleNamespace(returncode=0, stdout="\n".join(visible).encode())
+
+    monkeypatch.setattr(runtime, "_run", observe)
+    if old_container_running:
+        with pytest.raises(recovery_startup.UpdaterError, match="ha_usb_predecessor_service_count_invalid"):
+            runtime.target_acceptance_runtime({})
+    else:
+        receipt = runtime.target_acceptance_runtime({})
+        assert len(receipt) == 64 and receipt == runtime.target_acceptance_runtime({})
+
+
 @pytest.mark.parametrize("fault", [None, "shared", "after_container", "after_image", "command_error_after_container"])
 def test_release_and_boot_reconcile_exact_predecessor(tmp_path, monkeypatch, capsys, fault):
     _, media, _, _, target, predecessor, backup = drive_to_u8(tmp_path)
@@ -1296,6 +1323,9 @@ def test_boot_restores_a_released_predecessor_from_bound_media(tmp_path, monkeyp
     runtime.compose["services"]["homeassistant"]["image"] = TARGET
     runtime.owner = "inactive"
     runtime.running = {"broker"}
+    projection_store = SimpleNamespace(read=store.read)
+    dispatcher = HaUsbIpcDispatcher(HaUsbIpcExecutor(store=projection_store, admission_resolver=SimpleNamespace()))
+    request = canonical({"schema": REQUEST_SCHEMA, "operation": "status"})
     device = mounted_media._device_number(media.root.stat().st_dev)
     mounts = [{
         "target": str(media.root), "fstype": "ext4", "fsroot": "/", "options": "ro,nosuid",
@@ -1412,11 +1442,25 @@ def test_boot_restores_a_released_predecessor_from_bound_media(tmp_path, monkeyp
         })
         assert recovery_startup.main() == 1
         assert json.loads(capsys.readouterr().out) == {"status": "RECOVERY_STARTUP_NEEDS_REVIEW"}
+        available = json.loads(dispatcher.handle(request))
+        assert available["accepted"] is True and available["phase"] == "RECOVERING"
         assert store.read() == load_intent
         assert runtime.starts == runtime.rewrites == 0
 
-    assert recovery_startup.main(pending_only=True) == 0
+    def unavailable_projection():
+        raise OSError("fixture status read failure")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(projection_store, "read", unavailable_projection)
+        unavailable = json.loads(dispatcher.handle(request))
+        assert unavailable["accepted"] is False and unavailable["code"] == "ota_host_rejected"
+        assert unavailable["error_code"] == "ota_host_status_unavailable"
+        assert store.read() == load_intent
+        assert recovery_startup.main(pending_only=True) == 0
+        assert json.loads(dispatcher.handle(request)) == unavailable
     assert json.loads(capsys.readouterr().out) == {"status": "ROLLED_BACK"}
+    restored = json.loads(dispatcher.handle(request))
+    assert restored["accepted"] is True and restored["phase"] == "ROLLED_BACK"
     assert archive.read_bytes() == original
     assert store.read()["status"] == "ROLLED_BACK"
     assert store.read()["authorization_id_sha256"] == cutover["authorization_id_sha256"]
