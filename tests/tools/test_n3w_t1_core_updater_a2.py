@@ -1182,8 +1182,13 @@ def test_runtime_rejects_unsupported_image_platform(monkeypatch):
         host._runtime("manager")
 
 
-def test_legacy_static_homeassistant_is_transaction_upgradeable(monkeypatch):
+def test_legacy_static_homeassistant_and_broker_are_transaction_upgradeable(monkeypatch):
     host = hostmod.LocalHost()
+    monkeypatch.setattr(
+        host,
+        "component_container_residue",
+        lambda component: [],
+    )
     monkeypatch.setattr(
         host,
         "image_binding_modes_v2",
@@ -1196,11 +1201,7 @@ def test_legacy_static_homeassistant_is_transaction_upgradeable(monkeypatch):
 
     host.assert_component_upgradeable("manager")
     host.assert_component_upgradeable("homeassistant")
-    with pytest.raises(
-        Exception,
-        match="broker_runtime_template_convergence_required",
-    ):
-        host.assert_component_upgradeable("broker")
+    host.assert_component_upgradeable("broker")
 
 
 def test_broker_certificate_lifecycle_lock_is_exclusive(
@@ -1495,22 +1496,6 @@ def _broker_static_product_files(tmp_path: Path):
     compose.write_bytes(compose_payload)
     env.write_bytes(env_payload)
     return compose, env, compose_payload, env_payload
-
-
-def test_component_upgradeable_allows_clean_legacy_static_broker(monkeypatch):
-    host = hostmod.LocalHost()
-    monkeypatch.setattr(host, "component_container_residue", lambda component: [])
-    monkeypatch.setattr(
-        host,
-        "image_binding_modes_v2",
-        lambda: {
-            "manager": "dynamic",
-            "homeassistant": "dynamic",
-            "broker": "legacy_static",
-        },
-    )
-
-    host.assert_component_upgradeable("broker")
 
 
 def test_local_host_broker_binding_round_trip(tmp_path: Path, monkeypatch):
