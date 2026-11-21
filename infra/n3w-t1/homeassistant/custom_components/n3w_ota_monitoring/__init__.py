@@ -57,7 +57,8 @@ def _record(prefix, message):
 
 def _publish_receipts(system_id, records):
     pid = os.getpid()
-    started = Path("/proc/self/stat").read_text().rsplit(")", 1)[1].split()[19]
+    # Read the group leader's kernel start time even when QEMU emulates /proc/self/stat.
+    started = Path(f"/proc/{pid}/task/{pid}/stat").read_text().rsplit(")", 1)[1].split()[19]
     document = {"system_id": system_id, "owner": [pid, started], "records": records}
     with tempfile.NamedTemporaryFile(mode="w", dir=RECEIPTS.parent, delete=False) as stream:
         temporary = Path(stream.name)

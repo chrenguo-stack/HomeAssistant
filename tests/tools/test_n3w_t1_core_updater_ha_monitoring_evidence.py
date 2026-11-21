@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import importlib.util
 import json
+import os
 import sqlite3
 import subprocess
 import sys
@@ -76,6 +77,18 @@ def test_ha_client_delivery_correlates_with_manager_cursor(monkeypatch, tmp_path
     spec.loader.exec_module(component)
     receipt_path = tmp_path / "receipt.json"
     monkeypatch.setattr(component, "RECEIPTS", receipt_path)
+    owner = os.getpid()
+    owner_stat = Path(f"/proc/{owner}/task/{owner}/stat").read_text()
+    owner_fields = owner_stat.rsplit(")", 1)[1].split()
+    qemu_fields = owner_fields.copy()
+    qemu_fields[19] = str(int(owner_fields[19]) + 1)
+
+    def proc_path(path):
+        if path in {"/proc/self/stat", f"/proc/{owner}/stat"}:
+            return SimpleNamespace(read_text=lambda: f"{owner} (qemu) {' '.join(qemu_fields)}")
+        return Path(path)
+
+    monkeypatch.setattr(component, "Path", proc_path)
     payload = json.dumps({
         "schema": "gh.telemetry/1", "node_id": NODE, "boot_id": BOOT, "seq": 42,
         "received_at": scenario.received, "measurements": {"air_temperature_c": 24.5},
@@ -84,7 +97,7 @@ def test_ha_client_delivery_correlates_with_manager_cursor(monkeypatch, tmp_path
     def read_receipt(container_id):
         assert container_id == "homeassistant"
         reader = READ_HA_RECEIPTS.replace('"/dev/shm/n3w-ota-monitoring.json"', repr(str(receipt_path)))
-        return subprocess.check_output((sys.executable, "-I", "-c", reader), timeout=5)
+        return subprocess.check_output((sys.executable, "-I", "-c", reader), stderr=subprocess.PIPE, timeout=5)
 
     subscriptions = {}
 
@@ -131,6 +144,14 @@ def test_ha_client_delivery_correlates_with_manager_cursor(monkeypatch, tmp_path
     assert len(proof) == 64
     raw = receipt_path.read_bytes()
     assert b"24.5" not in raw and receipt_path.stat().st_mode & 0o777 == 0o600
+    document = json.loads(raw)
+    assert document["owner"] == [owner, owner_fields[19]]
+    document["owner"][1] = qemu_fields[19]
+    receipt_path.write_text(json.dumps(document))
+    with pytest.raises(subprocess.CalledProcessError) as rejected:
+        read_receipt("homeassistant")
+    assert rejected.value.stderr.strip() == b"ha_monitoring_receipt_owner_mismatch"
+    receipt_path.write_bytes(raw)
 
     request_path = tmp_path / "request.json"
 

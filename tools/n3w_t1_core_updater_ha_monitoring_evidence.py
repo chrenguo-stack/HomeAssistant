@@ -66,8 +66,8 @@ if len(raw) > {MAX_RECEIPT_BYTES}:
 pid, started = json.loads(raw)["owner"]
 if type(pid) is not int or pid <= 0:
     raise SystemExit(1)
-if started != Path(f"/proc/{{pid}}/stat").read_text().rsplit(")", 1)[1].split()[19]:
-    raise SystemExit(1)
+if started != Path(f"/proc/{{pid}}/task/{{pid}}/stat").read_text().rsplit(")", 1)[1].split()[19]:
+    raise SystemExit("ha_monitoring_receipt_owner_mismatch")
 os.write(1, raw)
 """
 

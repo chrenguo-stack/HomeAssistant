@@ -563,7 +563,7 @@ def _assert_monitoring_self_test(
     manager_name: str, broker_name: str, ha_name: str, *, timeout_s: float = 90,
 ) -> None:
     from n3w_t1_core_updater_common import UpdaterError
-    from n3w_t1_core_updater_ha_monitoring_evidence import LocalHaMonitoringEvidence
+    from n3w_t1_core_updater_ha_monitoring_evidence import LocalHaMonitoringEvidence, READ_HA_RECEIPTS
     from n3w_t1_core_updater_ha_recovery_startup import LocalHaPredecessorRuntime
 
     containers = {"manager": manager_name, "broker": broker_name, "homeassistant": ha_name}
@@ -591,6 +591,12 @@ def _assert_monitoring_self_test(
             failure = "fixture_manager_stopped"
             break
     details = [f"{failure} {_container_state(manager_name)}"]
+    try:
+        read = _run(["docker", "exec", ha_name, "python3", "-I", "-c", READ_HA_RECEIPTS], check=False, timeout_s=5)
+        detail = _sanitize(read.stderr.strip().split("\n")[-1])
+        details.append(f"ha_receipt_reader_exit={read.returncode} error={detail or 'none'}")
+    except RuntimeError as error:
+        details.append(f"ha_receipt_reader_error={error}")
     for source, name in (("MANAGER", manager_name), ("HA", ha_name), ("BROKER", broker_name)):
         details.extend((f"{source}_LOG_TAIL_BEGIN", _safe_logs(name, tail=80), f"{source}_LOG_TAIL_END"))
     raise RuntimeError("\n".join(details))
