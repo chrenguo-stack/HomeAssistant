@@ -552,6 +552,7 @@ class MultiComponentCoreUpdater:
                 post_a1_policy_sha256=sha256_bytes(canonical(post_policy)),
             )
             self.store.write(tx)
+            cleanup = self._retire_terminal_broker_recovery(tx)
             return {
                 "schema": STATUS_SCHEMA_V2,
                 "status": "PASS",
@@ -561,6 +562,7 @@ class MultiComponentCoreUpdater:
                 "authorization_consumed": True,
                 "runtime": self._public_snapshot(post),
                 "t1_mutation": True,
+                **cleanup,
             }
         except Exception as error:
             self._rollback_after_failure(
@@ -641,14 +643,82 @@ class MultiComponentCoreUpdater:
         if target.component != "broker":
             return
         recovery = tx.get("broker_recovery_point")
+        historical_phase = (
+            phase
+            if phase is not None
+            else tx.get("failure_phase") or tx.get("phase")
+        )
         should_restore = force or self._broker_recovery_write_possible(
-            tx.get("failure_phase") if phase is None else phase
+            historical_phase
         )
         if not should_restore:
             return
         if not isinstance(recovery, dict):
             raise UpdaterV2Error("broker_recovery_point_missing")
         self.host.restore_broker_recovery_point(recovery)
+
+    def _retire_terminal_broker_recovery(
+        self,
+        tx: dict[str, Any],
+    ) -> dict[str, Any]:
+        if (
+            tx.get("component") != "broker"
+            or tx.get("status") not in {"COMMITTED", "ROLLED_BACK"}
+        ):
+            return {"broker_recovery_cleanup_pending": False}
+        if tx.get("broker_recovery_retired") is True:
+            return {"broker_recovery_cleanup_pending": False}
+
+        recovery = tx.get("broker_recovery_point")
+        if recovery is None:
+            tx.update(
+                broker_recovery_retired=True,
+                broker_recovery_cleanup_pending=False,
+                broker_recovery_retired_at_unix=int(time.time()),
+            )
+            try:
+                self.store.write(tx)
+                return {"broker_recovery_cleanup_pending": False}
+            except Exception:
+                return {"broker_recovery_cleanup_pending": True}
+
+        if not isinstance(recovery, dict):
+            tx.update(
+                broker_recovery_cleanup_pending=True,
+                broker_recovery_cleanup_error_code=(
+                    "broker_recovery_record_invalid"
+                ),
+            )
+            try:
+                self.store.write(tx)
+            except Exception:
+                pass
+            return {"broker_recovery_cleanup_pending": True}
+
+        try:
+            self.host.retire_broker_recovery_point(recovery)
+        except Exception as error:
+            tx.update(
+                broker_recovery_cleanup_pending=True,
+                broker_recovery_cleanup_error_code=safe_error_code(error),
+            )
+            try:
+                self.store.write(tx)
+            except Exception:
+                pass
+            return {"broker_recovery_cleanup_pending": True}
+
+        tx.update(
+            broker_recovery_retired=True,
+            broker_recovery_cleanup_pending=False,
+            broker_recovery_retired_at_unix=int(time.time()),
+        )
+        tx.pop("broker_recovery_cleanup_error_code", None)
+        try:
+            self.store.write(tx)
+            return {"broker_recovery_cleanup_pending": False}
+        except Exception:
+            return {"broker_recovery_cleanup_pending": True}
 
     def _rollback_after_failure(
         self,
@@ -701,6 +771,7 @@ class MultiComponentCoreUpdater:
                     t1_mutation=False,
                 )
                 self.store.write(tx)
+                self._retire_terminal_broker_recovery(tx)
                 return
 
             adapter.quiesce(self.host)
@@ -741,6 +812,7 @@ class MultiComponentCoreUpdater:
                 t1_mutation=True,
             )
             self.store.write(tx)
+            self._retire_terminal_broker_recovery(tx)
         except Exception as rollback_error:
             runtime_class = "UNRESOLVED"
             health_state = "FAILED"
@@ -766,6 +838,205 @@ class MultiComponentCoreUpdater:
             self.store.write(tx)
             raise UpdaterV2Error("automatic_rollback_failed") from rollback_error
 
+    @staticmethod
+    def _target_from_transaction(tx: dict[str, Any]) -> ComponentTarget:
+        target_doc = tx.get("target")
+        if not isinstance(target_doc, dict):
+            raise UpdaterV2Error("rollback_transaction_authority_invalid")
+        try:
+            target = ComponentTarget.from_document(target_doc)
+        except Exception as error:
+            raise UpdaterV2Error(
+                "rollback_transaction_authority_invalid"
+            ) from error
+        if target.component != tx.get("component"):
+            raise UpdaterV2Error("rollback_transaction_component_mismatch")
+        return target
+
+    def _rollback_locked(
+        self,
+        tx: dict[str, Any] | None,
+        *,
+        operation: str,
+    ) -> dict[str, Any]:
+        if tx is None or tx.get("status") not in {
+            "COMMITTED",
+            "APPLYING",
+            "ROLLING_BACK",
+            "FAILED_EMERGENCY",
+        }:
+            raise UpdaterV2Error("recoverable_transaction_required")
+        target = self._target_from_transaction(tx)
+        if target.component == "broker" and tx.get("status") == "COMMITTED":
+            raise UpdaterV2Error("broker_committed_recovery_point_expired")
+
+        adapter = adapter_for(target.component)
+        observed = self.host.observe_state_v2()
+        runtime_class, health_state = self._classify_transaction_state(
+            tx,
+            observed,
+        )
+        if runtime_class == "UNRESOLVED":
+            raise UpdaterV2Error("rollback_runtime_unresolved")
+
+        if runtime_class == "PREDECESSOR_BOUND_RUNNING":
+            if health_state != "HEALTHY":
+                self.host.wait_services()
+            current = self.host.inspect_v2()
+            if (
+                adapter.current_binding(current) != tx["predecessor_image"]
+                or current["image_binding_modes"].get(target.component)
+                != self._predecessor_binding_mode(tx)
+                or current["runtime"][target.component]["image_id"]
+                != tx["predecessor_image_id"]
+                or current["runtime"][target.component][
+                    "runtime_contract_sha256"
+                ]
+                != tx["predecessor_runtime_contract_sha256"]
+            ):
+                raise UpdaterV2Error("rollback_predecessor_runtime_invalid")
+            adapter.verify_peer_runtime(current, tx["pre_peer_runtime"])
+            self.policy.validate_post(
+                target.component,
+                tx["pre_a1_policy"],
+                self.policy.capture(),
+            )
+            tx.update(
+                status="ROLLED_BACK",
+                phase="ROLLED_BACK",
+                last_runtime_class="PREDECESSOR_BOUND_RUNNING",
+                last_health_state="HEALTHY",
+                rolled_back_at_unix=int(time.time()),
+                t1_mutation=False,
+            )
+            self.store.write(tx)
+            cleanup = self._retire_terminal_broker_recovery(tx)
+            return {
+                "schema": STATUS_SCHEMA_V2,
+                "status": "PASS",
+                "operation": operation,
+                "component": target.component,
+                "transaction_status": "ROLLED_BACK",
+                "runtime": self._public_snapshot(current),
+                "t1_mutation": False,
+                **cleanup,
+            }
+
+        if runtime_class not in {
+            "TARGET_BOUND_RUNNING",
+            "PREDECESSOR_BINDING_TRANSITION_RUNNING",
+            "APPLICATION_STOPPED_PREDECESSOR",
+            "APPLICATION_STOPPED_PREDECESSOR_TRANSITION",
+            "APPLICATION_STOPPED_TARGET",
+        }:
+            raise UpdaterV2Error("rollback_runtime_class_invalid")
+
+        if self.host.image_id(tx["predecessor_image"]) != tx[
+            "predecessor_image_id"
+        ]:
+            raise UpdaterV2Error("rollback_predecessor_image_missing")
+
+        source_phase = (
+            tx.get("rollback_source_phase")
+            or tx.get("failure_phase")
+            or tx.get("phase")
+        )
+        tx.update(
+            status="ROLLING_BACK",
+            phase="ROLLBACK_AUTHORIZED",
+            rollback_source_phase=source_phase,
+            last_runtime_class=runtime_class,
+            last_health_state=health_state,
+        )
+        self.store.write(tx)
+
+        try:
+            if target.component == "broker":
+                # Even an already-stopped Broker must acquire the certificate
+                # lifecycle guard and re-prove that all writers are quiescent.
+                adapter.quiesce(self.host)
+            elif runtime_class in {
+                "TARGET_BOUND_RUNNING",
+                "PREDECESSOR_BINDING_TRANSITION_RUNNING",
+            }:
+                adapter.quiesce(self.host)
+
+            self._restore_broker_state_if_required(
+                target,
+                tx,
+                force=runtime_class in {
+                    "TARGET_BOUND_RUNNING",
+                    "APPLICATION_STOPPED_TARGET",
+                    "PREDECESSOR_BINDING_TRANSITION_RUNNING",
+                },
+                phase=source_phase,
+            )
+            self._restore_predecessor_binding(target, tx)
+
+            adapter.activate(self.host)
+            post = self.host.inspect_v2()
+            if (
+                adapter.current_binding(post) != tx["predecessor_image"]
+                or post["image_binding_modes"].get(target.component)
+                != self._predecessor_binding_mode(tx)
+                or post["runtime"][target.component]["image_id"]
+                != tx["predecessor_image_id"]
+                or post["runtime"][target.component][
+                    "runtime_contract_sha256"
+                ]
+                != tx["predecessor_runtime_contract_sha256"]
+            ):
+                raise UpdaterV2Error("rollback_predecessor_runtime_invalid")
+            adapter.verify_peer_runtime(post, tx["pre_peer_runtime"])
+            self.policy.validate_post(
+                target.component,
+                tx["pre_a1_policy"],
+                self.policy.capture(),
+            )
+            tx.update(
+                status="ROLLED_BACK",
+                phase="ROLLED_BACK",
+                last_runtime_class="PREDECESSOR_BOUND_RUNNING",
+                last_health_state="HEALTHY",
+                rolled_back_at_unix=int(time.time()),
+                t1_mutation=True,
+            )
+            self.store.write(tx)
+            cleanup = self._retire_terminal_broker_recovery(tx)
+            return {
+                "schema": STATUS_SCHEMA_V2,
+                "status": "PASS",
+                "operation": operation,
+                "component": target.component,
+                "transaction_status": "ROLLED_BACK",
+                "runtime": self._public_snapshot(post),
+                "t1_mutation": True,
+                **cleanup,
+            }
+        except Exception as error:
+            failed_class = "UNRESOLVED"
+            failed_health = "FAILED"
+            try:
+                current_observed = self.host.observe_state_v2()
+                failed_class, failed_health = self._classify_transaction_state(
+                    tx,
+                    current_observed,
+                )
+            except Exception:
+                pass
+            tx.update(
+                status="FAILED_EMERGENCY",
+                phase="FAILED_EMERGENCY",
+                rollback_error=type(error).__name__,
+                rollback_error_code=safe_error_code(error),
+                last_runtime_class=failed_class,
+                last_health_state=failed_health,
+            )
+            self.store.write(tx)
+            raise
+        finally:
+            self.host.release_component_guard()
+
     def rollback(self, *, confirmation: str) -> dict[str, Any]:
         if os.geteuid() != 0:
             raise UpdaterV2Error("root_required")
@@ -773,205 +1044,59 @@ class MultiComponentCoreUpdater:
             raise UpdaterV2Error("rollback_confirmation_missing")
         with self.store.lock():
             tx = self.store.read()
-            if tx is None or tx.get("status") not in {
-                "COMMITTED",
+            return self._rollback_locked(tx, operation="rollback")
+
+    def recover_broker_pending(self) -> dict[str, Any]:
+        if os.geteuid() != 0:
+            raise UpdaterV2Error("root_required")
+        with self.store.lock():
+            tx = self.store.read()
+            if tx is None:
+                return {
+                    "schema": STATUS_SCHEMA_V2,
+                    "status": "PASS",
+                    "operation": "recover-broker-pending",
+                    "component": None,
+                    "transaction_status": "NONE",
+                    "action": "NO_TRANSACTION",
+                    "t1_mutation": False,
+                    "broker_recovery_cleanup_pending": False,
+                }
+            if tx.get("component") != "broker":
+                return {
+                    "schema": STATUS_SCHEMA_V2,
+                    "status": "PASS",
+                    "operation": "recover-broker-pending",
+                    "component": tx.get("component"),
+                    "transaction_status": tx.get("status"),
+                    "action": "NOT_BROKER_TRANSACTION",
+                    "t1_mutation": False,
+                    "broker_recovery_cleanup_pending": False,
+                }
+            if tx.get("status") in {"COMMITTED", "ROLLED_BACK"}:
+                cleanup = self._retire_terminal_broker_recovery(tx)
+                return {
+                    "schema": STATUS_SCHEMA_V2,
+                    "status": "PASS",
+                    "operation": "recover-broker-pending",
+                    "component": "broker",
+                    "transaction_status": tx.get("status"),
+                    "action": "TERMINAL_RECOVERY_POINT_MAINTENANCE",
+                    "t1_mutation": False,
+                    **cleanup,
+                }
+            if tx.get("status") not in {
                 "APPLYING",
                 "ROLLING_BACK",
                 "FAILED_EMERGENCY",
             }:
                 raise UpdaterV2Error("recoverable_transaction_required")
-            target_doc = tx.get("target")
-            if (
-                tx.get("component") == "broker"
-                and tx.get("status") == "COMMITTED"
-            ):
-                raise UpdaterV2Error(
-                    "broker_committed_recovery_point_expired"
-                )
-            if not isinstance(target_doc, dict):
-                raise UpdaterV2Error("rollback_transaction_authority_invalid")
-            target = ComponentTarget(
-                component=str(target_doc["component"]),
-                mutation_profile=str(target_doc["mutation_profile"]),
-                target_image_ref=str(target_doc["target_image_ref"]),
-                target_platform=str(target_doc["target_platform"]),
-                target_archive_sha256=str(target_doc["target_archive_sha256"]),
-                artifact_identity=dict(target_doc["artifact_identity"]),
-                expected_predecessor_image_ref=str(
-                    target_doc["expected_predecessor_image_ref"]
-                ),
-                rollback_compatible=bool(target_doc["rollback_compatible"]),
-                compatibility_evidence=dict(
-                    target_doc["compatibility_evidence"]
-                ),
-                a1_classification_sha256=str(
-                    target_doc["a1_classification_sha256"]
-                ),
-            )
-            adapter = adapter_for(target.component)
-
-            observed = self.host.observe_state_v2()
-            runtime_class, health_state = self._classify_transaction_state(
+            result = self._rollback_locked(
                 tx,
-                observed,
+                operation="recover-broker-pending",
             )
-            if runtime_class == "UNRESOLVED":
-                raise UpdaterV2Error("rollback_runtime_unresolved")
-
-            if runtime_class == "PREDECESSOR_BOUND_RUNNING":
-                if health_state != "HEALTHY":
-                    self.host.wait_services()
-                current = self.host.inspect_v2()
-                if (
-                    adapter.current_binding(current) != tx["predecessor_image"]
-                    or current["image_binding_modes"].get(target.component)
-                    != self._predecessor_binding_mode(tx)
-                    or current["runtime"][target.component]["image_id"]
-                    != tx["predecessor_image_id"]
-                    or current["runtime"][target.component][
-                        "runtime_contract_sha256"
-                    ]
-                    != tx["predecessor_runtime_contract_sha256"]
-                ):
-                    raise UpdaterV2Error(
-                        "rollback_predecessor_runtime_invalid"
-                    )
-                adapter.verify_peer_runtime(current, tx["pre_peer_runtime"])
-                self.policy.validate_post(
-                    target.component,
-                    tx["pre_a1_policy"],
-                    self.policy.capture(),
-                )
-                tx.update(
-                    status="ROLLED_BACK",
-                    phase="ROLLED_BACK",
-                    last_runtime_class="PREDECESSOR_BOUND_RUNNING",
-                    last_health_state="HEALTHY",
-                    rolled_back_at_unix=int(time.time()),
-                    t1_mutation=False,
-                )
-                self.store.write(tx)
-                return {
-                    "schema": STATUS_SCHEMA_V2,
-                    "status": "PASS",
-                    "operation": "rollback",
-                    "component": target.component,
-                    "transaction_status": "ROLLED_BACK",
-                    "runtime": self._public_snapshot(current),
-                    "t1_mutation": False,
-                }
-
-            if runtime_class not in {
-                "TARGET_BOUND_RUNNING",
-                "PREDECESSOR_BINDING_TRANSITION_RUNNING",
-                "APPLICATION_STOPPED_PREDECESSOR",
-                "APPLICATION_STOPPED_PREDECESSOR_TRANSITION",
-                "APPLICATION_STOPPED_TARGET",
-            }:
-                raise UpdaterV2Error("rollback_runtime_class_invalid")
-
-            if self.host.image_id(tx["predecessor_image"]) != tx[
-                "predecessor_image_id"
-            ]:
-                raise UpdaterV2Error("rollback_predecessor_image_missing")
-
-            tx.update(
-                status="ROLLING_BACK",
-                phase="ROLLBACK_AUTHORIZED",
-                last_runtime_class=runtime_class,
-                last_health_state=health_state,
-            )
-            self.store.write(tx)
-
-            try:
-                if runtime_class in {
-                    "TARGET_BOUND_RUNNING",
-                    "PREDECESSOR_BINDING_TRANSITION_RUNNING",
-                }:
-                    adapter.quiesce(self.host)
-                elif runtime_class in {
-                    "APPLICATION_STOPPED_TARGET",
-                    "APPLICATION_STOPPED_PREDECESSOR",
-                    "APPLICATION_STOPPED_PREDECESSOR_TRANSITION",
-                }:
-                    pass
-
-                self._restore_broker_state_if_required(
-                    target,
-                    tx,
-                    force=runtime_class in {
-                        "TARGET_BOUND_RUNNING",
-                        "APPLICATION_STOPPED_TARGET",
-                        "PREDECESSOR_BINDING_TRANSITION_RUNNING",
-                    },
-                )
-                self._restore_predecessor_binding(target, tx)
-
-                adapter.activate(self.host)
-                post = self.host.inspect_v2()
-                if (
-                    adapter.current_binding(post) != tx["predecessor_image"]
-                    or post["image_binding_modes"].get(target.component)
-                    != self._predecessor_binding_mode(tx)
-                    or post["runtime"][target.component]["image_id"]
-                    != tx["predecessor_image_id"]
-                    or post["runtime"][target.component][
-                        "runtime_contract_sha256"
-                    ]
-                    != tx["predecessor_runtime_contract_sha256"]
-                ):
-                    raise UpdaterV2Error(
-                        "rollback_predecessor_runtime_invalid"
-                    )
-                adapter.verify_peer_runtime(post, tx["pre_peer_runtime"])
-                self.policy.validate_post(
-                    target.component,
-                    tx["pre_a1_policy"],
-                    self.policy.capture(),
-                )
-                tx.update(
-                    status="ROLLED_BACK",
-                    phase="ROLLED_BACK",
-                    last_runtime_class="PREDECESSOR_BOUND_RUNNING",
-                    last_health_state="HEALTHY",
-                    rolled_back_at_unix=int(time.time()),
-                    t1_mutation=True,
-                )
-                self.store.write(tx)
-                return {
-                    "schema": STATUS_SCHEMA_V2,
-                    "status": "PASS",
-                    "operation": "rollback",
-                    "component": target.component,
-                    "transaction_status": "ROLLED_BACK",
-                    "runtime": self._public_snapshot(post),
-                    "t1_mutation": True,
-                }
-            except Exception as error:
-                failed_class = "UNRESOLVED"
-                failed_health = "FAILED"
-                try:
-                    current_observed = self.host.observe_state_v2()
-                    failed_class, failed_health = (
-                        self._classify_transaction_state(
-                            tx,
-                            current_observed,
-                        )
-                    )
-                except Exception:
-                    pass
-                tx.update(
-                    status="FAILED_EMERGENCY",
-                    phase="FAILED_EMERGENCY",
-                    rollback_error=type(error).__name__,
-                    rollback_error_code=safe_error_code(error),
-                    last_runtime_class=failed_class,
-                    last_health_state=failed_health,
-                )
-                self.store.write(tx)
-                raise
-            finally:
-                self.host.release_component_guard()
+            result["automatic_recovery"] = True
+            return result
 
     def status(self) -> dict[str, Any]:
         transaction = self.store.read()

@@ -9,6 +9,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
+import n3w_t1_core_updater as cli_mod
 import n3w_t1_core_updater_a1_policy as policy_mod
 import n3w_t1_core_updater_broker_recovery as broker_recovery_mod
 import n3w_t1_core_updater_host as hostmod
@@ -130,6 +131,7 @@ class FakeHost:
         self.peer_drift_after_activate: str | None = None
         self.broker_recovery_created = 0
         self.broker_recovery_restored = 0
+        self.broker_recovery_retired = 0
         self.broker_state = "predecessor"
 
     def _render(self):
@@ -263,9 +265,19 @@ class FakeHost:
         assert record["schema"] == broker_recovery_mod.BROKER_RECOVERY_SCHEMA
         self.broker_recovery_restored += 1
         self.broker_state = "predecessor"
+        self.events.append("restore-broker-state")
         return {
             "schema": broker_recovery_mod.BROKER_RECOVERY_SCHEMA,
             "status": "PASS",
+        }
+
+    def retire_broker_recovery_point(self, record):
+        assert record["schema"] == broker_recovery_mod.BROKER_RECOVERY_SCHEMA
+        self.broker_recovery_retired += 1
+        return {
+            "schema": broker_recovery_mod.BROKER_RECOVERY_SCHEMA,
+            "status": "PASS",
+            "retired": True,
         }
 
     def quiesce_component(self, component):
@@ -809,6 +821,7 @@ def test_target_activation_failure_rolls_back_all_components(
     if component == "broker":
         assert host.broker_recovery_created == 1
         assert host.broker_recovery_restored == 1
+        assert host.broker_recovery_retired == 1
         assert host.broker_state == "predecessor"
 
 
@@ -1801,3 +1814,411 @@ def test_broker_committed_transaction_cannot_restore_stale_recovery_point(
         match="broker_committed_recovery_point_expired",
     ):
         updater.rollback(confirmation="T1_CORE_UPDATER_ROLLBACK")
+
+
+def _remove_broker_retirement_markers(tx: dict) -> None:
+    for key in (
+        "broker_recovery_retired",
+        "broker_recovery_cleanup_pending",
+        "broker_recovery_retired_at_unix",
+        "broker_recovery_cleanup_error_code",
+    ):
+        tx.pop(key, None)
+
+
+def test_broker_recovery_point_retire_is_idempotent(tmp_path: Path):
+    source, recovery_root, uid, gid = _broker_state_fixture(tmp_path)
+    provider = broker_recovery_mod.LocalBrokerRecoveryPoint(
+        source,
+        recovery_root,
+        expected_source_uid=uid,
+        expected_source_gid=gid,
+        reserve_bytes=0,
+    )
+    record = provider.create("0123456789abcdef-9")
+
+    first = provider.retire(record)
+    second = provider.retire(record)
+
+    assert first["retired"] is True
+    assert first["already_absent"] is False
+    assert second["retired"] is True
+    assert second["already_absent"] is True
+    assert not (recovery_root / record["key"]).exists()
+
+
+def test_successful_broker_commit_retires_recovery_point(
+    tmp_path: Path,
+    monkeypatch,
+):
+    monkeypatch.setattr(core.os, "geteuid", lambda: 0)
+    archive = tmp_path / "broker.tar"
+    archive.write_bytes(b"broker-commit-retire")
+    archive_sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+    host = FakeHost()
+    store = V2StateStore(tmp_path / "state")
+    updater = core.MultiComponentCoreUpdater(host, store, FakePolicy())
+
+    result = updater.apply(
+        target("broker", archive_sha),
+        baseline(),
+        archive,
+        authorization_id="N3W_T1_CORE_UPDATER_BROKER_B4_COMMIT_01",
+        confirmation=APPLY_CONFIRMATION_V2,
+    )
+
+    tx = store.read()
+    assert result["transaction_status"] == "COMMITTED"
+    assert result["broker_recovery_cleanup_pending"] is False
+    assert tx["broker_recovery_retired"] is True
+    assert tx["broker_recovery_cleanup_pending"] is False
+    assert host.broker_recovery_retired == 1
+
+
+def test_pending_broker_target_is_automatically_rolled_back(
+    tmp_path: Path,
+    monkeypatch,
+):
+    monkeypatch.setattr(core.os, "geteuid", lambda: 0)
+    archive = tmp_path / "broker.tar"
+    archive.write_bytes(b"broker-pending-target")
+    archive_sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+    host = FakeHost()
+    store = V2StateStore(tmp_path / "state")
+    updater = core.MultiComponentCoreUpdater(host, store, FakePolicy())
+    updater.apply(
+        target("broker", archive_sha),
+        baseline(),
+        archive,
+        authorization_id="N3W_T1_CORE_UPDATER_BROKER_B4_TARGET_01",
+        confirmation=APPLY_CONFIRMATION_V2,
+    )
+    tx = store.read()
+    _remove_broker_retirement_markers(tx)
+    tx["status"] = "APPLYING"
+    tx["phase"] = "ACTIVATING"
+    store.write(tx)
+    host.bindings["broker"] = NEW["broker"]
+    host.broker_state = "target-written"
+    host.events.clear()
+    host.broker_recovery_restored = 0
+    host.broker_recovery_retired = 0
+
+    result = updater.recover_broker_pending()
+
+    assert result["operation"] == "recover-broker-pending"
+    assert result["transaction_status"] == "ROLLED_BACK"
+    assert result["automatic_recovery"] is True
+    assert host.bindings["broker"] == OLD["broker"]
+    assert host.broker_state == "predecessor"
+    assert host.broker_recovery_restored == 1
+    assert host.broker_recovery_retired == 1
+    assert store.read()["status"] == "ROLLED_BACK"
+
+
+def test_pending_broker_stopped_predecessor_restores_state_before_start(
+    tmp_path: Path,
+    monkeypatch,
+):
+    monkeypatch.setattr(core.os, "geteuid", lambda: 0)
+    archive = tmp_path / "broker.tar"
+    archive.write_bytes(b"broker-stopped-predecessor")
+    archive_sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+    host = FakeHost()
+    store = V2StateStore(tmp_path / "state")
+    updater = core.MultiComponentCoreUpdater(host, store, FakePolicy())
+    updater.apply(
+        target("broker", archive_sha),
+        baseline(),
+        archive,
+        authorization_id="N3W_T1_CORE_UPDATER_BROKER_B4_STOPPED_01",
+        confirmation=APPLY_CONFIRMATION_V2,
+    )
+    tx = store.read()
+    _remove_broker_retirement_markers(tx)
+    tx["status"] = "APPLYING"
+    tx["phase"] = "ACTIVATING"
+    store.write(tx)
+    host.bindings["broker"] = OLD["broker"]
+    host.broker_state = "target-written"
+    host.events.clear()
+    host.broker_recovery_restored = 0
+    host.broker_recovery_retired = 0
+
+    def stopped_state():
+        return {
+            "application_state": "stopped",
+            "services_owner_state": "inactive",
+            "running_counts": {
+                "manager": 0,
+                "homeassistant": 0,
+                "broker": 0,
+            },
+            "image_bindings": dict(host.bindings),
+            "image_binding_modes": {name: "dynamic" for name in OLD},
+            "listeners": {
+                "tcp_8883": 0,
+                "tcp_47110": 0,
+                "udp_47111": 0,
+                "tcp_47112": 0,
+            },
+            "health_state": "NOT_RUNNING",
+            "snapshot": None,
+        }
+
+    monkeypatch.setattr(host, "observe_state_v2", stopped_state)
+
+    result = updater.recover_broker_pending()
+
+    assert result["transaction_status"] == "ROLLED_BACK"
+    assert host.events.index("restore-broker-state") < host.events.index(
+        "activate:broker"
+    )
+    assert host.broker_state == "predecessor"
+
+
+def test_broker_recovery_reentry_preserves_original_source_phase(
+    tmp_path: Path,
+    monkeypatch,
+):
+    monkeypatch.setattr(core.os, "geteuid", lambda: 0)
+    archive = tmp_path / "broker.tar"
+    archive.write_bytes(b"broker-reentry-source-phase")
+    archive_sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+    host = FakeHost()
+    store = V2StateStore(tmp_path / "state")
+    updater = core.MultiComponentCoreUpdater(host, store, FakePolicy())
+    updater.apply(
+        target("broker", archive_sha),
+        baseline(),
+        archive,
+        authorization_id="N3W_T1_CORE_UPDATER_BROKER_B4_REENTRY_01",
+        confirmation=APPLY_CONFIRMATION_V2,
+    )
+    tx = store.read()
+    _remove_broker_retirement_markers(tx)
+    tx["status"] = "ROLLING_BACK"
+    tx["phase"] = "ROLLBACK_AUTHORIZED"
+    tx["rollback_source_phase"] = "ACTIVATING"
+    store.write(tx)
+    host.bindings["broker"] = OLD["broker"]
+    host.broker_state = "target-written"
+    host.events.clear()
+    host.broker_recovery_restored = 0
+
+    def stopped_state():
+        return {
+            "application_state": "stopped",
+            "services_owner_state": "failed",
+            "running_counts": {
+                "manager": 0,
+                "homeassistant": 0,
+                "broker": 0,
+            },
+            "image_bindings": dict(host.bindings),
+            "image_binding_modes": {name: "dynamic" for name in OLD},
+            "listeners": {
+                "tcp_8883": 0,
+                "tcp_47110": 0,
+                "udp_47111": 0,
+                "tcp_47112": 0,
+            },
+            "health_state": "NOT_RUNNING",
+            "snapshot": None,
+        }
+
+    monkeypatch.setattr(host, "observe_state_v2", stopped_state)
+
+    updater.recover_broker_pending()
+
+    assert host.broker_recovery_restored == 1
+    assert store.read()["rollback_source_phase"] == "ACTIVATING"
+
+
+def test_terminal_broker_recovery_maintenance_does_not_restart_runtime(
+    tmp_path: Path,
+    monkeypatch,
+):
+    monkeypatch.setattr(core.os, "geteuid", lambda: 0)
+    archive = tmp_path / "broker.tar"
+    archive.write_bytes(b"broker-terminal-maintenance")
+    archive_sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+    host = FakeHost()
+    store = V2StateStore(tmp_path / "state")
+    updater = core.MultiComponentCoreUpdater(host, store, FakePolicy())
+    updater.apply(
+        target("broker", archive_sha),
+        baseline(),
+        archive,
+        authorization_id="N3W_T1_CORE_UPDATER_BROKER_B4_TERMINAL_01",
+        confirmation=APPLY_CONFIRMATION_V2,
+    )
+    tx = store.read()
+    tx["broker_recovery_retired"] = False
+    tx["broker_recovery_cleanup_pending"] = True
+    store.write(tx)
+    host.events.clear()
+    host.broker_recovery_retired = 0
+
+    result = updater.recover_broker_pending()
+
+    assert result["action"] == "TERMINAL_RECOVERY_POINT_MAINTENANCE"
+    assert result["t1_mutation"] is False
+    assert result["broker_recovery_cleanup_pending"] is False
+    assert host.events == []
+    assert host.broker_recovery_retired == 1
+
+
+def test_recover_broker_pending_ignores_nonbroker_transaction(
+    tmp_path: Path,
+    monkeypatch,
+):
+    monkeypatch.setattr(core.os, "geteuid", lambda: 0)
+    store = V2StateStore(tmp_path / "state")
+    store.write(
+        {
+            "schema": TX_SCHEMA_V2,
+            "status": "FAILED_EMERGENCY",
+            "phase": "FAILED_EMERGENCY",
+            "component": "manager",
+        }
+    )
+    host = FakeHost()
+    updater = core.MultiComponentCoreUpdater(host, store, FakePolicy())
+
+    result = updater.recover_broker_pending()
+
+    assert result["action"] == "NOT_BROKER_TRANSACTION"
+    assert result["t1_mutation"] is False
+    assert host.events == []
+
+
+def test_new_transaction_waits_for_broker_recovery_retirement(tmp_path: Path):
+    store = V2StateStore(tmp_path / "state")
+    store.write(
+        {
+            "schema": TX_SCHEMA_V2,
+            "status": "COMMITTED",
+            "phase": "COMMITTED",
+            "component": "broker",
+            "broker_recovery_point": {
+                "schema": broker_recovery_mod.BROKER_RECOVERY_SCHEMA,
+                "key": "0123456789abcdef-1",
+            },
+        }
+    )
+
+    with pytest.raises(
+        UpdaterV2Error,
+        match="broker_recovery_retirement_required",
+    ):
+        store.prepare_new()
+
+    tx = store.read()
+    tx["broker_recovery_retired"] = True
+    store.write(tx)
+    store.prepare_new()
+    assert store.read() is None
+
+
+def test_broker_recovery_startup_unit_is_bounded_and_noncyclic():
+    unit = (
+        Path(__file__).resolve().parents[2]
+        / "infra/n3w-t1/systemd/n3wfc4-core-updater-broker-recovery.service"
+    ).read_text(encoding="utf-8")
+
+    assert "ConditionPathExists=/var/lib/n3w-t1-core-updater/upgrade.json" in unit
+    assert (
+        "After=docker.service n3wfc4-broker-activation.service "
+        "n3wfc4-services-activation.service"
+    ) in unit
+    assert "Before=n3wfc4-broker-activation.service" not in unit
+    assert "Before=n3wfc4-services-activation.service" not in unit
+    assert (
+        "ExecStart=/opt/n3w-t1-core-updater/t1-core-updater.pyz "
+        "recover-broker-pending"
+    ) in unit
+    assert "Restart=on-failure" in unit
+    assert "StartLimitBurst=3" in unit
+    assert "WantedBy=multi-user.target" in unit
+
+
+def test_cli_exposes_host_owned_broker_recovery_command():
+    args = cli_mod.parser().parse_args(["recover-broker-pending"])
+    assert args.command == "recover-broker-pending"
+
+
+def test_broker_recovery_point_retire_rejects_unexpected_top_level_entry(
+    tmp_path: Path,
+):
+    source, recovery_root, uid, gid = _broker_state_fixture(tmp_path)
+    provider = broker_recovery_mod.LocalBrokerRecoveryPoint(
+        source,
+        recovery_root,
+        expected_source_uid=uid,
+        expected_source_gid=gid,
+        reserve_bytes=0,
+    )
+    record = provider.create("0123456789abcdef-8")
+    unexpected = recovery_root / record["key"] / "unexpected"
+    unexpected.write_bytes(b"do-not-delete-blindly")
+    unexpected.chmod(0o600)
+
+    with pytest.raises(
+        broker_recovery_mod.BrokerRecoveryError,
+        match="broker_recovery_snapshot_shape_invalid",
+    ):
+        provider.retire(record)
+
+    assert unexpected.exists()
+
+
+def test_broker_recovery_point_retire_resumes_after_postrename_interruption(
+    tmp_path: Path,
+    monkeypatch,
+):
+    source, recovery_root, uid, gid = _broker_state_fixture(tmp_path)
+    provider = broker_recovery_mod.LocalBrokerRecoveryPoint(
+        source,
+        recovery_root,
+        expected_source_uid=uid,
+        expected_source_gid=gid,
+        reserve_bytes=0,
+    )
+    record = provider.create("0123456789abcdef-7")
+    original_rmtree = broker_recovery_mod.shutil.rmtree
+    injected = {"done": False}
+
+    def fail_after_rename(path, *args, **kwargs):
+        if (
+            Path(path).name == f".{record['key']}.retired"
+            and not injected["done"]
+        ):
+            injected["done"] = True
+            raise OSError("injected_retire_interruption")
+        return original_rmtree(path, *args, **kwargs)
+
+    monkeypatch.setattr(
+        broker_recovery_mod.shutil,
+        "rmtree",
+        fail_after_rename,
+    )
+    with pytest.raises(OSError, match="injected_retire_interruption"):
+        provider.retire(record)
+
+    final = recovery_root / record["key"]
+    tombstone = recovery_root / f".{record['key']}.retired"
+    assert not final.exists()
+    assert tombstone.is_dir()
+
+    monkeypatch.setattr(
+        broker_recovery_mod.shutil,
+        "rmtree",
+        original_rmtree,
+    )
+    result = provider.retire(record)
+
+    assert result["retired"] is True
+    assert result["already_absent"] is True
+    assert result["retirement_resumed"] is True
+    assert not tombstone.exists()

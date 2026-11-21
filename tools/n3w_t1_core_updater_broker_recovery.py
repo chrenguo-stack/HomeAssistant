@@ -466,3 +466,93 @@ class LocalBrokerRecoveryPoint:
             "source_tree_sha256": restored_sha,
             "file_count": len(restored["files"]),
         }
+
+
+    def retire(self, record: dict[str, Any]) -> dict[str, Any]:
+        if (
+            not isinstance(record, dict)
+            or record.get("schema") != BROKER_RECOVERY_SCHEMA
+            or not isinstance(record.get("key"), str)
+        ):
+            raise BrokerRecoveryError("broker_recovery_record_invalid")
+        key = record["key"]
+        self._validate_key(key)
+        if self.recovery_root.is_symlink():
+            raise BrokerRecoveryError("broker_recovery_root_invalid")
+        if self.recovery_root.exists():
+            if not self.recovery_root.is_dir():
+                raise BrokerRecoveryError("broker_recovery_root_invalid")
+            root_meta = self.recovery_root.stat()
+            if (
+                root_meta.st_uid != os.geteuid()
+                or stat.S_IMODE(root_meta.st_mode) & 0o077
+            ):
+                raise BrokerRecoveryError(
+                    "broker_recovery_root_metadata_invalid"
+                )
+
+        directory = self.recovery_root / key
+        tombstone = self.recovery_root / f".{key}.retired"
+
+        if tombstone.exists() or tombstone.is_symlink():
+            if tombstone.is_symlink() or not tombstone.is_dir():
+                raise BrokerRecoveryError(
+                    "broker_recovery_retire_tombstone_invalid"
+                )
+            if directory.exists() or directory.is_symlink():
+                raise BrokerRecoveryError(
+                    "broker_recovery_retire_state_ambiguous"
+                )
+            shutil.rmtree(tombstone)
+            if tombstone.exists() or tombstone.is_symlink():
+                raise BrokerRecoveryError("broker_recovery_retire_failed")
+            _fsync_directory(self.recovery_root)
+            return {
+                "schema": BROKER_RECOVERY_SCHEMA,
+                "status": "PASS",
+                "key": key,
+                "retired": True,
+                "already_absent": True,
+                "retirement_resumed": True,
+            }
+
+        if not directory.exists():
+            if directory.is_symlink():
+                raise BrokerRecoveryError("broker_recovery_snapshot_invalid")
+            return {
+                "schema": BROKER_RECOVERY_SCHEMA,
+                "status": "PASS",
+                "key": key,
+                "retired": True,
+                "already_absent": True,
+                "retirement_resumed": False,
+            }
+
+        self._load_verified_manifest(record)
+        if directory.is_symlink() or not directory.is_dir():
+            raise BrokerRecoveryError("broker_recovery_snapshot_invalid")
+        if {path.name for path in directory.iterdir()} != {
+            "manifest.json",
+            "state",
+        }:
+            raise BrokerRecoveryError("broker_recovery_snapshot_shape_invalid")
+
+        os.replace(directory, tombstone)
+        _fsync_directory(self.recovery_root)
+        shutil.rmtree(tombstone)
+        if (
+            directory.exists()
+            or directory.is_symlink()
+            or tombstone.exists()
+            or tombstone.is_symlink()
+        ):
+            raise BrokerRecoveryError("broker_recovery_retire_failed")
+        _fsync_directory(self.recovery_root)
+        return {
+            "schema": BROKER_RECOVERY_SCHEMA,
+            "status": "PASS",
+            "key": key,
+            "retired": True,
+            "already_absent": False,
+            "retirement_resumed": False,
+        }
