@@ -273,7 +273,10 @@ class FakeHost:
 
     def activate_component(self, component):
         self.events.append(f"activate:{component}")
-        if component == "broker":
+        if (
+            component == "broker"
+            and self.bindings["broker"] == NEW["broker"]
+        ):
             self.broker_state = "target-written"
         if self.fail_activate_count:
             self.fail_activate_count -= 1
