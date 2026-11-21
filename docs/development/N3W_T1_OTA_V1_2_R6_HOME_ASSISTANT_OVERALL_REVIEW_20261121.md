@@ -58,3 +58,4 @@
 
 - `8df95b507137` 最终 23 项通过、1 项失败。[ARM64 运行 44920633239](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44920633239/job/136895669992)通过前置检查。隔离容器内 Manager 持续运行且重启次数为 0，HA 首次 MQTT 配置成功，首个维护自检回执超时。此轮未进入 HA 重建后验证。
 - 检查 Home Assistant 2026.10.0 MQTT 源码发现，没有启用的 MQTT 配置条目时，`async_wait_for_mqtt_client` 会立即返回 `False`。回执组件只依赖 MQTT 集成，与创建条目的 N3-W MQTT 引导可并行启动，因此首次启动可能永久跳过订阅。实际容器中是否触发该路径将由下一轮联调验证。
+- [修复提交 `0364f5b20835`](https://github.com/chrenguo-stack/HomeAssistant/commit/0364f5b20835e0c2c9dcde23273bd07aba9c9f66)为 HA 回执组件声明 N3-W MQTT 引导依赖。候选包回归检查这一配置。隔离测试保留原有的两次回执断言，失败时采集 Manager、HA 和 Broker 的脱敏日志。源码树 `8cc86173d8aa23dd0ac2b9767fcdf52ae3e9fc11`，本地 412 项通过、2 项跳过、13 项未纳入。用 HA 2026.10.0 的实际 MQTT 准备函数独立复现空配置返回 `False`、加载后返回 `True`。变更范围为 HA 回执启动依赖、CI 诊断和故障索引。待实际 ARM64 联调确认，新结论仍不作为备用 T1 预检证据。
