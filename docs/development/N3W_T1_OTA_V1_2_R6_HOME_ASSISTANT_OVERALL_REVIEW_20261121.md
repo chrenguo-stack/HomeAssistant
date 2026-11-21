@@ -1,6 +1,6 @@
 # N3-W T1 OTA V1.2 R6 Home Assistant 整体复核
 
-2026-11-21 起始复核发现收数回执接线、节点静默和前代恢复验收三项阻断点。2026-11-22 已确认修复提交的隔离自检和精确工件 CI 全部通过，真实容器中的普通节点遥测仍待补证。
+2026-11-21 起始复核发现收数回执接线、节点静默和前代恢复验收三项阻断点。2026-11-22 已确认修复提交的隔离自检和精确工件 CI 全部通过，普通节点遥测已在后续隔离 ARM64 测试中通过。最终工件复验状态见文末。
 
 ## 复核对象和验证结果
 
@@ -94,3 +94,9 @@ R7 预检按 [V1.2 第 13 节](https://github.com/chrenguo-stack/HomeAssistant/b
 | R8 输入 | 形成前代、目标、测试盘、所需空间、受保护数据和授权的差异单。旧 Manager 缺自检入口或升级组合未就绪时记录准备缺口。准备装载、激活、OTA、故障注入和断电续办各按授权执行。 |
 
 可复用 [U0 基线只读语义](https://github.com/chrenguo-stack/HomeAssistant/blob/4fde1b7c5cc0aa224fa3574b8b4cc638edd93647/docs/development/N3W_T1_CORE_UPDATER_U0_REAL_T1_READONLY_BASELINE_PREEXECUTION_20261104.md)。实际 R7 核对应绑定本次候选和现场。候选 `check-candidate-activation` 要求新版恢复包已落盘且 socket 已运行，适合后续已经安装的状态。本轮 R7 只准备核对顺序，备用机和介质访问等待相应授权。
+
+### 同提交验证进度
+
+- [ARM64 联调步骤](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44924757245/job/136908307028)已通过。该用例验证两次空节点自检以及普通节点 MQTT 遥测，普通遥测的 HA 回执与 Manager 持久游标一致。第三次查询为 23 项成功、1 项运行，0 项失败；仅三镜像的下载后绑定复验仍在进行。
+- [恢复包 `14715501376`](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44924757335/artifacts/14715501376)绑定 `84da7cd68e2f65fb011c32db1c3683b76a48112b`。ZIP SHA-256 `078500292fba59c2acd187ca3613258a7c6d1c6594113d925e98352d4bc9b055`，清单 SHA-256 `9cfad52a76670474cb328d3d22c0a7d4985f38f3e79fbe68e82a6b6550c8fa48`，pyz SHA-256 `f39629268ffeab9906f9de8cb60362d604d5b9150ef4c13571926b00921e6b84`。11 个交付文件和本地独立重建逐字节一致。
+- [三镜像工件 `14715154066`](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44924757245/artifacts/14715154066)已上传，GitHub 发布的 ZIP 摘要 `sha256:740e66ab1027141e5f8904b308bf695c8fe57172807d84f8627069e6e1926982`。[fresh 交付工件 `14715332642`](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44924757265/artifacts/14715332642)所在工作流已成功，ZIP 摘要 `sha256:dedd4adfecaae74ab1a98cf6cbf825ff00d10970ea6e80e31f17bc88346692f2`。本轮停止主动轮询，备用 T1 R7 现场预检尚未开始。
