@@ -350,7 +350,7 @@ class MultiComponentCoreUpdater:
                 "verify_or_load_exact_target_image",
                 f"quiesce_{target.component}_production_owner",
                 *(
-                    ["converge_homeassistant_runtime_template"]
+                    [f"converge_{target.component}_runtime_template"]
                     if predecessor_mode == "legacy_static"
                     else []
                 ),
