@@ -139,8 +139,10 @@ class HostAdapters:
             manifest,
             self.fresh.Runner(),
         )
+
+    def verify_factory_images(self) -> None:
         for label in ("homeassistant", "manager", "broker"):
-            record = release["images"][label]
+            record = self.release["images"][label]
             self.live.loaded_image_bindings[label] = self.fresh._verify_runtime_image(
                 self.live.runner,
                 label,
@@ -148,6 +150,7 @@ class HostAdapters:
             )
 
     def preflight_fresh_host(self):
+        self.verify_factory_images()
         report = self.live.master_postcheck(
             require_instance_absent=True,
             staged_units_enabled=True,
@@ -222,6 +225,7 @@ def _reconcile(firstboot: ModuleType, adapters: HostAdapters, release_id: str):
             "production_service_start": False,
         }
     if state == "INITIALIZING":
+        adapters.verify_factory_images()
         report = firstboot.resume_device_provisioning(
             adapters,
             TRANSACTION_ROOT,
