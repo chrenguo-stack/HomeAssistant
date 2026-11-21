@@ -66,8 +66,12 @@ def test_broker_target_fixture_keeps_dynsec_admin_out_of_application_topics():
     assert "publishClientSend 'n3w/b6/#' allow 100" in text
     assert "subscribePattern 'n3w/b6/#' allow 100" in text
     assert "publishClientReceive 'n3w/b6/#' allow 100" in text
-    assert 'dynsec createClient "$APP_USER"' in text
+    assert 'dynsec createClient "$APP_USER" -p "$APP_PASSWORD"' in text
     assert 'dynsec addClientRole "$APP_USER" "$APP_ROLE" 100' in text
+    assert 'dynsec getRole "$APP_ROLE"' in text
+    assert 'dynsec getClient "$APP_USER"' in text
+    assert 'BROKER_B6_DYNSEC_APPLICATION_FIXTURE=PASS' in text
+    assert "docker exec -i n3w-b6-broker mosquitto_ctrl" not in text
     assert '-u "$APP_USER" -P "$APP_PASSWORD"' in text
     assert "CONTROL_PAYLOAD=" not in text
     assert '"password": password' not in text

@@ -531,15 +531,23 @@ jobs:
             -h 127.0.0.1 -p 1883 \
             -u admin -P "$ADMIN" \
             dynsec addRoleACL "$APP_ROLE" publishClientReceive 'n3w/b6/#' allow 100
-          printf '%s\n%s\n' "$APP_PASSWORD" "$APP_PASSWORD" | \
-            docker exec -i n3w-b6-broker mosquitto_ctrl \
-              -h 127.0.0.1 -p 1883 \
-              -u admin -P "$ADMIN" \
-              dynsec createClient "$APP_USER"
+          docker exec n3w-b6-broker mosquitto_ctrl \
+            -h 127.0.0.1 -p 1883 \
+            -u admin -P "$ADMIN" \
+            dynsec createClient "$APP_USER" -p "$APP_PASSWORD"
           docker exec n3w-b6-broker mosquitto_ctrl \
             -h 127.0.0.1 -p 1883 \
             -u admin -P "$ADMIN" \
             dynsec addClientRole "$APP_USER" "$APP_ROLE" 100
+          docker exec n3w-b6-broker mosquitto_ctrl \
+            -h 127.0.0.1 -p 1883 \
+            -u admin -P "$ADMIN" \
+            dynsec getRole "$APP_ROLE" >/dev/null
+          docker exec n3w-b6-broker mosquitto_ctrl \
+            -h 127.0.0.1 -p 1883 \
+            -u admin -P "$ADMIN" \
+            dynsec getClient "$APP_USER" >/dev/null
+          echo "BROKER_B6_DYNSEC_APPLICATION_FIXTURE=PASS"
 
           for attempt in $(seq 1 20); do
             if docker exec n3w-b6-broker mosquitto_pub \

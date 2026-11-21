@@ -157,3 +157,33 @@ Mosquitto 2.1.2 官方 Dynamic Security 文档确认：
 - addRoleACL 支持 publishClientSend、publishClientReceive、subscribePattern 及 allow/deny/priority。
 
 Attempt 02 的 exact-artifact 同样不作为最终 frozen target，因为修复后 source head 再次变化。
+
+
+## 9. Phase 1 Attempt 03 Failure 与局部修复
+
+Attempt 03 exact head = 92786adc2e0b8e0df8e9f7607ebbb9e7987bc32b。
+
+结果：
+
+- Public repository safety = SUCCESS；
+- Broker Recovery Support Exact CI = SUCCESS；
+- source = SUCCESS；
+- exact-artifact = SUCCESS；
+- isolated-a-to-b = FAILURE。
+
+日志证明 createRole 与 3 条 addRoleACL 均已执行，随后进入 createClient 的交互式新密码输入。失败仍发生在 predecessor 2.1.2 fixture 初始化阶段，尚未进入 2.1.4 target。
+
+对 Mosquitto v2.1.2 exact source apps/mosquitto_ctrl/dynsec_client.c 复核确认：
+
+- createClient 原生支持 -p <password>，可关闭交互式 password prompt；
+- addClientRole 支持 username + rolename + optional priority，现有 100 参数合法。
+
+因此 Attempt 03 不再把失败归因为 addClientRole 语法，而是收敛为容器化 CI 中不必要的交互式 password capture 路径。修复改为：
+
+- dynsec createClient "$APP_USER" -p "$APP_PASSWORD"；
+- 保留 dynsec addClientRole "$APP_USER" "$APP_ROLE" 100；
+- 追加 getRole/getClient 确认 role/client inventory 可读取；
+- 输出 BROKER_B6_DYNSEC_APPLICATION_FIXTURE=PASS 阶段标记；
+- 禁止再使用 docker exec -i 的交互密码输入路径。
+
+该修复仍只修改隔离 CI fixture，不改变生产 Broker、Generic V2 或 Recovery Point 源码。
