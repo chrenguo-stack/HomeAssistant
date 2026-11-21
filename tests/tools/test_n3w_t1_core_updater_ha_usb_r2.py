@@ -399,6 +399,143 @@ class StartupRuntime(recovery_startup.LocalHaPredecessorRuntime):
         raise InterruptedPower()
 
 
+class ReleaseStartupRuntime(StartupRuntime):
+    container_id = "d" * 64
+
+    def __init__(self, root, fault):
+        super().__init__(root)
+        self.fault = fault
+        self.container_present = False
+        self.image_present = True
+        self.removals = []
+
+    def stop_services(self):
+        self.running = {"broker"}
+        self.owner = "inactive"
+        self.container_present = True
+
+    def image_id(self, reference):
+        if reference == CURRENT and not self.image_present:
+            return None
+        return super().image_id(reference)
+
+    def component_container_residue(self, component):
+        assert component == "homeassistant"
+        if self.container_present:
+            return [{
+                "container_id": self.container_id, "image_ref": CURRENT,
+                "image_id": self.saved["homeassistant"]["runtime_id"], "status": "exited", "replace": "",
+            }]
+        return []
+
+    def _run(self, argv, **kwargs):
+        old_id = self.saved["homeassistant"]["runtime_id"]
+        if argv[:3] == ("docker", "image", "inspect"):
+            if self.fault == "daemon_unavailable":
+                return SimpleNamespace(returncode=1, stdout=b"", stderr=b"Cannot connect to the Docker daemon")
+            if argv[-1] == TARGET or not self.image_present:
+                return SimpleNamespace(returncode=1, stdout=b"", stderr=b"Error: No such image")
+            assert argv[-1] in {CURRENT, old_id}
+            return SimpleNamespace(returncode=0, stdout=json.dumps([{
+                "Id": old_id, "RepoTags": [CURRENT], "RepoDigests": [],
+            }]).encode())
+        if argv[:3] == ("docker", "image", "ls"):
+            return SimpleNamespace(stdout=old_id.encode() if self.image_present else b"")
+        if argv[:2] == ("docker", "ps"):
+            users = [self.container_id] if self.container_present else []
+            if self.fault == "shared":
+                users.append("a" * 64)
+            return SimpleNamespace(stdout="\n".join(users).encode())
+        if argv == ("docker", "container", "rm", self.container_id):
+            self.removals.append(argv)
+            self.container_present = False
+            if self.fault == "after_container":
+                raise InterruptedPower()
+            if self.fault == "command_error_after_container":
+                raise recovery_startup.UpdaterError("test_release_command_interrupted")
+            return SimpleNamespace(stdout=b"")
+        if argv == ("docker", "image", "rm", "--no-prune", old_id):
+            self.removals.append(argv)
+            self.image_present = False
+            if self.fault == "after_image":
+                raise InterruptedPower()
+            return SimpleNamespace(stdout=b"")
+        if argv[:3] == ("docker", "inspect", "--format") and argv[-1] == self.container_id:
+            argv = (*argv[:-1], "homeassistant")
+        return super()._run(argv, **kwargs)
+
+
+@pytest.mark.parametrize("fault", [None, "shared", "after_container", "after_image", "command_error_after_container"])
+def test_release_and_boot_reconcile_exact_predecessor(tmp_path, monkeypatch, capsys, fault):
+    _, media, _, _, target, predecessor, backup = drive_to_u8(tmp_path)
+    initial = record_existing_media_bound(
+        request_prepare(transaction()), filesystem_uuid=USB_UUID, capacity_report=media.report,
+    )
+    prepared = record_target_ready(start_target_preparation(initial), target=target, predecessor=predecessor)
+    store = HaUsbStateStore(tmp_path / "release-state")
+    store.write(request_install(prepared))
+    runtime = ReleaseStartupRuntime(tmp_path / "application", fault)
+    live = runtime.ha_data_root / "protected-data"
+    live.write_bytes(b"old HA data")
+    materials = SimpleNamespace(verify_install_materials=lambda _: HaInstallMaterials(
+        USB_UUID, target, predecessor, media.report, True, HaInternalSpace(3_000, 1_000, 2_000),
+    ))
+    backups = SimpleNamespace(create_consistent_backup=lambda **_: backup, verify_backup=lambda record: record)
+    health = SimpleNamespace(verify_predecessor_health=lambda _: None)
+    recovery = HaPredecessorRecovery(store, runtime, health)
+    monkeypatch.setattr(recovery_startup, "HaUsbStateStore", lambda: HaUsbStateStore(store.root))
+    monkeypatch.setattr(recovery_startup, "LocalHaPredecessorRuntime", lambda: runtime)
+    monkeypatch.setattr(runtime, "mounted_recovery_provider", lambda *_a, **_kw: pytest.fail("USB was reopened"))
+
+    outcome = nullcontext()
+    if fault == "shared":
+        outcome = pytest.raises(recovery_startup.UpdaterError, match="predecessor_has_other_users")
+    elif fault == "command_error_after_container":
+        outcome = pytest.raises(recovery_startup.UpdaterError, match="test_release_command_interrupted")
+    elif fault is not None:
+        outcome = pytest.raises(InterruptedPower)
+    with outcome, recovery.install_recovery_point(materials, backups) as ready:
+        with pytest.raises(recovery_startup.UpdaterError, match="release_action_not_admitted"):
+            runtime.release_exact_predecessor(ready)
+        released = recovery.release_predecessor_image(materials, backups, AUTHORIZATION_ID)
+        assert released["phase"] == U10 and released["predecessor_release_observed"] is True
+
+    interrupted = store.read()
+    if fault == "shared":
+        assert interrupted["phase"] == U8 and interrupted["status"] == "ROLLED_BACK"
+        assert not interrupted["authorization_consumed"] and not runtime.removals
+        return
+    if fault == "command_error_after_container":
+        assert interrupted["phase"] == U13B and interrupted["authorization_consumed"]
+        assert runtime.image_present and runtime.starts == 1 and len(runtime.removals) == 1
+        return
+    assert interrupted["authorization_consumed"] is True
+    assert interrupted["predecessor_release_intent"] == {"container_id": runtime.container_id}
+    assert recovery_startup.main(application_condition=True) == 1
+    removals_before_boot = runtime.removals[:]
+    if fault is not None:
+        assert interrupted["phase"] == U9
+        assert "predecessor_release_observed" not in interrupted
+    if fault == "after_image":
+        runtime.fault = "daemon_unavailable"
+        assert recovery_startup.main() == 1
+        assert json.loads(capsys.readouterr().out)["status"] == "RECOVERY_STARTUP_NEEDS_REVIEW"
+        assert store.read() == interrupted
+        runtime.fault = None
+
+    assert recovery_startup.main() == 0
+    reported = json.loads(capsys.readouterr().out)["status"]
+    result = store.read()
+    assert runtime.removals == removals_before_boot
+    assert live.read_bytes() == b"old HA data"
+    if fault == "after_container":
+        assert (reported, result["phase"], runtime.starts) == ("ROLLED_BACK", U13B, 1)
+    else:
+        assert (reported, result["phase"], runtime.starts) == ("PREDECESSOR_RELEASED_RECOVERY_PENDING", U10, 0)
+        assert result["recovery_required"] is True and result["predecessor_release_observed"] is True
+    assert result["authorization_id_sha256"] == interrupted["authorization_id_sha256"]
+
+
 @pytest.mark.parametrize("drift", [None, "protected_directory", "running_image"])
 def test_boot_entry_resumes_only_the_bound_predecessor(tmp_path, monkeypatch, capsys, drift):
     predecessor, store, health = first_stop_fixture(tmp_path)

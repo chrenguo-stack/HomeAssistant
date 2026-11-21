@@ -72,6 +72,18 @@ class HaPredecessorRuntime(Protocol):
     def rollback_writers_quiesced(self) -> bool:
         ...
 
+    def capture_predecessor_release(self, document: dict[str, Any]) -> HaPredecessorRelease:
+        ...
+
+    def release_exact_predecessor(self, document: dict[str, Any]) -> None:
+        ...
+
+    def observe_predecessor_released(self, document: dict[str, Any]) -> bool:
+        ...
+
+    def verify_resident_predecessor_health(self, document: dict[str, Any]) -> None:
+        ...
+
 
 class HaPredecessorHealth(Protocol):
     def verify_predecessor_health(self, binding: dict[str, Any]) -> None:
@@ -104,6 +116,11 @@ class HaDataRestoreProvider(Protocol):
         self, load: Callable[[BinaryIO, PortableImageIdentity], None],
     ) -> PortableImageIdentity:
         ...
+
+
+@dataclass(frozen=True, slots=True)
+class HaPredecessorRelease:
+    container_id: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -200,6 +217,7 @@ class HaPredecessorRecovery:
 
     def admit_predecessor_release(
         self, materials: HaInstallMaterialVerifier, backups: HaDataBackupProvider, authorization_id: str,
+        *, release_intent: HaPredecessorRelease | None = None,
     ) -> dict[str, Any]:
         """Claim release while install_recovery_point still owns the transaction lock.
 
@@ -224,9 +242,34 @@ class HaPredecessorRecovery:
             raise UpdaterV2Error("ha_usb_install_recovery_material_identity_drift")
         if self.store.read() != current or not self.runtime.rollback_writers_quiesced():
             raise UpdaterV2Error("ha_usb_predecessor_release_revalidation_changed")
-        claimed = claim_live_authorization(current, authorization_id, internal_space=proof.internal_space)
+        claimed = claim_live_authorization(
+            current, authorization_id, internal_space=proof.internal_space, release_intent=release_intent,
+        )
         self.store.write(claimed)
         return claimed
+
+    def release_predecessor_image(
+        self, materials: HaInstallMaterialVerifier, backups: HaDataBackupProvider, authorization_id: str,
+    ) -> dict[str, Any]:
+        """Release the bound image once, inside the locked install recovery point."""
+        ready = self.store.read()
+        if ready is None or ready["phase"] != U8:
+            raise UpdaterV2Error("ha_usb_predecessor_release_revalidation_not_admitted")
+        intent = self.runtime.capture_predecessor_release(ready)
+        claimed = self.admit_predecessor_release(materials, backups, authorization_id, release_intent=intent)
+        try:
+            self.runtime.release_exact_predecessor(claimed)
+            if not self.runtime.observe_predecessor_released(claimed):
+                raise UpdaterV2Error("ha_usb_predecessor_release_not_observed")
+            released = record_predecessor_capacity_released(claimed, image_release_observed=True)
+            self.store.write(released)
+            return released
+        except Exception as error:
+            try:
+                _reconcile_predecessor_release(self.store, self.runtime)
+            except Exception as recovery_error:
+                raise error from recovery_error
+            raise
 
     @contextmanager
     def quiesced_for_backup(
@@ -353,6 +396,37 @@ def resume_pre_cutover_services(
             return False
         _start_pre_cutover_predecessor(store, runtime, current)
         return True
+
+
+def resume_interrupted_predecessor_release(store: HaUsbStateStore, runtime: HaPredecessorRuntime) -> str | None:
+    """Reconcile an interrupted release without replaying destructive actions."""
+    with store.lock():
+        return _reconcile_predecessor_release(store, runtime)
+
+
+def _reconcile_predecessor_release(store: HaUsbStateStore, runtime: HaPredecessorRuntime) -> str | None:
+    current = store.read()
+    if (
+        current is None or current["phase"] not in {U9, U10}
+        or "predecessor_release_intent" not in current or "ha_data_restore" in current
+    ):
+        return None
+    if current["status"] != "ACTIVE":
+        raise UpdaterV2Error("ha_usb_predecessor_release_status_unresolved")
+    if runtime.observe_predecessor_released(current):
+        if current["phase"] == U9:
+            current = record_predecessor_capacity_released(current, image_release_observed=True)
+        if not current["recovery_required"]:
+            store.write({**current, "recovery_required": True})
+        return "PREDECESSOR_RELEASED_RECOVERY_PENDING"
+
+    if not current["recovery_required"]:
+        current = {**current, "recovery_required": True}
+        store.write(current)
+    runtime.start_predecessor_if_needed(current["predecessor_start"])
+    runtime.verify_resident_predecessor_health(current)
+    store.write(transition(current, U13B))
+    return "ROLLED_BACK"
 
 
 def resume_ha_data_rollback(
@@ -544,10 +618,15 @@ def record_predecessor_recovery_and_ha_quiesced(
 
 def record_predecessor_capacity_released(
     document: dict[str, Any],
+    *, image_release_observed: bool = False,
 ) -> dict[str, Any]:
     current = validate_transaction_document(document)
     if current["phase"] != U9 or not destructive_cutover_allowed(current):
         raise UpdaterV2Error("ha_usb_predecessor_release_not_allowed")
+    if "predecessor_release_intent" in current:
+        if image_release_observed is not True:
+            raise UpdaterV2Error("ha_usb_predecessor_release_not_observed")
+        return transition(current, U10, updates={"predecessor_release_observed": True})
     return transition(current, U10)
 
 
@@ -700,6 +779,7 @@ def claim_live_authorization(
     document: dict[str, Any],
     authorization_id: str,
     *, internal_space: HaInternalSpace | None = None,
+    release_intent: HaPredecessorRelease | None = None,
 ) -> dict[str, Any]:
     current = validate_transaction_document(document)
     if current["phase"] != U8:
@@ -725,6 +805,8 @@ def claim_live_authorization(
             "install_required_bytes": internal_space.install_required_bytes,
             "recovery_required_bytes": internal_space.recovery_required_bytes,
         }
+        if release_intent is not None:
+            release_admission["predecessor_release_intent"] = {"container_id": release_intent.container_id}
     return transition(
         current,
         U9,

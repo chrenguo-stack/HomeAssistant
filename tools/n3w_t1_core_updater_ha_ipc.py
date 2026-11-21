@@ -146,6 +146,7 @@ class HaUsbIpcExecutor:
             return {"phase": "ROLLED_BACK", "progress_percent": None, "error_code": None}
         if document["recovery_required"] and (
             "ha_data_restore" in document
+            or "predecessor_release_intent" in document
             or (
                 document["phase"] in PRE_CUTOVER_RECOVERY_PHASES
                 and "predecessor_start" in document

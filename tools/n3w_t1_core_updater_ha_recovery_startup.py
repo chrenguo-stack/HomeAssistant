@@ -21,10 +21,13 @@ from n3w_t1_core_updater_common import (
 )
 from n3w_t1_core_updater_ha_backup import DEFAULT_HA_DATA_ROOT, ProtectedHaDataBackup
 from n3w_t1_core_updater_ha_mounted_media import HaMountedBackupProvider
-from n3w_t1_core_updater_ha_usb import HaDataRestoreProvider, resume_ha_data_rollback, resume_pre_cutover_services
-from n3w_t1_core_updater_ha_usb_state import HA_DATA_RESTORE_PHASES, HaUsbStateStore
+from n3w_t1_core_updater_ha_usb import (
+    HaDataRestoreProvider, HaPredecessorRelease, destructive_cutover_allowed, resume_ha_data_rollback,
+    resume_interrupted_predecessor_release, resume_pre_cutover_services,
+)
+from n3w_t1_core_updater_ha_usb_state import HA_DATA_RESTORE_PHASES, U9, U10, HaUsbStateStore
 from n3w_t1_core_updater_host import DEFAULT_SERVICES_READINESS_TIMEOUT_SECONDS, LocalHost
-from n3w_t1_core_updater_v2_common import COMPONENTS
+from n3w_t1_core_updater_v2_common import COMPONENTS, SHA256
 from n3w_t1_portable_image_identity import (
     PortableImageIdentity, identity_from_dict, observe_docker_image, verify_runtime_document,
 )
@@ -195,6 +198,86 @@ class LocalHaPredecessorRuntime(LocalHost):
             and self._running_count("homeassistant") == 0
         )
 
+    def _release_image(self, reference: str) -> dict[str, Any] | None:
+        observation = observe_docker_image(reference, runner=lambda argv, **kwargs: self._run(
+            argv, timeout=kwargs["timeout"], check=False,
+        ))
+        if observation.status == "AVAILABLE" and observation.document is not None:
+            return observation.document
+        if observation.status == "NOT_FOUND":
+            return None
+        raise UpdaterError("ha_usb_release_image_observation_unavailable")
+
+    def observe_predecessor_released(self, document: dict[str, Any]) -> bool:
+        old = document["predecessor_start"]["images"]["homeassistant"]
+        if self._release_image(document["target_image_ref"]) is not None:
+            raise UpdaterError("ha_usb_release_target_image_already_present")
+        tagged = self._release_image(old["reference"])
+        by_id = self._release_image(old["runtime_id"])
+        if tagged is None and by_id is None:
+            listed = self._run(("docker", "image", "ls", "--all", "--no-trunc", "--quiet"), timeout=30).stdout
+            counts = self._check_running_predecessor(document["predecessor_start"], {})
+            if (
+                old["runtime_id"] in listed.decode().split() or self.component_container_residue("homeassistant")
+                or counts["homeassistant"] or counts["manager"]
+            ):
+                raise UpdaterError("ha_usb_release_image_absence_unconfirmed")
+            return True
+        if tagged is None or by_id is None or any(
+            image.get("Id") != old["runtime_id"] for image in (tagged, by_id)
+        ):
+            raise UpdaterError("ha_usb_release_predecessor_image_binding_drift")
+        return False
+
+    def capture_predecessor_release(self, document: dict[str, Any]) -> HaPredecessorRelease:
+        self.require_rollback_boot_guard()
+        binding, origins = self._restart_binding()
+        if binding != document["predecessor_start"] or not self.rollback_writers_quiesced():
+            raise UpdaterError("ha_usb_release_predecessor_launch_drift")
+        self._check_running_predecessor(binding, origins)
+        old = binding["images"]["homeassistant"]
+        image = self._release_image(old["runtime_id"])
+        if (
+            image is None or self.observe_predecessor_released(document)
+            or image.get("RepoTags") != [old["reference"]] or image.get("RepoDigests") not in (None, [])
+        ):
+            raise UpdaterError("ha_usb_release_predecessor_exclusive_reference_unverified")
+        residue = self.component_container_residue("homeassistant")
+        if len(residue) > 1:
+            raise UpdaterError("ha_usb_release_predecessor_container_ambiguous")
+        container_id = None
+        if residue:
+            container = residue[0]
+            container_id = container["container_id"]
+            if (
+                SHA256.fullmatch(container_id) is None or container["status"] != "exited" or container["replace"]
+                or (container["image_ref"], container["image_id"]) != (old["reference"], old["runtime_id"])
+            ):
+                raise UpdaterError("ha_usb_release_predecessor_container_drift")
+            self._check_protected_mounts(container_id, origins["homeassistant"])
+        users = self._run((
+            "docker", "ps", "--all", "--no-trunc", "--quiet", "--filter", f'ancestor={old["runtime_id"]}',
+        ), timeout=30).stdout.decode().split()
+        if users != ([container_id] if container_id is not None else []):
+            raise UpdaterError("ha_usb_release_predecessor_has_other_users")
+        return HaPredecessorRelease(container_id)
+
+    def release_exact_predecessor(self, document: dict[str, Any]) -> None:
+        if (
+            document["phase"] != U9 or "predecessor_release_intent" not in document
+            or not destructive_cutover_allowed(document)
+        ):
+            raise UpdaterError("ha_usb_release_action_not_admitted")
+        candidate = self.capture_predecessor_release(document)
+        if candidate.container_id != document["predecessor_release_intent"]["container_id"]:
+            raise UpdaterError("ha_usb_release_predecessor_container_drift")
+        if candidate.container_id is not None:
+            self._run(("docker", "container", "rm", candidate.container_id), timeout=120)
+        if self.capture_predecessor_release(document).container_id is not None:
+            raise UpdaterError("ha_usb_release_predecessor_container_still_present")
+        exact_id = document["predecessor_start"]["images"]["homeassistant"]["runtime_id"]
+        self._run(("docker", "image", "rm", "--no-prune", exact_id), timeout=300)
+
     def quiesce_for_data_restore(self, document: dict[str, Any]) -> None:
         before = document["predecessor_start"]["images"]["broker"]
         if self._running_count("broker") != 1:
@@ -299,6 +382,15 @@ class LocalHaPredecessorRuntime(LocalHost):
 
     def verify_published_predecessor_health(self, document: dict[str, Any]) -> None:
         binding, origins = self._verify_published_launch(document)
+        self._verify_rollback_health(binding, origins)
+
+    def verify_resident_predecessor_health(self, document: dict[str, Any]) -> None:
+        binding, origins = self._restart_binding()
+        if binding != document["predecessor_start"]:
+            raise UpdaterError("ha_usb_predecessor_launch_binding_drift")
+        self._verify_rollback_health(binding, origins)
+
+    def _verify_rollback_health(self, binding: dict[str, Any], origins: dict[str, dict[str, str]]) -> None:
         deadline = time.monotonic() + DEFAULT_SERVICES_READINESS_TIMEOUT_SECONDS
         while time.monotonic() < deadline:
             if (
@@ -349,6 +441,15 @@ def check_application_start(store: HaUsbStateStore, runtime: LocalHaPredecessorR
         if document["status"] != "ACTIVE" or document["ha_data_restore"]["step"] != "PUBLISHED":
             return 1
         runtime.check_rollback_application_start(document)
+    elif document and document["phase"] in {U9, U10} and "predecessor_release_intent" in document:
+        if (
+            document["status"] != "ACTIVE" or not document["recovery_required"]
+            or runtime.observe_predecessor_released(document)
+        ):
+            return 1
+        binding, _ = runtime._restart_binding()
+        if binding != document["predecessor_start"]:
+            return 1
     return 0
 
 
@@ -366,6 +467,11 @@ def main(*, application_condition: bool = False) -> int:
                 lambda document: runtime.mounted_recovery_provider(store, document, require_original=True),
             )
             print(json.dumps({"status": "ROLLED_BACK" if resumed else "NO_PENDING_DATA_ROLLBACK"}))
+            return 0
+        if current and current["phase"] in {U9, U10} and "predecessor_release_intent" in current:
+            runtime.require_rollback_boot_guard()
+            status = resume_interrupted_predecessor_release(store, runtime)
+            print(json.dumps({"status": status or "NO_PENDING_IMAGE_RELEASE"}))
             return 0
         resumed = resume_pre_cutover_services(store, runtime)
     except HaRecoveryMediaRequired:

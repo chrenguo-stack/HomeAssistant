@@ -457,6 +457,23 @@ def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
         available = _positive_int(admission["internal_available_bytes"], reason)
         if any(available < _positive_int(admission[key], reason) for key in fields - {"internal_available_bytes"}):
             raise UpdaterV2Error(reason)
+    if "predecessor_release_intent" in document:
+        intent = document["predecessor_release_intent"]
+        if (
+            "predecessor_release_admission" not in document or "predecessor_start" not in document
+            or not isinstance(intent, dict) or set(intent) != {"container_id"}
+        ):
+            raise UpdaterV2Error("ha_usb_predecessor_release_intent_invalid")
+        container = intent["container_id"]
+        if container is not None and (not isinstance(container, str) or SHA256.fullmatch(container) is None):
+            raise UpdaterV2Error("ha_usb_predecessor_release_container_invalid")
+        if phase in {U10, U11, U12, U13A} and document.get("predecessor_release_observed") is not True:
+            raise UpdaterV2Error("ha_usb_predecessor_release_not_observed")
+    if "predecessor_release_observed" in document and (
+        "predecessor_release_intent" not in document or not _phase_at_or_after(phase, U10)
+        or document["predecessor_release_observed"] is not True
+    ):
+        raise UpdaterV2Error("ha_usb_predecessor_release_observation_invalid")
     return copy.deepcopy(document)
 
 
@@ -555,7 +572,9 @@ def transition(
                 raise UpdaterV2Error("ha_usb_immutable_field_update_forbidden")
             if key == "usb_binding_mode" and next_phase != U2:
                 raise UpdaterV2Error("ha_usb_immutable_field_update_forbidden")
-            if key == "predecessor_release_admission" and next_phase != U9:
+            if key in {"predecessor_release_admission", "predecessor_release_intent"} and next_phase != U9:
+                raise UpdaterV2Error("ha_usb_immutable_field_update_forbidden")
+            if key == "predecessor_release_observed" and next_phase != U10:
                 raise UpdaterV2Error("ha_usb_immutable_field_update_forbidden")
             result[key] = copy.deepcopy(value)
 
