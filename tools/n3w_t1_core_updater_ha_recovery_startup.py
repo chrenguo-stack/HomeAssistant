@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import hashlib
 import json
 import os
 import shutil
@@ -28,7 +29,10 @@ from n3w_t1_core_updater_ha_acceptance import (
 )
 from n3w_t1_core_updater_ha_backup import DEFAULT_HA_DATA_ROOT, HA_DATABASE_NAME, ProtectedHaDataBackup
 from n3w_t1_core_updater_ha_data_evidence import MANAGER_PAIRING_DB, HaProtectedDataEvidence
-from n3w_t1_core_updater_ha_ipc import serve_activated_ha_ipc
+from n3w_t1_core_updater_ha_ipc import (
+    APPROVED_MANIFEST, IPC_SOCKET, RELEASE_PIN, HaUsbIpcExecutor, LocalApprovedHaRelease,
+    reject_duplicate_fields, serve_activated_ha_ipc,
+)
 from n3w_t1_core_updater_ha_monitoring_evidence import (
     LocalHaMonitoringEvidence, READ_HA_RECEIPTS, REQUEST_MANAGER_SELF_TEST,
 )
@@ -80,7 +84,9 @@ def requested_install_binding_sha256(document: dict[str, Any]) -> str:
     }))
 
 
-def _read_authority(path: Path, reason: str) -> dict[str, Any]:
+def _read_authority_file(path: Path, reason: str) -> dict[str, Any]:
+    if path.resolve() != path:
+        raise UpdaterV2Error(reason)
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     with os.fdopen(fd, "rb") as stream:
         metadata = os.fstat(stream.fileno())
@@ -92,9 +98,16 @@ def _read_authority(path: Path, reason: str) -> dict[str, Any]:
         raw = stream.read(4097)
     if len(raw) > 4096:
         raise UpdaterV2Error(reason)
-    grant = json.loads(raw)
+    grant = json.loads(raw, object_pairs_hook=reject_duplicate_fields)
+    if not isinstance(grant, dict):
+        raise UpdaterV2Error(reason)
+    return grant
+
+
+def _read_authority(path: Path, reason: str) -> dict[str, Any]:
+    grant = _read_authority_file(path, reason)
     if (
-        not isinstance(grant, dict) or type(grant.get("expires_at_unix")) is not int
+        type(grant.get("expires_at_unix")) is not int
         or time.time() >= grant["expires_at_unix"]
         or not isinstance(grant.get("launch_sha256"), str) or not SHA256.fullmatch(grant["launch_sha256"])
     ):
@@ -102,9 +115,45 @@ def _read_authority(path: Path, reason: str) -> dict[str, Any]:
     return grant
 
 
+def _publish_authority(path: Path, grant: dict[str, Any], binding_key: str) -> None:
+    reason = "ha_usb_authority_destination_invalid"
+    try:
+        existing = _read_authority_file(path, reason)
+    except FileNotFoundError:
+        existing = None
+    if existing is not None:
+        if type(existing.get("expires_at_unix")) is not int or not isinstance(existing.get(binding_key), str):
+            raise UpdaterV2Error(reason)
+        if (
+            existing[binding_key] == grant[binding_key] and existing["expires_at_unix"] > time.time()
+            and existing != grant
+        ):
+            raise UpdaterV2Error("ha_usb_authority_already_issued")
+
+    fd, raw = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    temporary = Path(raw)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(canonical(grant) + b"\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+        parent = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(parent)
+        finally:
+            os.close(parent)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def _read_prepare_authority(store: HaUsbStateStore, document: dict[str, Any]) -> dict[str, Any]:
     reason = "ha_usb_prepare_authority_invalid"
-    grant = _read_authority(store.root / PREPARE_AUTHORITY_FILE, reason)
+    return _validate_prepare_authority(_read_authority(store.root / PREPARE_AUTHORITY_FILE, reason), document)
+
+
+def _validate_prepare_authority(grant: dict[str, Any], document: dict[str, Any]) -> dict[str, Any]:
+    reason = "ha_usb_prepare_authority_invalid"
     if (
         set(grant) != {
             "schema", "transaction_id_sha256", "usb_filesystem_uuid", "target_source",
@@ -123,7 +172,11 @@ def _read_prepare_authority(store: HaUsbStateStore, document: dict[str, Any]) ->
 
 def _read_install_authority(store: HaUsbStateStore, document: dict[str, Any]) -> dict[str, Any]:
     reason = "ha_usb_install_authority_invalid"
-    grant = _read_authority(store.root / INSTALL_AUTHORITY_FILE, reason)
+    return _validate_install_authority(_read_authority(store.root / INSTALL_AUTHORITY_FILE, reason), document)
+
+
+def _validate_install_authority(grant: dict[str, Any], document: dict[str, Any]) -> dict[str, Any]:
+    reason = "ha_usb_install_authority_invalid"
     if (
         set(grant) != {"schema", "binding_sha256", "authorization_id", "launch_sha256", "expires_at_unix", "space"}
         or grant["schema"] != INSTALL_AUTHORITY_SCHEMA
@@ -211,6 +264,76 @@ class LocalHaPredecessorRuntime(LocalHost):
                 timeout.cancel()
                 if process.poll() is None:
                     process.kill()
+
+    def issue_candidate_authority(self, store: HaUsbStateStore, kind: str, request: dict[str, Any]) -> str:
+        """Bind an explicit operator approval to the current private transaction."""
+        with store.lock():
+            document = store.read()
+            if (
+                document is None or document["status"] != "ACTIVE" or document["recovery_required"]
+                or "predecessor_start" in document
+            ):
+                raise UpdaterV2Error("ha_usb_authority_request_not_admitted")
+            expires = request.get("expires_at_unix")
+            if (
+                type(expires) is not int or expires <= time.time()
+                or request.get("transaction_id_sha256") != document["transaction_id_sha256"]
+            ):
+                raise UpdaterV2Error("ha_usb_authority_request_binding_invalid")
+            resolver = LocalApprovedHaRelease(
+                store.root / RELEASE_PIN, IPC_SOCKET.with_name(APPROVED_MANIFEST),
+                lambda: self._runtime("homeassistant"),
+            )
+            admission = resolver.resolve_homeassistant_release(document["target_manifest_identity"]["release_identity"])
+            HaUsbIpcExecutor.require_same_admission(document, admission)
+            launch = self.capture_start_binding(document)["launch_sha256"]
+            common = {"expires_at_unix": expires, "launch_sha256": launch}
+            binding_key = "transaction_id_sha256" if kind == "prepare" else "binding_sha256"
+            request_fields = {"transaction_id_sha256", "expires_at_unix"}
+            if kind == "prepare":
+                fields = {"usb_filesystem_uuid", "target_source", "max_predecessor_bytes", "usb_reserve_bytes"}
+                if document["phase"] not in {U1, U2, U3} or request.keys() != request_fields | fields:
+                    raise UpdaterV2Error("ha_usb_authority_request_not_admitted")
+                grant = _validate_prepare_authority({
+                    **common, "schema": PREPARE_AUTHORITY_SCHEMA, binding_key: request[binding_key],
+                    **{key: request[key] for key in fields},
+                }, document)
+                uuid = grant["usb_filesystem_uuid"]
+                if document["phase"] != U1 and (
+                    document.get("usb_binding_mode") != "existing_filesystem" or document["usb_filesystem_uuid"] != uuid
+                ):
+                    raise UpdaterV2Error("ha_usb_prepare_authority_drift")
+                mountpoint = self._original_mountpoint(uuid)
+                if document["phase"] == U1:
+                    measure_preparation_capacity(
+                        mountpoint, store.root, uuid,
+                        document["target_archive_size"] + grant["max_predecessor_bytes"] + grant["usb_reserve_bytes"],
+                    )
+                with self._open_target_source(Path(grant["target_source"]), document["target_archive_size"]) as archive:
+                    if hashlib.file_digest(archive, "sha256").hexdigest() != document["target_archive_sha256"]:
+                        raise UpdaterV2Error("ha_usb_prepare_authority_target_digest_mismatch")
+                destination = store.root / PREPARE_AUTHORITY_FILE
+            elif kind == "install":
+                fields = {"binding_sha256", "authorization_id", "space"}
+                if (
+                    document["phase"] not in {U5, U6} or document.get("usb_binding_mode") != "existing_filesystem"
+                    or request.keys() != request_fields | fields
+                ):
+                    raise UpdaterV2Error("ha_usb_authority_request_not_admitted")
+                grant = _validate_install_authority({
+                    **common, "schema": INSTALL_AUTHORITY_SCHEMA, **{key: request[key] for key in fields},
+                }, document)
+                auth_digest = sha256_bytes(grant["authorization_id"].encode())
+                if document["authorization_consumed"] or store.was_authorization_consumed(auth_digest):
+                    raise UpdaterV2Error("ha_usb_install_authority_already_consumed")
+                self._original_mountpoint(document["usb_filesystem_uuid"])
+                destination = store.root / INSTALL_AUTHORITY_FILE
+            else:
+                raise UpdaterV2Error("ha_usb_authority_request_kind_invalid")
+            if self.capture_start_binding(document)["launch_sha256"] != launch or expires <= time.time():
+                raise UpdaterV2Error("ha_usb_authority_request_binding_changed")
+            _publish_authority(destination, grant, binding_key)
+        return f"{kind.upper()}_AUTHORITY_ISSUED"
 
     def prepare_requested(self, store: HaUsbStateStore) -> str:
         with store.lock():
@@ -1057,7 +1180,25 @@ def cli(argv: Sequence[str] | None = None) -> int:
     action.add_argument("--resume-pending", action="store_true")
     action.add_argument("--install-requested", action="store_true")
     action.add_argument("--serve-ipc", action="store_true")
+    action.add_argument("--issue-prepare-authority", type=Path, metavar="PRIVATE_REQUEST")
+    action.add_argument("--issue-install-authority", type=Path, metavar="PRIVATE_REQUEST")
     args = parser.parse_args(argv)
+    request_path = args.issue_prepare_authority or args.issue_install_authority
+    if request_path is not None:
+        if os.geteuid() != 0:
+            parser.error("authority issuance requires root")
+        kind = "prepare" if args.issue_prepare_authority else "install"
+        try:
+            request = _read_authority_file(request_path, "ha_usb_authority_request_invalid")
+            status = LocalHaPredecessorRuntime().issue_candidate_authority(HaUsbStateStore(), kind, request)
+        except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as error:
+            response = {"status": "AUTHORITY_NOT_ISSUED"}
+            if isinstance(error, UpdaterV2Error):
+                response["reason"] = str(error)
+            print(json.dumps(response))
+            return 1
+        print(json.dumps({"status": status}))
+        return 0
     return main(
         application_condition=args.check_application_start, pending_only=args.resume_pending,
         install_requested=args.install_requested, serve_ipc=args.serve_ipc,

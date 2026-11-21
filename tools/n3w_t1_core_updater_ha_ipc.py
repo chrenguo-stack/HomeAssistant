@@ -57,6 +57,11 @@ _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _PUBLIC_CODE_RE = re.compile(r"^[a-z0-9_]{3,96}$")
 _HA_IMAGE_VERSION = re.compile(r"local/n3w-homeassistant:([0-9]{4}\.[0-9]{1,2}\.[0-9]{1,3})-[0-9a-f]{8,64}")
 
+
+def ha_image_version(reference: object) -> str | None:
+    match = _HA_IMAGE_VERSION.fullmatch(reference) if isinstance(reference, str) else None
+    return match[1] if match else None
+
 _PHASE_MAP = {
     U0: "DISCOVERED",
     U1: "PREPARE_REQUESTED",
@@ -158,7 +163,7 @@ class LocalApprovedHaRelease:
     def resolve_homeassistant_release(self, release_identity: str) -> HostOtaAdmission:
         try:
             pin = json.loads(_read_local_release_input(self.pin, limit=4096, private=True),
-                             object_pairs_hook=_no_duplicate_object)
+                             object_pairs_hook=reject_duplicate_fields)
             if (
                 not isinstance(pin, dict)
                 or set(pin) != {"schema", "manifest_sha256", "predecessor_image_id", "expires_at_unix"}
@@ -173,7 +178,7 @@ class LocalApprovedHaRelease:
             digest = sha256_bytes(raw)
             if pin["manifest_sha256"] != digest:
                 raise UpdaterV2Error("ha_ota_ipc_release_digest_mismatch")
-            envelope = json.loads(raw, object_pairs_hook=_no_duplicate_object)
+            envelope = json.loads(raw, object_pairs_hook=reject_duplicate_fields)
         except ValueError as error:
             raise UpdaterV2Error("ha_ota_ipc_release_input_invalid") from error
         if (
@@ -238,9 +243,7 @@ class HaUsbIpcExecutor:
             version = None
             if document is not None:
                 key = "target_image_ref" if document["phase"] == U13A else "current_image_ref"
-                match = _HA_IMAGE_VERSION.fullmatch(document[key])
-                if match is not None:
-                    version = match[1]
+                version = ha_image_version(document[key])
             status["installed_version"] = version
         return status
 
@@ -293,7 +296,7 @@ class HaUsbIpcExecutor:
         }
 
     @staticmethod
-    def _require_same_admission(
+    def require_same_admission(
         document: dict[str, Any],
         admission: HostOtaAdmission,
     ) -> None:
@@ -328,14 +331,14 @@ class HaUsbIpcExecutor:
                 document = self.store.read()
                 if document is None:
                     raise UpdaterV2Error("ha_ota_ipc_transaction_missing")
-                self._require_same_admission(document, admission)
+                self.require_same_admission(document, admission)
                 self.store.write(request_install(document))
         if action == "INSTALL" and self.install_ready is not None:
             self.install_ready.set()
         return self.status()
 
 
-def _no_duplicate_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+def reject_duplicate_fields(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in pairs:
         if key in result:
@@ -422,7 +425,7 @@ class HaUsbIpcDispatcher:
             try:
                 document = json.loads(
                     payload.decode("utf-8"),
-                    object_pairs_hook=_no_duplicate_object,
+                    object_pairs_hook=reject_duplicate_fields,
                 )
             except UpdaterV2Error:
                 raise

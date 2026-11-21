@@ -142,6 +142,21 @@ During an OTA transaction, the host status is the version authority for Manager.
 Trial startup and acceptance keep the predecessor version visible until commit.
 A rollback keeps the predecessor version, and a committed transaction reports
 the accepted target even if its approved manifest is later removed.
-The later activation step must verify the staged Compose against the host's
-current configuration and check that the host socket is listening. Installation
-of the recovery bundle leaves the active Compose configuration in place.
+The verified recovery bundle exposes `check-candidate-activation --manifest-sha256
+<digest>`. It checks the installed bundle, the idle transaction store, the
+running predecessor, the armed recovery timer and the Manager socket. It
+compares rendered Compose using the host environment file and accepts only the
+Manager OTA settings and the read-only OTA directory mount. A successful check
+is evidence for a separate activation. The recovery installer stages the file.
+
+For the controlled candidate, the root-owned recovery entry also exposes
+`--issue-prepare-authority PRIVATE_REQUEST` and
+`--issue-install-authority PRIVATE_REQUEST`. The two inputs are separate absolute
+paths to host-owned mode-0600 files. Each input names the observed transaction
+with `transaction_id_sha256` and supplies `expires_at_unix`. Preparation also
+requires `usb_filesystem_uuid`, `target_source`, `max_predecessor_bytes` and
+`usb_reserve_bytes`. Installation requires the approved `binding_sha256`,
+one-use `authorization_id` and `space` budgets. The host revalidates the pinned
+release and derives the launch identity. The issuer saves only the selected
+private grant. The existing worker separately processes the durable request.
+Keep candidate requests and grants out of the exported Manager directory.

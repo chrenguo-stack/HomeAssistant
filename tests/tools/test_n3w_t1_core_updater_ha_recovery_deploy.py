@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import copy
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -79,6 +82,11 @@ def test_exact_package_installs_and_executes_self_contained_recovery(package, tm
         assert (root / target).stat().st_mode & 0o777 == 0o644
     stdout = subprocess.check_output((sys.executable, "-I", installed, "--help"), cwd=tmp_path, text=True)
     assert all(flag in stdout for flag in ("--check-application-start", "--resume-pending", "--install-requested", "--serve-ipc"))
+    assert "--issue-prepare-authority" in stdout and "--issue-install-authority" in stdout
+    check_help = subprocess.check_output(
+        (sys.executable, "-I", installed, "check-candidate-activation", "--help"), cwd=tmp_path, text=True,
+    )
+    assert "--manifest-sha256" in check_help
     assert deploy.install(staged, digest, root=root, systemctl=manager) == result
     assert manager.changes[2:] == [("daemon-reload",)]
 
@@ -111,6 +119,7 @@ def test_candidate_compose_renders_only_the_manager_ota_binding(package, tmp_pat
 
     original = render(base)
     configured = render(candidate)
+    deploy._verify_candidate_delta(original, copy.deepcopy(configured), "2026.10.0")
     manager = configured["services"]["manager"]
     expected = {
         "GH_N3W_T1_OTA_ENABLED": "true",
@@ -131,6 +140,91 @@ def test_candidate_compose_renders_only_the_manager_ota_binding(package, tmp_pat
     with pytest.raises(subprocess.CalledProcessError):
         render(candidate)
     assert render(base) == original
+
+
+@pytest.mark.parametrize("fault", [None, "socket", "version", "mount", "broker", "transaction"])
+def test_activation_preflight_is_read_only(package, tmp_path, monkeypatch, fault):
+    staged, digest, head = package
+    root = tmp_path / "host"
+    root.mkdir()
+    manager = Systemd(root)
+    deploy.install(staged, digest, root=root, systemctl=manager)
+    path = root / IPC_SOCKET.relative_to("/")
+    path.parent.mkdir(parents=True)
+    path.touch()
+    original_lstat = Path.lstat
+
+    def lstat(candidate):
+        if candidate == path:
+            return SimpleNamespace(
+                st_mode=stat.S_IFSOCK | 0o660, st_uid=os.geteuid(), st_gid=deploy.MANAGER_PEER_UID,
+            )
+        return original_lstat(candidate)
+
+    monkeypatch.setattr(Path, "lstat", lstat)
+
+    def unit_status(*args):
+        if args[0] == "is-enabled":
+            return manager(*args)
+        assert args == ("show", "--property=SubState", "--value", deploy.IPC_SOCKET_UNIT)
+        return "dead" if fault == "socket" else "listening"
+
+    ref = "local/n3w-homeassistant:2026.10.0-01234567"
+    active = {"services": {
+        "manager": {"environment": {}, "volumes": [], "image": "manager"},
+        "broker": {"image": "broker"},
+        "homeassistant": {"image": ref},
+    }}
+    proposed = copy.deepcopy(active)
+    proposed["services"]["manager"]["environment"] = deploy._candidate_settings(
+        "2026.10.4" if fault == "version" else "2026.10.0",
+    )
+    proposed["services"]["manager"]["volumes"] = [{
+        "type": "bind", "source": str(IPC_SOCKET.parent), "target": str(IPC_SOCKET.parent),
+        "read_only": fault != "mount", "bind": {"create_host_path": False},
+    }]
+    if fault == "broker":
+        proposed["services"]["broker"]["image"] = "unexpected"
+    if fault == "transaction":
+        store = deploy.V2StateStore(root / deploy.STATE_ROOT_V2.relative_to("/"))
+        store.ha_usb_path.write_text(json.dumps({"schema": HA_USB_TX_SCHEMA_GUARD, "status": "ACTIVE"}))
+        store.ha_usb_path.chmod(0o600)
+
+    observed = {"image_ref": ref, "image_id": "sha256:" + "c" * 64}
+    bound = []
+
+    def capture_binding(document):
+        bound.append(document)
+        return {"images": {name: {"reference": config["image"]} for name, config in active["services"].items()}}
+
+    runtime = SimpleNamespace(
+        _runtime=lambda name: observed,
+        capture_start_binding=capture_binding,
+        image_binding_modes_v2=lambda: {"homeassistant": "dynamic"},
+    )
+
+    def render(candidate):
+        return copy.deepcopy(active if candidate.name == "docker-compose.yml" else proposed)
+
+    errors = {
+        "socket": "candidate_socket_unavailable", "version": "manager_settings_drift",
+        "mount": "manager_mount_drift", "broker": "unexpected_compose_change", "transaction": "transaction_active",
+    }
+    changes = manager.changes[:]
+    if fault:
+        with pytest.raises(UpdaterError, match=errors[fault]):
+            deploy.check_candidate_activation(
+                staged, digest, root=root, runtime=runtime, systemctl=unit_status, render=render,
+            )
+    else:
+        assert deploy.check_candidate_activation(
+            staged, digest, root=root, runtime=runtime, systemctl=unit_status, render=render,
+        ) == {"source_head": head, "status": "CANDIDATE_ACTIVATION_PREFLIGHT_PASS", "predecessor_version": "2026.10.0"}
+        assert bound == [{
+            "current_image_ref": observed["image_ref"], "current_image_identity": {"runtime_image_id": observed["image_id"]},
+        }]
+    assert manager.changes == changes
+    assert not (root / deploy.COMPOSE.relative_to("/")).exists()
 
 
 @pytest.mark.parametrize("fault", ["payload", "candidate_compose", "active_transaction", "existing_file"])

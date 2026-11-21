@@ -965,6 +965,9 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
         ipc = HaUsbIpcDispatcher(HaUsbIpcExecutor(
             store=store, admission_resolver=SimpleNamespace(resolve_homeassistant_release=lambda _: admission),
         ))
+        monkeypatch.setattr(recovery_startup, "LocalApprovedHaRelease", lambda *_: SimpleNamespace(
+            resolve_homeassistant_release=lambda _: admission,
+        ))
         assert recovery_startup.cli(["--install-requested"]) == 0
         assert json.loads(capsys.readouterr().out)["status"] == "NO_ADMITTED_INSTALL_REQUEST"
         def submit(action):
@@ -1007,20 +1010,25 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
         ))
         binding = runtime.capture_start_binding(pending)
         prepare_path = store.root / recovery_startup.PREPARE_AUTHORITY_FILE
-        prepare_path.write_text(json.dumps({
-            "schema": recovery_startup.PREPARE_AUTHORITY_SCHEMA,
+        prepare_request = {
             "transaction_id_sha256": pending["transaction_id_sha256"],
-            "launch_sha256": binding["launch_sha256"],
             "usb_filesystem_uuid": USB_UUID,
             "target_source": str(target_path),
             "max_predecessor_bytes": predecessor.archive_size_bytes,
             "usb_reserve_bytes": 1024,
             "expires_at_unix": 0x7FFFFFFF,
-        }))
-        prepare_path.chmod(0o600)
+        }
         customer_file = usb.root / "customer.txt"
         customer_file.write_bytes(b"keep this file")
         candidate_data = target_path.read_bytes()
+        target_path.write_bytes(b"X" + candidate_data[1:])
+        with pytest.raises(UpdaterV2Error, match="ha_usb_prepare_authority_target_digest_mismatch"):
+            runtime.issue_candidate_authority(store, "prepare", prepare_request)
+        assert not prepare_path.exists() and store.read() == pending
+        target_path.write_bytes(candidate_data)
+        assert runtime.issue_candidate_authority(store, "prepare", prepare_request) == "PREPARE_AUTHORITY_ISSUED"
+        assert prepare_path.stat().st_mode & 0o777 == 0o600
+        assert store.read() == pending and not exports
         target_path.write_bytes(b"X" + candidate_data[1:])
         assert recovery_startup.cli(["--resume-pending"]) == 1
         assert json.loads(capsys.readouterr().out)["status"] == "RECOVERY_STARTUP_NEEDS_REVIEW"
@@ -1077,7 +1085,27 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
             assert runtime.running == {"broker", "manager", "homeassistant"}
             if store.read()["phase"] == U4:
                 assert submit("INSTALL")["accepted"] is True
-        grant_path.write_text(json.dumps(grant))
+        grant_path.unlink()
+        request = {
+            **{key: grant[key] for key in ("binding_sha256", "authorization_id", "expires_at_unix", "space")},
+            "transaction_id_sha256": requested["transaction_id_sha256"],
+        }
+        with pytest.raises(UpdaterV2Error, match="ha_usb_install_authority_invalid"):
+            runtime.issue_candidate_authority(store, "install", {**request, "binding_sha256": "0" * 64})
+        with monkeypatch.context() as replay:
+            replay.setattr(store, "was_authorization_consumed", lambda _: True)
+            with pytest.raises(UpdaterV2Error, match="ha_usb_install_authority_already_consumed"):
+                runtime.issue_candidate_authority(store, "install", request)
+        assert not grant_path.exists()
+        assert runtime.issue_candidate_authority(store, "install", request) == "INSTALL_AUTHORITY_ISSUED"
+        assert grant_path.stat().st_mode & 0o777 == 0o600
+        assert json.loads(grant_path.read_bytes()) == grant
+        assert runtime.issue_candidate_authority(store, "install", request) == "INSTALL_AUTHORITY_ISSUED"
+        with pytest.raises(UpdaterV2Error, match="ha_usb_authority_already_issued"):
+            runtime.issue_candidate_authority(store, "install", {
+                **request, "authorization_id": AUTHORIZATION_ID + "_different",
+            })
+        assert not store.read()["authorization_consumed"]
         assert recovery_startup.cli(["--resume-pending"]) == 0
         assert json.loads(capsys.readouterr().out)["status"] == "COMMITTED"
         committed = store.read()

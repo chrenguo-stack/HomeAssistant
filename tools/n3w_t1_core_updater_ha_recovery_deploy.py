@@ -12,13 +12,16 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from n3w_t1_core_updater_common import SERVICES_UNIT, UpdaterError, sha256_bytes
-from n3w_t1_core_updater_ha_ipc import APPROVED_MANIFEST, IPC_SERVICE_UNIT, IPC_SOCKET, IPC_SOCKET_UNIT
+from n3w_t1_core_updater_common import COMPOSE, COMPOSE_ENV, PROJECT, SERVICES_UNIT, UpdaterError, sha256_bytes
+from n3w_t1_core_updater_ha_ipc import (
+    APPROVED_MANIFEST, IPC_SERVICE_UNIT, IPC_SOCKET, IPC_SOCKET_UNIT, MANAGER_PEER_UID, ha_image_version,
+)
 from n3w_t1_core_updater_ha_recovery_startup import (
     RECOVERY_ARCHIVE,
     RECOVERY_RETRY_UNIT,
     RECOVERY_STARTUP_UNIT,
     RECOVERY_TIMER,
+    LocalHaPredecessorRuntime,
     cli as recovery_cli,
 )
 from n3w_t1_core_updater_v2_common import SHA256, TERMINAL_TX_V2
@@ -64,6 +67,15 @@ MODULES = (
 )
 
 
+def _candidate_settings(version: str) -> dict[str, str]:
+    return {
+        "GH_N3W_T1_OTA_ENABLED": "true",
+        "GH_N3W_T1_OTA_INSTALLED_VERSION": version,
+        "GH_N3W_T1_OTA_MANIFEST_PATH": str(IPC_SOCKET.with_name(APPROVED_MANIFEST)),
+        "GH_N3W_T1_OTA_SOCKET_PATH": str(IPC_SOCKET),
+    }
+
+
 def _candidate_compose(base: bytes) -> bytes:
     """Create the opt-in candidate from the exact fresh stack Compose template."""
     prefix, manager_header, rest = base.decode().partition("\n  manager:\n")
@@ -75,11 +87,10 @@ def _candidate_compose(base: bytes) -> bytes:
         or "GH_N3W_T1_OTA_" in manager or str(IPC_SOCKET.parent) in manager
     ):
         raise UpdaterError("ha_recovery_candidate_compose_template_drift")
-    manager = manager.replace(environment, environment + (
-        '      GH_N3W_T1_OTA_ENABLED: "true"\n'
-        '      GH_N3W_T1_OTA_INSTALLED_VERSION: "${GH_N3W_T1_OTA_INSTALLED_VERSION:?HA predecessor version required}"\n'
-        f'      GH_N3W_T1_OTA_MANIFEST_PATH: "{IPC_SOCKET.with_name(APPROVED_MANIFEST)}"\n'
-        f'      GH_N3W_T1_OTA_SOCKET_PATH: "{IPC_SOCKET}"\n'
+    manager = manager.replace(environment, environment + "".join(
+        f'      {key}: "{value}"\n' for key, value in _candidate_settings(
+            "${GH_N3W_T1_OTA_INSTALLED_VERSION:?HA predecessor version required}"
+        ).items()
     ))
     manager = manager.replace(volumes, volumes + (
         "      - type: bind\n"
@@ -199,17 +210,109 @@ def _systemctl(*args: str, check: bool = True) -> str:
     ).stdout.strip()
 
 
+def _render_candidate_compose(path: Path) -> dict:
+    result = subprocess.run(
+        ("/usr/bin/docker", "compose", "--project-name", PROJECT,
+         "--project-directory", str(COMPOSE.parent), "--env-file", str(COMPOSE_ENV),
+         "-f", str(path), "--profile", "application", "config", "--format", "json"),
+        cwd=COMPOSE.parent, env={"PATH": os.defpath}, capture_output=True, timeout=120,
+    )
+    if result.returncode != 0:
+        raise UpdaterError("ha_recovery_candidate_compose_render_failed")
+    document = json.loads(result.stdout)
+    if not isinstance(document, dict):
+        raise UpdaterError("ha_recovery_candidate_compose_render_invalid")
+    return document
+
+
+def _verify_candidate_delta(active: dict, staged: dict, version: str) -> None:
+    services = staged.get("services")
+    manager = services.get("manager") if isinstance(services, dict) else None
+    environment = manager.get("environment") if isinstance(manager, dict) else None
+    volumes = manager.get("volumes") if isinstance(manager, dict) else None
+    if not isinstance(environment, dict) or not isinstance(volumes, list):
+        raise UpdaterError("ha_recovery_candidate_manager_invalid")
+    expected = _candidate_settings(version)
+    if {key: environment.get(key) for key in expected} != expected:
+        raise UpdaterError("ha_recovery_candidate_manager_settings_drift")
+    mount = {
+        "type": "bind", "source": str(IPC_SOCKET.parent), "target": str(IPC_SOCKET.parent), "read_only": True,
+    }
+    matches = [v for v in volumes if isinstance(v, dict) and v.get("target") == mount["target"]]
+    # Compose omits create_host_path when false in some supported versions.
+    if len(matches) != 1 or matches[0] not in (mount, {**mount, "bind": {"create_host_path": False}}):
+        raise UpdaterError("ha_recovery_candidate_manager_mount_drift")
+    volumes.remove(matches[0])
+    for key in expected:
+        environment.pop(key)
+    if staged != active:
+        raise UpdaterError("ha_recovery_candidate_unexpected_compose_change")
+
+
+def check_candidate_activation(
+    package: Path, expected: str, *, root: Path = Path("/"),
+    runtime=None, systemctl=_systemctl, render=_render_candidate_compose,
+) -> dict:
+    source_head, payload = _verified_package(package, expected)
+    store = V2StateStore(root / STATE_ROOT_V2.relative_to("/"))
+    if not store.root.is_dir():
+        raise UpdaterError("ha_recovery_candidate_install_incomplete")
+    with store.lock():
+        _require_idle(store)
+        for name, destination in DESTINATIONS.items():
+            if not _validate_path(root, root / destination, payload[name]):
+                raise UpdaterError("ha_recovery_candidate_install_incomplete")
+        socket = root / IPC_SOCKET.relative_to("/")
+        metadata = socket.lstat()
+        directory = socket.parent.lstat()
+        if (
+            socket.resolve(strict=True) != socket
+            or not stat.S_ISDIR(directory.st_mode) or directory.st_uid != os.geteuid()
+            or directory.st_mode & 0o022 or directory.st_mode & 0o005 != 0o005
+            or not stat.S_ISSOCK(metadata.st_mode) or metadata.st_uid != os.geteuid()
+            or metadata.st_gid != MANAGER_PEER_UID or stat.S_IMODE(metadata.st_mode) != 0o660
+            or systemctl("is-enabled", IPC_SOCKET_UNIT) != "enabled"
+            or systemctl("show", "--property=SubState", "--value", IPC_SOCKET_UNIT) not in {"listening", "running"}
+        ):
+            raise UpdaterError("ha_recovery_candidate_socket_unavailable")
+        runtime = LocalHaPredecessorRuntime() if runtime is None else runtime
+        observed = runtime._runtime("homeassistant")
+        version = ha_image_version(observed["image_ref"])
+        if version is None:
+            raise UpdaterError("ha_recovery_candidate_predecessor_version_unknown")
+        binding = runtime.capture_start_binding({
+            "current_image_ref": observed["image_ref"],
+            "current_image_identity": {"runtime_image_id": observed["image_id"]},
+        })
+        active = render(root / COMPOSE.relative_to("/"))
+        services = active.get("services")
+        if not isinstance(services, dict) or any(
+            not isinstance(services.get(name), dict) or services[name].get("image") != image["reference"]
+            for name, image in binding["images"].items()
+        ):
+            raise UpdaterError("ha_recovery_candidate_active_compose_image_drift")
+        if runtime.image_binding_modes_v2().get("homeassistant") != "dynamic":
+            raise UpdaterError("ha_recovery_candidate_predecessor_binding_not_dynamic")
+        candidate = root / DESTINATIONS[CANDIDATE_COMPOSE]
+        _verify_candidate_delta(active, render(candidate), version)
+    return {"source_head": source_head, "status": "CANDIDATE_ACTIVATION_PREFLIGHT_PASS", "predecessor_version": version}
+
+
+def _require_idle(store: V2StateStore) -> None:
+    for transaction, terminal in (
+        (store.read(), TERMINAL_TX_V2),
+        (store.read_legacy(), {"COMMITTED", "ROLLED_BACK"}),
+        (store.read_ha_usb_guard(), {"COMMITTED", "ROLLED_BACK"}),
+    ):
+        if transaction is not None and transaction.get("status") not in terminal:
+            raise UpdaterError("ha_recovery_install_transaction_active")
+
+
 def install(package: Path, expected: str, *, root: Path = Path("/"), systemctl=_systemctl) -> dict:
     source_head, payload = _verified_package(package, expected)
     store = V2StateStore(root / STATE_ROOT_V2.relative_to("/"))
     with store.lock():
-        for transaction, terminal in (
-            (store.read(), TERMINAL_TX_V2),
-            (store.read_legacy(), {"COMMITTED", "ROLLED_BACK"}),
-            (store.read_ha_usb_guard(), {"COMMITTED", "ROLLED_BACK"}),
-        ):
-            if transaction is not None and transaction.get("status") not in terminal:
-                raise UpdaterError("ha_recovery_install_transaction_active")
+        _require_idle(store)
         targets = {name: root / relative for name, relative in DESTINATIONS.items()}
         existing = {name: _validate_path(root, target, payload[name]) for name, target in targets.items()}
         created: list[Path] = []
@@ -254,14 +357,16 @@ def install(package: Path, expected: str, *, root: Path = Path("/"), systemctl=_
 
 
 def bundle_main() -> int:
-    if sys.argv[1:2] != ["install"]:
+    action = sys.argv[1:2]
+    if action not in (["install"], ["check-candidate-activation"]):
         return recovery_cli()
-    parser = argparse.ArgumentParser(prog="ha-recovery.pyz install")
+    parser = argparse.ArgumentParser(prog=f"ha-recovery.pyz {action[0]}")
     parser.add_argument("--manifest-sha256", required=True)
     args = parser.parse_args(sys.argv[2:])
     if os.geteuid() != 0:
-        parser.error("installation requires root")
-    print(json.dumps(install(Path(sys.argv[0]).resolve().parent, args.manifest_sha256), sort_keys=True))
+        parser.error("this command requires root")
+    operation = install if action == ["install"] else check_candidate_activation
+    print(json.dumps(operation(Path(sys.argv[0]).resolve().parent, args.manifest_sha256), sort_keys=True))
     return 0
 
 
