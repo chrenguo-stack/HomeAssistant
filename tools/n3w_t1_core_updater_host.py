@@ -1301,6 +1301,59 @@ class LocalHost:
                 f"{component}_binding_restore_failed"
             ) from error
 
+    @staticmethod
+    def _broker_recovery_module():
+        # Broker recovery is an optional component adapter dependency. Keep it
+        # lazy so existing HA/Manager self-contained recovery bundles that
+        # import LocalHost do not need Broker-only implementation modules.
+        import n3w_t1_core_updater_broker_recovery as broker_recovery
+
+        return broker_recovery
+
+    def _broker_recovery(self):
+        module = self._broker_recovery_module()
+        return module.LocalBrokerRecoveryPoint()
+
+    def broker_recovery_preflight(self) -> dict[str, Any]:
+        module = self._broker_recovery_module()
+        try:
+            return module.LocalBrokerRecoveryPoint().preflight()
+        except module.BrokerRecoveryError as error:
+            raise UpdaterError(str(error)) from error
+
+    def create_broker_recovery_point(self, key: str) -> dict[str, Any]:
+        if (
+            self._systemctl("is-active", SERVICES_UNIT) not in {"inactive", "failed"}
+            or self._systemctl("is-active", BROKER_UNIT) not in {"inactive", "failed"}
+            or self._running_count("manager")
+            or self._running_count("homeassistant")
+            or self._running_count("broker")
+        ):
+            raise UpdaterError("broker_recovery_writers_not_quiescent")
+        module = self._broker_recovery_module()
+        try:
+            return module.LocalBrokerRecoveryPoint().create(key)
+        except module.BrokerRecoveryError as error:
+            raise UpdaterError(str(error)) from error
+
+    def restore_broker_recovery_point(
+        self,
+        record: dict[str, Any],
+    ) -> dict[str, Any]:
+        if (
+            self._systemctl("is-active", SERVICES_UNIT) not in {"inactive", "failed"}
+            or self._systemctl("is-active", BROKER_UNIT) not in {"inactive", "failed"}
+            or self._running_count("manager")
+            or self._running_count("homeassistant")
+            or self._running_count("broker")
+        ):
+            raise UpdaterError("broker_recovery_writers_not_quiescent")
+        module = self._broker_recovery_module()
+        try:
+            return module.LocalBrokerRecoveryPoint().restore(record)
+        except module.BrokerRecoveryError as error:
+            raise UpdaterError(str(error)) from error
+
     def stop_broker(self) -> None:
         self._run(("systemctl", "stop", BROKER_UNIT), timeout=120)
         if self._systemctl("is-active", BROKER_UNIT) not in {
