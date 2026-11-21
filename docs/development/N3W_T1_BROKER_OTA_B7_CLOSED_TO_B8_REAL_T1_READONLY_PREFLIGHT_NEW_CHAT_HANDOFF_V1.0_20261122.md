@@ -5,7 +5,7 @@
 ## 1. 目标与停点
 
 - 任务／交接原因：继续 T1 Core Stack OTA V1.2 的 Broker OTA 路线。B1–B7 已完成源码、Recovery Point、宿主接管、exact package、Mosquitto 2.1.4 target freeze、隔离 A→B 与独立源码复核。本次切换新会话，下一唯一执行 gate 为 `N3W_T1_BROKER_OTA_B8_REAL_T1_READONLY_PREFLIGHT_20261121_01`。
-- 已完成到：B6 `CLOSED_PASS`；B7 `CLOSED_PASS`；B8 exact candidate set 已冻结；PR #820 docs-head `ad37f39c108631d252fe1972f16c8602d00cafa7` 的 18 个 workflow 全部 SUCCESS。
+- 已完成到：B6 `CLOSED_PASS`；B7 `CLOSED_PASS`；B8 exact candidate set 已冻结；PR #820 交接前已验证 docs-head `ad37f39c108631d252fe1972f16c8602d00cafa7` 的 18 个 workflow 全部 SUCCESS；本 handoff 归档会产生新的 docs-only head，新会话必须 fresh rebind，不把 handoff 内的 pre-handoff SHA 当作当前 PR head。
 - 当前状态：`READY_TO_ENTER_B8_READONLY_PREFLIGHT`。用户在本次交接请求中明确要求“在新对话进入 NEXT_ONE_GATE”，因此 B8 gate-entry / T1 read-only preflight 已授权；尚未执行任何真实 T1 访问。本授权不包含任何写入、安装、服务启停、Broker apply、重启/断电、merge 或 release。
 
 ```text
@@ -23,7 +23,7 @@ AUTO_EXECUTE_AFTER_B8=false
 ## 2. 代码与证据
 
 - 仓库／分支／PR：`chrenguo-stack/HomeAssistant`；`feat/t1-broker-ota-b6-target-simulation-20261121`；Draft PR #820：https://github.com/chrenguo-stack/HomeAssistant/pull/820
-- 核对时 main／本任务源码：`main=4fde1b7c5cc0aa224fa3574b8b4cc638edd93647`；PR #820 docs-head=`ad37f39c108631d252fe1972f16c8602d00cafa7`；B7 executable source authority=`dbc4f1ca5ce90f39e64887fb361d074ec51a7130`。
+- 核对时 main／本任务源码：`main=4fde1b7c5cc0aa224fa3574b8b4cc638edd93647`；PR #820 **pre-handoff validated docs-head**=`ad37f39c108631d252fe1972f16c8602d00cafa7`；B7 executable source authority=`dbc4f1ca5ce90f39e64887fb361d074ec51a7130`。交接归档之后的 PR #820 current head 必须由新会话 fresh rebind。
 - 证据入口：
   - B6/B7 current authority：`docs/development/N3W_CURRENT_STATE.md` 顶部 2026-11-21 B6/B7 section。
   - B7 closure：`docs/development/N3W_T1_BROKER_OTA_V1_0_B7_INDEPENDENT_SOURCE_REVIEW_AND_B8_CANDIDATE_CLOSURE_20261121.md`。

@@ -4,8 +4,8 @@
 
 ```text
 CURRENT_HANDOFF=docs/development/N3W_T1_BROKER_OTA_B7_CLOSED_TO_B8_REAL_T1_READONLY_PREFLIGHT_NEW_CHAT_HANDOFF_V1.0_20261122.md
-PR820_DOCS_HEAD=ad37f39c108631d252fe1972f16c8602d00cafa7
-PR820_DOCS_HEAD_CI=18/18_SUCCESS
+PR820_PRE_HANDOFF_VALIDATED_HEAD=ad37f39c108631d252fe1972f16c8602d00cafa7
+PR820_PRE_HANDOFF_VALIDATED_HEAD_CI=18/18_SUCCESS
 MAIN_HEAD_AT_HANDOFF=4fde1b7c5cc0aa224fa3574b8b4cc638edd93647
 
 NEXT_ONE_GATE=N3W_T1_BROKER_OTA_B8_REAL_T1_READONLY_PREFLIGHT_20261121_01
@@ -28,7 +28,7 @@ MERGE=false
 RELEASE=false
 ```
 
-User explicitly directed the next conversation to enter B8. This grants the B8 real-T1 read-only preflight scope only. It does not authorize installation, target image load/apply, service mutation, reboot/power-loss testing, merge, or release. The handoff preserves B9–B12 as planned successors only; B8 remains the only executable next gate.
+User explicitly directed the next conversation to enter B8. This grants the B8 real-T1 read-only preflight scope only. The handoff archive itself is docs-only and intentionally does not freeze its own resulting PR head; the new conversation must fresh rebind PR #820 before B8. It does not authorize installation, target image load/apply, service mutation, reboot/power-loss testing, merge, or release. The handoff preserves B9–B12 as planned successors only; B8 remains the only executable next gate.
 
 ### 2026-11-21 — Broker OTA B6/B7 target freeze and independent source review CLOSED_PASS
 

@@ -3,7 +3,7 @@
 ### 2026-11-22 — B8 handoff / authorization alignment
 
 - Formal handoff: [`N3W_T1_BROKER_OTA_B7_CLOSED_TO_B8_REAL_T1_READONLY_PREFLIGHT_NEW_CHAT_HANDOFF_V1.0_20261122.md`](N3W_T1_BROKER_OTA_B7_CLOSED_TO_B8_REAL_T1_READONLY_PREFLIGHT_NEW_CHAT_HANDOFF_V1.0_20261122.md), template 1.4.
-- `main=4fde1b7c5cc0aa224fa3574b8b4cc638edd93647`; PR #820 docs-head `ad37f39c108631d252fe1972f16c8602d00cafa7`; docs-head validation 18/18 SUCCESS.
+- `main=4fde1b7c5cc0aa224fa3574b8b4cc638edd93647`; PR #820 pre-handoff validated head `ad37f39c108631d252fe1972f16c8602d00cafa7`; that head passed 18/18 workflows. The handoff archive adds docs-only commits, so the new conversation must fresh rebind the actual current PR head.
 - User explicitly authorized entry into `N3W_T1_BROKER_OTA_B8_REAL_T1_READONLY_PREFLIGHT_20261121_01` in the next conversation. Scope is real-T1 read-only preflight only; no live mutation/reboot/merge/release authority.
 - B8 candidate remains target artifact `14713718457` plus Recovery Support artifact `14714301747` from executable source `dbc4f1ca5ce90f39e64887fb361d074ec51a7130`.
 - Docs-only rerun Recovery Support artifact `14714610810` is recorded but not auto-promoted as B8 candidate.
