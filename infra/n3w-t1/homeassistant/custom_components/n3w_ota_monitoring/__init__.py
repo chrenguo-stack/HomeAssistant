@@ -28,7 +28,18 @@ def _record(prefix, message):
         document = json.loads(message.payload)
     except (ValueError, RecursionError):
         return None
-    if not isinstance(document, dict) or document.get("schema") != "gh.telemetry/1":
+    if not isinstance(document, dict):
+        return None
+    if message.topic == f"{prefix}/ota-monitoring/self-test":
+        challenge = document.get("challenge")
+        if (
+            set(document) == {"schema", "challenge"}
+            and document["schema"] == "gh.ota-monitoring-self-test/1"
+            and isinstance(challenge, str) and re.fullmatch(r"[0-9a-f]{32}", challenge)
+        ):
+            return ["self-test", challenge, time.monotonic_ns()]
+        return None
+    if document.get("schema") != "gh.telemetry/1":
         return None
     node, boot, seq, received = (
         document.get(key) for key in ("node_id", "boot_id", "seq", "received_at")
@@ -99,6 +110,9 @@ async def async_setup(hass, config):
     async def subscribe():
         if await mqtt.async_wait_for_mqtt_client(hass):
             await mqtt.async_subscribe(hass, f"{prefix}/+/telemetry", receive, qos=1, encoding=None)
+            await mqtt.async_subscribe(
+                hass, f"{prefix}/ota-monitoring/self-test", receive, qos=0, encoding=None,
+            )
 
     hass.async_create_background_task(subscribe(), "n3w_ota_monitoring_subscribe")
     return True

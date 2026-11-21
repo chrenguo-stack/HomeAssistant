@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import json
 import re
+import secrets
 import sqlite3
-from subprocess import TimeoutExpired
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from subprocess import TimeoutExpired
 from typing import Any
 
 from n3w_t1_core_updater_common import UpdaterError
@@ -19,6 +20,29 @@ from n3w_t1_core_updater_v2_common import UpdaterV2Error, canonical, sha256_byte
 MAX_RECEIPT_BYTES = 8192
 MAX_AGE_SECONDS = 30
 SERVICES = ("manager", "broker", "homeassistant")
+SELF_TEST_TIMEOUT_SECONDS = 8
+REQUEST_MANAGER_SELF_TEST = """
+import json
+import os
+import sys
+import tempfile
+from pathlib import Path
+from subprocess import TimeoutExpired
+
+target = Path("/dev/shm/n3w-ota-monitoring-request.json")
+document = {"challenge": sys.argv[1], "requested_ns": int(sys.argv[2])}
+with tempfile.NamedTemporaryFile(mode="w", dir=target.parent, delete=False) as stream:
+    temporary = Path(stream.name)
+    try:
+        json.dump(document, stream)
+        stream.close()
+        os.replace(temporary, target)
+    finally:
+        temporary.unlink(missing_ok=True)
+"""
+_OBSERVATION_ERRORS = (
+    OSError, ValueError, RecursionError, sqlite3.Error, TimeoutExpired, UpdaterError, UpdaterV2Error,
+)
 CURSOR_QUERY = """
     SELECT boot_session_hex, seq, updated_at, last_source
     FROM n3w_canonical_cursors WHERE node_id = ?
@@ -29,6 +53,7 @@ import json
 import os
 import stat
 from pathlib import Path
+from subprocess import TimeoutExpired
 
 fd = os.open("/dev/shm/n3w-ota-monitoring.json", os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
 with os.fdopen(fd, "rb") as stream:
@@ -71,11 +96,13 @@ class LocalHaMonitoringEvidence:
     def __init__(
         self, system_id: str, replay_db: Path,
         runtime: Callable[[str], dict[str, Any]], read_receipts: Callable[[str], bytes],
+        request_self_test: Callable[[str, str, int], None] | None = None,
     ) -> None:
         self.system_id = system_id
         self.replay_db = replay_db
         self.runtime = runtime
         self.read_receipts = read_receipts
+        self.request_self_test = request_self_test
 
     def capture_baseline(self, transaction: dict[str, Any]) -> str:
         evidence = self._observe()
@@ -92,19 +119,54 @@ class LocalHaMonitoringEvidence:
     def _observe(self) -> str | None:
         try:
             return self._match()
-        except (OSError, ValueError, RecursionError, sqlite3.Error, TimeoutExpired, UpdaterError, UpdaterV2Error):
+        except _OBSERVATION_ERRORS:
             return None
+
+    def run_self_test(self) -> HaAcceptanceEvidence:
+        """Exercise the existing Manager client only from an updater action."""
+        if self.request_self_test is None:
+            return HaAcceptanceEvidence("EVIDENCE_UNAVAILABLE")
+        try:
+            instances = {name: self.runtime(name) for name in SERVICES}
+            challenge = secrets.token_hex(16)
+            started = time.monotonic_ns()
+            self.request_self_test(instances["manager"]["container_id"], challenge, started)
+            deadline = started + SELF_TEST_TIMEOUT_SECONDS * 10**9
+            while time.monotonic_ns() < deadline:
+                try:
+                    records = self._records(instances["homeassistant"]["container_id"])
+                except UpdaterError:
+                    records = []
+                now = time.monotonic_ns()
+                for record in records:
+                    if (
+                        isinstance(record, list) and len(record) == 3
+                        and record[:2] == ["self-test", challenge]
+                        and type(record[2]) is int and started <= record[2] <= min(now, deadline)
+                    ):
+                        if any(self.runtime(name) != instance for name, instance in instances.items()):
+                            return HaAcceptanceEvidence("EVIDENCE_UNAVAILABLE")
+                        digest = sha256_bytes(canonical({"system_id": self.system_id, "receipt": record}))
+                        return HaAcceptanceEvidence("PASS", digest)
+                time.sleep(0.25)
+        except _OBSERVATION_ERRORS:
+            pass
+        return HaAcceptanceEvidence("EVIDENCE_UNAVAILABLE")
+
+    def _records(self, container_id: str) -> list[Any]:
+        raw = self.read_receipts(container_id)
+        if len(raw) > MAX_RECEIPT_BYTES:
+            return []
+        receipt = json.loads(raw)
+        if not isinstance(receipt, dict) or receipt.get("system_id") != self.system_id:
+            return []
+        records = receipt.get("records")
+        return records if isinstance(records, list) and len(records) <= 16 else []
 
     def _match(self) -> str | None:
         instances = {name: self.runtime(name) for name in SERVICES}
-        raw = self.read_receipts(instances["homeassistant"]["container_id"])
-        if len(raw) > MAX_RECEIPT_BYTES:
-            return None
-        receipt = json.loads(raw)
-        if not isinstance(receipt, dict) or receipt.get("system_id") != self.system_id:
-            return None
-        records = receipt.get("records")
-        if not isinstance(records, list) or len(records) > 16:
+        records = self._records(instances["homeassistant"]["container_id"])
+        if not records:
             return None
 
         now = datetime.now(UTC)

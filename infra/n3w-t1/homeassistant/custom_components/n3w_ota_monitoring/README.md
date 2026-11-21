@@ -15,9 +15,17 @@ n3w_ota_monitoring:
   system_id: greenhouse
 ```
 
-The component uses the existing HA broker identity. It publishes no MQTT
-messages and writes no Recorder state. The source integration is opt-in.
-Enablement in an acceptance environment belongs to a later preflight and
-deployment step. When no fresh natural telemetry is available, this method
-returns evidence unavailable. Maintenance self-test and rollback monitoring
-acceptance remain separate implementation work.
+The component uses the existing HA broker identity and writes no Recorder
+state. Enablement in an acceptance environment belongs to a later preflight
+and deployment step.
+
+The maintenance path needs an OTA-enabled Manager with this source. If
+the running predecessor has no eligible natural telemetry, the updater
+can qualify the maintenance method before the first service stop. With that
+method qualified, an upgrade or rollback worker can ask the running Manager
+to publish one non-retained challenge on a dedicated state topic. HA's
+receipt must match that specific live challenge. Neither the challenge
+nor its receipt creates an entity, invokes discovery or writes sensor
+history. A status query has no request path. During rollback, inconclusive
+monitoring evidence leaves the restored services running and the journal
+pending for a later check.

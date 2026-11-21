@@ -17,11 +17,15 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
 
-from n3w_t1_core_updater_ha_acceptance import NATURAL_MONITORING_METHOD
-from n3w_t1_core_updater_ha_monitoring_evidence import (
-    LocalHaMonitoringEvidence, READ_HA_RECEIPTS, SERVICES,
+from n3w_t1_core_updater_ha_acceptance import (
+    NATURAL_MONITORING_METHOD, SELF_TEST_MONITORING_METHOD, HaAcceptanceEvidence, LocalHaAcceptanceObserver,
 )
-from n3w_t1_core_updater_ha_recovery_startup import LocalHaPredecessorRuntime
+import n3w_t1_core_updater_ha_monitoring_evidence as monitoring_module
+from n3w_t1_core_updater_ha_monitoring_evidence import (
+    LocalHaMonitoringEvidence, READ_HA_RECEIPTS, REQUEST_MANAGER_SELF_TEST, SERVICES,
+)
+from n3w_t1_core_updater_ha_recovery_startup import HaRecoveryMonitoringPending, LocalHaPredecessorRuntime
+from n3w_t1_core_updater_ha_usb import _observe_target
 from n3w_t1_core_updater_v2_common import UpdaterV2Error
 
 
@@ -29,6 +33,7 @@ SYSTEM = "test-greenhouse"
 NODE = "node_0001"
 BOOT = "boot_0000000000000001"
 TOPIC = f"gh/v1/{SYSTEM}/state/{NODE}/telemetry"
+SELF_TEST_TOPIC = f"gh/v1/{SYSTEM}/state/ota-monitoring/self-test"
 
 
 def stamp(seconds_ago: int) -> str:
@@ -80,11 +85,17 @@ def test_ha_client_delivery_correlates_with_manager_cursor(monkeypatch, tmp_path
         reader = READ_HA_RECEIPTS.replace('"/dev/shm/n3w-ota-monitoring.json"', repr(str(receipt_path)))
         return subprocess.check_output((sys.executable, "-I", "-c", reader), timeout=5)
 
+    subscriptions = {}
+
     async def exercise():
         async def wait_for_client(hass):
             return True
 
         async def subscribe(hass, topic, callback, **options):
+            subscriptions[topic] = callback
+            if topic == SELF_TEST_TOPIC:
+                assert options == {"qos": 0, "encoding": None}
+                return
             assert topic == f"gh/v1/{SYSTEM}/state/+/telemetry"
             assert options == {"qos": 1, "encoding": None}
             for message in (
@@ -119,6 +130,27 @@ def test_ha_client_delivery_correlates_with_manager_cursor(monkeypatch, tmp_path
     assert len(proof) == 64
     raw = receipt_path.read_bytes()
     assert b"24.5" not in raw and receipt_path.stat().st_mode & 0o777 == 0o600
+
+    request_path = tmp_path / "request.json"
+
+    def request(container_id, challenge, started):
+        assert container_id == "manager"
+        writer = REQUEST_MANAGER_SELF_TEST.replace(
+            '"/dev/shm/n3w-ota-monitoring-request.json"', repr(str(request_path)),
+        )
+        subprocess.run((sys.executable, "-I", "-c", writer, challenge, str(started)), check=True, timeout=5)
+        assert request_path.stat().st_mode & 0o777 == 0o600
+        document = json.loads(request_path.read_bytes())
+        assert document == {"challenge": challenge, "requested_ns": started}
+        probe = json.dumps({"schema": "gh.ota-monitoring-self-test/1", "challenge": document["challenge"]}).encode()
+        receive = subscriptions[SELF_TEST_TOPIC]
+        asyncio.run(receive(SimpleNamespace(topic=SELF_TEST_TOPIC, payload=probe, retain=True)))
+        assert receipt_path.read_bytes() == raw
+        asyncio.run(receive(SimpleNamespace(topic=SELF_TEST_TOPIC, payload=probe, retain=False)))
+
+    scenario.observer.request_self_test = request
+    assert scenario.observer.run_self_test().verdict == "PASS"
+    assert scenario.observer.observe({}, fallback=False).sha256 == proof
 
 
 @pytest.mark.parametrize(
@@ -173,3 +205,74 @@ def test_runtime_wires_live_observer_from_bound_mounts(monkeypatch, tmp_path):
     assert observer.monitoring.system_id == SYSTEM
     assert observer.monitoring.replay_db == tmp_path / "replay.sqlite3"
     assert observer.protected_data.history == tmp_path / "home-assistant_v2.db"
+
+
+@pytest.mark.parametrize("fault", ["wrong_challenge", "stale_receipt", "instance_changed"])
+def test_self_test_requires_current_challenge_and_runtime(monkeypatch, scenario, fault):
+    clock = 2_000_000_000
+    monkeypatch.setattr(monitoring_module, "SELF_TEST_TIMEOUT_SECONDS", 1)
+
+    def sleep(seconds):
+        nonlocal clock
+        clock += int(seconds * 10**9)
+
+    monkeypatch.setattr(monitoring_module, "time", SimpleNamespace(monotonic_ns=lambda: clock, sleep=sleep))
+
+    def request(_, challenge, started):
+        receipt_challenge = "invalid" if fault == "wrong_challenge" else challenge
+        stamp_ns = started - 1 if fault == "stale_receipt" else started
+        scenario.receipt["records"] = [["self-test", receipt_challenge, stamp_ns]]
+        if fault == "instance_changed":
+            scenario.runtimes["broker"] = {"started_at": stamp(0), "container_id": "replaced"}
+
+    scenario.observer.request_self_test = request
+    assert scenario.observer.run_self_test().verdict == "EVIDENCE_UNAVAILABLE"
+
+
+def test_only_preverified_method_can_issue_target_self_test(monkeypatch, scenario):
+    import n3w_t1_core_updater_ha_usb as ha_usb
+
+    actions = []
+
+    def exercise():
+        actions.append("request")
+        return HaAcceptanceEvidence("PASS", "3" * 64)
+
+    observer = LocalHaAcceptanceObserver(
+        scenario.observer, SimpleNamespace(capture=lambda: {"history": None, "pairing": None}),
+        monitoring_method=NATURAL_MONITORING_METHOD, self_test=exercise,
+    )
+    assert observer.capture_baseline({}).monitoring_method == NATURAL_MONITORING_METHOD
+    assert actions == []
+
+    scenario.receipt["records"] = []
+    baseline = observer.capture_baseline({})
+    assert baseline.monitoring_method == SELF_TEST_MONITORING_METHOD
+    assert baseline.checks["monitoring_path"] == "3" * 64
+    assert actions == ["request"]
+
+    monkeypatch.setattr(ha_usb, "validate_transaction_document", lambda document: document)
+    target = {"target_acceptance": {"monitoring_method": NATURAL_MONITORING_METHOD}}
+    assert _observe_target(observer, target, "monitoring_path", fallback=True).verdict == "EVIDENCE_UNAVAILABLE"
+    assert actions == ["request"]
+    target["target_acceptance"]["monitoring_method"] = SELF_TEST_MONITORING_METHOD
+    assert _observe_target(observer, target, "monitoring_path", fallback=False).verdict == "EVIDENCE_UNAVAILABLE"
+    assert actions == ["request"]
+    assert _observe_target(observer, target, "monitoring_path", fallback=True).verdict == "PASS"
+    assert actions == ["request", "request"]
+
+
+def test_rollback_observes_restored_path_before_terminal_status(monkeypatch, scenario):
+    runtime = LocalHaPredecessorRuntime()
+    monkeypatch.setattr(runtime, "_monitoring_evidence", lambda _: scenario.observer)
+    document = {"target_acceptance": {"monitoring_method": NATURAL_MONITORING_METHOD}}
+    scenario.runtimes["homeassistant"]["started_at"] = stamp(1)
+    with pytest.raises(HaRecoveryMonitoringPending, match="monitoring_evidence_pending"):
+        runtime._verify_recovered_monitoring(document, {})
+
+    def request(_, challenge, started):
+        scenario.receipt["records"] = [["self-test", challenge, started]]
+
+    scenario.observer.request_self_test = request
+    document["target_acceptance"]["monitoring_method"] = SELF_TEST_MONITORING_METHOD
+    runtime._verify_recovered_monitoring(document, {})

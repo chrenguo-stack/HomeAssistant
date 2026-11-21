@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any, BinaryIO, Protocol
 
 from n3w_t1_core_updater_ha_acceptance import (
-    HA_ACCEPTANCE_ATTEMPTS, HA_ACCEPTANCE_CHECKS, HA_ACCEPTANCE_RULE,
+    HA_ACCEPTANCE_ATTEMPTS, HA_ACCEPTANCE_CHECKS, HA_ACCEPTANCE_RULE, SELF_TEST_MONITORING_METHOD,
     HaAcceptanceBaseline, HaAcceptanceEvidence, HaAcceptanceObserver, expected_target_images, valid_evidence_set,
 )
 from n3w_t1_core_updater_ha_backup import (
@@ -545,7 +545,14 @@ def _observe_target(
     observer: HaAcceptanceObserver, document: dict[str, Any], check: str, *, fallback: bool,
 ) -> HaAcceptanceEvidence:
     try:
-        evidence = observer.observe(validate_transaction_document(document), check, fallback=fallback)
+        validated = validate_transaction_document(document)
+        if (
+            fallback and check == "monitoring_path"
+            and validated["target_acceptance"].get("monitoring_method") == SELF_TEST_MONITORING_METHOD
+        ):
+            evidence = observer.run_monitoring_self_test()
+        else:
+            evidence = observer.observe(validated, check, fallback=fallback)
         if isinstance(evidence, HaAcceptanceEvidence):
             if evidence.verdict == "PROVEN_FAIL":
                 return evidence

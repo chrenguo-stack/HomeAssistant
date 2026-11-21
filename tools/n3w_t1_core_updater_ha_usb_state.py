@@ -14,7 +14,7 @@ from typing import Any
 
 from n3w_t1_core_updater_common import IMAGE_ID
 from n3w_t1_core_updater_ha_acceptance import (
-    HA_ACCEPTANCE_ATTEMPTS, HA_ACCEPTANCE_RULE, NATURAL_MONITORING_METHOD,
+    HA_ACCEPTANCE_ATTEMPTS, HA_ACCEPTANCE_RULE, MONITORING_METHODS,
     expected_target_images, valid_evidence_set,
 )
 from n3w_t1_core_updater_ha_backup import backup_record_from_document
@@ -278,7 +278,7 @@ def _validate_target_acceptance(document: dict[str, Any]) -> None:
     ):
         raise UpdaterV2Error(reason)
     if "monitoring_method" in state and (
-        state["monitoring_method"] != NATURAL_MONITORING_METHOD or "data_sample" not in state
+        state["monitoring_method"] not in MONITORING_METHODS or "data_sample" not in state
     ):
         raise UpdaterV2Error(reason)
     if "data_sample" in state and (

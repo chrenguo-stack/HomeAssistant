@@ -23,10 +23,14 @@ from n3w_t1_core_updater_common import (
     canonical,
     sha256_bytes,
 )
-from n3w_t1_core_updater_ha_acceptance import NATURAL_MONITORING_METHOD, LocalHaAcceptanceObserver
+from n3w_t1_core_updater_ha_acceptance import (
+    NATURAL_MONITORING_METHOD, SELF_TEST_MONITORING_METHOD, LocalHaAcceptanceObserver,
+)
 from n3w_t1_core_updater_ha_backup import DEFAULT_HA_DATA_ROOT, HA_DATABASE_NAME, ProtectedHaDataBackup
 from n3w_t1_core_updater_ha_data_evidence import MANAGER_PAIRING_DB, HaProtectedDataEvidence
-from n3w_t1_core_updater_ha_monitoring_evidence import LocalHaMonitoringEvidence, READ_HA_RECEIPTS
+from n3w_t1_core_updater_ha_monitoring_evidence import (
+    LocalHaMonitoringEvidence, READ_HA_RECEIPTS, REQUEST_MANAGER_SELF_TEST,
+)
 from n3w_t1_core_updater_ha_mounted_media import HaMountedBackupProvider, bound_usb_device
 from n3w_t1_core_updater_ha_usb import (
     HaDataRestoreProvider, HaPredecessorRelease, destructive_cutover_allowed, ha_data_rollback_required,
@@ -66,6 +70,10 @@ class HaRecoveryMediaRequired(UpdaterError):
     pass
 
 
+class HaRecoveryMonitoringPending(UpdaterError):
+    pass
+
+
 class LocalHaPredecessorRuntime(LocalHost):
     ha_data_root = DEFAULT_HA_DATA_ROOT
 
@@ -73,6 +81,13 @@ class LocalHaPredecessorRuntime(LocalHost):
         binding, origins = self._restart_binding()
         if not all(self._check_running_predecessor(binding, origins).values()):
             raise UpdaterError("ha_usb_predecessor_acceptance_runtime_unavailable")
+        monitoring = self._monitoring_evidence(origins)
+        return LocalHaAcceptanceObserver(
+            monitoring, _protected_data_evidence(origins), monitoring_method=NATURAL_MONITORING_METHOD,
+            self_test=monitoring.run_self_test,
+        )
+
+    def _monitoring_evidence(self, origins: dict[str, dict[str, str]]) -> LocalHaMonitoringEvidence:
         environment = self.render_compose()["services"]["manager"]["environment"]
         system_id = environment["GH_SYSTEM_ID"]
         replay_root = "/var/lib/greenhouse-manager/n3w"
@@ -81,18 +96,21 @@ class LocalHaPredecessorRuntime(LocalHost):
             or environment.get("GH_N3W_REPLAY_DB_PATH") != f"{replay_root}/replay.sqlite3"
         ):
             raise UpdaterError("ha_usb_natural_monitoring_binding_invalid")
-        monitoring = LocalHaMonitoringEvidence(
+        return LocalHaMonitoringEvidence(
             system_id, Path(origins["manager"][replay_root]) / "replay.sqlite3",
-            self._runtime, self._read_ha_receipts,
-        )
-        return LocalHaAcceptanceObserver(
-            monitoring, _protected_data_evidence(origins), monitoring_method=NATURAL_MONITORING_METHOD,
+            self._runtime, self._read_ha_receipts, self._request_ha_monitoring_self_test,
         )
 
     def _read_ha_receipts(self, container_id: str) -> bytes:
         return self._run(
             ("docker", "exec", container_id, "python3", "-I", "-c", READ_HA_RECEIPTS), timeout=5,
         ).stdout
+
+    def _request_ha_monitoring_self_test(self, container_id: str, challenge: str, started_ns: int) -> None:
+        self._run((
+            "docker", "exec", container_id, "python3", "-I", "-c", REQUEST_MANAGER_SELF_TEST,
+            challenge, str(started_ns),
+        ), timeout=5)
 
     def _restart_binding(
         self, *, published: dict[str, Any] | None = None, replacement: tuple[str, str] | None = None,
@@ -601,6 +619,7 @@ class LocalHaPredecessorRuntime(LocalHost):
         binding, origins = self._verify_published_launch(document)
         self._verify_rollback_health(binding, origins)
         self._verify_restored_data(document, origins)
+        self._verify_recovered_monitoring(document, origins)
 
     def verify_resident_predecessor_health(self, document: dict[str, Any]) -> None:
         binding, origins = self._restart_binding()
@@ -608,6 +627,7 @@ class LocalHaPredecessorRuntime(LocalHost):
             raise UpdaterError("ha_usb_predecessor_launch_binding_drift")
         self._verify_rollback_health(binding, origins)
         self._verify_restored_data(document, origins)
+        self._verify_recovered_monitoring(document, origins)
 
     @staticmethod
     def _verify_restored_data(document: dict[str, Any], origins: dict[str, dict[str, str]]) -> None:
@@ -616,6 +636,19 @@ class LocalHaPredecessorRuntime(LocalHost):
             return
         if _protected_data_evidence(origins).compare(sample) != "PASS":
             raise UpdaterError("ha_usb_rollback_protected_data_evidence_pending")
+
+    def _verify_recovered_monitoring(self, document: dict[str, Any], origins: dict[str, dict[str, str]]) -> None:
+        method = document.get("target_acceptance", {}).get("monitoring_method")
+        if method is None:
+            return
+        monitoring = self._monitoring_evidence(origins)
+        evidence = monitoring.observe(document, fallback=False)
+        if evidence.verdict == "EVIDENCE_UNAVAILABLE" and method == SELF_TEST_MONITORING_METHOD:
+            evidence = monitoring.run_self_test()
+        if evidence.verdict != "PASS":
+            # The recovery journal stays published. The retry worker checks
+            # the running predecessor without applying the restore again.
+            raise HaRecoveryMonitoringPending("ha_usb_rollback_monitoring_evidence_pending")
 
     def _verify_rollback_health(self, binding: dict[str, Any], origins: dict[str, dict[str, str]]) -> None:
         deadline = time.monotonic() + DEFAULT_SERVICES_READINESS_TIMEOUT_SECONDS
@@ -747,6 +780,9 @@ def main(*, application_condition: bool = False, pending_only: bool = False) -> 
             )
     except HaRecoveryMediaRequired:
         print(json.dumps({"status": "RECOVERY_MEDIA_REQUIRED"}))
+        return 0
+    except HaRecoveryMonitoringPending:
+        print(json.dumps({"status": "RECOVERY_MONITORING_EVIDENCE_PENDING"}))
         return 0
     except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as error:
         if pending_only and isinstance(error, UpdaterV2Error) and str(error) == "upgrade_transaction_busy":

@@ -629,7 +629,8 @@ def test_boot_entry_leaves_legacy_and_post_cutover_transactions_alone(tmp_path, 
     assert store.read() == post_cutover
 
 
-def test_boot_reconciles_selected_data_rollback_and_waits_for_health(tmp_path, monkeypatch, capsys):
+@pytest.mark.parametrize("monitoring_pending", [False, True])
+def test_boot_reconciles_selected_data_rollback_and_waits_for_health(tmp_path, monkeypatch, capsys, monitoring_pending):
     units = Path(__file__).resolve().parents[2] / "infra" / "n3w-t1" / "systemd"
     guard = units / f"{recovery_startup.SERVICES_UNIT}.d" / "ota-ha-recovery.conf"
     assert recovery_startup.BOOT_CONDITION in guard.read_text().splitlines()
@@ -673,6 +674,8 @@ def test_boot_reconciles_selected_data_rollback_and_waits_for_health(tmp_path, m
 
     def health_pending(document):
         assert recovery_startup.main(application_condition=True) == 0
+        if monitoring_pending:
+            raise recovery_startup.HaRecoveryMonitoringPending("simulated monitoring interruption")
         raise recovery_startup.UpdaterError("simulated readiness interruption")
 
     with monkeypatch.context() as patch:
@@ -680,8 +683,9 @@ def test_boot_reconciles_selected_data_rollback_and_waits_for_health(tmp_path, m
             restore_preupgrade_data=publish_data,
         ))
         patch.setattr(runtime, "verify_published_predecessor_health", health_pending)
-        assert recovery_startup.main() == 1
-        assert json.loads(capsys.readouterr().out) == {"status": "RECOVERY_STARTUP_NEEDS_REVIEW"}
+        assert recovery_startup.main() == (0 if monitoring_pending else 1)
+        expected = "RECOVERY_MONITORING_EVIDENCE_PENDING" if monitoring_pending else "RECOVERY_STARTUP_NEEDS_REVIEW"
+        assert json.loads(capsys.readouterr().out) == {"status": expected}
     assert store.read()["phase"] == U11
     assert store.read()["ha_data_restore"]["step"] == "PUBLISHED"
     assert runtime.starts == runtime.rewrites == 1
