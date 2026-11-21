@@ -516,6 +516,11 @@
       "draft_policy": "run",
       "exceptions": {}
     },
+    "n3w-t1-core-updater-broker-recovery-support-ci.yml": {
+      "class": "EXACT",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
     "n3w-t1-core-stack-current-authority-ci.yml": {
       "class": "EVIDENCE",
       "draft_policy": "run",
