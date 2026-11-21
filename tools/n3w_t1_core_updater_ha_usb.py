@@ -84,6 +84,21 @@ class HaPredecessorRuntime(Protocol):
     def verify_resident_predecessor_health(self, document: dict[str, Any]) -> None:
         ...
 
+    def verify_untouched_release_launch(self, document: dict[str, Any]) -> None:
+        ...
+
+    def ensure_rollback_predecessor(
+        self, document: dict[str, Any], original_media: Callable[[], HaDataRestoreProvider],
+        record_load_intent: Callable[[PortableImageIdentity], None],
+    ) -> None:
+        ...
+
+    def load_cutover_target(
+        self, document: dict[str, Any], media: HaDataRestoreProvider,
+        record_load_intent: Callable[[PortableImageIdentity], None],
+    ) -> str:
+        ...
+
 
 class HaPredecessorHealth(Protocol):
     def verify_predecessor_health(self, binding: dict[str, Any]) -> None:
@@ -113,6 +128,11 @@ class HaDataRestoreProvider(Protocol):
         ...
 
     def load_predecessor_image(
+        self, load: Callable[[BinaryIO, PortableImageIdentity], None],
+    ) -> PortableImageIdentity:
+        ...
+
+    def load_target_image(
         self, load: Callable[[BinaryIO, PortableImageIdentity], None],
     ) -> PortableImageIdentity:
         ...
@@ -158,6 +178,7 @@ class HaPredecessorRecovery:
         self.store = store
         self.runtime = runtime
         self.health = health
+        self._install_transaction_id: str | None = None
 
     @contextmanager
     def install_recovery_point(
@@ -210,7 +231,11 @@ class HaPredecessorRecovery:
                     production_prestate_exact=after.production_prestate_exact,
                 )
                 self.store.write(ready)
-                yield ready
+                self._install_transaction_id = ready["transaction_id_sha256"]
+                try:
+                    yield ready
+                finally:
+                    self._install_transaction_id = None
                 latest = self.store.read()
                 if latest is None or _can_resume_pre_cutover(latest):
                     raise UpdaterV2Error("ha_usb_install_cutover_not_consumed")
@@ -227,6 +252,7 @@ class HaPredecessorRecovery:
         current = self.store.read()
         if (
             current is None or current["phase"] != U8 or not _can_resume_pre_cutover(current)
+            or current["transaction_id_sha256"] != self._install_transaction_id
             or current["recovery_required"] or current.get("usb_binding_mode") != "existing_filesystem"
         ):
             raise UpdaterV2Error("ha_usb_predecessor_release_revalidation_not_admitted")
@@ -253,7 +279,7 @@ class HaPredecessorRecovery:
     ) -> dict[str, Any]:
         """Release the bound image once, inside the locked install recovery point."""
         ready = self.store.read()
-        if ready is None or ready["phase"] != U8:
+        if ready is None or ready["phase"] != U8 or ready["transaction_id_sha256"] != self._install_transaction_id:
             raise UpdaterV2Error("ha_usb_predecessor_release_revalidation_not_admitted")
         intent = self.runtime.capture_predecessor_release(ready)
         claimed = self.admit_predecessor_release(materials, backups, authorization_id, release_intent=intent)
@@ -267,6 +293,32 @@ class HaPredecessorRecovery:
         except Exception as error:
             try:
                 _reconcile_predecessor_release(self.store, self.runtime)
+            except Exception as recovery_error:
+                raise error from recovery_error
+            raise
+
+    def load_target_after_release(self, media: HaDataRestoreProvider) -> dict[str, Any]:
+        """Import the authorized target, still under the locked install recovery point."""
+        current = self.store.read()
+        if (
+            current is None or current["phase"] != U10 or not destructive_cutover_allowed(current)
+            or current["transaction_id_sha256"] != self._install_transaction_id
+            or current.get("predecessor_release_observed") is not True or "target_load_identity" in current
+        ):
+            raise UpdaterV2Error("ha_usb_target_image_load_not_admitted")
+
+        def record_load_intent(identity: PortableImageIdentity) -> None:
+            nonlocal current
+            current = _record_image_load(self.store, current, "target_load_identity", identity)
+
+        try:
+            loaded_id = self.runtime.load_cutover_target(current, media, record_load_intent)
+            imported = {**current, "target_loaded_image_id": loaded_id}
+            self.store.write(imported)
+            return imported
+        except Exception as error:
+            try:
+                _reconcile_predecessor_release(self.store, self.runtime, lambda _: media)
             except Exception as recovery_error:
                 raise error from recovery_error
             raise
@@ -398,13 +450,32 @@ def resume_pre_cutover_services(
         return True
 
 
-def resume_interrupted_predecessor_release(store: HaUsbStateStore, runtime: HaPredecessorRuntime) -> str | None:
+def resume_interrupted_predecessor_release(
+    store: HaUsbStateStore, runtime: HaPredecessorRuntime,
+    original_media: Callable[[dict[str, Any]], HaDataRestoreProvider] | None = None,
+) -> str | None:
     """Reconcile an interrupted release without replaying destructive actions."""
     with store.lock():
-        return _reconcile_predecessor_release(store, runtime)
+        return _reconcile_predecessor_release(store, runtime, original_media)
 
 
-def _reconcile_predecessor_release(store: HaUsbStateStore, runtime: HaPredecessorRuntime) -> str | None:
+def _record_image_load(
+    store: HaUsbStateStore, current: dict[str, Any], key: str, identity: PortableImageIdentity,
+) -> dict[str, Any]:
+    value = identity.to_dict()
+    if key in current:
+        if current[key] != value:
+            raise UpdaterV2Error("ha_usb_image_load_intent_drift")
+        return current
+    updated = {**current, key: value}
+    store.write(updated)
+    return updated
+
+
+def _reconcile_predecessor_release(
+    store: HaUsbStateStore, runtime: HaPredecessorRuntime,
+    original_media: Callable[[dict[str, Any]], HaDataRestoreProvider] | None = None,
+) -> str | None:
     current = store.read()
     if (
         current is None or current["phase"] not in {U9, U10}
@@ -413,16 +484,22 @@ def _reconcile_predecessor_release(store: HaUsbStateStore, runtime: HaPredecesso
         return None
     if current["status"] != "ACTIVE":
         raise UpdaterV2Error("ha_usb_predecessor_release_status_unresolved")
-    if runtime.observe_predecessor_released(current):
-        if current["phase"] == U9:
-            current = record_predecessor_capacity_released(current, image_release_observed=True)
-        if not current["recovery_required"]:
-            store.write({**current, "recovery_required": True})
-        return "PREDECESSOR_RELEASED_RECOVERY_PENDING"
-
+    released = runtime.observe_predecessor_released(current)
+    if released and current["phase"] == U9:
+        current = record_predecessor_capacity_released(current, image_release_observed=True)
     if not current["recovery_required"]:
         current = {**current, "recovery_required": True}
         store.write(current)
+    if released and original_media is None:
+        return "PREDECESSOR_RELEASED_RECOVERY_PENDING"
+
+    runtime.verify_untouched_release_launch(current)
+    if original_media is not None:
+        def record_reload_intent(identity: PortableImageIdentity) -> None:
+            nonlocal current
+            current = _record_image_load(store, current, "predecessor_reload_identity", identity)
+
+        runtime.ensure_rollback_predecessor(current, lambda: original_media(current), record_reload_intent)
     runtime.start_predecessor_if_needed(current["predecessor_start"])
     runtime.verify_resident_predecessor_health(current)
     store.write(transition(current, U13B))
@@ -800,6 +877,8 @@ def claim_live_authorization(
     if current.get("usb_binding_mode") == "existing_filesystem":
         if internal_space is None:
             raise UpdaterV2Error("ha_usb_predecessor_release_admission_missing")
+        if internal_space.available_bytes < internal_space.install_required_bytes + internal_space.recovery_required_bytes:
+            raise UpdaterV2Error("ha_usb_predecessor_release_recovery_reserve_insufficient")
         release_admission["predecessor_release_admission"] = {
             "internal_available_bytes": internal_space.available_bytes,
             "install_required_bytes": internal_space.install_required_bytes,

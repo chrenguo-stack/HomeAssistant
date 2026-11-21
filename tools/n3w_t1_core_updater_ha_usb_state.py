@@ -211,6 +211,20 @@ def _validate_recovery_materials(document: dict[str, Any]) -> None:
     backup_record_from_document(materials["backup"])
 
 
+def _validate_bound_load_identity(value: Any, record: ImageRecoveryRecord, reason: str) -> None:
+    try:
+        identity = identity_from_dict(value)
+    except (PortableImageIdentityError, TypeError) as error:
+        raise UpdaterV2Error(reason) from error
+    if (
+        (identity.os, identity.architecture) != ("linux", "arm64")
+        or sha256_bytes(canonical(identity.to_dict())) != record.portable_identity_sha256
+        or identity.archive_sha256 != record.archive_sha256
+        or identity.archive_size_bytes != record.archive_size_bytes
+    ):
+        raise UpdaterV2Error(reason)
+
+
 def _validate_data_restore(document: dict[str, Any]) -> None:
     journal = document["ha_data_restore"]
     reason = "ha_usb_data_restore_journal_invalid"
@@ -227,19 +241,8 @@ def _validate_data_restore(document: dict[str, Any]) -> None:
         expected.add("staged_inode")
     if step == "PUBLISHED" and "predecessor_load_identity" in journal:
         expected.add("predecessor_load_identity")
-        value = journal["predecessor_load_identity"]
-        try:
-            identity = identity_from_dict(value)
-        except (PortableImageIdentityError, TypeError) as error:
-            raise UpdaterV2Error(reason) from error
         _, predecessor = prepared_image_materials(document)
-        if (
-            (identity.os, identity.architecture) != ("linux", "arm64")
-            or sha256_bytes(canonical(identity.to_dict())) != predecessor.portable_identity_sha256
-            or identity.archive_sha256 != predecessor.archive_sha256
-            or identity.archive_size_bytes != predecessor.archive_size_bytes
-        ):
-            raise UpdaterV2Error(reason)
+        _validate_bound_load_identity(journal["predecessor_load_identity"], predecessor, reason)
     if set(journal) != expected or type(journal["filesystem_id"]) is not int:
         raise UpdaterV2Error(reason)
     original = _positive_int(journal["original_inode"], reason)
@@ -474,6 +477,21 @@ def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
         or document["predecessor_release_observed"] is not True
     ):
         raise UpdaterV2Error("ha_usb_predecessor_release_observation_invalid")
+    if "target_load_identity" in document or "predecessor_reload_identity" in document:
+        reason = "ha_usb_image_load_intent_invalid"
+        if document.get("predecessor_release_observed") is not True:
+            raise UpdaterV2Error(reason)
+        target, predecessor = prepared_image_materials(document)
+        if "target_load_identity" in document:
+            _validate_bound_load_identity(document["target_load_identity"], target, reason)
+        if "predecessor_reload_identity" in document:
+            if phase not in {U10, U13B} or "ha_data_restore" in document or (phase == U10 and not recovery_required):
+                raise UpdaterV2Error(reason)
+            _validate_bound_load_identity(document["predecessor_reload_identity"], predecessor, reason)
+    if "target_loaded_image_id" in document:
+        loaded = document["target_loaded_image_id"]
+        if "target_load_identity" not in document or not isinstance(loaded, str) or IMAGE_ID.fullmatch(loaded) is None:
+            raise UpdaterV2Error("ha_usb_target_loaded_image_invalid")
     return copy.deepcopy(document)
 
 
@@ -564,6 +582,9 @@ def transition(
                 "predecessor_start",
                 "pre_cutover_predecessor_restored",
                 "ha_data_restore",
+                "target_load_identity",
+                "target_loaded_image_id",
+                "predecessor_reload_identity",
             }:
                 raise UpdaterV2Error("ha_usb_immutable_field_update_forbidden")
             if key == "install_recovery_materials" and next_phase != U8:

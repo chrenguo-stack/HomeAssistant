@@ -138,11 +138,11 @@ def candidate() -> RemovableDeviceCandidate:
     )
 
 
-def transaction():
+def transaction(*, target: ImageRecoveryRecord | None = None, predecessor_portable: str = CURRENT_IDENTITY):
     return new_transaction(
         current_image_ref=CURRENT,
         current_image_identity={
-            "portable_identity_sha256": CURRENT_IDENTITY,
+            "portable_identity_sha256": predecessor_portable,
             "platform": "linux/arm64",
         },
         target_manifest_identity={
@@ -150,8 +150,8 @@ def transaction():
             "manifest_sha256": "3" * 64,
         },
         target_image_ref=TARGET,
-        target_archive_sha256=TARGET_SHA,
-        target_archive_size=len(TARGET_BYTES),
+        target_archive_sha256=target.archive_sha256 if target is not None else TARGET_SHA,
+        target_archive_size=target.archive_size_bytes if target is not None else len(TARGET_BYTES),
         created_at_unix=1_800_100_000,
     )
 
@@ -485,7 +485,11 @@ def test_release_and_boot_reconcile_exact_predecessor(tmp_path, monkeypatch, cap
     recovery = HaPredecessorRecovery(store, runtime, health)
     monkeypatch.setattr(recovery_startup, "HaUsbStateStore", lambda: HaUsbStateStore(store.root))
     monkeypatch.setattr(recovery_startup, "LocalHaPredecessorRuntime", lambda: runtime)
-    monkeypatch.setattr(runtime, "mounted_recovery_provider", lambda *_a, **_kw: pytest.fail("USB was reopened"))
+    def missing_media(*_a, **_kw):
+        assert fault != "after_container", "resident recovery reopened USB"
+        raise recovery_startup.HaRecoveryMediaRequired("fixture USB absent")
+
+    monkeypatch.setattr(runtime, "mounted_recovery_provider", missing_media)
 
     outcome = nullcontext()
     if fault == "shared":
@@ -531,7 +535,7 @@ def test_release_and_boot_reconcile_exact_predecessor(tmp_path, monkeypatch, cap
     if fault == "after_container":
         assert (reported, result["phase"], runtime.starts) == ("ROLLED_BACK", U13B, 1)
     else:
-        assert (reported, result["phase"], runtime.starts) == ("PREDECESSOR_RELEASED_RECOVERY_PENDING", U10, 0)
+        assert (reported, result["phase"], runtime.starts) == ("RECOVERY_MEDIA_REQUIRED", U10, 0)
         assert result["recovery_required"] is True and result["predecessor_release_observed"] is True
     assert result["authorization_id_sha256"] == interrupted["authorization_id_sha256"]
 
@@ -601,7 +605,7 @@ def test_boot_reconciles_selected_data_rollback_and_waits_for_health(tmp_path, m
     prepared["prepared_image_materials"] = {"target": target.public(), "predecessor": predecessor.public()}
     prepared["install_recovery_materials"] = {**prepared["prepared_image_materials"], "backup": backup.public()}
     cutover = record_target_started(record_predecessor_capacity_released(
-        claim_live_authorization(prepared, AUTHORIZATION_ID, internal_space=HaInternalSpace(1024, 768, 896)),
+        claim_live_authorization(prepared, AUTHORIZATION_ID, internal_space=HaInternalSpace(2048, 768, 896)),
     ))
     live = runtime.ha_data_root
     journal = {"step": "STAGING", "filesystem_id": os.statvfs(live).f_fsid, "original_inode": live.stat().st_ino}
@@ -663,15 +667,15 @@ def test_boot_reconciles_selected_data_rollback_and_waits_for_health(tmp_path, m
     assert runtime.starts == runtime.rewrites == 1
 
 
-def _write_restorable_image_archive(archive, *, extra_tag=False):
+def _write_restorable_image_archive(archive, *, extra_tag=False, reference=CURRENT):
     layer = b"image-layer" * (256 * 1024)
     layers = ["sha256:" + sha256_bytes(layer)]
     config = canonical({
         "architecture": "arm64", "os": "linux", "rootfs": {"type": "layers", "diff_ids": layers},
-        "config": {"Entrypoint": ["homeassistant"]},
+        "config": {"Entrypoint": ["homeassistant"], "Cmd": [reference]},
     })
     config_name = sha256_bytes(config) + ".json"
-    tags = [CURRENT, "local/unrelated:retained"] if extra_tag else [CURRENT]
+    tags = [reference, "local/unrelated:retained"] if extra_tag else [reference]
     manifest = canonical([{"Config": config_name, "Layers": ["layer.tar"], "RepoTags": tags}])
     with tarfile.open(archive, "w") as stream:
         for name, content in (("manifest.json", manifest), (config_name, config), ("layer.tar", layer)):
@@ -679,6 +683,126 @@ def _write_restorable_image_archive(archive, *, extra_tag=False):
             member.size = len(content)
             stream.addfile(member, io.BytesIO(content))
     return config, layers
+
+
+def _bind_test_image(record, archive):
+    identity = parse_image_archive(archive, expected_tag=record.image_ref)
+    return replace(
+        record, archive_sha256=identity.archive_sha256, archive_size_bytes=identity.archive_size_bytes,
+        portable_identity_sha256=sha256_bytes(canonical(identity.to_dict())),
+    )
+
+
+@pytest.mark.parametrize("fault", [None, "rollback_reserve", "after_target_import", "after_old_reload"])
+def test_target_import_keeps_a_path_back_to_the_untouched_data(tmp_path, monkeypatch, capsys, fault):
+    _, usb, _, _, target, predecessor, backup = drive_to_u8(tmp_path)
+    store = HaUsbStateStore(tmp_path / "state")
+    runtime = ReleaseStartupRuntime(tmp_path / "application", None)
+    original_file = runtime.ha_data_root / "recorder"
+    original_file.write_bytes(b"original data")
+    original_inode = original_file.stat().st_ino
+    target_path, old_path = tmp_path / "target.tar", tmp_path / "predecessor.tar"
+    target_config, target_layers = _write_restorable_image_archive(target_path, reference=TARGET)
+    old_config, old_layers = _write_restorable_image_archive(old_path)
+    target, predecessor = _bind_test_image(target, target_path), _bind_test_image(predecessor, old_path)
+    initial = transaction(target=target, predecessor_portable=predecessor.portable_identity_sha256)
+    bound = record_existing_media_bound(request_prepare(initial), filesystem_uuid=USB_UUID, capacity_report=usb.report)
+    prepared = record_target_ready(start_target_preparation(bound), target=target, predecessor=predecessor)
+    directory = usb.root / "N3W-OTA" / prepared["transaction_id_sha256"]
+    directory.mkdir(parents=True)
+    shutil.copyfile(target_path, directory / "target.tar")
+    shutil.copyfile(old_path, directory / "predecessor.tar")
+    device = mounted_media._device_number(usb.root.stat().st_dev)
+    mounts = [{"target": str(usb.root), "fstype": "ext4", "fsroot": "/", "options": "ro",
+               "maj:min": device, "uuid": USB_UUID}]
+    devices = [{"type": "disk", "tran": "usb", "maj:min": "8:0", "children": [
+        {"type": "part", "uuid": USB_UUID, "maj:min": device},
+    ]}]
+    monkeypatch.setattr(mounted_media, "_protected_devices", lambda _: {"8:3"})
+    monkeypatch.setattr(mounted_media, "_command_json", lambda command, *_: (
+        {"filesystems": mounts} if command == "findmnt" else {"blockdevices": devices}
+    ))
+    available = 4 * 1024**2 if fault == "rollback_reserve" else 16 * 1024**2
+    monkeypatch.setattr(mounted_media.os, "statvfs", lambda path: SimpleNamespace(
+        f_bavail=available, f_frsize=1, f_fsid=1,
+    ))
+    provider = mounted_media.HaMountedBackupProvider(
+        store=store, mountpoint=usb.root, internal_storage=tmp_path,
+        backup=ProtectedHaDataBackup(work_root=tmp_path, ha_data_root=runtime.ha_data_root),
+        verify_quiesced=runtime.rollback_writers_quiesced,
+    )
+    store.write(request_install(prepared))
+    verification = SimpleNamespace(verify_install_materials=lambda _: HaInstallMaterials(
+        USB_UUID, target, predecessor, usb.report, True, HaInternalSpace(8 * 1024**2, 3 * 1024**2, 3 * 1024**2),
+    ))
+    backups = SimpleNamespace(create_consistent_backup=lambda **_: backup, verify_backup=lambda record: record)
+    recovery = HaPredecessorRecovery(store, runtime, SimpleNamespace(verify_predecessor_health=lambda _: None))
+
+    runtime_id = "sha256:" + "9" * 64
+    loaded_target = None
+    run = runtime._run
+    loads = []
+
+    def observe(argv, **kwargs):
+        if argv == ("docker", "image", "inspect", TARGET) and loaded_target is not None:
+            return SimpleNamespace(returncode=0, stdout=json.dumps([loaded_target]).encode())
+        return run(argv, **kwargs)
+
+    def load(source):
+        nonlocal loaded_target
+        payload = source.read()
+        if payload == target_path.read_bytes():
+            assert store.read()["target_load_identity"]["archive_sha256"] == target.archive_sha256
+            loads.append(TARGET)
+            loaded_target = {"Id": runtime_id, "Os": "linux", "Architecture": "arm64",
+                             "Config": json.loads(target_config)["config"], "RootFS": {"Layers": target_layers}}
+            if fault == "after_target_import":
+                raise InterruptedPower()
+        else:
+            assert payload == old_path.read_bytes()
+            assert store.read()["predecessor_reload_identity"]["archive_sha256"] == predecessor.archive_sha256
+            loads.append(CURRENT)
+            runtime.image_present = True
+            if fault == "after_old_reload":
+                raise InterruptedPower()
+
+    monkeypatch.setattr(runtime, "_run", observe)
+    monkeypatch.setattr(runtime, "_load_ha_image", load)
+    monkeypatch.setattr(runtime, "_image_document", lambda _: {
+        "Id": runtime.image_id(CURRENT), "Os": "linux", "Architecture": "arm64",
+        "Config": json.loads(old_config)["config"], "RootFS": {"Layers": old_layers},
+    })
+    monkeypatch.setattr(recovery_startup, "HaUsbStateStore", lambda: HaUsbStateStore(store.root))
+    monkeypatch.setattr(recovery_startup, "LocalHaPredecessorRuntime", lambda: runtime)
+    monkeypatch.setattr(runtime, "mounted_recovery_provider", lambda *_args, **_kwargs: provider)
+
+    outcome = nullcontext()
+    if fault == "rollback_reserve":
+        outcome = pytest.raises(UpdaterV2Error, match="recovery_space_insufficient")
+    elif fault == "after_target_import":
+        outcome = pytest.raises(InterruptedPower)
+    with outcome, recovery.install_recovery_point(verification, backups):
+        recovery.release_predecessor_image(verification, backups, AUTHORIZATION_ID)
+        with pytest.raises(UpdaterV2Error, match="target_image_load_not_admitted"):
+            HaPredecessorRecovery(store, runtime, runtime).load_target_after_release(provider)
+        loaded = recovery.load_target_after_release(provider)
+        assert loaded["phase"] == U10 and loaded["target_loaded_image_id"] == runtime_id
+        assert recovery_startup.main(application_condition=True) == 1
+
+    if fault != "rollback_reserve":
+        assert runtime.starts == 0
+        if fault == "after_old_reload":
+            with pytest.raises(InterruptedPower):
+                recovery_startup.main()
+            monkeypatch.setattr(runtime, "mounted_recovery_provider", lambda *_a, **_kw: pytest.fail("old reload replayed"))
+        assert recovery_startup.main() == 0
+        assert json.loads(capsys.readouterr().out) == {"status": "ROLLED_BACK"}
+    assert store.read()["phase"] == U13B
+    assert "ha_data_restore" not in store.read() and store.read()["authorization_consumed"]
+    assert loads == ([CURRENT] if fault == "rollback_reserve" else [TARGET, CURRENT])
+    assert original_file.read_bytes() == b"original data" and original_file.stat().st_ino == original_inode
+    assert runtime.starts == 1 and runtime.rewrites == 0
+    assert len(runtime.removals) == 2
 
 
 def test_boot_restores_a_released_predecessor_from_bound_media(tmp_path, monkeypatch, capsys):
@@ -701,7 +825,7 @@ def test_boot_restores_a_released_predecessor_from_bound_media(tmp_path, monkeyp
     prepared["usb_binding_mode"] = "existing_filesystem"
     prepared["prepared_image_materials"] = {"target": target.public(), "predecessor": predecessor.public()}
     prepared["install_recovery_materials"] = {**prepared["prepared_image_materials"], "backup": backup.public()}
-    claimed = claim_live_authorization(prepared, AUTHORIZATION_ID, internal_space=HaInternalSpace(1024, 768, 896))
+    claimed = claim_live_authorization(prepared, AUTHORIZATION_ID, internal_space=HaInternalSpace(2048, 768, 896))
     cutover = record_target_started(record_predecessor_capacity_released(claimed))
     live = runtime.ha_data_root
     original_inode = live.stat().st_ino
@@ -763,7 +887,7 @@ def test_boot_restores_a_released_predecessor_from_bound_media(tmp_path, monkeyp
             victim.write(b"changed bytes")
         source.read()
 
-    monkeypatch.setattr(runtime, "_load_rollback_image", changed_after_precheck)
+    monkeypatch.setattr(runtime, "_load_ha_image", changed_after_precheck)
     assert recovery_startup.main() == 1
     assert json.loads(capsys.readouterr().out) == {"status": "RECOVERY_STARTUP_NEEDS_REVIEW"}
     assert sent == [original[:mounted_media.ARCHIVE_BLOCK_BYTES]]
@@ -779,7 +903,7 @@ def test_boot_restores_a_released_predecessor_from_bound_media(tmp_path, monkeyp
         resident = True
         raise InterruptedPower()
 
-    monkeypatch.setattr(runtime, "_load_rollback_image", load)
+    monkeypatch.setattr(runtime, "_load_ha_image", load)
     with pytest.raises(InterruptedPower):
         recovery_startup.main()
     assert resident and store.read() == load_intent
@@ -1076,6 +1200,9 @@ def test_verify_existing_usb_media_from_bound_archives(tmp_path, monkeypatch, fa
     sentinel = media.root / "existing-user-file"
     sentinel.write_bytes(b"keep unchanged")
     target = media.target_record()
+    target_archive = tmp_path / "target.tar"
+    _write_restorable_image_archive(target_archive, reference=TARGET)
+    target = _bind_test_image(target, target_archive)
     predecessor = SyntheticDockerHost().export_predecessor(media)
     original_archive = tmp_path / "predecessor.tar"
     _write_restorable_image_archive(original_archive, extra_tag=fault == "unsafe_load_tag")
@@ -1084,8 +1211,7 @@ def test_verify_existing_usb_media_from_bound_archives(tmp_path, monkeypatch, fa
         predecessor, archive_sha256=identity.archive_sha256, archive_size_bytes=identity.archive_size_bytes,
         portable_identity_sha256=sha256_bytes(canonical(identity.to_dict())),
     )
-    created = transaction()
-    created["current_image_identity"]["portable_identity_sha256"] = predecessor.portable_identity_sha256
+    created = transaction(target=target, predecessor_portable=predecessor.portable_identity_sha256)
     initial = record_existing_media_bound(
         request_prepare(created), filesystem_uuid=USB_UUID, capacity_report=media.report,
     )
@@ -1100,7 +1226,7 @@ def test_verify_existing_usb_media_from_bound_archives(tmp_path, monkeypatch, fa
     pending = request_install(prepared)
     archive_dir = media.root / "N3W-OTA" / pending["transaction_id_sha256"]
     archive_dir.mkdir(parents=True)
-    (archive_dir / "target.tar").write_bytes(TARGET_BYTES)
+    shutil.copyfile(target_archive, archive_dir / "target.tar")
     shutil.copyfile(original_archive, archive_dir / "predecessor.tar")
     ha = SyntheticHaData(tmp_path / "ha")
 
@@ -1131,10 +1257,11 @@ def test_verify_existing_usb_media_from_bound_archives(tmp_path, monkeypatch, fa
         f_blocks=USB_BYTES, f_bfree=USB_BYTES // 2, f_bavail=USB_BYTES // 2, f_frsize=1,
         f_fsid=fstatvfs(fd).f_fsid,
     ))
-    available = 4096 if fault == "internal_space" else 16 * 1024 * 1024
+    available = (4 if fault == "internal_space" else 16) * 1024 * 1024
     monkeypatch.setattr(mounted_media.os, "statvfs", lambda _: SimpleNamespace(f_bavail=available, f_frsize=1))
     if fault == "archive_drift":
-        (archive_dir / "target.tar").write_bytes(b"x" * len(TARGET_BYTES))
+        with (archive_dir / "target.tar").open("r+b") as changed:
+            changed.write(b"changed before admission")
     if fault == "symlink":
         (archive_dir / "target.tar").unlink()
         (archive_dir / "target.tar").symlink_to(
@@ -1166,6 +1293,8 @@ def test_verify_existing_usb_media_from_bound_archives(tmp_path, monkeypatch, fa
         assert observed.predecessor == predecessor
         assert observed.capacity.capacity_pass is (fault != "internal_space")
         assert observed.internal_space.recovery_required_bytes > 2 * 1024 * 1024
+        if fault == "internal_space":
+            assert max(observed.internal_space.install_required_bytes, observed.internal_space.recovery_required_bytes) < available
         assert commands == ["findmnt", "lsblk", "findmnt", "lsblk"]
     assert set(commands) <= {"findmnt", "lsblk"}
     assert sentinel.read_bytes() == b"keep unchanged"
