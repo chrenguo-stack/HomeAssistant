@@ -87,3 +87,16 @@ T1_MUTATION=false
 BROKER_LIVE_APPLY=false  
 MERGE=false  
 RELEASE=false
+
+
+## 6. B7 提前源码复核：B3 两个 hardening 点
+
+在 Phase 1 CI 运行期间，对 B3 Recovery Point 做独立复核，确认两处需要局部收紧：
+
+1. scan→copy opened-fd metadata race：旧实现的 inventory 先通过路径 stat/hash 建立，稍后重新 open source fd 时只检查 regular-file，未重新绑定 size/mode/uid/gid。现改为 source fd 打开后、复制后均以 fstat 与 inventory 行精确比较；发生漂移时在 snapshot commit 前 fail closed。
+2. source-root metadata invariant：root mode/uid/gid 已进入 source_tree hash，但旧 restore 会在当前 root 元数据与快照不一致时先替换文件，最后才因 tree hash 不符失败。现改为 restore 任何文件 mutation 前先精确比较当前 root 与 manifest root；漂移直接停止，避免 partial recovery。
+
+新增回归测试分别模拟：
+
+- inventory 完成后、source fd open 前把 mosquitto.db 从 0600 改为 0640；
+- snapshot 后把 source root 从 0700 改为仍能通过旧宽松校验的 0750，并确认 restore 拒绝后 target-written 文件保持未被替换。
