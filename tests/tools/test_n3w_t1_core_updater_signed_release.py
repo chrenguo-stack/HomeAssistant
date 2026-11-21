@@ -5,6 +5,7 @@ import copy
 import fcntl
 import io
 import json
+import os
 import subprocess
 import sys
 import tarfile
@@ -44,6 +45,7 @@ def signed_inputs(tmp_path):
     after = release_material(copy.deepcopy(before))
     after["stack_version"] = "1.0.1"
     target = json.loads((ROOT / "infra/n3w-t1/upgrades/homeassistant-2026.10.4.json").read_bytes())
+    after["product_source_head"] = target["compatibility_evidence"]["target_source_head"]
     after["components"]["homeassistant"] = {
         "image": target["target_image_ref"], "platform": "linux/arm64",
         "identity": {"kind": "tar_sha256", "sha256": target["target_archive_sha256"]},
@@ -76,6 +78,23 @@ def signed_inputs(tmp_path):
         ))
 
     return policy, index, release, signature
+
+
+def simulated_predecessor(release):
+    predecessor_ids = release["predecessor_runtime_image_ids"]
+    images = {
+        name: {"reference": component["image"], "runtime_id": predecessor_ids[name]}
+        for name, component in release["predecessor"]["components"].items()
+    }
+    current = {
+        "image_ref": images["homeassistant"]["reference"], "image_id": predecessor_ids["homeassistant"],
+        "platform": "linux/arm64",
+    }
+    runtime = SimpleNamespace(
+        _runtime=lambda service: current, _open_target_source=deploy.LocalHaPredecessorRuntime._open_target_source,
+        capture_start_binding=lambda transaction: {"images": copy.deepcopy(images), "launch_sha256": "b" * 64},
+    )
+    return images, current, runtime
 
 
 @pytest.mark.parametrize(("fault", "reason"), [
@@ -196,21 +215,9 @@ def test_signed_candidate_streams_verified_archive_and_admits_exact_intent(signe
     partial = store.root / deploy.CANDIDATE_DOWNLOAD_PART
     pin = store.root / RELEASE_PIN
     exported = outbound / APPROVED_MANIFEST
-    predecessor_ids = release["predecessor_runtime_image_ids"]
-    images = {
-        name: {"reference": component["image"], "runtime_id": predecessor_ids[name]}
-        for name, component in release["predecessor"]["components"].items()
-    }
-    current = {
-        "image_ref": images["homeassistant"]["reference"], "image_id": predecessor_ids["homeassistant"],
-        "platform": "linux/arm64",
-    }
+    images, current, runtime = simulated_predecessor(release)
     if fault == "runtime_id":
         images["manager"]["runtime_id"] = "sha256:" + "a" * 64
-    runtime = SimpleNamespace(
-        _runtime=lambda service: current, _open_target_source=deploy.LocalHaPredecessorRuntime._open_target_source,
-        capture_start_binding=lambda transaction: {"images": copy.deepcopy(images), "launch_sha256": "b" * 64},
-    )
     resolver = LocalApprovedHaRelease(pin, exported, lambda: current)
     executor = HaUsbIpcExecutor(store=store, admission_resolver=resolver)
 
@@ -333,3 +340,77 @@ def test_signed_candidate_streams_verified_archive_and_admits_exact_intent(signe
         })
     assert store.read() == transaction
     assert not (store.root / startup.PREPARE_AUTHORITY_FILE).exists()
+
+
+def test_signed_distribution_stages_frozen_ha_archive(signed_inputs, tmp_path, monkeypatch):
+    artifact_dir = os.environ.get("N3W_T1_HA_EXACT_ARTIFACT_DIR")
+    if artifact_dir is None:
+        pytest.skip("frozen HA archive is supplied by the exact target-binding job")
+    artifact = Path(artifact_dir)
+    archive = artifact / "homeassistant-arm64.tar.gz"
+    binding = json.loads((artifact / "upstream-binding.json").read_bytes())
+    policy, index, release, signature = signed_inputs
+    candidate = release["ha_candidate"]
+    target = candidate["target"]
+
+    assert binding["local_image"] == target["target_image_ref"]
+    assert binding["control_plane_head"] == release["target"]["product_source_head"]
+    assert binding["archive_sha256"] == target["target_archive_sha256"]
+    size = candidate["target_archive_size_bytes"]
+    assert archive.stat().st_size == binding["archive_size_bytes"] == size
+
+    release["archive_path"] = "1.0.1/homeassistant-arm64.tar.gz"
+    release_raw = canonical(release)
+    index["release_sha256"] = sha256_bytes(release_raw)
+    index_raw = canonical(index)
+    metadata = {
+        "/ota/index.json": index_raw,
+        "/ota/index.json.sig": signature(index_raw),
+        "/ota/1.0.1/release.json": release_raw,
+        "/ota/1.0.1/release.json.sig": signature(release_raw),
+    }
+    archive_url = "/ota/" + release["archive_path"]
+    requests = []
+
+    def connect(host, *, timeout, context):
+        assert host == "releases.example.test" and context.check_hostname
+
+        def request(method, path, *, headers):
+            assert method == "GET" and headers == {"Accept-Encoding": "identity"}
+            requests.append(path)
+
+        def response():
+            path = requests[-1]
+            stream = archive.open("rb") if path == archive_url else io.BytesIO(metadata[path])
+            return SimpleNamespace(
+                status=200, read=stream.read, close=stream.close,
+                getheader=lambda name, default=None: (
+                    str(size) if name == "Content-Length" and path == archive_url else default
+                ),
+            )
+
+        return SimpleNamespace(request=request, getresponse=response, close=lambda: None)
+
+    monkeypatch.setattr(signing.http.client, "HTTPSConnection", connect)
+    root = tmp_path / "host"
+    export = root / IPC_SOCKET.parent.relative_to("/")
+    export.mkdir(parents=True)
+    _, current, runtime = simulated_predecessor(release)
+    result = deploy.materialize_signed_candidate(policy, root=root, runtime=runtime)
+    assert requests == [*metadata, archive_url]
+    assert result["status"] == "CANDIDATE_MATERIALIZED"
+    assert result["index_sha256"] == sha256_bytes(index_raw)
+    assert result["release_identity"] == index["release_id"]
+
+    store = HaUsbStateStore(root / deploy.STATE_ROOT_V2.relative_to("/"))
+    staged = store.root / f"ha-target-{target['target_archive_sha256']}.tar"
+    assert Path(result["target_source"]) == staged and staged.stat().st_size == size
+    assert (export / APPROVED_MANIFEST).read_bytes() == canonical(candidate)
+    resolver = LocalApprovedHaRelease(store.root / RELEASE_PIN, export / APPROVED_MANIFEST, lambda: current)
+    executor = HaUsbIpcExecutor(store=store, admission_resolver=resolver)
+    assert executor.submit("PREPARE", index["release_id"])["phase"] == "PREPARE_REQUESTED"
+    transaction = store.read()
+    assert transaction["target_image_ref"] == target["target_image_ref"]
+    assert transaction["target_archive_sha256"] == target["target_archive_sha256"]
+    assert transaction["target_archive_size"] == size
+    assert transaction["authorization_consumed"] is False
