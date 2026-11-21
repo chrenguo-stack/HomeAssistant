@@ -116,6 +116,37 @@ def _protected_devices(internal_storage: Path) -> set[str]:
     }
 
 
+def bound_usb_device(expected_uuid: str, internal_storage: Path) -> dict[str, Any] | None:
+    return _bound_usb_device(expected_uuid, _protected_devices(internal_storage))
+
+
+def _bound_usb_device(expected_uuid: str, protected: set[str]) -> dict[str, Any] | None:
+    devices = _command_json(
+        "lsblk", "--json", "--paths", "--output", "NAME,TYPE,TRAN,MAJ:MIN,UUID,FSTYPE"
+    ).get("blockdevices")
+    if not isinstance(devices, list):
+        raise UpdaterV2Error("ha_usb_device_inventory_invalid")
+    inventory = list(_usb_devices(devices))
+    matching = [
+        (row, is_usb, disk)
+        for row, is_usb, disk in inventory
+        if isinstance(row.get("uuid"), str) and row["uuid"].lower() == expected_uuid
+    ]
+    if not matching:
+        return None
+    if len(matching) != 1:
+        raise UpdaterV2Error("ha_usb_original_filesystem_not_unique")
+    row, is_usb, disk = matching[0]
+    if (
+        not is_usb or row.get("type") not in {"disk", "part"}
+        or not isinstance(row.get("maj:min"), str) or not isinstance(disk, str)
+        or row["maj:min"] in protected
+        or any(parent == disk and entry.get("maj:min") in protected for entry, _, parent in inventory)
+    ):
+        raise UpdaterV2Error("ha_usb_original_mount_device_mismatch")
+    return row
+
+
 def _mount_device(
     mountpoint: Path, expected_uuid: str, protected: set[str], *, allow_read_only: bool,
 ) -> str:
@@ -140,29 +171,10 @@ def _mount_device(
         reason = "ha_usb_original_mount_not_readable" if allow_read_only else "ha_usb_original_mount_not_writable"
         raise UpdaterV2Error(reason)
     require_same_filesystem_uuid(expected_uuid, mount.get("uuid"))
-    devices = _command_json(
-        "lsblk", "--json", "--output", "NAME,TYPE,TRAN,MAJ:MIN,UUID"
-    ).get("blockdevices")
-    if not isinstance(devices, list):
-        raise UpdaterV2Error("ha_usb_device_inventory_invalid")
-    inventory = list(_usb_devices(devices))
-    matching = [
-        (row, is_usb, disk)
-        for row, is_usb, disk in inventory
-        if isinstance(row.get("uuid"), str) and row["uuid"].lower() == expected_uuid
-    ]
-    if len(matching) != 1:
+    row = _bound_usb_device(expected_uuid, protected)
+    if row is None:
         raise UpdaterV2Error("ha_usb_original_filesystem_not_unique")
-    row, is_usb, disk = matching[0]
-    if (
-        not is_usb or row.get("type") not in {"disk", "part"}
-        or row.get("maj:min") != device or not isinstance(disk, str)
-        or device in protected
-        or any(
-            parent == disk and entry.get("maj:min") in protected
-            for entry, _, parent in inventory
-        )
-    ):
+    if row["maj:min"] != device:
         raise UpdaterV2Error("ha_usb_original_mount_device_mismatch")
     return device
 

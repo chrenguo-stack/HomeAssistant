@@ -1,0 +1,9 @@
+[Unit]
+Description=Check for the original media needed by pending N3-W Home Assistant OTA recovery
+
+[Timer]
+OnCalendar=*-*-* *:*:00,30
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

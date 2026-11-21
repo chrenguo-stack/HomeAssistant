@@ -6,10 +6,13 @@ import copy
 import json
 import os
 import shutil
+import stat
 import subprocess
+import tempfile
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from typing import Any, BinaryIO
 
@@ -21,17 +24,17 @@ from n3w_t1_core_updater_common import (
     sha256_bytes,
 )
 from n3w_t1_core_updater_ha_backup import DEFAULT_HA_DATA_ROOT, ProtectedHaDataBackup
-from n3w_t1_core_updater_ha_mounted_media import HaMountedBackupProvider
+from n3w_t1_core_updater_ha_mounted_media import HaMountedBackupProvider, bound_usb_device
 from n3w_t1_core_updater_ha_usb import (
     HaDataRestoreProvider, HaPredecessorRelease, destructive_cutover_allowed, ha_data_rollback_required,
-    resume_ha_data_rollback,
-    resume_interrupted_predecessor_release, resume_pre_cutover_services,
+    resume_host_recovery,
 )
+from n3w_t1_core_updater_ha_usb_media import USB_FILESYSTEM
 from n3w_t1_core_updater_ha_usb_state import (
     TARGET_BINDING, TARGET_WRITES_POSSIBLE, U9, U10, HaUsbStateStore,
 )
 from n3w_t1_core_updater_host import DEFAULT_SERVICES_READINESS_TIMEOUT_SECONDS, LocalHost
-from n3w_t1_core_updater_v2_common import COMPONENTS, SHA256
+from n3w_t1_core_updater_v2_common import COMPONENTS, SHA256, UpdaterV2Error
 from n3w_t1_portable_image_identity import (
     PortableImageIdentity, identity_from_dict, observe_docker_image, verify_runtime_document,
 )
@@ -553,8 +556,10 @@ class LocalHaPredecessorRuntime(LocalHost):
                 raise UpdaterError("ha_usb_rollback_mount_discovery_failed")
             result_document = json.loads(result.stdout)
             filesystems = result_document.get("filesystems") if isinstance(result_document, dict) else None
-            if not isinstance(filesystems, list) or len(filesystems) != 1:
+            if filesystems == []:
                 raise HaRecoveryMediaRequired("ha_usb_rollback_original_mount_required")
+            if not isinstance(filesystems, list) or len(filesystems) != 1:
+                raise UpdaterError("ha_usb_rollback_mount_discovery_failed")
             filesystem = filesystems[0]
             target = filesystem.get("target") if isinstance(filesystem, dict) else None
             if not isinstance(target, str):
@@ -567,6 +572,40 @@ class LocalHaPredecessorRuntime(LocalHost):
             backup=ProtectedHaDataBackup(work_root=store.root, ha_data_root=self.ha_data_root),
             verify_quiesced=self.rollback_writers_quiesced,
         )
+
+    @contextmanager
+    def mount_original_for_recovery(
+        self, store: HaUsbStateStore, document: dict[str, Any],
+    ) -> Iterator[None]:
+        device = bound_usb_device(document["usb_filesystem_uuid"].lower(), store.root)
+        if device is None:
+            raise HaRecoveryMediaRequired("ha_usb_rollback_original_mount_required")
+        name = device.get("name")
+        if device.get("fstype") != USB_FILESYSTEM or not isinstance(name, str):
+            raise UpdaterError("ha_usb_rollback_original_filesystem_invalid")
+        path = Path(name)
+        if path.parent != Path("/dev"):
+            raise UpdaterError("ha_usb_rollback_original_device_path_invalid")
+        metadata = path.lstat()
+        if (
+            not stat.S_ISBLK(metadata.st_mode)
+            or f"{os.major(metadata.st_rdev)}:{os.minor(metadata.st_rdev)}" != device["maj:min"]
+        ):
+            raise UpdaterError("ha_usb_rollback_original_device_changed")
+
+        # The retry unit isolates this mount from the host. Skip ext4 journal replay.
+        mountpoint = Path(tempfile.mkdtemp(prefix="n3w-ha-recovery-", dir="/run"))
+        try:
+            self._run((
+                "mount", "--internal-only", "-t", USB_FILESYSTEM,
+                "-o", "ro,noload,nodev,nosuid,noexec", "--", str(path), str(mountpoint),
+            ), timeout=10)
+            try:
+                yield
+            finally:
+                self._run(("umount", "--", str(mountpoint)), timeout=10)
+        finally:
+            mountpoint.rmdir()
 
 
 def check_application_start(store: HaUsbStateStore, runtime: LocalHaPredecessorRuntime) -> int:
@@ -596,41 +635,45 @@ def check_application_start(store: HaUsbStateStore, runtime: LocalHaPredecessorR
     return 0
 
 
-def main(*, application_condition: bool = False) -> int:
+def main(*, application_condition: bool = False, pending_only: bool = False) -> int:
     store = HaUsbStateStore()
     runtime = LocalHaPredecessorRuntime()
     try:
         if application_condition:
             return check_application_start(store, runtime)
-        current = store.read()
-        if current and ha_data_rollback_required(current):
-            runtime.require_rollback_boot_guard()
-            resumed = resume_ha_data_rollback(
-                store, runtime, lambda document: runtime.mounted_recovery_provider(store, document),
-                lambda document: runtime.mounted_recovery_provider(store, document, require_original=True),
+        with ExitStack() as mounts:
+            def provider(document: dict[str, Any], *, require_original: bool = False) -> HaDataRestoreProvider:
+                kwargs = {"require_original": True} if require_original else {}
+                try:
+                    return runtime.mounted_recovery_provider(store, document, **kwargs)
+                except HaRecoveryMediaRequired:
+                    if not pending_only:
+                        raise
+                mounts.enter_context(runtime.mount_original_for_recovery(store, document))
+                return runtime.mounted_recovery_provider(store, document, **kwargs)
+
+            status = resume_host_recovery(
+                store, runtime, provider, lambda document: provider(document, require_original=True),
+                pending_only=pending_only,
             )
-            print(json.dumps({"status": "ROLLED_BACK" if resumed else "NO_PENDING_DATA_ROLLBACK"}))
-            return 0
-        if current and current["phase"] in {U9, U10} and "predecessor_release_intent" in current:
-            runtime.require_rollback_boot_guard()
-            status = resume_interrupted_predecessor_release(
-                store, runtime, lambda document: runtime.mounted_recovery_provider(store, document, require_original=True),
-            )
-            print(json.dumps({"status": status or "NO_PENDING_IMAGE_RELEASE"}))
-            return 0
-        resumed = resume_pre_cutover_services(store, runtime)
     except HaRecoveryMediaRequired:
         print(json.dumps({"status": "RECOVERY_MEDIA_REQUIRED"}))
         return 0
-    except (OSError, RuntimeError, ValueError, subprocess.SubprocessError):
+    except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as error:
+        if pending_only and isinstance(error, UpdaterV2Error) and str(error) == "upgrade_transaction_busy":
+            return 0
         if not application_condition:
             print(json.dumps({"status": "RECOVERY_STARTUP_NEEDS_REVIEW"}))
         return 1
-    print(json.dumps({"status": "RECOVERING" if resumed else "NO_PRE_CUTOVER_RECOVERY"}))
+    if not pending_only or status != "NO_PENDING_RECOVERY":
+        print(json.dumps({"status": status}))
     return 0
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--check-application-start", action="store_true")
-    raise SystemExit(main(application_condition=parser.parse_args().check_application_start))
+    action = parser.add_mutually_exclusive_group()
+    action.add_argument("--check-application-start", action="store_true")
+    action.add_argument("--resume-pending", action="store_true")
+    args = parser.parse_args()
+    raise SystemExit(main(application_condition=args.check_application_start, pending_only=args.resume_pending))

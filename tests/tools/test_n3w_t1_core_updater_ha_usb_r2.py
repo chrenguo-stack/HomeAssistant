@@ -877,6 +877,10 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
             assert started["phase"] == U11 and not started["recovery_required"]
             assert recovery_startup.main(application_condition=True) == 1
             assert original_file.read_bytes() == b"target migrated data"
+    if fault == "after_target_observed":
+        assert recovery_startup.main(pending_only=True) == 0
+        assert capsys.readouterr().out == ""
+        assert store.read() == started and runtime.starts == 1
 
     if fault in {"before_target_start", "after_target_start", "after_target_observed"}:
         assert not store.take_target_start_permit(prepared["transaction_id_sha256"])
@@ -897,7 +901,7 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
             with pytest.raises(InterruptedPower):
                 recovery_startup.main()
             monkeypatch.setattr(runtime, "mounted_recovery_provider", lambda *_a, **_kw: pytest.fail("old reload replayed"))
-        assert recovery_startup.main() == 0
+        assert recovery_startup.main(pending_only=bool(store.read()["recovery_required"])) == 0
         assert json.loads(capsys.readouterr().out) == {"status": "ROLLED_BACK"}
     assert store.read()["phase"] == U13B
     assert ("ha_data_restore" in store.read()) is data_rollback
@@ -913,6 +917,12 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
 
 
 def test_boot_restores_a_released_predecessor_from_bound_media(tmp_path, monkeypatch, capsys):
+    units = Path(__file__).resolve().parents[2] / "infra" / "n3w-t1" / "systemd"
+    retry = (units / "n3w-t1-ha-recovery-retry.service").read_text()
+    timer = (units / "n3w-t1-ha-recovery-retry.timer").read_text()
+    assert "n3w_t1_core_updater_ha_recovery_startup.py --resume-pending" in retry
+    assert "PrivateMounts=yes" in retry.splitlines()
+    assert "WantedBy=timers.target" in timer.splitlines()
     prepared, media, _, _, target, predecessor, backup = drive_to_u8(tmp_path)
     store = HaUsbStateStore(tmp_path / "state")
     runtime = StartupRuntime(tmp_path / "application")
@@ -951,8 +961,10 @@ def test_boot_restores_a_released_predecessor_from_bound_media(tmp_path, monkeyp
         "target": str(media.root), "fstype": "ext4", "fsroot": "/", "options": "ro,nosuid",
         "maj:min": device, "uuid": USB_UUID,
     }]
+    partition = {"type": "part", "uuid": OTHER_UUID, "maj:min": device,
+                 "name": "/dev/n3w-fixture1", "fstype": "ext4"}
     devices = [{"type": "disk", "tran": "usb", "maj:min": "8:0", "children": [
-        {"type": "part", "uuid": USB_UUID, "maj:min": device},
+        partition,
     ]}]
     monkeypatch.setattr(mounted_media, "_protected_devices", lambda _: {"8:3"})
     monkeypatch.setattr(mounted_media, "_command_json", lambda command, *_: (
@@ -961,12 +973,42 @@ def test_boot_restores_a_released_predecessor_from_bound_media(tmp_path, monkeyp
     monkeypatch.setattr(recovery_startup, "HaUsbStateStore", lambda: HaUsbStateStore(store.root))
     monkeypatch.setattr(recovery_startup, "LocalHaPredecessorRuntime", lambda: runtime)
     attached = False
+    commands = []
     run = runtime._run
+    mountpoint = tmp_path / "private-mount"
+    lstat = Path.lstat
+
+    def device_lstat(path):
+        if path == Path(partition["name"]):
+            return SimpleNamespace(st_mode=stat.S_IFBLK, st_rdev=media.root.stat().st_dev)
+        return lstat(path)
+
+    def make_mountpoint(**kwargs):
+        assert kwargs["dir"] == "/run"
+        mountpoint.mkdir(mode=0o700)
+        return str(mountpoint)
+
+    monkeypatch.setattr(Path, "lstat", device_lstat)
+    monkeypatch.setattr(recovery_startup.tempfile, "mkdtemp", make_mountpoint)
 
     def mounted_runtime(argv, **kwargs):
+        nonlocal attached
         if argv[0] == "findmnt":
             assert f"UUID={USB_UUID}" in argv
             return SimpleNamespace(returncode=0 if attached else 1, stdout=json.dumps({"filesystems": mounts}).encode())
+        if argv[0] == "mount":
+            assert argv == ("mount", "--internal-only", "-t", "ext4", "-o", "ro,noload,nodev,nosuid,noexec",
+                            "--", partition["name"], str(mountpoint))
+            assert not attached
+            attached = True
+            commands.append("mount")
+            return SimpleNamespace(stdout=b"")
+        if argv[0] == "umount":
+            assert argv == ("umount", "--", str(mountpoint))
+            assert attached
+            attached = False
+            commands.append("umount")
+            return SimpleNamespace(stdout=b"")
         return run(argv, **kwargs)
 
     resident = False
@@ -983,7 +1025,13 @@ def test_boot_restores_a_released_predecessor_from_bound_media(tmp_path, monkeyp
     assert store.read() == pending
     assert runtime.starts == runtime.rewrites == 0
 
-    attached = True
+    with store.lock():
+        assert recovery_startup.main(pending_only=True) == 0
+        assert capsys.readouterr().out == ""
+    assert recovery_startup.main(pending_only=True) == 0
+    assert json.loads(capsys.readouterr().out) == {"status": "RECOVERY_MEDIA_REQUIRED"}
+    assert not commands and store.read() == pending
+    partition["uuid"] = USB_UUID
     sent = []
 
     def changed_after_precheck(source):
@@ -995,7 +1043,7 @@ def test_boot_restores_a_released_predecessor_from_bound_media(tmp_path, monkeyp
         source.read()
 
     monkeypatch.setattr(runtime, "_load_ha_image", changed_after_precheck)
-    assert recovery_startup.main() == 1
+    assert recovery_startup.main(pending_only=True) == 1
     assert json.loads(capsys.readouterr().out) == {"status": "RECOVERY_STARTUP_NEEDS_REVIEW"}
     assert sent == [original[:mounted_media.ARCHIVE_BLOCK_BYTES]]
     load_intent = store.read()
@@ -1012,9 +1060,10 @@ def test_boot_restores_a_released_predecessor_from_bound_media(tmp_path, monkeyp
 
     monkeypatch.setattr(runtime, "_load_ha_image", load)
     with pytest.raises(InterruptedPower):
-        recovery_startup.main()
+        recovery_startup.main(pending_only=True)
     assert resident and store.read() == load_intent
     assert runtime.starts == runtime.rewrites == 0
+    assert commands == ["mount", "umount"] * 2 and not mountpoint.exists()
     attached = False
     inspect_image = runtime._image_document
     with monkeypatch.context() as patch:
@@ -1026,12 +1075,15 @@ def test_boot_restores_a_released_predecessor_from_bound_media(tmp_path, monkeyp
         assert store.read() == load_intent
         assert runtime.starts == runtime.rewrites == 0
 
-    assert recovery_startup.main() == 0
+    assert recovery_startup.main(pending_only=True) == 0
     assert json.loads(capsys.readouterr().out) == {"status": "ROLLED_BACK"}
     assert archive.read_bytes() == original
     assert store.read()["status"] == "ROLLED_BACK"
     assert store.read()["authorization_id_sha256"] == cutover["authorization_id_sha256"]
     assert runtime.starts == runtime.rewrites == 1
+    assert recovery_startup.main(pending_only=True) == 0
+    assert capsys.readouterr().out == ""
+    assert runtime.starts == runtime.rewrites == 1 and commands == ["mount", "umount"] * 2
 
 
 class SyntheticUsb:

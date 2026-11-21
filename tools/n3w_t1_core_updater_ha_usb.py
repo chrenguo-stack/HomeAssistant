@@ -76,6 +76,9 @@ class HaPublishedRollbackRuntime(Protocol):
 
 
 class HaPredecessorRuntime(HaPublishedRollbackRuntime, Protocol):
+    def require_rollback_boot_guard(self) -> None:
+        ...
+
     def capture_start_binding(self, transaction: dict[str, Any]) -> dict[str, Any]:
         """Verify the running predecessor and bind its fixed local start configuration."""
         ...
@@ -568,6 +571,35 @@ def ha_data_rollback_required(document: dict[str, Any]) -> bool:
         or document.get("target_activation") == TARGET_WRITES_POSSIBLE
         or (document["phase"] in {U11, U12} and "predecessor_release_intent" in document)
     )
+
+
+def resume_host_recovery(
+    store: HaUsbStateStore,
+    runtime: HaPredecessorRuntime,
+    restore_provider: Callable[[dict[str, Any]], HaDataRestoreProvider],
+    image_provider: Callable[[dict[str, Any]], HaDataRestoreProvider],
+    *, pending_only: bool = False,
+) -> str:
+    """Select the recovery route under the same lock used for its actions."""
+    with store.lock():
+        current = store.read()
+        if pending_only and (
+            current is None or current["status"] != "ACTIVE" or not current["recovery_required"]
+        ):
+            return "NO_PENDING_RECOVERY"
+        if current and ha_data_rollback_required(current):
+            runtime.require_rollback_boot_guard()
+            _resume_ha_data_rollback(store, runtime, restore_provider, image_provider)
+            return "ROLLED_BACK"
+        if current and current["phase"] in {U9, U10} and "predecessor_release_intent" in current:
+            runtime.require_rollback_boot_guard()
+            return _reconcile_predecessor_release(store, runtime, image_provider) or "NO_PENDING_IMAGE_RELEASE"
+        if pending_only:
+            return "NO_PENDING_RECOVERY"
+        if current and _can_resume_pre_cutover(current):
+            _start_pre_cutover_predecessor(store, runtime, current)
+            return "RECOVERING"
+        return "NO_PRE_CUTOVER_RECOVERY"
 
 
 def _resume_ha_data_rollback(

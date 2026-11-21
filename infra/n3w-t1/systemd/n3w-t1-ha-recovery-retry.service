@@ -1,0 +1,10 @@
+[Unit]
+Description=Retry pending N3-W Home Assistant OTA recovery
+After=docker.service n3wfc4-services-activation.service n3w-t1-ha-recovery-startup.service
+ConditionPathExists=/var/lib/n3w-t1-core-updater/homeassistant-usb-upgrade.json
+
+[Service]
+Type=oneshot
+PrivateMounts=yes
+ExecStart=/usr/bin/python3 /opt/HomeAssistant/tools/n3w_t1_core_updater_ha_recovery_startup.py --resume-pending
+TimeoutStartSec=45min
