@@ -142,7 +142,9 @@ def test_candidate_compose_renders_only_the_manager_ota_binding(package, tmp_pat
     assert render(base) == original
 
 
-@pytest.mark.parametrize("fault", [None, "socket", "version", "mount", "broker", "transaction"])
+@pytest.mark.parametrize("fault", [
+    None, "empty_bind", "socket", "version", "mount", "create_path", "broker", "transaction",
+])
 def test_activation_preflight_is_read_only(package, tmp_path, monkeypatch, fault):
     staged, digest, head = package
     root = tmp_path / "host"
@@ -181,7 +183,9 @@ def test_activation_preflight_is_read_only(package, tmp_path, monkeypatch, fault
     )
     proposed["services"]["manager"]["volumes"] = [{
         "type": "bind", "source": str(IPC_SOCKET.parent), "target": str(IPC_SOCKET.parent),
-        "read_only": fault != "mount", "bind": {"create_host_path": False},
+        "read_only": fault != "mount", "bind": {} if fault == "empty_bind" else {
+            "create_host_path": fault == "create_path",
+        },
     }]
     if fault == "broker":
         proposed["services"]["broker"]["image"] = "unexpected"
@@ -208,10 +212,11 @@ def test_activation_preflight_is_read_only(package, tmp_path, monkeypatch, fault
 
     errors = {
         "socket": "candidate_socket_unavailable", "version": "manager_settings_drift",
-        "mount": "manager_mount_drift", "broker": "unexpected_compose_change", "transaction": "transaction_active",
+        "mount": "manager_mount_drift", "create_path": "manager_mount_drift",
+        "broker": "unexpected_compose_change", "transaction": "transaction_active",
     }
     changes = manager.changes[:]
-    if fault:
+    if fault in errors:
         with pytest.raises(UpdaterError, match=errors[fault]):
             deploy.check_candidate_activation(
                 staged, digest, root=root, runtime=runtime, systemctl=unit_status, render=render,

@@ -239,8 +239,10 @@ def _verify_candidate_delta(active: dict, staged: dict, version: str) -> None:
         "type": "bind", "source": str(IPC_SOCKET.parent), "target": str(IPC_SOCKET.parent), "read_only": True,
     }
     matches = [v for v in volumes if isinstance(v, dict) and v.get("target") == mount["target"]]
-    # Compose omits create_host_path when false in some supported versions.
-    if len(matches) != 1 or matches[0] not in (mount, {**mount, "bind": {"create_host_path": False}}):
+    # Compose may retain an empty bind object after omitting a false option.
+    if len(matches) != 1 or matches[0] not in (
+        mount, {**mount, "bind": {}}, {**mount, "bind": {"create_host_path": False}},
+    ):
         raise UpdaterError("ha_recovery_candidate_manager_mount_drift")
     volumes.remove(matches[0])
     for key in expected:
