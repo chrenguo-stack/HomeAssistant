@@ -215,6 +215,13 @@ def verify(
     files = manifest.get("files")
     if not isinstance(files, dict) or set(files) != {UPDATER, UNIT}:
         raise BrokerSupportError("broker_support_manifest_file_set_invalid")
+    expected_install = {
+        UPDATER: (0o755, str(UPDATER_INSTALL)),
+        UNIT: (0o644, str(UNIT_INSTALL)),
+    }
+    expected_modules = [f"{name}.py" for name in MODULES] + ["__main__.py"]
+    if manifest.get("module_set") != expected_modules:
+        raise BrokerSupportError("broker_support_manifest_module_set_invalid")
     for name in (UPDATER, UNIT):
         row = files.get(name)
         path = package / name
@@ -225,18 +232,20 @@ def verify(
             or not isinstance(row.get("size"), int)
             or not isinstance(row.get("sha256"), str)
             or SHA256.fullmatch(row["sha256"]) is None
+            or row.get("install_mode") != expected_install[name][0]
+            or row.get("install_path") != expected_install[name][1]
             or path.stat().st_size != row["size"]
             or _sha256_file(path) != row["sha256"]
         ):
             raise BrokerSupportError("broker_support_payload_digest_mismatch")
 
-    expected_modules = {f"{name}.py" for name in MODULES} | {"__main__.py"}
+    expected_module_names = set(expected_modules)
     try:
         with zipfile.ZipFile(package / UPDATER, "r") as archive:
             names = set(archive.namelist())
     except (OSError, zipfile.BadZipFile) as error:
         raise BrokerSupportError("broker_support_updater_invalid") from error
-    if names != expected_modules:
+    if names != expected_module_names:
         raise BrokerSupportError("broker_support_updater_module_set_invalid")
     if "n3w_t1_core_updater_broker_recovery.py" not in names:
         raise BrokerSupportError("broker_support_broker_module_missing")
@@ -366,20 +375,13 @@ def install(
     _validate_parent(opt)
     _validate_parent(systemd)
     updater_dir = _rooted(root, UPDATER_INSTALL.parent)
-    created_updater_dir = False
-    if updater_dir.exists() or updater_dir.is_symlink():
-        _validate_parent(updater_dir)
-    else:
-        updater_dir.mkdir(mode=0o755)
-        os.chown(updater_dir, 0, 0)
-        _validate_parent(updater_dir)
-        created_updater_dir = True
-
     updater_target = _rooted(root, UPDATER_INSTALL)
     unit_target = _rooted(root, UNIT_INSTALL)
     updater_payload = (package / UPDATER).read_bytes()
     unit_payload = (package / UNIT).read_bytes()
 
+    if updater_dir.exists() or updater_dir.is_symlink():
+        _validate_parent(updater_dir)
     updater_exists = _installed_exact(updater_target, updater_payload, 0o755)
     unit_exists = _installed_exact(unit_target, unit_payload, 0o644)
     if updater_exists != unit_exists:
@@ -393,8 +395,16 @@ def install(
         raise BrokerSupportError("broker_support_enablement_without_payload")
 
     created: list[Path] = []
-    enable_changed = False
+    created_updater_dir = False
+    enable_attempted = False
     try:
+        if not updater_dir.exists():
+            updater_dir.mkdir(mode=0o755)
+            os.chmod(updater_dir, 0o755)
+            os.chown(updater_dir, 0, 0)
+            _validate_parent(updater_dir)
+            created_updater_dir = True
+
         if not updater_exists:
             _atomic_publish(updater_target, updater_payload, 0o755)
             created.append(updater_target)
@@ -403,8 +413,8 @@ def install(
 
         systemctl("daemon-reload", None)
         if enabled_before != "enabled":
+            enable_attempted = True
             systemctl("enable", UNIT)
-            enable_changed = True
         if systemctl("is-enabled", UNIT) != "enabled":
             raise BrokerSupportError("broker_support_enable_verify_failed")
         if systemctl("is-active", UNIT) in {
@@ -415,7 +425,7 @@ def install(
             raise BrokerSupportError("broker_support_install_started_unit")
     except Exception:
         rollback_ok = True
-        if enable_changed:
+        if enable_attempted:
             try:
                 systemctl("disable", UNIT)
             except Exception:

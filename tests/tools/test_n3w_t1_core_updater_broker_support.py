@@ -33,9 +33,9 @@ class FakeSystemd:
         if action == "daemon-reload":
             return ""
         if action == "enable":
+            self.enabled = True
             if self.fail_enable:
                 raise support.BrokerSupportError("synthetic_enable_failure")
-            self.enabled = True
             return ""
         if action == "disable":
             self.enabled = False
@@ -293,3 +293,48 @@ def test_unit_source_never_orders_before_product_owners():
         "ExecStart=/opt/n3w-t1-core-updater/t1-core-updater.pyz "
         "recover-broker-pending"
     ) in text
+
+
+def test_manifest_install_metadata_tamper_is_rejected(
+    exact_package,
+):
+    package, _result, _head = exact_package
+    manifest_path = package / support.MANIFEST
+    document = json.loads(manifest_path.read_text(encoding="utf-8"))
+    document["files"][support.UPDATER]["install_path"] = "/tmp/not-authority"
+    manifest_path.write_text(
+        json.dumps(document, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        support.BrokerSupportError,
+        match="broker_support_payload_digest_mismatch",
+    ):
+        support.verify(package)
+
+
+def test_active_unit_precheck_leaves_no_updater_directory(
+    exact_package,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    package, result, _head = exact_package
+    root = _prepare_install_root(tmp_path, monkeypatch)
+    systemd = FakeSystemd()
+    systemd.active = True
+
+    with pytest.raises(
+        support.BrokerSupportError,
+        match="broker_support_recovery_unit_active",
+    ):
+        support.install(
+            package,
+            result["manifest_sha256"],
+            root=root,
+            systemctl=systemd,
+        )
+
+    assert not (
+        root / support.UPDATER_INSTALL.parent.relative_to("/")
+    ).exists()
