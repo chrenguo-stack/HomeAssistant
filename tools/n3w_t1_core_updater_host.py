@@ -37,6 +37,11 @@ from n3w_t1_core_updater_common import (
     sha256_text,
 )
 
+from n3w_t1_core_updater_broker_recovery import (
+    BrokerRecoveryError,
+    LocalBrokerRecoveryPoint,
+)
+
 from n3w_t1_core_updater_v2_common import (
     COMPONENTS,
     IMAGE_BINDINGS,
@@ -1300,6 +1305,46 @@ class LocalHost:
             raise UpdaterError(
                 f"{component}_binding_restore_failed"
             ) from error
+
+    def _broker_recovery(self) -> LocalBrokerRecoveryPoint:
+        return LocalBrokerRecoveryPoint()
+
+    def broker_recovery_preflight(self) -> dict[str, Any]:
+        try:
+            return self._broker_recovery().preflight()
+        except BrokerRecoveryError as error:
+            raise UpdaterError(str(error)) from error
+
+    def create_broker_recovery_point(self, key: str) -> dict[str, Any]:
+        if (
+            self._systemctl("is-active", SERVICES_UNIT) not in {"inactive", "failed"}
+            or self._systemctl("is-active", BROKER_UNIT) not in {"inactive", "failed"}
+            or self._running_count("manager")
+            or self._running_count("homeassistant")
+            or self._running_count("broker")
+        ):
+            raise UpdaterError("broker_recovery_writers_not_quiescent")
+        try:
+            return self._broker_recovery().create(key)
+        except BrokerRecoveryError as error:
+            raise UpdaterError(str(error)) from error
+
+    def restore_broker_recovery_point(
+        self,
+        record: dict[str, Any],
+    ) -> dict[str, Any]:
+        if (
+            self._systemctl("is-active", SERVICES_UNIT) not in {"inactive", "failed"}
+            or self._systemctl("is-active", BROKER_UNIT) not in {"inactive", "failed"}
+            or self._running_count("manager")
+            or self._running_count("homeassistant")
+            or self._running_count("broker")
+        ):
+            raise UpdaterError("broker_recovery_writers_not_quiescent")
+        try:
+            return self._broker_recovery().restore(record)
+        except BrokerRecoveryError as error:
+            raise UpdaterError(str(error)) from error
 
     def stop_broker(self) -> None:
         self._run(("systemctl", "stop", BROKER_UNIT), timeout=120)

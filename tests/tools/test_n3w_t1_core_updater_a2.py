@@ -10,6 +10,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
 import n3w_t1_core_updater_a1_policy as policy_mod
+import n3w_t1_core_updater_broker_recovery as broker_recovery_mod
 import n3w_t1_core_updater_host as hostmod
 import n3w_t1_core_updater_v2 as core
 from n3w_t1_core_updater_v2_common import (
@@ -127,6 +128,9 @@ class FakeHost:
         self.events: list[str] = []
         self.fail_activate_count = 0
         self.peer_drift_after_activate: str | None = None
+        self.broker_recovery_created = 0
+        self.broker_recovery_restored = 0
+        self.broker_state = "predecessor"
 
     def _render(self):
         return {
@@ -233,11 +237,44 @@ class FakeHost:
     def render_compose(self):
         return self._render()
 
+    def broker_recovery_preflight(self):
+        return {
+            "schema": broker_recovery_mod.BROKER_RECOVERY_SCHEMA,
+            "status": "PASS",
+            "source_total_bytes": 2,
+            "largest_file_bytes": 1,
+            "required_free_bytes": 3,
+            "observed_free_bytes": 100,
+            "file_count": 2,
+        }
+
+    def create_broker_recovery_point(self, key):
+        self.broker_recovery_created += 1
+        return {
+            "schema": broker_recovery_mod.BROKER_RECOVERY_SCHEMA,
+            "key": key,
+            "manifest_sha256": "1" * 64,
+            "source_tree_sha256": "2" * 64,
+            "total_bytes": 2,
+            "file_count": 2,
+        }
+
+    def restore_broker_recovery_point(self, record):
+        assert record["schema"] == broker_recovery_mod.BROKER_RECOVERY_SCHEMA
+        self.broker_recovery_restored += 1
+        self.broker_state = "predecessor"
+        return {
+            "schema": broker_recovery_mod.BROKER_RECOVERY_SCHEMA,
+            "status": "PASS",
+        }
+
     def quiesce_component(self, component):
         self.events.append(f"quiesce:{component}")
 
     def activate_component(self, component):
         self.events.append(f"activate:{component}")
+        if component == "broker":
+            self.broker_state = "target-written"
         if self.fail_activate_count:
             self.fail_activate_count -= 1
             raise UpdaterV2Error("injected_activate_failure")
@@ -766,6 +803,10 @@ def test_target_activation_failure_rolls_back_all_components(
     assert host.bindings == OLD
     assert store.read()["status"] == "ROLLED_BACK"
     assert store.read()["apply_error_code"] == "injected_activate_failure"
+    if component == "broker":
+        assert host.broker_recovery_created == 1
+        assert host.broker_recovery_restored == 1
+        assert host.broker_state == "predecessor"
 
 
 def test_peer_hard_drift_fails_closed_after_target_restore(
@@ -1623,3 +1664,137 @@ def test_broker_plan_reports_runtime_template_convergence(tmp_path: Path):
     )
 
     assert "converge_broker_runtime_template" in result["actions"]
+
+
+def _broker_state_fixture(tmp_path: Path):
+    source = tmp_path / "broker"
+    recovery = tmp_path / "recovery"
+    source.mkdir(mode=0o700)
+    uid = source.stat().st_uid
+    gid = source.stat().st_gid
+    for name, payload in (
+        ("dynamic-security.json", b'{"clients":[]}\n'),
+        ("mosquitto.db", b"mosquitto-persistence\n"),
+    ):
+        path = source / name
+        path.write_bytes(payload)
+        path.chmod(0o600)
+    return source, recovery, uid, gid
+
+
+def test_broker_recovery_point_round_trip_restores_exact_state(tmp_path: Path):
+    source, recovery, uid, gid = _broker_state_fixture(tmp_path)
+    provider = broker_recovery_mod.LocalBrokerRecoveryPoint(
+        source,
+        recovery,
+        expected_source_uid=uid,
+        expected_source_gid=gid,
+        reserve_bytes=0,
+    )
+
+    preflight = provider.preflight()
+    assert preflight["status"] == "PASS"
+    record = provider.create("0123456789abcdef-1")
+    assert provider.verify(record)["status"] == "PASS"
+
+    (source / "dynamic-security.json").write_bytes(b'{"clients":["changed"]}\n')
+    (source / "dynamic-security.json").chmod(0o600)
+    (source / "mosquitto.db").write_bytes(b"target-state\n")
+    (source / "mosquitto.db").chmod(0o600)
+    extra = source / "target-only.state"
+    extra.write_bytes(b"remove-me")
+    extra.chmod(0o600)
+
+    restored = provider.restore(record)
+
+    assert restored["status"] == "PASS"
+    assert (source / "dynamic-security.json").read_bytes() == b'{"clients":[]}\n'
+    assert (source / "mosquitto.db").read_bytes() == b"mosquitto-persistence\n"
+    assert not extra.exists()
+    assert provider.restore(record)["source_tree_sha256"] == record["source_tree_sha256"]
+
+
+def test_broker_recovery_point_rejects_snapshot_tamper(tmp_path: Path):
+    source, recovery, uid, gid = _broker_state_fixture(tmp_path)
+    provider = broker_recovery_mod.LocalBrokerRecoveryPoint(
+        source,
+        recovery,
+        expected_source_uid=uid,
+        expected_source_gid=gid,
+        reserve_bytes=0,
+    )
+    record = provider.create("0123456789abcdef-2")
+    snapshot = recovery / record["key"] / "state" / "mosquitto.db"
+    snapshot.write_bytes(b"tampered")
+
+    with pytest.raises(
+        broker_recovery_mod.BrokerRecoveryError,
+        match="broker_recovery_snapshot_digest_mismatch",
+    ):
+        provider.verify(record)
+
+
+def test_broker_recovery_point_rejects_symlinked_source_entry(tmp_path: Path):
+    source, recovery, uid, gid = _broker_state_fixture(tmp_path)
+    (source / "unexpected").symlink_to(source / "mosquitto.db")
+    provider = broker_recovery_mod.LocalBrokerRecoveryPoint(
+        source,
+        recovery,
+        expected_source_uid=uid,
+        expected_source_gid=gid,
+        reserve_bytes=0,
+    )
+
+    with pytest.raises(
+        broker_recovery_mod.BrokerRecoveryError,
+        match="broker_recovery_source_entry_invalid",
+    ):
+        provider.preflight()
+
+
+def test_broker_recovery_capacity_fails_before_quiesce(tmp_path: Path, monkeypatch):
+    source, recovery, uid, gid = _broker_state_fixture(tmp_path)
+    provider = broker_recovery_mod.LocalBrokerRecoveryPoint(
+        source,
+        recovery,
+        expected_source_uid=uid,
+        expected_source_gid=gid,
+        reserve_bytes=1024,
+    )
+    monkeypatch.setattr(
+        broker_recovery_mod.shutil,
+        "disk_usage",
+        lambda _: type("Usage", (), {"free": 1})(),
+    )
+
+    with pytest.raises(
+        broker_recovery_mod.BrokerRecoveryError,
+        match="broker_recovery_capacity_insufficient",
+    ):
+        provider.preflight()
+
+
+def test_broker_committed_transaction_cannot_restore_stale_recovery_point(
+    tmp_path: Path,
+    monkeypatch,
+):
+    monkeypatch.setattr(core.os, "geteuid", lambda: 0)
+    archive = tmp_path / "broker.tar"
+    archive.write_bytes(b"broker-target")
+    archive_sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+    host = FakeHost()
+    store = V2StateStore(tmp_path / "state")
+    updater = core.MultiComponentCoreUpdater(host, store, FakePolicy())
+    updater.apply(
+        target("broker", archive_sha),
+        baseline(),
+        archive,
+        authorization_id="N3W_T1_CORE_UPDATER_BROKER_COMMIT_01",
+        confirmation=APPLY_CONFIRMATION_V2,
+    )
+
+    with pytest.raises(
+        UpdaterV2Error,
+        match="broker_committed_recovery_point_expired",
+    ):
+        updater.rollback(confirmation="T1_CORE_UPDATER_ROLLBACK")

@@ -348,7 +348,17 @@ class MultiComponentCoreUpdater:
             "target_archive_verified": archive_verified,
             "actions": [
                 "verify_or_load_exact_target_image",
+                *(
+                    ["preflight_broker_recovery_capacity"]
+                    if target.component == "broker"
+                    else []
+                ),
                 f"quiesce_{target.component}_production_owner",
+                *(
+                    ["create_broker_recovery_point"]
+                    if target.component == "broker"
+                    else []
+                ),
                 *(
                     [f"converge_{target.component}_runtime_template"]
                     if predecessor_mode == "legacy_static"
@@ -421,6 +431,11 @@ class MultiComponentCoreUpdater:
             raise UpdaterV2Error("predecessor_image_authority_drift")
 
         target_prestate = self.host.image_id(target.target_image_ref)
+        broker_recovery_preflight = (
+            self.host.broker_recovery_preflight()
+            if target.component == "broker"
+            else None
+        )
         self.store.prepare_new()
         tx = {
             "schema": TX_SCHEMA_V2,
@@ -449,6 +464,8 @@ class MultiComponentCoreUpdater:
             "started_at_unix": int(time.time()),
             "candidate_image_preexisting": target_prestate is not None,
         }
+        if broker_recovery_preflight is not None:
+            tx["broker_recovery_preflight"] = broker_recovery_preflight
         self.store.write(tx)
 
         try:
@@ -471,6 +488,17 @@ class MultiComponentCoreUpdater:
             adapter.quiesce(self.host)
             tx.update(phase="QUIESCED")
             self.store.write(tx)
+
+            if target.component == "broker":
+                recovery_key = (
+                    tx["authorization_id_sha256"][:16]
+                    + "-"
+                    + str(tx["started_at_unix"])
+                )
+                tx["broker_recovery_point"] = (
+                    self.host.create_broker_recovery_point(recovery_key)
+                )
+                self.store.write(tx)
 
             self.host.rewrite_component_image(
                 target.component,
@@ -590,6 +618,38 @@ class MultiComponentCoreUpdater:
                 tx["predecessor_image"],
             )
 
+    @staticmethod
+    def _broker_recovery_write_possible(phase: Any) -> bool:
+        return phase in {
+            "ACTIVATING",
+            "TARGET_RUNTIME_STARTED",
+            "VERIFYING",
+            "ROLLBACK_AUTHORIZED",
+            "ROLLBACK_QUIESCING",
+            "ROLLBACK_BINDING_RESTORED",
+            "ROLLBACK_ACTIVATING",
+        }
+
+    def _restore_broker_state_if_required(
+        self,
+        target: ComponentTarget,
+        tx: dict[str, Any],
+        *,
+        force: bool = False,
+        phase: Any = None,
+    ) -> None:
+        if target.component != "broker":
+            return
+        recovery = tx.get("broker_recovery_point")
+        should_restore = force or self._broker_recovery_write_possible(
+            tx.get("failure_phase") if phase is None else phase
+        )
+        if not should_restore:
+            return
+        if not isinstance(recovery, dict):
+            raise UpdaterV2Error("broker_recovery_point_missing")
+        self.host.restore_broker_recovery_point(recovery)
+
     def _rollback_after_failure(
         self,
         target: ComponentTarget,
@@ -599,8 +659,9 @@ class MultiComponentCoreUpdater:
         error_code: str,
     ) -> None:
         adapter = adapter_for(target.component)
+        failure_phase = tx.get("phase")
         try:
-            if tx.get("phase") in {"AUTHORIZED", "TARGET_IMAGE_READY"}:
+            if failure_phase in {"AUTHORIZED", "TARGET_IMAGE_READY"}:
                 observed = self.host.observe_state_v2()
                 runtime_class, health_state = self._classify_transaction_state(
                     tx,
@@ -643,6 +704,11 @@ class MultiComponentCoreUpdater:
                 return
 
             adapter.quiesce(self.host)
+            self._restore_broker_state_if_required(
+                target,
+                tx,
+                phase=failure_phase,
+            )
             self._restore_predecessor_binding(target, tx)
             adapter.activate(self.host)
             post = self.host.inspect_v2()
@@ -689,6 +755,7 @@ class MultiComponentCoreUpdater:
             tx.update(
                 status="FAILED_EMERGENCY",
                 phase="FAILED_EMERGENCY",
+                failure_phase=failure_phase,
                 failure_reason=reason,
                 apply_error_code=error_code,
                 rollback_error=type(rollback_error).__name__,
@@ -714,6 +781,13 @@ class MultiComponentCoreUpdater:
             }:
                 raise UpdaterV2Error("recoverable_transaction_required")
             target_doc = tx.get("target")
+            if (
+                tx.get("component") == "broker"
+                and tx.get("status") == "COMMITTED"
+            ):
+                raise UpdaterV2Error(
+                    "broker_committed_recovery_point_expired"
+                )
             if not isinstance(target_doc, dict):
                 raise UpdaterV2Error("rollback_transaction_authority_invalid")
             target = ComponentTarget(
@@ -822,6 +896,15 @@ class MultiComponentCoreUpdater:
                 }:
                     pass
 
+                self._restore_broker_state_if_required(
+                    target,
+                    tx,
+                    force=runtime_class in {
+                        "TARGET_BOUND_RUNNING",
+                        "APPLICATION_STOPPED_TARGET",
+                        "PREDECESSOR_BINDING_TRANSITION_RUNNING",
+                    },
+                )
                 self._restore_predecessor_binding(target, tx)
 
                 adapter.activate(self.host)
