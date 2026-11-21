@@ -571,11 +571,11 @@ jobs:
           echo "BROKER_B6_PREDECESSOR_RETAINED_PUBLISH=PASS"
           stop_broker
           echo "BROKER_B6_PREDECESSOR_STOP=PASS"
-          test -s "$WORK/data/dynamic-security.json"
+          sudo test -s "$WORK/data/dynamic-security.json"
           echo "BROKER_B6_DYNSEC_FILE_PRESENT=PASS"
-          test -s "$WORK/data/mosquitto.db"
+          sudo test -s "$WORK/data/mosquitto.db"
           echo "BROKER_B6_PERSISTENCE_DB_PRESENT=PASS"
-          sha256sum "$WORK/data/dynamic-security.json" "$WORK/data/mosquitto.db" > "$WORK/pre-target.sha256"
+          sudo sha256sum "$WORK/data/dynamic-security.json" "$WORK/data/mosquitto.db" > "$WORK/pre-target.sha256"
           echo "BROKER_B6_PRE_TARGET_HASH_CAPTURE=PASS"
 
           sudo env PYTHONPATH="$GITHUB_WORKSPACE/tools" WORK="$WORK" python - <<'PY'
@@ -620,7 +620,7 @@ jobs:
           echo "BROKER_B6_TARGET_RETAINED_PUBLISH=PASS"
           stop_broker
           echo "BROKER_B6_TARGET_STOP=PASS"
-          ! sha256sum -c "$WORK/pre-target.sha256" >/dev/null 2>&1
+          ! sudo sha256sum -c "$WORK/pre-target.sha256" >/dev/null 2>&1
           echo "BROKER_B6_TARGET_STATE_CHANGED=PASS"
 
           sudo env PYTHONPATH="$GITHUB_WORKSPACE/tools" WORK="$WORK" python - <<'PY'
@@ -646,7 +646,7 @@ jobs:
           assert restored["status"] == "PASS"
           print("BROKER_B6_REAL_RECOVERY_POINT_RESTORE=PASS")
           PY
-          sha256sum -c "$WORK/pre-target.sha256"
+          sudo sha256sum -c "$WORK/pre-target.sha256"
           echo "BROKER_B6_RESTORED_HASH_MATCH=PASS"
 
           start_broker "$PREDECESSOR_UPSTREAM"

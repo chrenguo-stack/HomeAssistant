@@ -200,3 +200,14 @@ Attempt 04 exact head = bd7f7f247ae8634bad77cf1695da4e2b23f7dc5e。
 现有日志无法唯一判定 remaining boundary 是 probe publish、predecessor retained publish、graceful stop、DynSec file、mosquitto.db 或 pre-target hash capture。为避免继续猜测，本提交只增加逐边界 PASS 标记，并同时为 target start/version/read/write/stop、state changed、restore hash、rollback predecessor read 增加标记。
 
 该提交不改变 fixture 条件、ACL、Broker 配置、Recovery Point 或产品升级逻辑，仅提升 CI 失败定位能力。
+
+
+## 11. Phase 1 Attempt 05 Failure：Broker state fixture 权限修复
+
+Attempt 05 exact head = 5f20140e8d833b736943ac17ea3e1472284865ad。
+
+阶段标记确认：DynSec application fixture、application probe、predecessor retained publish、predecessor graceful stop 均 PASS；随后在 dynamic-security.json presence check 前失败。
+
+fixture 在初始化后明确执行 `chown -R 1883:1883` 且把 Broker data root 设为 0700，因此普通 GitHub runner 用户不能遍历 `$WORK/data`。Recovery Point 本身已经用 sudo 运行，但紧邻的 `test -s` 与 `sha256sum` 仍以普通 runner 身份执行，形成测试夹具权限不一致。
+
+修复只把 Broker state 文件 presence/hash 检查改为 sudo，包括 pre-target capture、target state-change check 与 restore hash check；不改变生产目录权限、不放宽 0700、不修改 Broker/Recovery Point 产品代码。
