@@ -138,6 +138,10 @@ directory read-only. Mounting the directory lets Manager see socket recreation
 and atomic replacement of the approved manifest. The mount requires the host
 directory to exist. The candidate also requires
 `GH_N3W_T1_OTA_INSTALLED_VERSION` to be supplied from the observed predecessor.
+During an OTA transaction, the host status is the version authority for Manager.
+Trial startup and acceptance keep the predecessor version visible until commit.
+A rollback keeps the predecessor version, and a committed transaction reports
+the accepted target even if its approved manifest is later removed.
 The later activation step must verify the staged Compose against the host's
 current configuration and check that the host socket is listening. Installation
 of the recovery bundle leaves the active Compose configuration in place.

@@ -77,7 +77,7 @@ def envelope() -> dict:
 
 class Provider:
     def __init__(self, document: dict | None = None) -> None:
-        self.document = envelope() if document is None else document
+        self.document: dict | None = envelope() if document is None else document
 
     def get_approved_homeassistant_manifest(self):
         return self.document
@@ -87,11 +87,13 @@ class Runtime:
     def __init__(self, phase: str = "DISCOVERED", progress: int | None = None) -> None:
         self.phase = phase
         self.progress = progress
+        self.installed_version: str | None = None
 
     def get_homeassistant_ota_runtime_state(self) -> OtaRuntimeSnapshot:
         return OtaRuntimeSnapshot(
             phase=self.phase,
             progress_percent=self.progress,
+            installed_version=self.installed_version,
         )
 
 
@@ -210,6 +212,36 @@ def test_invalid_manifest_projects_non_installable_safe_error() -> None:
     assert projection.status.update_available is False
     assert projection.status.ota_phase == "ERROR"
     assert projection.status.error_code_or_null == "approved_manifest_not_approved"
+
+
+def test_committed_host_version_replaces_configured_predecessor() -> None:
+    ota, runtime, sink = manager(phase="COMMITTED")
+    runtime.installed_version = "2026.10.4"
+    status = ota.project().status
+    assert status.installed_version == status.latest_approved_version == "2026.10.4"
+    assert status.update_available is False and status.ota_phase == "COMMITTED"
+    with pytest.raises(OtaControlError, match="ota_update_not_available"):
+        ota.handle_control(payload("PREPARE"))
+    assert sink.intents == []
+
+
+@pytest.mark.parametrize("phase", ["COMMITTED", "ROLLED_BACK", "RECOVERING", "READY_TO_INSTALL"])
+def test_missing_manifest_preserves_host_phase_and_installed_version(phase) -> None:
+    ota, runtime, _sink = manager(phase=phase)
+    provider = Provider()
+    provider.document = None
+    ota.manifest_provider = provider
+    runtime.installed_version = "2026.10.4"
+    projection = ota.project()
+    assert projection.manifest is None and projection.status.ota_phase == phase
+    assert projection.status.installed_version == projection.status.latest_approved_version == "2026.10.4"
+    assert projection.status.in_progress is (phase == "RECOVERING")
+    assert not projection.status.update_available and not projection.status.ready_to_install
+
+
+def test_runtime_rejects_unbounded_installed_version() -> None:
+    with pytest.raises(OtaControlError, match="ota_runtime_installed_version_invalid"):
+        OtaRuntimeSnapshot(installed_version="local/n3w-homeassistant:2026.10.4-5881590f").validate()
 
 
 def test_prepare_and_install_are_distinct_and_install_requires_ready() -> None:

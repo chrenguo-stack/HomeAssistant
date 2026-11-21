@@ -816,17 +816,23 @@ class HaUsbStateStore:
                 return True
         return False
 
-    def _archive_current(self, document: dict[str, Any]) -> None:
+    def _archive_current(self, document: dict[str, Any], *, retain_current: bool) -> None:
         self._ensure_history()
         digest = sha256_bytes(canonical(document))[:16]
-        destination = (
-            self.history
-            / f"{int(time.time())}-homeassistant-usb-{digest}.json"
-        )
-        if destination.exists() or destination.is_symlink():
-            raise UpdaterV2Error("transaction_history_collision")
-        os.replace(self.path, destination)
-        os.chmod(destination, 0o600)
+        timestamp = document["updated_at_unix"] if retain_current else int(time.time())
+        destination = self.history / f"{timestamp}-homeassistant-usb-{digest}.json"
+        if retain_current:
+            # Keep a readable terminal record until the next transaction is durable.
+            try:
+                os.link(self.path, destination)
+            except FileExistsError:
+                if self._read_record(destination) != document:
+                    raise UpdaterV2Error("transaction_history_collision")
+        else:
+            if destination.exists() or destination.is_symlink():
+                raise UpdaterV2Error("transaction_history_collision")
+            os.replace(self.path, destination)
+            os.chmod(destination, 0o600)
         for path in (self.history, self.root):
             descriptor = os.open(
                 path,
@@ -837,7 +843,7 @@ class HaUsbStateStore:
             finally:
                 os.close(descriptor)
 
-    def prepare_new(self) -> None:
+    def prepare_new(self, *, replacement: dict[str, Any] | None = None) -> None:
         self._ensure_root()
         generic = V2StateStore(self.root)
         current_generic = generic.read()
@@ -856,8 +862,14 @@ class HaUsbStateStore:
         current = self.read()
         if current is not None and current["status"] not in HA_USB_TERMINAL_STATUSES:
             raise UpdaterV2Error("ha_usb_transaction_active")
+        if replacement is not None:
+            replacement = validate_transaction_document(replacement)
+            if replacement["phase"] not in {U0, U1}:
+                raise UpdaterV2Error("ha_usb_replacement_phase_invalid")
         if current is not None:
-            self._archive_current(current)
+            self._archive_current(current, retain_current=replacement is not None)
+        if replacement is not None:
+            self.write(replacement)
 
     def write(self, document: dict[str, Any]) -> None:
         validated = validate_transaction_document(document)

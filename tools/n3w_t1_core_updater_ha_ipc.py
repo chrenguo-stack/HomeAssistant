@@ -39,6 +39,8 @@ from n3w_t1_core_updater_v2_common import ComponentTarget, UpdaterV2Error, sha25
 
 REQUEST_SCHEMA = "gh.n3w-t1-ha-ota-ipc-request/1"
 RESPONSE_SCHEMA = "gh.n3w-t1-ha-ota-ipc-response/1"
+VERSIONED_STATUS_SCHEMA = "gh.n3w-t1-ha-ota-ipc-response/2"
+VERSIONED_STATUS_OPERATION = "status_with_version"
 MAX_FRAME_BYTES = 8192
 DEFAULT_SOCKET_MODE = 0o660
 IPC_SOCKET = Path("/run/n3w/t1-ota/ha-ota.sock")
@@ -53,6 +55,7 @@ APPROVED_MANIFEST_SCHEMA = "gh.n3w-t1-ota-approved-manifest/1"
 _RELEASE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _PUBLIC_CODE_RE = re.compile(r"^[a-z0-9_]{3,96}$")
+_HA_IMAGE_VERSION = re.compile(r"local/n3w-homeassistant:([0-9]{4}\.[0-9]{1,2}\.[0-9]{1,3})-[0-9a-f]{8,64}")
 
 _PHASE_MAP = {
     U0: "DISCOVERED",
@@ -228,8 +231,21 @@ class HaUsbIpcExecutor:
             raise UpdaterV2Error("ha_ota_ipc_release_binding_invalid")
         return admission
 
-    def status(self) -> dict[str, object]:
+    def status(self, *, include_version: bool = False) -> dict[str, object]:
         document = self.store.read()
+        status = self._project_status(document)
+        if include_version:
+            version = None
+            if document is not None:
+                key = "target_image_ref" if document["phase"] == U13A else "current_image_ref"
+                match = _HA_IMAGE_VERSION.fullmatch(document[key])
+                if match is not None:
+                    version = match[1]
+            status["installed_version"] = version
+        return status
+
+    @staticmethod
+    def _project_status(document: dict[str, Any] | None) -> dict[str, object]:
         if document is None:
             return {
                 "phase": "DISCOVERED",
@@ -299,7 +315,6 @@ class HaUsbIpcExecutor:
         admission = self._resolve(release_identity)
         with self.store.lock():
             if action == "PREPARE":
-                self.store.prepare_new()
                 document = new_transaction(
                     current_image_ref=admission.current_image_ref,
                     current_image_identity=dict(admission.current_image_identity),
@@ -308,7 +323,7 @@ class HaUsbIpcExecutor:
                     target_archive_sha256=admission.target_archive_sha256,
                     target_archive_size=admission.target_archive_size,
                 )
-                self.store.write(request_prepare(document))
+                self.store.prepare_new(replacement=request_prepare(document))
             else:
                 document = self.store.read()
                 if document is None:
@@ -394,6 +409,9 @@ class HaUsbIpcDispatcher:
             "progress_percent": status["progress_percent"],
             "error_code": status["error_code"],
         }
+        if "installed_version" in status:
+            document["schema"] = VERSIONED_STATUS_SCHEMA
+            document["installed_version"] = status["installed_version"]
         return (
             json.dumps(document, sort_keys=True, separators=(",", ":")).encode("utf-8")
             + b"\n"
@@ -413,13 +431,13 @@ class HaUsbIpcDispatcher:
             if not isinstance(document, dict) or document.get("schema") != REQUEST_SCHEMA:
                 raise UpdaterV2Error("ha_ota_ipc_request_invalid")
             operation = document.get("operation")
-            if operation == "status":
+            if operation in ("status", VERSIONED_STATUS_OPERATION):
                 if set(document) != {"schema", "operation"}:
                     raise UpdaterV2Error("ha_ota_ipc_request_fields_invalid")
                 return self._response(
                     accepted=True,
                     code="status",
-                    status=self.executor.status(),
+                    status=self.executor.status(include_version=operation == VERSIONED_STATUS_OPERATION),
                 )
             if operation == "submit":
                 if set(document) != {

@@ -37,6 +37,9 @@ from n3w_t1_core_updater_ha_backup import (
 from n3w_t1_core_updater_ha_data_evidence import MANAGER_PAIRING_DB, HaProtectedDataEvidence
 from n3w_t1_core_updater_ha_ipc import (
     REQUEST_SCHEMA,
+    RESPONSE_SCHEMA,
+    VERSIONED_STATUS_OPERATION,
+    VERSIONED_STATUS_SCHEMA,
     HaUsbIpcDispatcher,
     HaUsbIpcExecutor,
     HostOtaAdmission,
@@ -2392,6 +2395,65 @@ def test_r2_u12_power_loss_can_only_forward_commit_with_same_media(tmp_path):
         usb_present=True,
         observed_usb_filesystem_uuid=USB_UUID,
     ) == "FORWARD_COMMIT_ELIGIBLE"
+
+
+def test_status_publishes_committed_version_and_survives_next_prepare_interruption(tmp_path, monkeypatch):
+    prepared, *_ = drive_to_u8(tmp_path)
+    started = record_target_started(record_predecessor_capacity_released(
+        claim_live_authorization(prepared, AUTHORIZATION_ID)
+    ))
+    accepted = record_target_accepted(started)
+    committed = record_commit(accepted)
+    rolled_back = record_rollback_complete(
+        started, observed_usb_filesystem_uuid=USB_UUID,
+        predecessor_image_restored=True, ha_data_backup_restored=True,
+    )
+    store = HaUsbStateStore(tmp_path / "projection-state")
+    executor = HaUsbIpcExecutor(store=store, admission_resolver=None)
+    dispatcher = HaUsbIpcDispatcher(executor)
+
+    def status(operation=VERSIONED_STATUS_OPERATION):
+        request = {"schema": REQUEST_SCHEMA, "operation": operation}
+        return json.loads(dispatcher.handle(json.dumps(request).encode()))
+
+    assert status()["installed_version"] is None
+    for document, phase, version in (
+        (started, "TARGET_INSTALLED_STARTED", "2026.10.0"),
+        (accepted, "TARGET_ACCEPTANCE", "2026.10.0"),
+        (rolled_back, "ROLLED_BACK", "2026.10.0"),
+        (committed, "COMMITTED", "2026.10.4"),
+    ):
+        store.write(document)
+        before = store.path.read_bytes()
+        assert status() == {
+            "schema": VERSIONED_STATUS_SCHEMA, "accepted": True, "code": "status",
+            "phase": phase, "progress_percent": None, "error_code": None,
+            "installed_version": version,
+        }
+        legacy = status("status")
+        assert legacy["schema"] == RESPONSE_SCHEMA and "installed_version" not in legacy
+        assert store.path.read_bytes() == before
+
+    replacement = request_prepare(new_transaction(
+        current_image_ref=committed["target_image_ref"], current_image_identity={"test": "predecessor"},
+        target_manifest_identity={"release_identity": "homeassistant-2026.10.5"},
+        target_image_ref="local/n3w-homeassistant:2026.10.5-01234567",
+        target_archive_sha256="a" * 64, target_archive_size=1234,
+    ))
+
+    def interrupted_write(_document):
+        raise OSError("synthetic replacement interruption")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(store, "write", interrupted_write)
+        with store.lock(), pytest.raises(OSError, match="synthetic replacement interruption"):
+            store.prepare_new(replacement=replacement)
+    assert status()["phase"] == "COMMITTED" and status()["installed_version"] == "2026.10.4"
+    with store.lock():
+        store.prepare_new(replacement=replacement)
+    assert status()["phase"] == "PREPARE_REQUESTED" and status()["installed_version"] == "2026.10.4"
+    assert len(list(store.history.glob("*.json"))) == 1
+    assert store.was_authorization_consumed(committed["authorization_id_sha256"])
 
 
 def test_r2_media_binding_rejects_wrong_label(tmp_path):

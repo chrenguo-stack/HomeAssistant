@@ -338,7 +338,9 @@ raise SystemExit(startup.cli(["--serve-ipc"]))
                 assert store.read() is None
                 manifest.write_bytes(original)
                 client.submit_homeassistant_ota_intent(OtaControlIntent("PREPARE", RELEASE))
-                assert client.get_homeassistant_ota_runtime_state().phase == "PREPARE_REQUESTED"
+                status = client.get_homeassistant_ota_runtime_state()
+                assert status.phase == "PREPARE_REQUESTED"
+                assert status.installed_version == "2026.10.0"
                 queued = store.read()
                 assert queued["phase"] == U1 and queued["authorization_consumed"] is False
                 assert not (store.root / "ha-install-authority.json").exists()
