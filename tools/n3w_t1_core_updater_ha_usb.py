@@ -7,8 +7,9 @@ from dataclasses import dataclass
 from typing import Any, BinaryIO, Protocol
 
 from n3w_t1_core_updater_ha_acceptance import (
-    HA_ACCEPTANCE_ATTEMPTS, HA_ACCEPTANCE_CHECKS, HA_ACCEPTANCE_RULE, SELF_TEST_MONITORING_METHOD,
-    HaAcceptanceBaseline, HaAcceptanceEvidence, HaAcceptanceObserver, expected_target_images, valid_evidence_set,
+    HA_ACCEPTANCE_ATTEMPTS, HA_ACCEPTANCE_CHECKS, HA_ACCEPTANCE_RULE,
+    HaAcceptanceBaseline, HaAcceptanceEvidence, HaAcceptanceObserver, expected_target_images,
+    monitoring_self_test_qualified, valid_evidence_set,
 )
 from n3w_t1_core_updater_ha_backup import (
     HaDataBackupProvider,
@@ -141,7 +142,7 @@ class HaPredecessorRuntime(HaPublishedRollbackRuntime, Protocol):
 
 
 class HaPredecessorHealth(Protocol):
-    def verify_predecessor_health(self, binding: dict[str, Any]) -> None:
+    def verify_predecessor_health(self, document: dict[str, Any]) -> None:
         """Verify the old combination and its affected functions have recovered."""
         ...
 
@@ -262,6 +263,8 @@ class HaPredecessorRecovery:
                     acceptance_state["data_sample"] = baseline.data_sample
                     if baseline.monitoring_method is not None:
                         acceptance_state["monitoring_method"] = baseline.monitoring_method
+                    if baseline.monitoring_fallback_sha256 is not None:
+                        acceptance_state["monitoring_fallback_sha256"] = baseline.monitoring_fallback_sha256
                 current = {
                     **current, "target_acceptance": acceptance_state,
                 }
@@ -548,7 +551,7 @@ class HaPredecessorRecovery:
 
     def _restore(self, current: dict[str, Any]) -> None:
         current = _start_pre_cutover_predecessor(self.store, self.runtime, current)
-        self.health.verify_predecessor_health(current["predecessor_start"])
+        self.health.verify_predecessor_health(current)
         _finish_pre_cutover_recovery(self.store, current)
 
 
@@ -568,7 +571,7 @@ def _observe_target(
         validated = validate_transaction_document(document)
         if (
             fallback and check == "monitoring_path"
-            and validated["target_acceptance"].get("monitoring_method") == SELF_TEST_MONITORING_METHOD
+            and monitoring_self_test_qualified(validated["target_acceptance"])
         ):
             evidence = observer.run_monitoring_self_test()
         else:
@@ -735,7 +738,7 @@ def resume_host_recovery(
         if current and _can_resume_pre_cutover(current):
             current = _start_pre_cutover_predecessor(store, runtime, current)
             if pending_only and health is not None:
-                health.verify_predecessor_health(current["predecessor_start"])
+                health.verify_predecessor_health(current)
                 _finish_pre_cutover_recovery(store, current)
                 return "ROLLED_BACK"
             return "RECOVERING"

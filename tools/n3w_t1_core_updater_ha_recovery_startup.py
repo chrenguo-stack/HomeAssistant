@@ -25,7 +25,7 @@ from n3w_t1_core_updater_common import (
     sha256_bytes,
 )
 from n3w_t1_core_updater_ha_acceptance import (
-    NATURAL_MONITORING_METHOD, SELF_TEST_MONITORING_METHOD, LocalHaAcceptanceObserver,
+    NATURAL_MONITORING_METHOD, LocalHaAcceptanceObserver, monitoring_self_test_qualified,
 )
 from n3w_t1_core_updater_ha_backup import DEFAULT_HA_DATA_ROOT, HA_DATABASE_NAME, ProtectedHaDataBackup
 from n3w_t1_core_updater_ha_data_evidence import MANAGER_PAIRING_DB, HaProtectedDataEvidence
@@ -211,6 +211,17 @@ class HaRecoveryMonitoringPending(UpdaterError):
 
 class LocalHaPredecessorRuntime(LocalHost):
     ha_data_root = DEFAULT_HA_DATA_ROOT
+
+    def require_candidate_manager_monitoring(self) -> None:
+        manager = self._runtime("manager")
+        result = self._run((
+            "docker", "exec", manager["container_id"], "python3", "-I", "-B", "-c",
+            "from greenhouse_manager.runtime.mqtt_service import ManagerMqttService\n"
+            "raise SystemExit(0 if callable(getattr(ManagerMqttService, "
+            "'_publish_ota_monitoring_self_test', None)) else 1)",
+        ), check=False, timeout=10)
+        if result.returncode != 0:
+            raise UpdaterError("ha_recovery_candidate_manager_monitoring_unavailable")
 
     def acceptance_observer(self) -> LocalHaAcceptanceObserver:
         binding, origins = self._restart_binding()
@@ -452,11 +463,11 @@ class LocalHaPredecessorRuntime(LocalHost):
             )
         return all(counts.values()) and self._systemctl("is-active", SERVICES_UNIT) == "active"
 
-    def verify_predecessor_health(self, binding: dict[str, Any]) -> None:
+    def verify_predecessor_health(self, document: dict[str, Any]) -> None:
         live, origins = self._restart_binding()
-        if live != binding:
+        if live != document["predecessor_start"]:
             raise UpdaterError("ha_usb_predecessor_launch_binding_drift")
-        self._verify_rollback_health(binding, origins)
+        self._verify_rollback_health(live, origins, document)
 
     def _read_ha_receipts(self, container_id: str) -> bytes:
         return self._run(
@@ -978,17 +989,13 @@ class LocalHaPredecessorRuntime(LocalHost):
 
     def verify_published_predecessor_health(self, document: dict[str, Any]) -> None:
         binding, origins = self._verify_published_launch(document)
-        self._verify_rollback_health(binding, origins)
-        self._verify_restored_data(document, origins)
-        self._verify_recovered_monitoring(document, origins)
+        self._verify_rollback_health(binding, origins, document)
 
     def verify_resident_predecessor_health(self, document: dict[str, Any]) -> None:
         binding, origins = self._restart_binding()
         if binding != document["predecessor_start"]:
             raise UpdaterError("ha_usb_predecessor_launch_binding_drift")
-        self._verify_rollback_health(binding, origins)
-        self._verify_restored_data(document, origins)
-        self._verify_recovered_monitoring(document, origins)
+        self._verify_rollback_health(binding, origins, document)
 
     @staticmethod
     def _verify_restored_data(document: dict[str, Any], origins: dict[str, dict[str, str]]) -> None:
@@ -999,27 +1006,37 @@ class LocalHaPredecessorRuntime(LocalHost):
             raise UpdaterError("ha_usb_rollback_protected_data_evidence_pending")
 
     def _verify_recovered_monitoring(self, document: dict[str, Any], origins: dict[str, dict[str, str]]) -> None:
-        method = document.get("target_acceptance", {}).get("monitoring_method")
-        if method is None:
+        state = document.get("target_acceptance", {})
+        if "monitoring_method" not in state:
             return
         monitoring = self._monitoring_evidence(origins)
         evidence = monitoring.observe(document, fallback=False)
-        if evidence.verdict == "EVIDENCE_UNAVAILABLE" and method == SELF_TEST_MONITORING_METHOD:
+        if evidence.verdict == "EVIDENCE_UNAVAILABLE" and monitoring_self_test_qualified(state):
             evidence = monitoring.run_self_test()
         if evidence.verdict != "PASS":
             # The recovery journal stays published. The retry worker checks
             # the running predecessor without applying the restore again.
             raise HaRecoveryMonitoringPending("ha_usb_rollback_monitoring_evidence_pending")
 
-    def _verify_rollback_health(self, binding: dict[str, Any], origins: dict[str, dict[str, str]]) -> None:
+    def _verify_rollback_health(
+        self, binding: dict[str, Any], origins: dict[str, dict[str, str]], document: dict[str, Any],
+    ) -> None:
+        # Existing records without a frozen monitoring method still use their original checks.
+        legacy = "monitoring_method" not in document.get("target_acceptance", {})
         deadline = time.monotonic() + DEFAULT_SERVICES_READINESS_TIMEOUT_SECONDS
         while time.monotonic() < deadline:
             if (
                 self._systemctl("is-active", SERVICES_UNIT) == "active"
                 and all(self._check_running_predecessor(binding, origins).values())
-                and self._homeassistant_http_status(allow_unavailable=True) in {200, 401}
-                and all(self._mqtt_authenticated(name) for name in ("manager", "homeassistant"))
+                and (
+                    not legacy or (
+                        self._homeassistant_http_status(allow_unavailable=True) in {200, 401}
+                        and all(self._mqtt_authenticated(name) for name in ("manager", "homeassistant"))
+                    )
+                )
             ):
+                self._verify_restored_data(document, origins)
+                self._verify_recovered_monitoring(document, origins)
                 return
             time.sleep(2)
         raise UpdaterError("ha_usb_rollback_predecessor_health_pending")

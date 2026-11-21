@@ -28,6 +28,7 @@ class HaAcceptanceBaseline:
     checks: dict[str, str]
     data_sample: dict[str, Any]
     monitoring_method: str | None = None
+    monitoring_fallback_sha256: str | None = None
 
 
 class HaAcceptanceObserver(Protocol):
@@ -73,11 +74,22 @@ class LocalHaAcceptanceObserver:
         except UpdaterV2Error:
             if self.self_test is None:
                 raise
+            monitoring_sha256 = None
+        fallback_sha256 = None
+        if self.self_test is not None:
+            # Qualify the fallback while the previous services are still running.
             evidence = self.run_monitoring_self_test()
-            if evidence.verdict != "PASS" or evidence.sha256 is None:
-                raise
-            monitoring_sha256 = evidence.sha256
-            method = SELF_TEST_MONITORING_METHOD
+            if (
+                evidence.verdict != "PASS" or not isinstance(evidence.sha256, str)
+                or SHA256.fullmatch(evidence.sha256) is None
+            ):
+                raise UpdaterV2Error("ha_usb_monitoring_fallback_unavailable")
+            if monitoring_sha256 is None:
+                monitoring_sha256 = evidence.sha256
+                method = SELF_TEST_MONITORING_METHOD
+            else:
+                method = NATURAL_MONITORING_METHOD
+                fallback_sha256 = evidence.sha256
         return HaAcceptanceBaseline(
             checks={
                 "monitoring_path": monitoring_sha256,
@@ -85,6 +97,7 @@ class LocalHaAcceptanceObserver:
             },
             data_sample=sample,
             monitoring_method=method,
+            monitoring_fallback_sha256=fallback_sha256,
         )
 
     def observe(self, transaction: dict[str, Any], check: str, *, fallback: bool) -> HaAcceptanceEvidence:
@@ -106,6 +119,13 @@ def valid_evidence_set(evidence: Any) -> bool:
     return (
         isinstance(evidence, dict) and set(evidence) == set(HA_ACCEPTANCE_CHECKS)
         and all(isinstance(value, str) and SHA256.fullmatch(value) for value in evidence.values())
+    )
+
+
+def monitoring_self_test_qualified(state: dict[str, Any]) -> bool:
+    method = state.get("monitoring_method")
+    return method == SELF_TEST_MONITORING_METHOD or (
+        method == NATURAL_MONITORING_METHOD and "monitoring_fallback_sha256" in state
     )
 
 

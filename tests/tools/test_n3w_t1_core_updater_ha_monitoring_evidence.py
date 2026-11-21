@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 from n3w_t1_core_updater_ha_acceptance import (
     NATURAL_MONITORING_METHOD, SELF_TEST_MONITORING_METHOD, HaAcceptanceEvidence, LocalHaAcceptanceObserver,
 )
+from n3w_t1_core_updater_common import UpdaterError
 import n3w_t1_core_updater_ha_monitoring_evidence as monitoring_module
 from n3w_t1_core_updater_ha_monitoring_evidence import (
     LocalHaMonitoringEvidence, READ_HA_RECEIPTS, REQUEST_MANAGER_SELF_TEST, SERVICES,
@@ -242,24 +243,39 @@ def test_only_preverified_method_can_issue_target_self_test(monkeypatch, scenari
         scenario.observer, SimpleNamespace(capture=lambda: {"history": None, "pairing": None}),
         monitoring_method=NATURAL_MONITORING_METHOD, self_test=exercise,
     )
-    assert observer.capture_baseline({}).monitoring_method == NATURAL_MONITORING_METHOD
-    assert actions == []
-
-    scenario.receipt["records"] = []
     baseline = observer.capture_baseline({})
-    assert baseline.monitoring_method == SELF_TEST_MONITORING_METHOD
-    assert baseline.checks["monitoring_path"] == "3" * 64
+    assert baseline.monitoring_method == NATURAL_MONITORING_METHOD
+    assert baseline.monitoring_fallback_sha256 == "3" * 64
+    assert baseline.checks["monitoring_path"] != baseline.monitoring_fallback_sha256
     assert actions == ["request"]
 
     monkeypatch.setattr(ha_usb, "validate_transaction_document", lambda document: document)
     target = {"target_acceptance": {"monitoring_method": NATURAL_MONITORING_METHOD}}
     assert _observe_target(observer, target, "monitoring_path", fallback=True).verdict == "EVIDENCE_UNAVAILABLE"
     assert actions == ["request"]
-    target["target_acceptance"]["monitoring_method"] = SELF_TEST_MONITORING_METHOD
+    target["target_acceptance"]["monitoring_fallback_sha256"] = baseline.monitoring_fallback_sha256
+    assert _observe_target(observer, target, "monitoring_path", fallback=False).verdict == "PASS"
+    assert actions == ["request"]
+
+    scenario.receipt["records"] = []
     assert _observe_target(observer, target, "monitoring_path", fallback=False).verdict == "EVIDENCE_UNAVAILABLE"
     assert actions == ["request"]
     assert _observe_target(observer, target, "monitoring_path", fallback=True).verdict == "PASS"
     assert actions == ["request", "request"]
+    offline_baseline = observer.capture_baseline({})
+    assert offline_baseline.monitoring_method == SELF_TEST_MONITORING_METHOD
+    assert offline_baseline.checks["monitoring_path"] == "3" * 64
+    assert offline_baseline.monitoring_fallback_sha256 is None
+
+
+def test_fallback_with_no_proof_defers_install_even_with_natural_traffic(scenario):
+    observer = LocalHaAcceptanceObserver(
+        scenario.observer, SimpleNamespace(capture=lambda: {"history": None, "pairing": None}),
+        monitoring_method=NATURAL_MONITORING_METHOD,
+        self_test=lambda: HaAcceptanceEvidence("EVIDENCE_UNAVAILABLE"),
+    )
+    with pytest.raises(UpdaterV2Error, match="ha_usb_monitoring_fallback_unavailable"):
+        observer.capture_baseline({})
 
 
 def test_rollback_observes_restored_path_before_terminal_status(monkeypatch, scenario):
@@ -274,5 +290,37 @@ def test_rollback_observes_restored_path_before_terminal_status(monkeypatch, sce
         scenario.receipt["records"] = [["self-test", challenge, started]]
 
     scenario.observer.request_self_test = request
-    document["target_acceptance"]["monitoring_method"] = SELF_TEST_MONITORING_METHOD
+    document["target_acceptance"]["monitoring_fallback_sha256"] = "3" * 64
     runtime._verify_recovered_monitoring(document, {})
+
+
+@pytest.mark.parametrize("business_healthy", [True, False])
+def test_rollback_follows_frozen_business_evidence_independent_of_broker_logs(monkeypatch, business_healthy):
+    runtime = LocalHaPredecessorRuntime()
+    binding = {"images": {}}
+    document = {"predecessor_start": binding, "target_acceptance": {"monitoring_method": NATURAL_MONITORING_METHOD}}
+    checks = []
+
+    def broker_logs(_):
+        checks.append("logs")
+        if business_healthy:
+            raise UpdaterError("broker_log_coverage_insufficient")
+        return True
+
+    def observe(*_args, **_kwargs):
+        checks.append("business")
+        return HaAcceptanceEvidence("PASS", "3" * 64) if business_healthy else HaAcceptanceEvidence("EVIDENCE_UNAVAILABLE")
+
+    monkeypatch.setattr(runtime, "_restart_binding", lambda: (binding, {}))
+    monkeypatch.setattr(runtime, "_systemctl", lambda *_: "active")
+    monkeypatch.setattr(runtime, "_check_running_predecessor", lambda *_: dict.fromkeys(SERVICES, 1))
+    monkeypatch.setattr(runtime, "_mqtt_authenticated", broker_logs)
+    monkeypatch.setattr(runtime, "_monitoring_evidence", lambda _: SimpleNamespace(observe=observe))
+    if business_healthy:
+        runtime.verify_resident_predecessor_health(document)
+        runtime.verify_predecessor_health(document)
+        assert checks == ["business", "business"]
+    else:
+        with pytest.raises(HaRecoveryMonitoringPending, match="monitoring_evidence_pending"):
+            runtime.verify_resident_predecessor_health(document)
+        assert checks == ["business"]

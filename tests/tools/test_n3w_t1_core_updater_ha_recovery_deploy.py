@@ -87,6 +87,13 @@ def test_exact_package_installs_and_executes_self_contained_recovery(package, tm
     for name, target in deploy.DESTINATIONS.items():
         assert (root / target).read_bytes() == (staged / name).read_bytes()
         assert (root / target).stat().st_mode & 0o777 == 0o644
+    assert (staged / deploy.MONITORING_CONFIG).read_bytes() == (
+        (REPO / deploy.BASE_HA_CONFIG).read_bytes() + deploy.MONITORING_CONFIGURATION
+    )
+    assert (staged / deploy.MONITORING_MODULE).read_bytes() == (
+        REPO / deploy.MONITORING_SOURCE / "__init__.py"
+    ).read_bytes()
+    assert json.loads((staged / deploy.MONITORING_MANIFEST).read_bytes())["domain"] == "n3w_ota_monitoring"
     stdout = subprocess.check_output((sys.executable, "-I", installed, "--help"), cwd=tmp_path, text=True)
     assert all(flag in stdout for flag in ("--check-application-start", "--resume-pending", "--install-requested", "--serve-ipc"))
     assert "--issue-prepare-authority" in stdout and "--issue-install-authority" in stdout
@@ -107,7 +114,7 @@ def test_exact_package_installs_and_executes_self_contained_recovery(package, tm
     assert manager.changes[2:] == [("daemon-reload",)]
 
 
-def test_candidate_compose_renders_only_the_manager_ota_binding(package, tmp_path):
+def test_candidate_compose_renders_only_ota_and_ha_monitoring_bindings(package, tmp_path):
     if shutil.which("docker") is None:
         pytest.skip("Docker Compose CLI unavailable")
     staged, _, _ = package
@@ -150,8 +157,12 @@ def test_candidate_compose_renders_only_the_manager_ota_binding(package, tmp_pat
     assert ota_mount["source"] == str(IPC_SOCKET.parent)
     assert ota_mount["read_only"] is True
     assert ota_mount.get("bind", {}).get("create_host_path", False) is False
-    manager["volumes"].remove(ota_mount)
-    assert configured == original
+    ha = configured["services"]["homeassistant"]
+    assert ha["environment"] == {"GH_SYSTEM_ID": manager["environment"]["GH_SYSTEM_ID"]}
+    bindings = {volume["target"]: volume for volume in ha["volumes"]}
+    assert bindings[deploy.HA_CONFIG_TARGET]["source"] == f"/{deploy.DESTINATIONS[deploy.MONITORING_CONFIG]}"
+    assert bindings[deploy.MONITORING_TARGET]["source"] == str(deploy.MONITORING_DESTINATION)
+    assert all(bindings[target]["read_only"] is True for target in (deploy.HA_CONFIG_TARGET, deploy.MONITORING_TARGET))
     environment["GH_N3W_T1_OTA_INSTALLED_VERSION"] = ""
     with pytest.raises(subprocess.CalledProcessError):
         render(candidate)
@@ -160,6 +171,7 @@ def test_candidate_compose_renders_only_the_manager_ota_binding(package, tmp_pat
 
 @pytest.mark.parametrize("fault", [
     None, "empty_bind", "socket", "version", "mount", "create_path", "broker", "transaction",
+    "monitoring_mount", "system_id", "active_config", "manager_monitoring",
 ])
 def test_activation_preflight_is_read_only(package, tmp_path, monkeypatch, fault):
     staged, digest, head = package
@@ -188,21 +200,34 @@ def test_activation_preflight_is_read_only(package, tmp_path, monkeypatch, fault
         return "dead" if fault == "socket" else "listening"
 
     ref = "local/n3w-homeassistant:2026.10.0-01234567"
+    config = root / deploy.ACTIVE_HA_CONFIG.removeprefix("/")
+    config.parent.mkdir(parents=True)
+    config.write_bytes(b"drift\n" if fault == "active_config" else (REPO / deploy.BASE_HA_CONFIG).read_bytes())
+    config.chmod(0o644)
     active = {"services": {
-        "manager": {"environment": {}, "volumes": [], "image": "manager"},
+        "manager": {"environment": {"GH_SYSTEM_ID": "fixture"}, "volumes": [], "image": "manager"},
         "broker": {"image": "broker"},
-        "homeassistant": {"image": ref},
+        "homeassistant": {"image": ref, "volumes": [{
+            "type": "bind", "source": deploy.ACTIVE_HA_CONFIG, "target": deploy.HA_CONFIG_TARGET, "read_only": True,
+        }]},
     }}
     proposed = copy.deepcopy(active)
-    proposed["services"]["manager"]["environment"] = deploy._candidate_settings(
+    proposed["services"]["manager"]["environment"].update(deploy._candidate_settings(
         "2026.10.4" if fault == "version" else "2026.10.0",
-    )
+    ))
     proposed["services"]["manager"]["volumes"] = [{
         "type": "bind", "source": str(IPC_SOCKET.parent), "target": str(IPC_SOCKET.parent),
         "read_only": fault != "mount", "bind": {} if fault == "empty_bind" else {
             "create_host_path": fault == "create_path",
         },
     }]
+    ha = proposed["services"]["homeassistant"]
+    ha["environment"] = {"GH_SYSTEM_ID": "different" if fault == "system_id" else "fixture"}
+    ha["volumes"][0]["source"] = f"/{deploy.DESTINATIONS[deploy.MONITORING_CONFIG]}"
+    ha["volumes"].append({
+        "type": "bind", "source": str(deploy.MONITORING_DESTINATION), "target": deploy.MONITORING_TARGET,
+        "read_only": fault != "monitoring_mount",
+    })
     if fault == "broker":
         proposed["services"]["broker"]["image"] = "unexpected"
     if fault == "transaction":
@@ -217,10 +242,18 @@ def test_activation_preflight_is_read_only(package, tmp_path, monkeypatch, fault
         bound.append(document)
         return {"images": {name: {"reference": config["image"]} for name, config in active["services"].items()}}
 
+    manager_checks = []
+
+    def require_candidate_manager_monitoring():
+        manager_checks.append(True)
+        if fault == "manager_monitoring":
+            raise UpdaterError("ha_recovery_candidate_manager_monitoring_unavailable")
+
     runtime = SimpleNamespace(
         _runtime=lambda name: observed,
         capture_start_binding=capture_binding,
         image_binding_modes_v2=lambda: {"homeassistant": "dynamic"},
+        require_candidate_manager_monitoring=require_candidate_manager_monitoring,
     )
 
     def render(candidate):
@@ -230,6 +263,8 @@ def test_activation_preflight_is_read_only(package, tmp_path, monkeypatch, fault
         "socket": "candidate_socket_unavailable", "version": "manager_settings_drift",
         "mount": "manager_mount_drift", "create_path": "manager_mount_drift",
         "broker": "unexpected_compose_change", "transaction": "transaction_active",
+        "monitoring_mount": "ha_monitoring_mount_drift", "system_id": "ha_environment_drift",
+        "active_config": "install_existing_file_drift", "manager_monitoring": "manager_monitoring_unavailable",
     }
     changes = manager.changes[:]
     if fault in errors:

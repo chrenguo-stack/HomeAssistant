@@ -24,7 +24,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 import n3w_t1_core_updater_ha_mounted_media as mounted_media
 import n3w_t1_core_updater_ha_recovery_startup as recovery_startup
 import n3w_t1_core_updater_ha_usb as ha_usb_mod
-from n3w_t1_core_updater_ha_acceptance import HA_ACCEPTANCE_CHECKS, HaAcceptanceEvidence, LocalHaAcceptanceObserver
+from n3w_t1_core_updater_ha_acceptance import (
+    HA_ACCEPTANCE_CHECKS, NATURAL_MONITORING_METHOD, HaAcceptanceEvidence, LocalHaAcceptanceObserver,
+)
 from n3w_t1_core_updater_ha_backup import (
     BACKUP_ARCHIVE_NAME,
     BACKUP_METADATA_NAME,
@@ -222,8 +224,8 @@ class PredecessorRuntime:
             self.running |= {"manager", "homeassistant"}
             self.start_count += 1
 
-    def verify_predecessor_health(self, binding):
-        assert binding == self.binding
+    def verify_predecessor_health(self, document):
+        assert document["predecessor_start"] == self.binding
         assert self.running == {"manager", "homeassistant", "broker"}
         if not self.health_available:
             raise UpdaterV2Error("test_health_evidence_unavailable")
@@ -862,8 +864,6 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
         def observe(self, transaction, check, *, fallback):
             assert transaction["target_acceptance"]["attempts"] == store.read()["target_acceptance"]["attempts"]
             observations.append((check, fallback))
-            if check == "monitoring_path" and fault == "accept_fallback" and not fallback:
-                raise OSError("synthetic temporary observation failure")
             if check == "protected_data" and fault == "accept_failed":
                 return HaAcceptanceEvidence("PROVEN_FAIL")
             if check == "monitoring_path" and fault == "accept_unavailable":
@@ -871,7 +871,13 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
             return super().observe(transaction, check, fallback=fallback)
 
     observer = Acceptance()
-    real_data = fault in {"accept_ok", "accept_failed"}
+    real_data = fault in {"accept_ok", "accept_failed", "accept_fallback"}
+    self_tests = []
+
+    def self_test():
+        self_tests.append(runtime.compose["services"]["homeassistant"]["image"])
+        return HaAcceptanceEvidence("PASS", "c" * 64)
+
     if real_data:
         history = runtime.ha_data_root / HA_DATABASE_NAME
         pairing = tmp_path / "application" / "manager" / "manager" / MANAGER_PAIRING_DB.name
@@ -899,10 +905,14 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
             SimpleNamespace(
                 capture_baseline=lambda _: "1" * 64,
                 observe=lambda *_args, **_kwargs: HaAcceptanceEvidence(
-                    "PROVEN_FAIL" if fault == "accept_failed" else "PASS", "2" * 64,
+                    {
+                        "accept_failed": "PROVEN_FAIL", "accept_fallback": "EVIDENCE_UNAVAILABLE",
+                    }.get(fault, "PASS"), "2" * 64,
                 ),
             ),
             HaProtectedDataEvidence(history, pairing),
+            monitoring_method=NATURAL_MONITORING_METHOD if fault == "accept_fallback" else None,
+            self_test=self_test if fault == "accept_fallback" else None,
         )
 
     def observe(argv, **kwargs):
@@ -1240,7 +1250,12 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
                 assert result["failure_code"] == f"ha_usb_target_acceptance_{reason}"
                 assert projected["error_code"] == result["failure_code"]
         if fault == "accept_fallback":
-            assert ("monitoring_path", True) in observations
+            assert self_tests == [CURRENT, TARGET]
+            assert result["target_acceptance"]["monitoring_fallback_sha256"] == "c" * 64
+            assert result["target_acceptance"]["receipt"]["observations"]["monitoring_path"] == "c" * 64
+            result["target_acceptance"]["monitoring_fallback_sha256"] = "invalid"
+            with pytest.raises(UpdaterV2Error, match="target_acceptance_invalid"):
+                store.write(result)
         return
     if fault == "after_target_observed":
         with store.lock():

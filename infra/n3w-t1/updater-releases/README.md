@@ -122,7 +122,7 @@ The HA target-binding workflow builds the recovery installer from the exact chec
 commit. Its source job publishes the candidate artifact and reports the SHA-256 of
 `manifest.json`. The artifact binds the isolated recovery executable, boot service,
 retry service and timer, application start condition, host IPC units and the staged
-Compose candidate. A candidate is a source-level
+Compose candidate with the HA monitoring component and its configuration. A candidate is a source-level
 installation artifact. Formal updater releases still follow the archive contract above.
 
 The authorized host installer entry is `ha-recovery.pyz install --manifest-sha256 <digest>`
@@ -134,7 +134,9 @@ enabled and active. Initial installation and byte-identical retries use the same
 The package builder derives `ha-ota-candidate.compose.yml` from the exact fresh
 stack template. The installer stages it under `/opt/n3w-t1-core-updater`.
 The candidate enables OTA in Manager and binds the host's `/run/n3w/t1-ota`
-directory read-only. Mounting the directory lets Manager see socket recreation
+directory read-only. It also binds the packaged monitoring integration and a copy of
+the approved HA configuration with monitoring enabled. Both services use the same
+`GH_SYSTEM_ID`. Mounting the OTA directory lets Manager see socket recreation
 and atomic replacement of the approved manifest. The mount requires the host
 directory to exist. The candidate also requires
 `GH_N3W_T1_OTA_INSTALLED_VERSION` to be supplied from the observed predecessor.
@@ -146,8 +148,16 @@ The verified recovery bundle exposes `check-candidate-activation --manifest-sha2
 <digest>`. It checks the installed bundle, the idle transaction store, the
 running predecessor, the armed recovery timer and the Manager socket. It
 compares rendered Compose using the host environment file and accepts only the
-Manager OTA settings and the read-only OTA directory mount. A successful check
-is evidence for a separate activation. The recovery installer stages the file.
+Manager OTA settings, the read-only OTA directory mount and the packaged HA monitoring
+bindings. It checks the unmodified base HA configuration and inspects the running
+Manager for the maintenance publisher. The frozen initial Manager image predates the
+publisher. A compatible exact Manager image must be established separately before
+HA activation. A successful check is evidence for a separate activation. The
+recovery installer stages the files. After activation, the install worker proves
+that a challenge crosses the active Manager and Broker and is received by HA
+before stopping any service. Natural telemetry takes priority during target
+acceptance and rollback, with the preverified challenge path available during
+node silence.
 
 The recovery bundle exposes the root-only `materialize-candidate` command for
 an externally approved engineering candidate. It takes absolute paths via
@@ -181,7 +191,8 @@ The index schema `gh.n3w-t1-ota-release-index/1` carries `sequence`,
 `expires_at_unix`, `release_id`, `release_path` and `release_sha256`. The
 distribution schema `gh.n3w-t1-ota-ha-release-distribution/1` carries
 `expires_at_unix`, `predecessor`, `target`, `minimum_updater_version`,
-`required_updater_capabilities`, `ha_candidate` and `archive_path`.
+`required_updater_capabilities`, `ha_candidate`, `archive_path` and
+`predecessor_runtime_image_ids`.
 The predecessor and target use the existing Stack release schema. For this
 HA-only contract, Manager, Broker and the runtime contract must have identical
 signed declarations. The target HA Stack identity uses the archive SHA-256.
@@ -189,10 +200,11 @@ The embedded HA candidate retains the Manager approval-manifest schema and
 binds the same Stack release ID, HA predecessor, target image and archive.
 
 This command checks signed metadata and reports the exact identities it verified.
-The local sequence floor comes from policy. Product consumption still needs
-durable replay protection, archive download, live predecessor verification and
-binding to the private candidate materialization step. Production key
-provisioning and release publication follow separate approvals.
+The `materialize-signed-candidate --trust-policy ABSOLUTE_PATH` command additionally
+downloads to private staging, verifies the single HA load archive and binds the
+observed three-service predecessor. It publishes the approved manifest after
+retaining the accepted sequence and index digest. Production key provisioning
+and release publication follow separate approvals.
 
 For the controlled candidate, the root-owned recovery entry also exposes
 `--issue-prepare-authority PRIVATE_REQUEST` and

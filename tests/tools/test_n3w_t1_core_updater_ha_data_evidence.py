@@ -123,7 +123,10 @@ def test_rollback_health_rechecks_frozen_data_without_running_observer(databases
     runtime = LocalHaPredecessorRuntime()
     monkeypatch.setattr(runtime, "_restart_binding", lambda: (document["predecessor_start"], origins))
     monkeypatch.setattr(runtime, "_verify_published_launch", lambda _: (document["predecessor_start"], origins))
-    monkeypatch.setattr(runtime, "_verify_rollback_health", lambda *_: None)
+    monkeypatch.setattr(runtime, "_systemctl", lambda *_: "active")
+    monkeypatch.setattr(runtime, "_check_running_predecessor", lambda *_: {"homeassistant": 1, "manager": 1, "broker": 1})
+    monkeypatch.setattr(runtime, "_homeassistant_http_status", lambda **_: 200)
+    monkeypatch.setattr(runtime, "_mqtt_authenticated", lambda _: True)
     runtime.verify_published_predecessor_health(document)
     history.rename(history.with_name("unavailable"))
     with pytest.raises(UpdaterError, match="rollback_protected_data_evidence_pending"):

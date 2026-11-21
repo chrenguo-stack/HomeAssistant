@@ -45,6 +45,16 @@ MANIFEST = "manifest.json"
 ARCHIVE = "ha-recovery.pyz"
 GUARD = "ota-ha-recovery.conf"
 CANDIDATE_COMPOSE = "ha-ota-candidate.compose.yml"
+MONITORING_CONFIG = "ha-ota-monitoring.configuration.yaml"
+MONITORING_MODULE = "ha-ota-monitoring.py"
+MONITORING_MANIFEST = "ha-ota-monitoring.manifest.json"
+MONITORING_SOURCE = "infra/n3w-t1/homeassistant/custom_components/n3w_ota_monitoring"
+MONITORING_DESTINATION = Path(RECOVERY_ARCHIVE).parent / "n3w_ota_monitoring"
+MONITORING_TARGET = str(Path("/config/custom_components") / MONITORING_DESTINATION.name)
+BASE_HA_CONFIG = "infra/n3w-t1/production/homeassistant-configuration.yaml"
+ACTIVE_HA_CONFIG = "/opt/HomeAssistant/" + BASE_HA_CONFIG
+HA_CONFIG_TARGET = "/config/configuration.yaml"
+MONITORING_CONFIGURATION = b"\nn3w_ota_monitoring:\n  system_id: !env_var GH_SYSTEM_ID\n"
 CANDIDATE_DOWNLOAD_LOCK = ".ha-candidate-download.lock"
 CANDIDATE_DOWNLOAD_PART = ".ha-candidate-download.part"
 BASE_COMPOSE = "infra/n3w-t1/production/docker-compose.fresh.yml"
@@ -59,6 +69,9 @@ DESTINATIONS = {
     IPC_SERVICE_UNIT: f"etc/systemd/system/{IPC_SERVICE_UNIT}",
     GUARD: f"etc/systemd/system/{SERVICES_UNIT}.d/{GUARD}",
     CANDIDATE_COMPOSE: str(Path(RECOVERY_ARCHIVE).with_name(CANDIDATE_COMPOSE)).removeprefix("/"),
+    MONITORING_CONFIG: str(Path(RECOVERY_ARCHIVE).with_name(MONITORING_CONFIG)).removeprefix("/"),
+    MONITORING_MODULE: str(MONITORING_DESTINATION / "__init__.py").removeprefix("/"),
+    MONITORING_MANIFEST: str(MONITORING_DESTINATION / "manifest.json").removeprefix("/"),
 }
 MODULES = (
     "n3w_t1_core_stack_release",
@@ -116,6 +129,27 @@ def _candidate_compose(base: bytes) -> bytes:
         "        bind:\n"
         "          create_host_path: false\n"
     ))
+    config = f"        source: {ACTIVE_HA_CONFIG}\n        target: {HA_CONFIG_TARGET}\n        read_only: true\n"
+    if suffix.count(volumes) != 1 or suffix.count(config) != 1 or environment in suffix or MONITORING_TARGET in suffix:
+        raise UpdaterError("ha_recovery_candidate_ha_template_drift")
+    suffix = suffix.replace(volumes, (
+        "    environment:\n"
+        '      GH_SYSTEM_ID: "${GH_SYSTEM_ID:?GH_SYSTEM_ID required}"\n'
+        "    volumes:\n"
+        "      - type: bind\n"
+        f"        source: {MONITORING_DESTINATION}\n"
+        f"        target: {MONITORING_TARGET}\n"
+        "        read_only: true\n"
+        "        bind:\n"
+        "          create_host_path: false\n"
+    ))
+    suffix = suffix.replace(config, (
+        f"        source: /{DESTINATIONS[MONITORING_CONFIG]}\n"
+        f"        target: {HA_CONFIG_TARGET}\n"
+        "        read_only: true\n"
+        "        bind:\n"
+        "          create_host_path: false\n"
+    ))
     return (prefix + manager_header + manager + ha_header + suffix).encode()
 
 
@@ -135,6 +169,12 @@ def build(repo: Path, source_head: str, destination: Path) -> str:
     payload = {unit: source(f"{unit_source}/{unit}") for unit in (*PERSISTENT_UNITS, RECOVERY_RETRY_UNIT, IPC_SERVICE_UNIT)}
     payload[GUARD] = source(f"{unit_source}/{SERVICES_UNIT}.d/{GUARD}")
     payload[CANDIDATE_COMPOSE] = _candidate_compose(source(BASE_COMPOSE))
+    base_config = source(BASE_HA_CONFIG)
+    if not base_config.endswith(b"\n") or b"n3w_ota_monitoring" in base_config:
+        raise UpdaterError("ha_recovery_candidate_ha_config_template_drift")
+    payload[MONITORING_CONFIG] = base_config + MONITORING_CONFIGURATION
+    payload[MONITORING_MODULE] = source(f"{MONITORING_SOURCE}/__init__.py")
+    payload[MONITORING_MANIFEST] = source(f"{MONITORING_SOURCE}/manifest.json")
     destination.mkdir(mode=0o700)
     with zipfile.ZipFile(destination / ARCHIVE, "w") as archive:
         for name, content in sorted(modules.items()):
@@ -241,6 +281,17 @@ def _render_candidate_compose(path: Path) -> dict:
     return document
 
 
+def _matching_read_only_bind(volumes: list, source: str, target: str, reason: str) -> dict:
+    mount = {"type": "bind", "source": source, "target": target, "read_only": True}
+    matches = [v for v in volumes if isinstance(v, dict) and v.get("target") == target]
+    # Compose may retain an empty bind object after omitting a false option.
+    if len(matches) != 1 or matches[0] not in (
+        mount, {**mount, "bind": {}}, {**mount, "bind": {"create_host_path": False}},
+    ):
+        raise UpdaterError(reason)
+    return matches[0]
+
+
 def _verify_candidate_delta(active: dict, staged: dict, version: str) -> None:
     services = staged.get("services")
     manager = services.get("manager") if isinstance(services, dict) else None
@@ -251,18 +302,35 @@ def _verify_candidate_delta(active: dict, staged: dict, version: str) -> None:
     expected = _candidate_settings(version)
     if {key: environment.get(key) for key in expected} != expected:
         raise UpdaterError("ha_recovery_candidate_manager_settings_drift")
-    mount = {
-        "type": "bind", "source": str(IPC_SOCKET.parent), "target": str(IPC_SOCKET.parent), "read_only": True,
-    }
-    matches = [v for v in volumes if isinstance(v, dict) and v.get("target") == mount["target"]]
-    # Compose may retain an empty bind object after omitting a false option.
-    if len(matches) != 1 or matches[0] not in (
-        mount, {**mount, "bind": {}}, {**mount, "bind": {"create_host_path": False}},
-    ):
-        raise UpdaterError("ha_recovery_candidate_manager_mount_drift")
-    volumes.remove(matches[0])
+    volumes.remove(_matching_read_only_bind(
+        volumes, str(IPC_SOCKET.parent), str(IPC_SOCKET.parent), "ha_recovery_candidate_manager_mount_drift",
+    ))
     for key in expected:
         environment.pop(key)
+
+    ha = services.get("homeassistant")
+    active_ha = active["services"].get("homeassistant")
+    system_id = environment.get("GH_SYSTEM_ID")
+    if (
+        not isinstance(system_id, str) or re.fullmatch(r"[a-zA-Z0-9_-]{3,64}", system_id) is None
+        or not isinstance(ha, dict) or ha.get("environment") != {"GH_SYSTEM_ID": system_id}
+        or not isinstance(ha.get("volumes"), list) or not isinstance(active_ha, dict)
+        or not isinstance(active_ha.get("volumes"), list) or "environment" in active_ha
+    ):
+        raise UpdaterError("ha_recovery_candidate_ha_environment_drift")
+    ha_volumes = ha["volumes"]
+    config = _matching_read_only_bind(
+        ha_volumes, f"/{DESTINATIONS[MONITORING_CONFIG]}", HA_CONFIG_TARGET,
+        "ha_recovery_candidate_ha_config_mount_drift",
+    )
+    active_config = _matching_read_only_bind(
+        active_ha["volumes"], ACTIVE_HA_CONFIG, HA_CONFIG_TARGET, "ha_recovery_candidate_active_ha_config_drift",
+    )
+    ha_volumes.remove(_matching_read_only_bind(
+        ha_volumes, str(MONITORING_DESTINATION), MONITORING_TARGET, "ha_recovery_candidate_ha_monitoring_mount_drift",
+    ))
+    ha_volumes[ha_volumes.index(config)] = active_config
+    del ha["environment"]
     if staged != active:
         raise UpdaterError("ha_recovery_candidate_unexpected_compose_change")
 
@@ -313,6 +381,13 @@ def check_candidate_activation(
             raise UpdaterError("ha_recovery_candidate_predecessor_binding_not_dynamic")
         candidate = root / DESTINATIONS[CANDIDATE_COMPOSE]
         _verify_candidate_delta(active, render(candidate), version)
+        config = payload[MONITORING_CONFIG]
+        if not config.endswith(MONITORING_CONFIGURATION):
+            raise UpdaterError("ha_recovery_candidate_ha_config_template_drift")
+        active_config = root / ACTIVE_HA_CONFIG.removeprefix("/")
+        if not _validate_path(root, active_config, config.removesuffix(MONITORING_CONFIGURATION)):
+            raise UpdaterError("ha_recovery_candidate_active_ha_config_missing")
+        runtime.require_candidate_manager_monitoring()
     return {"source_head": source_head, "status": "CANDIDATE_ACTIVATION_PREFLIGHT_PASS", "predecessor_version": version}
 
 

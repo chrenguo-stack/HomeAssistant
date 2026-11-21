@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "infra/n3w-t1/production/docker-compose.fresh.yml"
+      - "infra/n3w-t1/production/homeassistant-configuration.yaml"
       - "infra/n3w-t1/releases/1.0.0/release.json"
       - "infra/n3w-t1/upgrades/homeassistant-2026.10.4.json"
       - "infra/n3w-t1/upgrades/homeassistant-2026.10.4-storage-policy.json"
