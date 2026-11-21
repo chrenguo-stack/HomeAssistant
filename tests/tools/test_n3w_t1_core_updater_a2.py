@@ -2171,3 +2171,54 @@ def test_broker_recovery_point_retire_rejects_unexpected_top_level_entry(
         provider.retire(record)
 
     assert unexpected.exists()
+
+
+def test_broker_recovery_point_retire_resumes_after_postrename_interruption(
+    tmp_path: Path,
+    monkeypatch,
+):
+    source, recovery_root, uid, gid = _broker_state_fixture(tmp_path)
+    provider = broker_recovery_mod.LocalBrokerRecoveryPoint(
+        source,
+        recovery_root,
+        expected_source_uid=uid,
+        expected_source_gid=gid,
+        reserve_bytes=0,
+    )
+    record = provider.create("0123456789abcdef-7")
+    original_rmtree = broker_recovery_mod.shutil.rmtree
+    injected = {"done": False}
+
+    def fail_after_rename(path, *args, **kwargs):
+        if (
+            Path(path).name == f".{record['key']}.retired"
+            and not injected["done"]
+        ):
+            injected["done"] = True
+            raise OSError("injected_retire_interruption")
+        return original_rmtree(path, *args, **kwargs)
+
+    monkeypatch.setattr(
+        broker_recovery_mod.shutil,
+        "rmtree",
+        fail_after_rename,
+    )
+    with pytest.raises(OSError, match="injected_retire_interruption"):
+        provider.retire(record)
+
+    final = recovery_root / record["key"]
+    tombstone = recovery_root / f".{record['key']}.retired"
+    assert not final.exists()
+    assert tombstone.is_dir()
+
+    monkeypatch.setattr(
+        broker_recovery_mod.shutil,
+        "rmtree",
+        original_rmtree,
+    )
+    result = provider.retire(record)
+
+    assert result["retired"] is True
+    assert result["already_absent"] is True
+    assert result["retirement_resumed"] is True
+    assert not tombstone.exists()

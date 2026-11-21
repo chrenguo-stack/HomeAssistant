@@ -97,8 +97,9 @@ ROLLED_BACK -> predecessor 数据已恢复并健康，可以 retire
 
 - 只接受 transaction 绑定的 Recovery Point key；
 - snapshot 仍存在时先完整验证 manifest/digest/shape；
-- 删除 exact Recovery Point directory；
-- fsync recovery root；
+- 完整验证后先将 exact Recovery Point directory 原子重命名为同 transaction 的 `.retired` tombstone 并 fsync；
+- 再删除 tombstone 并再次 fsync recovery root；
+- 删除过程断电时，下次只恢复清理该 tombstone，不把半删目录重新解释为有效 Recovery Point；
 - 重复 retire 为 PASS；
 - 不删除 recovery root 下任何其他 transaction。
 

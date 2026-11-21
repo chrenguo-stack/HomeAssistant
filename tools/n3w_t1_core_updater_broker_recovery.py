@@ -490,7 +490,32 @@ class LocalBrokerRecoveryPoint:
                 raise BrokerRecoveryError(
                     "broker_recovery_root_metadata_invalid"
                 )
+
         directory = self.recovery_root / key
+        tombstone = self.recovery_root / f".{key}.retired"
+
+        if tombstone.exists() or tombstone.is_symlink():
+            if tombstone.is_symlink() or not tombstone.is_dir():
+                raise BrokerRecoveryError(
+                    "broker_recovery_retire_tombstone_invalid"
+                )
+            if directory.exists() or directory.is_symlink():
+                raise BrokerRecoveryError(
+                    "broker_recovery_retire_state_ambiguous"
+                )
+            shutil.rmtree(tombstone)
+            if tombstone.exists() or tombstone.is_symlink():
+                raise BrokerRecoveryError("broker_recovery_retire_failed")
+            _fsync_directory(self.recovery_root)
+            return {
+                "schema": BROKER_RECOVERY_SCHEMA,
+                "status": "PASS",
+                "key": key,
+                "retired": True,
+                "already_absent": True,
+                "retirement_resumed": True,
+            }
+
         if not directory.exists():
             if directory.is_symlink():
                 raise BrokerRecoveryError("broker_recovery_snapshot_invalid")
@@ -500,7 +525,9 @@ class LocalBrokerRecoveryPoint:
                 "key": key,
                 "retired": True,
                 "already_absent": True,
+                "retirement_resumed": False,
             }
+
         self._load_verified_manifest(record)
         if directory.is_symlink() or not directory.is_dir():
             raise BrokerRecoveryError("broker_recovery_snapshot_invalid")
@@ -509,8 +536,16 @@ class LocalBrokerRecoveryPoint:
             "state",
         }:
             raise BrokerRecoveryError("broker_recovery_snapshot_shape_invalid")
-        shutil.rmtree(directory)
-        if directory.exists() or directory.is_symlink():
+
+        os.replace(directory, tombstone)
+        _fsync_directory(self.recovery_root)
+        shutil.rmtree(tombstone)
+        if (
+            directory.exists()
+            or directory.is_symlink()
+            or tombstone.exists()
+            or tombstone.is_symlink()
+        ):
             raise BrokerRecoveryError("broker_recovery_retire_failed")
         _fsync_directory(self.recovery_root)
         return {
@@ -519,4 +554,5 @@ class LocalBrokerRecoveryPoint:
             "key": key,
             "retired": True,
             "already_absent": False,
+            "retirement_resumed": False,
         }
