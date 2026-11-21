@@ -12,12 +12,16 @@ import sys
 import tempfile
 import time
 import zipfile
+from collections.abc import Callable
+from contextlib import AbstractContextManager
 from pathlib import Path
+from typing import BinaryIO
 
 from n3w_t1_core_updater_common import COMPOSE, COMPOSE_ENV, PROJECT, SERVICES_UNIT, UpdaterError, sha256_bytes
 from n3w_t1_core_updater_ha_ipc import (
     APPROVED_MANIFEST, IPC_SERVICE_UNIT, IPC_SOCKET, IPC_SOCKET_UNIT, MANAGER_PEER_UID, RELEASE_PIN, RELEASE_PIN_SCHEMA,
-    HostOtaAdmission, candidate_admission, ha_image_version, read_local_release_input,
+    SIGNED_INDEX_STATE, HostOtaAdmission, candidate_admission, ha_image_version, read_local_release_input,
+    read_signed_index,
 )
 from n3w_t1_core_updater_ha_recovery_startup import (
     RECOVERY_ARCHIVE,
@@ -27,8 +31,10 @@ from n3w_t1_core_updater_ha_recovery_startup import (
     LocalHaPredecessorRuntime,
     cli as recovery_cli,
 )
-from n3w_t1_core_updater_signed_release import check_signed_release
-from n3w_t1_core_updater_v2_common import SHA256, TERMINAL_TX_V2
+from n3w_t1_core_updater_signed_release import (
+    VerifiedHaRelease, check_signed_release, open_signed_archive, verify_signed_release,
+)
+from n3w_t1_core_updater_v2_common import SHA256, TERMINAL_TX_V2, canonical
 from n3w_t1_core_updater_v2_state import STATE_ROOT_V2, V2StateStore
 from n3w_t1_portable_image_identity import parse_verified_load_archive
 
@@ -317,7 +323,10 @@ def _require_idle(store: V2StateStore) -> None:
             raise UpdaterError("ha_recovery_install_transaction_active")
 
 
-def _stage_target_archive(runtime: LocalHaPredecessorRuntime, source: Path, target: Path, admission: HostOtaAdmission) -> None:
+def _stage_target_archive(
+    runtime: LocalHaPredecessorRuntime, open_archive: Callable[[int], AbstractContextManager[BinaryIO]],
+    target: Path, admission: HostOtaAdmission,
+) -> None:
     size = admission.target_archive_size
     digest = admission.target_archive_sha256
     if os.path.lexists(target):
@@ -332,7 +341,7 @@ def _stage_target_archive(runtime: LocalHaPredecessorRuntime, source: Path, targ
             )
         return
 
-    with runtime._open_target_source(source, size) as incoming:
+    with open_archive(size) as incoming:
         fd, temporary_path = tempfile.mkstemp(prefix=".ha-target-", dir=target.parent)
         temporary = Path(temporary_path)
         try:
@@ -384,11 +393,44 @@ def materialize_candidate(
     raw = read_local_release_input(manifest, limit=32768, private=False)
     if sha256_bytes(raw) != manifest_sha256:
         raise UpdaterError("ha_recovery_candidate_approval_digest_mismatch")
+    runtime = LocalHaPredecessorRuntime() if runtime is None else runtime
+    return _materialize_candidate(
+        raw, expires_at_unix, lambda size: runtime._open_target_source(archive, size), root=root, runtime=runtime,
+    )
+
+
+def materialize_signed_candidate(
+    trust_policy: Path, *, root: Path = Path("/"), runtime: LocalHaPredecessorRuntime | None = None,
+) -> dict:
+    release = verify_signed_release(trust_policy)
+    runtime = LocalHaPredecessorRuntime() if runtime is None else runtime
+    return _materialize_candidate(
+        release.approved_manifest, release.expires_at_unix, lambda _: open_signed_archive(release),
+        root=root, runtime=runtime, signed_release=release,
+    )
+
+
+def _validate_signed_index(path: Path, release: VerifiedHaRelease) -> dict:
+    signed_index = {"sequence": release.index_sequence, "sha256": release.index_sha256}
+    if os.path.lexists(path):
+        previous = read_signed_index(path)
+        if release.index_sequence < previous["sequence"]:
+            raise UpdaterError("ha_recovery_signed_index_replay")
+        if release.index_sequence == previous["sequence"] and signed_index != previous:
+            raise UpdaterError("ha_recovery_signed_index_sequence_conflict")
+    return signed_index
+
+
+def _materialize_candidate(
+    raw: bytes, expires_at_unix: int, open_archive: Callable[[int], AbstractContextManager[BinaryIO]],
+    *, root: Path, runtime: LocalHaPredecessorRuntime, signed_release: VerifiedHaRelease | None = None,
+) -> dict:
     if type(expires_at_unix) is not int or expires_at_unix <= time.time():
         raise UpdaterError("ha_recovery_candidate_approval_expired")
 
     store = V2StateStore(root / STATE_ROOT_V2.relative_to("/"))
     export = root / IPC_SOCKET.parent.relative_to("/")
+    index_path = store.root / SIGNED_INDEX_STATE
     with store.lock():
         _require_idle(store)
         directory = export.lstat()
@@ -398,29 +440,45 @@ def materialize_candidate(
             or directory.st_mode & 0o005 != 0o005
         ):
             raise UpdaterError("ha_recovery_candidate_export_directory_invalid")
-        runtime = LocalHaPredecessorRuntime() if runtime is None else runtime
+        if signed_release is not None:
+            _validate_signed_index(index_path, signed_release)
         admission = candidate_admission(raw, runtime._runtime("homeassistant"))
         predecessor = {
             "current_image_ref": admission.current_image_ref,
             "current_image_identity": admission.current_image_identity,
         }
         binding = runtime.capture_start_binding(predecessor)
-        target = store.root / f"ha-target-{admission.target_archive_sha256}.tar"
-        _stage_target_archive(runtime, archive, target, admission)
+        if signed_release is not None and binding["images"] != signed_release.predecessor_images:
+            raise UpdaterError("ha_recovery_signed_predecessor_identity_mismatch")
+
+    # Let startup and IPC acquire the state lock during the potentially long transfer.
+    target = store.root / f"ha-target-{admission.target_archive_sha256}.tar"
+    _stage_target_archive(runtime, open_archive, target, admission)
+
+    with store.lock():
+        _require_idle(store)
         if binding != runtime.capture_start_binding(predecessor):
             raise UpdaterError("ha_recovery_candidate_predecessor_changed")
         if expires_at_unix <= time.time():
             raise UpdaterError("ha_recovery_candidate_approval_expired")
 
         pin = {
-            "schema": RELEASE_PIN_SCHEMA, "manifest_sha256": manifest_sha256,
+            "schema": RELEASE_PIN_SCHEMA, "manifest_sha256": sha256_bytes(raw),
             "predecessor_image_id": admission.current_image_identity["runtime_image_id"],
             "expires_at_unix": expires_at_unix,
         }
-        # PREPARE reads both records under this lock. An interruption between them leaves a digest mismatch.
-        _write_candidate_record(store.root / RELEASE_PIN, json.dumps(pin, sort_keys=True).encode() + b"\n", 0o600)
+        if signed_release is not None:
+            signed_index = _validate_signed_index(index_path, signed_release)
+            pin["signed_index"] = signed_index
+            pin["predecessor_binding_sha256"] = sha256_bytes(canonical(binding))
+            _write_candidate_record(index_path, canonical(signed_index), 0o600)
+        # PREPARE checks all records under this lock and refuses an incomplete publication.
+        _write_candidate_record(store.root / RELEASE_PIN, canonical(pin), 0o600)
         _write_candidate_record(export / APPROVED_MANIFEST, raw, 0o644)
-    return {"status": "CANDIDATE_MATERIALIZED", "release_identity": admission.release_identity, "target_source": str(target)}
+    result = {"status": "CANDIDATE_MATERIALIZED", "release_identity": admission.release_identity, "target_source": str(target)}
+    if signed_release is not None:
+        result.update(index_sequence=signed_release.index_sequence, index_sha256=signed_release.index_sha256)
+    return result
 
 
 def install(package: Path, expected: str, *, root: Path = Path("/"), systemctl=_systemctl) -> dict:
@@ -473,10 +531,13 @@ def install(package: Path, expected: str, *, root: Path = Path("/"), systemctl=_
 
 def bundle_main() -> int:
     action = sys.argv[1:2]
-    if action not in (["install"], ["check-candidate-activation"], ["materialize-candidate"], ["check-signed-release"]):
+    if action not in (
+        ["install"], ["check-candidate-activation"], ["materialize-candidate"], ["check-signed-release"],
+        ["materialize-signed-candidate"],
+    ):
         return recovery_cli()
     parser = argparse.ArgumentParser(prog=f"ha-recovery.pyz {action[0]}")
-    if action == ["check-signed-release"]:
+    if action in (["check-signed-release"], ["materialize-signed-candidate"]):
         parser.add_argument("--trust-policy", type=Path, required=True)
     elif action == ["materialize-candidate"]:
         parser.add_argument("--approved-manifest", type=Path, required=True)
@@ -490,6 +551,8 @@ def bundle_main() -> int:
         parser.error("this command requires root")
     if action == ["check-signed-release"]:
         result = check_signed_release(args.trust_policy)
+    elif action == ["materialize-signed-candidate"]:
+        result = materialize_signed_candidate(args.trust_policy)
     elif action == ["materialize-candidate"]:
         result = materialize_candidate(
             args.approved_manifest, args.approved_manifest_sha256, args.target_archive, args.expires_at_unix,

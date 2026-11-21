@@ -344,6 +344,11 @@ def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
         value = document.get(key)
         if not isinstance(value, dict) or not value:
             raise UpdaterV2Error(f"ha_usb_{key}_invalid")
+    manifest = document["target_manifest_identity"]
+    if "predecessor_binding_sha256" in manifest:
+        binding_sha = manifest["predecessor_binding_sha256"]
+        if not isinstance(binding_sha, str) or SHA256.fullmatch(binding_sha) is None:
+            raise UpdaterV2Error("ha_usb_signed_predecessor_binding_invalid")
 
     target_sha = document.get("target_archive_sha256")
     if not isinstance(target_sha, str) or SHA256.fullmatch(target_sha) is None:

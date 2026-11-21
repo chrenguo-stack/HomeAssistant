@@ -10,7 +10,7 @@ import threading
 import time
 from collections.abc import Callable
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -50,6 +50,7 @@ MANAGER_PEER_UID = 999
 APPROVED_MANIFEST = "approved-homeassistant.json"
 RELEASE_PIN = "ha-release-pin.json"
 RELEASE_PIN_SCHEMA = "gh.n3w-t1-ha-release-pin/1"
+SIGNED_INDEX_STATE = "ha-signed-index.json"
 APPROVED_MANIFEST_SCHEMA = "gh.n3w-t1-ota-approved-manifest/1"
 
 _RELEASE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$")
@@ -150,6 +151,25 @@ def read_local_release_input(path: Path, *, limit: int, private: bool) -> bytes:
     return value
 
 
+def valid_signed_index(value: object) -> bool:
+    return (
+        isinstance(value, dict) and value.keys() == {"sequence", "sha256"}
+        and type(value["sequence"]) is int and value["sequence"] > 0
+        and isinstance(value["sha256"], str) and _SHA256_RE.fullmatch(value["sha256"]) is not None
+    )
+
+
+def read_signed_index(path: Path) -> dict[str, Any]:
+    try:
+        value = json.loads(read_local_release_input(path, limit=4096, private=True),
+                           object_pairs_hook=reject_duplicate_fields)
+    except ValueError as error:
+        raise UpdaterV2Error("ha_ota_signed_index_state_invalid") from error
+    if not valid_signed_index(value):
+        raise UpdaterV2Error("ha_ota_signed_index_state_invalid")
+    return value
+
+
 def candidate_admission(raw: bytes, current: dict[str, Any]) -> HostOtaAdmission:
     try:
         envelope = json.loads(raw, object_pairs_hook=reject_duplicate_fields)
@@ -190,7 +210,7 @@ def candidate_admission(raw: bytes, current: dict[str, Any]) -> HostOtaAdmission
 
 
 class LocalApprovedHaRelease:
-    """Resolve a host-pinned engineering candidate and independently inspect its predecessor."""
+    """Resolve a host-pinned HA candidate and independently inspect its predecessor."""
 
     def __init__(
         self, pin: Path, manifest: Path, read_current: Callable[[], dict[str, Any]],
@@ -200,12 +220,14 @@ class LocalApprovedHaRelease:
         self.read_current = read_current
 
     def resolve_homeassistant_release(self, release_identity: str) -> HostOtaAdmission:
+        fields = {"schema", "manifest_sha256", "predecessor_image_id", "expires_at_unix"}
+        signed_fields = {"signed_index", "predecessor_binding_sha256"}
         try:
             pin = json.loads(read_local_release_input(self.pin, limit=4096, private=True),
                              object_pairs_hook=reject_duplicate_fields)
             if (
                 not isinstance(pin, dict)
-                or set(pin) != {"schema", "manifest_sha256", "predecessor_image_id", "expires_at_unix"}
+                or (pin.keys() != fields and pin.keys() != fields | signed_fields)
                 or pin["schema"] != RELEASE_PIN_SCHEMA
                 or type(pin["expires_at_unix"]) is not int or time.time() >= pin["expires_at_unix"]
                 or not isinstance(pin["predecessor_image_id"], str)
@@ -213,6 +235,13 @@ class LocalApprovedHaRelease:
                 or _SHA256_RE.fullmatch(pin["predecessor_image_id"][7:]) is None
             ):
                 raise UpdaterV2Error("ha_ota_ipc_release_pin_invalid")
+            if "signed_index" in pin and (
+                not valid_signed_index(pin["signed_index"])
+                or not isinstance(pin["predecessor_binding_sha256"], str)
+                or _SHA256_RE.fullmatch(pin["predecessor_binding_sha256"]) is None
+                or pin["signed_index"] != read_signed_index(self.pin.with_name(SIGNED_INDEX_STATE))
+            ):
+                raise UpdaterV2Error("ha_ota_ipc_signed_release_pin_invalid")
             raw = read_local_release_input(self.manifest, limit=32768, private=False)
             if pin["manifest_sha256"] != sha256_bytes(raw):
                 raise UpdaterV2Error("ha_ota_ipc_release_digest_mismatch")
@@ -223,6 +252,10 @@ class LocalApprovedHaRelease:
             raise UpdaterV2Error("ha_ota_ipc_release_not_approved")
         if admission.current_image_identity["runtime_image_id"] != pin["predecessor_image_id"]:
             raise UpdaterV2Error("ha_ota_ipc_predecessor_identity_drift")
+        if "signed_index" in pin:
+            admission = replace(admission, target_manifest_identity={
+                **admission.target_manifest_identity, "predecessor_binding_sha256": pin["predecessor_binding_sha256"],
+            })
         return admission
 
 

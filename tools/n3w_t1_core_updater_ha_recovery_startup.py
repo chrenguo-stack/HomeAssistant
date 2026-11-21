@@ -84,6 +84,12 @@ def requested_install_binding_sha256(document: dict[str, Any]) -> str:
     }))
 
 
+def _require_signed_predecessor(document: dict[str, Any], binding: dict[str, Any]) -> None:
+    expected = document["target_manifest_identity"].get("predecessor_binding_sha256")
+    if expected is not None and sha256_bytes(canonical(binding)) != expected:
+        raise UpdaterV2Error("ha_usb_signed_predecessor_binding_drift")
+
+
 def _read_authority_file(path: Path, reason: str) -> dict[str, Any]:
     if path.resolve() != path:
         raise UpdaterV2Error(reason)
@@ -286,7 +292,9 @@ class LocalHaPredecessorRuntime(LocalHost):
             )
             admission = resolver.resolve_homeassistant_release(document["target_manifest_identity"]["release_identity"])
             HaUsbIpcExecutor.require_same_admission(document, admission)
-            launch = self.capture_start_binding(document)["launch_sha256"]
+            predecessor_binding = self.capture_start_binding(document)
+            _require_signed_predecessor(document, predecessor_binding)
+            launch = predecessor_binding["launch_sha256"]
             common = {"expires_at_unix": expires, "launch_sha256": launch}
             binding_key = "transaction_id_sha256" if kind == "prepare" else "binding_sha256"
             request_fields = {"transaction_id_sha256", "expires_at_unix"}
@@ -330,7 +338,9 @@ class LocalHaPredecessorRuntime(LocalHost):
                 destination = store.root / INSTALL_AUTHORITY_FILE
             else:
                 raise UpdaterV2Error("ha_usb_authority_request_kind_invalid")
-            if self.capture_start_binding(document)["launch_sha256"] != launch or expires <= time.time():
+            final_binding = self.capture_start_binding(document)
+            _require_signed_predecessor(document, final_binding)
+            if final_binding["launch_sha256"] != launch or expires <= time.time():
                 raise UpdaterV2Error("ha_usb_authority_request_binding_changed")
             _publish_authority(destination, grant, binding_key)
         return f"{kind.upper()}_AUTHORITY_ISSUED"
@@ -349,6 +359,7 @@ class LocalHaPredecessorRuntime(LocalHost):
             if document["phase"] != U1 and document["usb_filesystem_uuid"] != uuid:
                 raise UpdaterV2Error("ha_usb_prepare_authority_drift")
             binding = self.capture_start_binding(document)
+            _require_signed_predecessor(document, binding)
             if binding["launch_sha256"] != grant["launch_sha256"]:
                 raise UpdaterV2Error("ha_usb_prepare_authority_drift")
             mountpoint = self._original_mountpoint(uuid)
@@ -411,6 +422,8 @@ class LocalHaPredecessorRuntime(LocalHost):
                     and current["predecessor_start"]["launch_sha256"] != grant["launch_sha256"])
             ):
                 raise UpdaterV2Error("ha_usb_install_authority_changed")
+            if "predecessor_start" in current:
+                _require_signed_predecessor(current, current["predecessor_start"])
             return grant["authorization_id"]
 
         materials = HaMountedInstallMaterialVerifier(
@@ -423,6 +436,7 @@ class LocalHaPredecessorRuntime(LocalHost):
 
     def _verify_install_prestate(self, document: dict[str, Any], expected_launch: str) -> bool:
         binding, origins = self._restart_binding()
+        _require_signed_predecessor(document, binding)
         if (
             binding["launch_sha256"] != expected_launch
             or binding["images"]["homeassistant"]["reference"] != document["current_image_ref"]

@@ -11,13 +11,17 @@ import ssl
 import subprocess
 import tempfile
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
 from n3w_t1_core_stack_release import StackReleaseError, build_upgrade_plan, parse_semver
-from n3w_t1_core_updater_ha_ipc import candidate_admission, read_local_release_input, reject_duplicate_fields
+from n3w_t1_core_updater_ha_ipc import (
+    HostOtaAdmission, candidate_admission, read_local_release_input, reject_duplicate_fields,
+)
 from n3w_t1_core_updater_v2_common import SHA256, UpdaterV2Error, canonical, sha256_bytes
 
 TRUST_SCHEMA = "gh.n3w-t1-ota-release-trust/1"
@@ -30,6 +34,20 @@ RELEASE_LIMIT = 128 * 1024
 ED25519_SPKI_PREFIX = bytes.fromhex("302a300506032b6570032100")
 _PATH_SEGMENT = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
 _HOST = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?")
+
+
+@dataclass(frozen=True, slots=True)
+class VerifiedHaRelease:
+    host: str
+    archive_path: str
+    index_sequence: int
+    index_sha256: str
+    expires_at_unix: int
+    manifest_sha256: str
+    predecessor_release_id: str
+    predecessor_images: dict[str, dict[str, str]]
+    approved_manifest: bytes
+    admission: HostOtaAdmission
 
 
 def _object(raw: bytes, schema: str, fields: set[str]) -> dict[str, Any]:
@@ -62,18 +80,43 @@ def _expires(value: Any) -> int:
     return value
 
 
-def _fetch_https(host: str, path: str, limit: int) -> bytes:
+@contextmanager
+def _https_response(host: str, path: str) -> Iterator[http.client.HTTPResponse]:
     connection = http.client.HTTPSConnection(host, timeout=10, context=ssl.create_default_context())
     try:
-        connection.request("GET", path, headers={"Accept-Encoding": "identity"})
-        response = connection.getresponse()
-        if response.status != 200 or response.getheader("Content-Encoding", "identity").lower() != "identity":
-            raise UpdaterV2Error("signed_release_https_response_invalid")
-        return response.read(limit + 1)
-    except (OSError, http.client.HTTPException) as error:
-        raise UpdaterV2Error("signed_release_https_unavailable") from error
+        try:
+            connection.request("GET", path, headers={"Accept-Encoding": "identity"})
+            response = connection.getresponse()
+        except (OSError, http.client.HTTPException) as error:
+            raise UpdaterV2Error("signed_release_https_unavailable") from error
+        try:
+            if response.status != 200 or response.getheader("Content-Encoding", "identity").lower() != "identity":
+                raise UpdaterV2Error("signed_release_https_response_invalid")
+            yield response
+        finally:
+            response.close()
     finally:
         connection.close()
+
+
+def _fetch_https(host: str, path: str, limit: int) -> bytes:
+    with _https_response(host, path) as response:
+        try:
+            return response.read(limit + 1)
+        except (OSError, http.client.HTTPException) as error:
+            raise UpdaterV2Error("signed_release_https_unavailable") from error
+
+
+@contextmanager
+def open_signed_archive(release: VerifiedHaRelease) -> Iterator[http.client.HTTPResponse]:
+    with _https_response(release.host, release.archive_path) as response:
+        length = response.getheader("Content-Length")
+        if length is not None and length != str(release.admission.target_archive_size):
+            raise UpdaterV2Error("signed_release_archive_length_mismatch")
+        try:
+            yield response
+        except http.client.HTTPException as error:
+            raise UpdaterV2Error("signed_release_archive_transfer_failed") from error
 
 
 def _verify_signature(key: bytes, raw: bytes, signature: bytes) -> None:
@@ -93,9 +136,9 @@ def _verify_signature(key: bytes, raw: bytes, signature: bytes) -> None:
         raise UpdaterV2Error("signed_release_signature_invalid")
 
 
-def check_signed_release(
+def verify_signed_release(
     trust_policy: Path, *, fetch: Callable[[str, str, int], bytes] = _fetch_https,
-) -> dict[str, object]:
+) -> VerifiedHaRelease:
     policy = _object(read_local_release_input(trust_policy, limit=4096, private=False), TRUST_SCHEMA, {
         "base_url", "minimum_index_sequence", "public_key_der_base64",
     })
@@ -126,7 +169,8 @@ def check_signed_release(
         _verify_signature(key, raw, fetch(location.netloc, path + ".sig", 64))
         return raw
 
-    index = _object(read_signed("index.json", INDEX_LIMIT), INDEX_SCHEMA, {
+    index_raw = read_signed("index.json", INDEX_LIMIT)
+    index = _object(index_raw, INDEX_SCHEMA, {
         "sequence", "expires_at_unix", "release_id", "release_path", "release_sha256",
     })
     expiry = _expires(index["expires_at_unix"])
@@ -140,9 +184,9 @@ def check_signed_release(
         raise UpdaterV2Error("signed_release_index_manifest_binding_mismatch")
     release = _object(manifest, DISTRIBUTION_SCHEMA, {
         "expires_at_unix", "predecessor", "target", "minimum_updater_version",
-        "required_updater_capabilities", "ha_candidate", "archive_path",
+        "required_updater_capabilities", "ha_candidate", "archive_path", "predecessor_runtime_image_ids",
     })
-    _expires(min(expiry, _expires(release["expires_at_unix"])))
+    expiry = min(expiry, _expires(release["expires_at_unix"]))
     try:
         plan = build_upgrade_plan(release["predecessor"], release["target"])
         if parse_semver(release["minimum_updater_version"]) > parse_semver(CHECKER_VERSION):
@@ -162,12 +206,22 @@ def check_signed_release(
         or release["target"]["runtime_contract"]["image_binding_modes"]["homeassistant"] != "dynamic"
     ):
         raise UpdaterV2Error("signed_release_stack_scope_mismatch")
-    predecessor = release["predecessor"]["components"]["homeassistant"]
+    predecessors = release["predecessor"]["components"]
+    runtime_ids = release["predecessor_runtime_image_ids"]
+    if not isinstance(runtime_ids, dict) or runtime_ids.keys() != predecessors.keys():
+        raise UpdaterV2Error("signed_release_predecessor_image_ids_invalid")
+    predecessor_images = {}
+    for name, component in predecessors.items():
+        image_id = runtime_ids[name]
+        if not isinstance(image_id, str) or not image_id.startswith("sha256:") or SHA256.fullmatch(image_id[7:]) is None:
+            raise UpdaterV2Error("signed_release_predecessor_image_ids_invalid")
+        predecessor_images[name] = {"reference": component["image"], "runtime_id": image_id}
+    predecessor = predecessors["homeassistant"]
     target = release["target"]["components"]["homeassistant"]
     candidate = canonical(release["ha_candidate"])
     # The checker validates the signed declaration. Live materialization must prove the actual predecessor.
     admission = candidate_admission(candidate, {
-        "image_ref": predecessor["image"], "image_id": "sha256:" + predecessor["identity"]["sha256"],
+        "image_ref": predecessor["image"], "image_id": runtime_ids["homeassistant"],
         "platform": predecessor["platform"],
     })
     if (
@@ -175,10 +229,25 @@ def check_signed_release(
         or target["identity"] != {"kind": "tar_sha256", "sha256": admission.target_archive_sha256}
     ):
         raise UpdaterV2Error("signed_release_candidate_binding_mismatch")
-    _relative_path(release["archive_path"])
+    if len(candidate) > 32768:
+        raise UpdaterV2Error("signed_release_candidate_size_invalid")
+    return VerifiedHaRelease(
+        host=location.netloc, archive_path=f"{prefix}/{_relative_path(release['archive_path'])}",
+        index_sequence=sequence, index_sha256=sha256_bytes(index_raw), expires_at_unix=_expires(expiry),
+        manifest_sha256=expected_digest, predecessor_release_id=plan["from_release_id"],
+        predecessor_images=predecessor_images, approved_manifest=candidate, admission=admission,
+    )
+
+
+def check_signed_release(
+    trust_policy: Path, *, fetch: Callable[[str, str, int], bytes] = _fetch_https,
+) -> dict[str, object]:
+    release = verify_signed_release(trust_policy, fetch=fetch)
     return {
-        "status": "SIGNED_RELEASE_VERIFIED", "index_sequence": sequence, "release_id": release_id,
-        "predecessor_release_id": plan["from_release_id"], "signed_manifest_sha256": expected_digest,
-        "approved_ha_manifest_sha256": sha256_bytes(candidate), "archive_sha256": admission.target_archive_sha256,
-        "archive_size_bytes": admission.target_archive_size,
+        "status": "SIGNED_RELEASE_VERIFIED", "index_sequence": release.index_sequence,
+        "release_id": release.admission.release_identity, "predecessor_release_id": release.predecessor_release_id,
+        "signed_manifest_sha256": release.manifest_sha256,
+        "approved_ha_manifest_sha256": sha256_bytes(release.approved_manifest),
+        "archive_sha256": release.admission.target_archive_sha256,
+        "archive_size_bytes": release.admission.target_archive_size,
     }
