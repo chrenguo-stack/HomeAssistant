@@ -3,22 +3,84 @@
 ### OTA product architecture — V1.2, 2026-11-20
 
 [T1 Core Stack OTA V1.2](N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.2_20261119.md) is the product design authority for OTA implementation and acceptance.
-The current executable OTA code and T1 runtime have yet to align with V1.2.
+Canonical `main` and the live T1 runtime are not yet aligned to V1.2. The active stacked candidate line has advanced through the Broker B1-B5 source/package foundation and remains unmerged and non-live.
 
 ```text
 CURRENT_T1_CORE_STACK_OTA_ARCHITECTURE=docs/development/N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.2_20261119.md
 ARCHITECTURE_VERSION=V1.2
 ARCHITECTURE_STATUS=PRODUCT_ARCHITECTURE_AUTHORITY
-IMPLEMENTATION_STATUS=NOT_YET_ALIGNED
+IMPLEMENTATION_STATUS=SOURCE_ALIGNMENT_IN_PROGRESS
+MAIN_ALIGNED_TO_V1_2=false
+BROKER_OTA_SOURCE_STATUS=B1_B5_CLOSED_PASS_ON_STACKED_DRAFTS
 LIVE_RUNTIME_ALIGNED_TO_V1_2=false
-NEXT_ONE_GATE=N3W_T1_OTA_V1_2_PRE_ALIGNMENT_REPOSITORY_CONVERGENCE
-AUTO_EXECUTE_NEXT_GATE=false
+NEXT_ONE_GATE=N3W_T1_BROKER_OTA_B6_TARGET_IMAGE_MANIFEST_AND_ISOLATED_A_TO_B_SIMULATION_20261121_01
+AUTO_EXECUTE_NEXT_GATE=true
 ```
 
 PRs [#807](https://github.com/chrenguo-stack/HomeAssistant/pull/807), [#809](https://github.com/chrenguo-stack/HomeAssistant/pull/809), [#810](https://github.com/chrenguo-stack/HomeAssistant/pull/810)
 and [#811](https://github.com/chrenguo-stack/HomeAssistant/pull/811) remain open drafts for later classification.
 The earlier implementation and live-acceptance entries below remain historical evidence.
 Their execution routes and authorization records do not carry forward into V1.2.
+
+
+### 2026-11-21 — Broker OTA B1-B5 source/package foundation CLOSED_PASS
+
+```text
+MAIN_HEAD_AT_REBIND=4fde1b7c5cc0aa224fa3574b8b4cc638edd93647
+V1_2_ALIGNMENT_PR=815
+V1_2_ALIGNMENT_HEAD=9dc2eed89cfb3ccdb9d08c3d3555b61668dcbb1d
+
+BROKER_B1_B2_PR=816
+BROKER_B1_B2_HEAD=9c58cc1dada31488d70e1d15b3d263b5f077781c
+BROKER_B1_B2_CI=13/13_SUCCESS
+
+BROKER_B3_PR=817
+BROKER_B3_HEAD=b79ec0ffc4f118ccffc94f2bcc328ab2715ab140
+BROKER_B3_CI=13/13_SUCCESS
+
+BROKER_B4_PR=818
+BROKER_B4_HEAD=b5716c7899755338f4ab1cae62c57dd7495c9924
+BROKER_B4_CI=14/14_SUCCESS
+
+BROKER_B5_PR=819
+BROKER_B5_EXECUTABLE_HEAD=e650f5db373d5cd65fd601c676f3f605998ba132
+BROKER_B5_CI=14/14_SUCCESS
+
+BROKER_OTA_PROFILE=IMAGE_ONLY_V1
+BROKER_DYNAMIC_IMAGE_BINDING=true
+BROKER_TRANSACTION_BOUND_RECOVERY_POINT=true
+BROKER_TARGET_WRITE_ROLLBACK_RESTORES_STATE=true
+BROKER_HOST_RESTART_TAKEOVER=true
+BROKER_ROLLBACK_SOURCE_PHASE_DURABLE=true
+BROKER_RECOVERY_POINT_RETIREMENT_CRASH_RESUMABLE=true
+BROKER_RECOVERY_SUPPORT_EXACT_PACKAGE=true
+
+BROKER_RECOVERY_SUPPORT_ARTIFACT_ID=14711625754
+BROKER_RECOVERY_SUPPORT_ARTIFACT_DIGEST=sha256:77f440f3da068dca61d5f12b44fb704ca29690a16be0a95322024657beadf949
+BROKER_RECOVERY_SUPPORT_MANIFEST_SHA256=092af89974e3ce0584933e18a10288386ce5ff8cfddd2c36a19c66e67f142cf2
+BROKER_RECOVERY_SUPPORT_UPDATER_SHA256=5a13a910cdfdb4d07b23fb7bd8c5bac1bb31a59a310787e4dd2dbf617df7dd4a
+BROKER_RECOVERY_SUPPORT_UNIT_SHA256=d5bea0c625edfcf46729170eac30872ae8a11c59fce14c89c6c585d46438ce19
+
+BROKER_TARGET_IMAGE_FROZEN=false
+BROKER_TARGET_MANIFEST_FROZEN=false
+BROKER_ISOLATED_A_TO_B_SIMULATION=false
+T1_ACCESS=false
+PRODUCTION_MUTATION=false
+SYSTEMD_LIVE_ENABLE=false
+BROKER_LIVE_APPLY=false
+MERGE=false
+RELEASE=false
+
+NEXT_ONE_GATE=N3W_T1_BROKER_OTA_B6_TARGET_IMAGE_MANIFEST_AND_ISOLATED_A_TO_B_SIMULATION_20261121_01
+NEXT_GATE_AUTO_CONTINUE_SOURCE_WORK=true
+STOP_BOUNDARY=BEFORE_SPARE_T1_READONLY_OR_ANY_LIVE_INSTALL
+```
+
+B1/B2 froze the first Broker OTA profile as `IMAGE_ONLY_V1` and extended the existing Generic V2 runtime-template convergence so a legacy-static Broker can move to the existing `GH_BROKER_IMAGE` binding without changing the effective predecessor image. B3 added a transaction-bound, capacity-gated Recovery Point for the flat regular-file set under `/var/lib/n3wfc4-broker`, including `dynamic-security.json` and `mosquitto.db`, and restores it whenever the target Broker may have written persistent state.
+
+B4 connected that recovery duty to host restart/process interruption. `recover-broker-pending` reuses Generic V2 rollback rather than creating a second state machine, preserves `rollback_source_phase` across re-entry, reacquires the certificate-lifecycle guard even when the runtime is already stopped, and retires terminal Recovery Points with a crash-resumable transaction-specific tombstone. B5 then produced a deterministic exact recovery-support package containing the Generic V2 updater pyz plus the bounded recovery systemd unit. The dedicated exact workflow built, uploaded, re-downloaded and re-verified that package and executed the packaged pyz.
+
+These are stacked Draft PRs only. No Broker target release has been selected or frozen, no Broker target image/target manifest has been built, and no T1/systemd/live Broker mutation has occurred. The next authorized engineering stage is B6 target-image/manifest work plus isolated Mosquitto A-to-B deterministic package simulation. Spare-T1 read-only or live work remains a later explicit boundary.
 
 ### Latest authority — 2026-11-06 PR #788 clean successor: mandatory-USB HA OTA R4 source converged
 

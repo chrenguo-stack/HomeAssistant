@@ -1,7 +1,7 @@
 # N3-W T1 Broker OTA V1.0 — B5 Recovery Support Exact Package
 
 DATE=2026-11-21  
-STATUS=SOURCE_IMPLEMENTATION  
+STATUS=CLOSED_PASS  
 STACKED_BASE_PR=818  
 STACKED_BASE_HEAD=b5716c7899755338f4ab1cae62c57dd7495c9924  
 B4_STATUS=CLOSED_PASS  
@@ -138,3 +138,33 @@ release=false
 ```
 
 B5 通过后，下一阶段才进入 Broker 目标镜像/target manifest 与 isolated Mosquitto A→B package simulation。
+
+
+## 8. B5 closure
+
+```text
+B5_STATUS=CLOSED_PASS
+B5_EXECUTABLE_HEAD=e650f5db373d5cd65fd601c676f3f605998ba132
+B5_EXACT_HEAD_CI=14/14_SUCCESS
+B5_EXACT_RUN=44914839856
+
+B5_ARTIFACT_ID=14711625754
+B5_ARTIFACT_NAME=n3w-t1-core-updater-broker-recovery-support
+B5_ARTIFACT_DIGEST=sha256:77f440f3da068dca61d5f12b44fb704ca29690a16be0a95322024657beadf949
+B5_ARTIFACT_SIZE_BYTES=254039
+B5_MANIFEST_SHA256=092af89974e3ce0584933e18a10288386ce5ff8cfddd2c36a19c66e67f142cf2
+B5_UPDATER_SHA256=5a13a910cdfdb4d07b23fb7bd8c5bac1bb31a59a310787e4dd2dbf617df7dd4a
+B5_UNIT_SHA256=d5bea0c625edfcf46729170eac30872ae8a11c59fce14c89c6c585d46438ce19
+
+T1_ACCESS=false
+PRODUCTION_MUTATION=false
+SYSTEMD_LIVE_ENABLE=false
+BROKER_TARGET_IMAGE=false
+BROKER_LIVE_APPLY=false
+MERGE=false
+RELEASE=false
+```
+
+The dedicated exact workflow built the package from the exact Git source head, uploaded it, re-downloaded it, re-verified the manifest/module set and executed the packaged pyz to prove the `recover-broker-pending` command is present. The earlier B5 CI-policy failure was limited to a stale repository workflow-count assertion (84 -> 85); the policy checker itself had `errors=[]`. Repair head `e650f5d...` added the explicit workflow registration assertion and all 14 exact-head workflows then succeeded.
+
+B5 closes only the host recovery-support packaging foundation. The Broker target release/image and target manifest remain unfrozen. The next source stage is target-image/manifest work plus isolated Mosquitto A-to-B deterministic package simulation; no T1 access or live systemd/Broker mutation is implied.

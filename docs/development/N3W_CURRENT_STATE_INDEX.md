@@ -1,5 +1,19 @@
 ## Current T1 Core Stack authority index
 
+### 2026-11-21 — Broker OTA B1-B5 source/package foundation CLOSED_PASS
+
+- Canonical `main` at fresh rebind remains `4fde1b7c5cc0aa224fa3574b8b4cc638edd93647`; the V1.2 alignment line is still Draft PR [#815](https://github.com/chrenguo-stack/HomeAssistant/pull/815) at `9dc2eed89cfb3ccdb9d08c3d3555b61668dcbb1d`.
+- Broker B1/B2: Draft PR [#816](https://github.com/chrenguo-stack/HomeAssistant/pull/816), exact head `9c58cc1dada31488d70e1d15b3d263b5f077781c`, 13/13 SUCCESS. Design: [B1/B2 design and dynamic binding](N3W_T1_BROKER_OTA_V1_0_B1_DESIGN_AND_B2_DYNAMIC_BINDING_20261121.md).
+- Broker B3: Draft PR [#817](https://github.com/chrenguo-stack/HomeAssistant/pull/817), exact head `b79ec0ffc4f118ccffc94f2bcc328ab2715ab140`, 13/13 SUCCESS. Design/source: [persistent-state Recovery Point](N3W_T1_BROKER_OTA_V1_0_B3_PERSISTENT_STATE_RECOVERY_POINT_20261121.md).
+- Broker B4: Draft PR [#818](https://github.com/chrenguo-stack/HomeAssistant/pull/818), exact head `b5716c7899755338f4ab1cae62c57dd7495c9924`, 14/14 SUCCESS. Design/source: [host restart takeover and Recovery Point lifecycle](N3W_T1_BROKER_OTA_V1_0_B4_HOST_RECOVERY_AND_RECOVERY_POINT_LIFECYCLE_20261121.md).
+- Broker B5: Draft PR [#819](https://github.com/chrenguo-stack/HomeAssistant/pull/819), exact executable head `e650f5db373d5cd65fd601c676f3f605998ba132`, 14/14 SUCCESS. Design/source: [recovery support exact package](N3W_T1_BROKER_OTA_V1_0_B5_RECOVERY_SUPPORT_EXACT_PACKAGE_20261121.md).
+- B5 dedicated exact run: [44914839856](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44914839856). All `source`, `exact-package`, and `artifact-recheck` jobs succeeded.
+- B5 artifact: ID `14711625754`, name `n3w-t1-core-updater-broker-recovery-support`, digest `sha256:77f440f3da068dca61d5f12b44fb704ca29690a16be0a95322024657beadf949`, size `254039` bytes.
+- Exact package bindings: manifest SHA256 `092af89974e3ce0584933e18a10288386ce5ff8cfddd2c36a19c66e67f142cf2`; updater pyz SHA256 `5a13a910cdfdb4d07b23fb7bd8c5bac1bb31a59a310787e4dd2dbf617df7dd4a`; recovery unit SHA256 `d5bea0c625edfcf46729170eac30872ae8a11c59fce14c89c6c585d46438ce19`.
+- Scope remains source/package only: no target Broker image or target manifest is frozen; no T1 access, systemd live enable, Broker live apply, merge or release occurred.
+- Next engineering gate: `N3W_T1_BROKER_OTA_B6_TARGET_IMAGE_MANIFEST_AND_ISOLATED_A_TO_B_SIMULATION_20261121_01`.
+- Source development, deterministic simulation, review and GitHub archive may continue in the next conversation without a new per-step authorization. Stop before any spare-T1 read-only access, package installation/systemd enable, Broker live apply, reboot/power-loss physical test, merge or release unless the applicable boundary is explicitly authorized.
+
 ### 2026-11-20 — T1 Core Stack OTA V1.2 architecture authority
 
 - Product architecture: [T1 Core Stack OTA V1.2](N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.2_20261119.md). Implementation and live alignment are pending.
