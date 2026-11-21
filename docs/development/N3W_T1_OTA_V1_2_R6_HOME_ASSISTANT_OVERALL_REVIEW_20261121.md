@@ -1,6 +1,6 @@
 # N3-W T1 OTA V1.2 R6 Home Assistant 整体复核
 
-2026-11-21。结论为 **待修复**。包、源码和 CI 已绑定。现有 HA 候选仍有收数回执接线、节点静默以及前代恢复验收三个阻断点。备用 T1、实机介质、合并和发布未进入执行。
+2026-11-21 起始复核发现收数回执接线、节点静默和前代恢复验收三项阻断点。2026-11-22 已确认修复提交的隔离自检和精确工件 CI 全部通过，真实容器中的普通节点遥测仍待补证。
 
 ## 复核对象和验证结果
 
@@ -70,3 +70,9 @@
 - 本地跨进程测试模拟 QEMU 自身路径与内核路径返回不同启动时间。有效回执通过，写入不匹配启动时间的回执被明确拒绝。412 项相关回归通过、2 项跳过、13 项未纳入。源码编译、Git 差异检查和变更文件安全扫描通过。等待同一提交的真实 ARM64 回执验证。
 - [恢复包 14714134525](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44923324909/artifacts/14714134525)绑定 `9cb014a9b48c5fbaf4511d540a9b0ac634b7918f`，ZIP SHA-256 `4bdd756b312e5f3504a2cc0c9b30c0e62c654f265737764b14a98abf1dd64686`，清单 SHA-256 `c1e9cab231bb1935827fbf9c99b5f258ec2a638ad5af6c500b1dad79751118df`，pyz SHA-256 `f39629268ffeab9906f9de8cb60362d604d5b9150ef4c13571926b00921e6b84`。11 个包内文件和本地独立重建逐字节一致。包中 HA 组件与 pyz 验收模块均包含相同的内核进程路径修复。
 - 第三次查询时 23 项通过、1 项运行、0 项失败。[ARM64 隔离联调步骤](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44923324802/job/136903867551)成功，覆盖空节点首次启动回执、HA 容器重建后新的挑战回执。[三镜像工件 14714677167](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44923324802/artifacts/14714677167)已上传，GitHub 登记 ZIP 摘要 `sha256:b7739e322e77b131898efec3858c4e8b7968b82da9deac99586503b222225130`。最后的工件下载及绑定验证仍在进行。本轮已停止主动轮询，远端工作流继续运行。备用 T1 需按原边界另行预检。
+
+## 修复提交 CI 终态（2026-11-22）
+
+- PR #815 仍为打开的草稿，候选 `9cb014a9b48c5fbaf4511d540a9b0ac634b7918f` 基于 `main@4fde1b7c5cc0aa224fa3574b8b4cc638edd93647`。该候选的 24 个 PR 工作流全部通过。[精确 ARM64](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44923324802/job/136903867551)日志回读确认 `HA_EXACT_ARM64_MANAGER_MONITORING_ROUND_TRIP=PASS` 和 `R6_EXACT_ARM64_POST_UPLOAD_BINDING=PASS`。[目标 HA 冻结归档绑定与签名暂存](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44923324909/job/136904062221)同样通过。
+- 三镜像工件 `14714677167` 的下载后绑定由 CI 复验。[同提交 fresh 交付工件 `14714912137`](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44923324807/artifacts/14714912137)的 ZIP 摘要为 `sha256:7ac35773578381d7d1a024e7c982237a3a3a2c28e774b681d391de913023e620`。两项是隔离和候选材料证据。
+- R6 最初要求同时取得真实隔离容器的无节点自检与普通遥测回执。自检及 HA 重建后的复验已通过，普通遥测目前有模拟和单元证据。继续复用既有 ARM64 三容器用例补实链路验证。R7 只读预检另按设备范围与授权推进。
