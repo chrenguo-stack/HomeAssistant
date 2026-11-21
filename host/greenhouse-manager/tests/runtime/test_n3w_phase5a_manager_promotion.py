@@ -92,8 +92,10 @@ def test_promoted_service_disables_both_legacy_entrypoints() -> None:
     assert "replace(source_settings, pairing_intake_enabled=False)" in source
 
 
+@pytest.mark.parametrize("ota_enabled", [False, True])
 def test_promoted_service_constructs_with_product_pairing_enabled(
     tmp_path,
+    ota_enabled,
 ) -> None:
     registration_path = tmp_path / "registration.sqlite3"
     replay_path = tmp_path / "replay.sqlite3"
@@ -102,7 +104,10 @@ def test_promoted_service_constructs_with_product_pairing_enabled(
         pairing_db_path=str(registration_path),
         n3w_runtime_enabled=True,
         n3w_product_pairing_enabled=True,
+        n3w_t1_ota_enabled=ota_enabled,
+        n3w_t1_ota_installed_version="2026.10.0" if ota_enabled else None,
     )
+    ota_manager = wiring.build_t1_ota_manager(settings)
 
     with (
         RegistrationRegistry(registration_path) as registration,
@@ -113,11 +118,14 @@ def test_promoted_service_constructs_with_product_pairing_enabled(
             registration=registration,
             replay=replay,
             keys=StaticNodeApplicationKeyProvider({}),
+            ota_manager=ota_manager,
         )
 
         assert service.settings.n3w_runtime_enabled is False
         assert service.settings.n3w_product_pairing_enabled is False
         assert service.settings.pairing_intake_enabled is False
+        assert service.settings.n3w_t1_ota_enabled is False
+        assert service.ota_manager is ota_manager
 
 
 def test_phase5a_wiring_has_no_path_or_finite_grant_authority() -> None:
