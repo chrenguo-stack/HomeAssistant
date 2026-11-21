@@ -562,15 +562,21 @@ jobs:
             fi
             sleep 1
           done
+          echo "BROKER_B6_APP_PROBE_PUBLISH=PASS"
 
           docker exec n3w-b6-broker mosquitto_pub \
             -h 127.0.0.1 -p 1883 \
             -u "$APP_USER" -P "$APP_PASSWORD" \
             -r -t n3w/b6/predecessor -m A
+          echo "BROKER_B6_PREDECESSOR_RETAINED_PUBLISH=PASS"
           stop_broker
+          echo "BROKER_B6_PREDECESSOR_STOP=PASS"
           test -s "$WORK/data/dynamic-security.json"
+          echo "BROKER_B6_DYNSEC_FILE_PRESENT=PASS"
           test -s "$WORK/data/mosquitto.db"
+          echo "BROKER_B6_PERSISTENCE_DB_PRESENT=PASS"
           sha256sum "$WORK/data/dynamic-security.json" "$WORK/data/mosquitto.db" > "$WORK/pre-target.sha256"
+          echo "BROKER_B6_PRE_TARGET_HASH_CAPTURE=PASS"
 
           sudo env PYTHONPATH="$GITHUB_WORKSPACE/tools" WORK="$WORK" python - <<'PY'
           import json
@@ -599,17 +605,23 @@ jobs:
           PY
 
           start_broker "$TARGET_UPSTREAM"
+          echo "BROKER_B6_TARGET_START=PASS"
           docker exec n3w-b6-broker mosquitto -h 2>&1 | grep -F 'mosquitto version 2.1.4'
+          echo "BROKER_B6_TARGET_VERSION=PASS"
           test "$(docker exec n3w-b6-broker mosquitto_sub \
             -h 127.0.0.1 -p 1883 \
             -u "$APP_USER" -P "$APP_PASSWORD" \
             -t n3w/b6/predecessor -C 1 -W 3)" = "A"
+          echo "BROKER_B6_TARGET_READS_PREDECESSOR=PASS"
           docker exec n3w-b6-broker mosquitto_pub \
             -h 127.0.0.1 -p 1883 \
             -u "$APP_USER" -P "$APP_PASSWORD" \
             -r -t n3w/b6/target -m B
+          echo "BROKER_B6_TARGET_RETAINED_PUBLISH=PASS"
           stop_broker
+          echo "BROKER_B6_TARGET_STOP=PASS"
           ! sha256sum -c "$WORK/pre-target.sha256" >/dev/null 2>&1
+          echo "BROKER_B6_TARGET_STATE_CHANGED=PASS"
 
           sudo env PYTHONPATH="$GITHUB_WORKSPACE/tools" WORK="$WORK" python - <<'PY'
           import json
@@ -635,12 +647,15 @@ jobs:
           print("BROKER_B6_REAL_RECOVERY_POINT_RESTORE=PASS")
           PY
           sha256sum -c "$WORK/pre-target.sha256"
+          echo "BROKER_B6_RESTORED_HASH_MATCH=PASS"
 
           start_broker "$PREDECESSOR_UPSTREAM"
+          echo "BROKER_B6_ROLLBACK_PREDECESSOR_START=PASS"
           test "$(docker exec n3w-b6-broker mosquitto_sub \
             -h 127.0.0.1 -p 1883 \
             -u "$APP_USER" -P "$APP_PASSWORD" \
             -t n3w/b6/predecessor -C 1 -W 3)" = "A"
+          echo "BROKER_B6_ROLLBACK_PREDECESSOR_READ=PASS"
           set +e
           TARGET_VALUE="$(docker exec n3w-b6-broker mosquitto_sub \
             -h 127.0.0.1 -p 1883 \

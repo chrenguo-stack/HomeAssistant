@@ -71,6 +71,24 @@ def test_broker_target_fixture_keeps_dynsec_admin_out_of_application_topics():
     assert 'dynsec getRole "$APP_ROLE"' in text
     assert 'dynsec getClient "$APP_USER"' in text
     assert 'BROKER_B6_DYNSEC_APPLICATION_FIXTURE=PASS' in text
+    for marker in (
+        "BROKER_B6_APP_PROBE_PUBLISH=PASS",
+        "BROKER_B6_PREDECESSOR_RETAINED_PUBLISH=PASS",
+        "BROKER_B6_PREDECESSOR_STOP=PASS",
+        "BROKER_B6_DYNSEC_FILE_PRESENT=PASS",
+        "BROKER_B6_PERSISTENCE_DB_PRESENT=PASS",
+        "BROKER_B6_PRE_TARGET_HASH_CAPTURE=PASS",
+        "BROKER_B6_TARGET_START=PASS",
+        "BROKER_B6_TARGET_VERSION=PASS",
+        "BROKER_B6_TARGET_READS_PREDECESSOR=PASS",
+        "BROKER_B6_TARGET_RETAINED_PUBLISH=PASS",
+        "BROKER_B6_TARGET_STOP=PASS",
+        "BROKER_B6_TARGET_STATE_CHANGED=PASS",
+        "BROKER_B6_RESTORED_HASH_MATCH=PASS",
+        "BROKER_B6_ROLLBACK_PREDECESSOR_START=PASS",
+        "BROKER_B6_ROLLBACK_PREDECESSOR_READ=PASS",
+    ):
+        assert marker in text
     assert "docker exec -i n3w-b6-broker mosquitto_ctrl" not in text
     assert '-u "$APP_USER" -P "$APP_PASSWORD"' in text
     assert "CONTROL_PAYLOAD=" not in text

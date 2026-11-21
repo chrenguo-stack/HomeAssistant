@@ -187,3 +187,16 @@ Attempt 03 exact head = 92786adc2e0b8e0df8e9f7607ebbb9e7987bc32b。
 - 禁止再使用 docker exec -i 的交互密码输入路径。
 
 该修复仍只修改隔离 CI fixture，不改变生产 Broker、Generic V2 或 Recovery Point 源码。
+
+
+## 10. Phase 1 Attempt 04 Failure：增加无语义变更的阶段可观测性
+
+Attempt 04 exact head = bd7f7f247ae8634bad77cf1695da4e2b23f7dc5e。
+
+结果：source/exact-artifact/Public repository safety/Broker Recovery Support Exact 均 SUCCESS，isolated-a-to-b FAILURE。
+
+本轮已出现 BROKER_B6_DYNSEC_APPLICATION_FIXTURE=PASS，证明 createRole、三条 ACL、createClient、addClientRole、getRole、getClient 已完整通过。失败发生在此后、BROKER_B6_REAL_RECOVERY_POINT_CREATE 之前。
+
+现有日志无法唯一判定 remaining boundary 是 probe publish、predecessor retained publish、graceful stop、DynSec file、mosquitto.db 或 pre-target hash capture。为避免继续猜测，本提交只增加逐边界 PASS 标记，并同时为 target start/version/read/write/stop、state changed、restore hash、rollback predecessor read 增加标记。
+
+该提交不改变 fixture 条件、ACL、Broker 配置、Recovery Point 或产品升级逻辑，仅提升 CI 失败定位能力。
