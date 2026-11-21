@@ -2146,3 +2146,28 @@ def test_broker_recovery_startup_unit_is_bounded_and_noncyclic():
 def test_cli_exposes_host_owned_broker_recovery_command():
     args = cli_mod.parser().parse_args(["recover-broker-pending"])
     assert args.command == "recover-broker-pending"
+
+
+def test_broker_recovery_point_retire_rejects_unexpected_top_level_entry(
+    tmp_path: Path,
+):
+    source, recovery_root, uid, gid = _broker_state_fixture(tmp_path)
+    provider = broker_recovery_mod.LocalBrokerRecoveryPoint(
+        source,
+        recovery_root,
+        expected_source_uid=uid,
+        expected_source_gid=gid,
+        reserve_bytes=0,
+    )
+    record = provider.create("0123456789abcdef-8")
+    unexpected = recovery_root / record["key"] / "unexpected"
+    unexpected.write_bytes(b"do-not-delete-blindly")
+    unexpected.chmod(0o600)
+
+    with pytest.raises(
+        broker_recovery_mod.BrokerRecoveryError,
+        match="broker_recovery_snapshot_shape_invalid",
+    ):
+        provider.retire(record)
+
+    assert unexpected.exists()

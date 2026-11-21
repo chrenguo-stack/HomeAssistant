@@ -477,6 +477,19 @@ class LocalBrokerRecoveryPoint:
             raise BrokerRecoveryError("broker_recovery_record_invalid")
         key = record["key"]
         self._validate_key(key)
+        if self.recovery_root.is_symlink():
+            raise BrokerRecoveryError("broker_recovery_root_invalid")
+        if self.recovery_root.exists():
+            if not self.recovery_root.is_dir():
+                raise BrokerRecoveryError("broker_recovery_root_invalid")
+            root_meta = self.recovery_root.stat()
+            if (
+                root_meta.st_uid != os.geteuid()
+                or stat.S_IMODE(root_meta.st_mode) & 0o077
+            ):
+                raise BrokerRecoveryError(
+                    "broker_recovery_root_metadata_invalid"
+                )
         directory = self.recovery_root / key
         if not directory.exists():
             if directory.is_symlink():
@@ -491,6 +504,11 @@ class LocalBrokerRecoveryPoint:
         self._load_verified_manifest(record)
         if directory.is_symlink() or not directory.is_dir():
             raise BrokerRecoveryError("broker_recovery_snapshot_invalid")
+        if {path.name for path in directory.iterdir()} != {
+            "manifest.json",
+            "state",
+        }:
+            raise BrokerRecoveryError("broker_recovery_snapshot_shape_invalid")
         shutil.rmtree(directory)
         if directory.exists() or directory.is_symlink():
             raise BrokerRecoveryError("broker_recovery_retire_failed")
