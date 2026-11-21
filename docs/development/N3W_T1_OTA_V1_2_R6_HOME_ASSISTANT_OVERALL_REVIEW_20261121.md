@@ -53,3 +53,8 @@
 - 本地用精确 Manager 源码、空节点数据库和新目录通过实际构造与套接字路径校验。日志脱敏和变更文件安全扫描通过。OTA 相关用例 412 项通过、2 项跳过、13 项未纳入。Manager 定向用例 25 项通过，3 项需要打开本地套接字，在当前环境未纳入。
 - [新一轮 ARM64 CI 44920633239](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44920633239/job/136895669992)已通过源码预检，成对回执等待容器联调。备用 T1 的 R7 预检继续等待 R6 结果。
 - 第三次查询，`8df95b507137` 共 20 项通过、4 项运行、0 项失败。ARM64 Manager 镜像构建及镜像内基础状态初始化通过，当时正在拉取绑定的 HA 和 Broker 镜像。空节点维护自检及 HA 重建后新鲜回执均在等待。另有 [fresh 交付工件](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44920633373)、[HA 目标绑定](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44920633309)和 [M2 板端实验室 CI](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44920633447)仍在运行。已停止本轮主动轮询，GitHub 工作流继续执行。
+
+## 首次回执超时
+
+- `8df95b507137` 最终 23 项通过、1 项失败。[ARM64 运行 44920633239](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44920633239/job/136895669992)通过前置检查。隔离容器内 Manager 持续运行且重启次数为 0，HA 首次 MQTT 配置成功，首个维护自检回执超时。此轮未进入 HA 重建后验证。
+- 检查 Home Assistant 2026.10.0 MQTT 源码发现，没有启用的 MQTT 配置条目时，`async_wait_for_mqtt_client` 会立即返回 `False`。回执组件只依赖 MQTT 集成，与创建条目的 N3-W MQTT 引导可并行启动，因此首次启动可能永久跳过订阅。实际容器中是否触发该路径将由下一轮联调验证。
