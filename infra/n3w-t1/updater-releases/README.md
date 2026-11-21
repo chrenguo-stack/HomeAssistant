@@ -149,6 +149,23 @@ compares rendered Compose using the host environment file and accepts only the
 Manager OTA settings and the read-only OTA directory mount. A successful check
 is evidence for a separate activation. The recovery installer stages the file.
 
+The recovery bundle exposes the root-only `materialize-candidate` command for
+an externally approved engineering candidate. It takes absolute paths via
+`--approved-manifest` and `--target-archive`, an independently supplied
+`--approved-manifest-sha256`, and `--expires-at-unix`. The host checks the
+approved bytes, the running predecessor and the archive size, digest, tag
+and ARM64 image format. It retains the incoming file and stages a mode-0600
+copy in the private updater state directory, so allow disk space for that
+copy. The result includes the verified `target_source` for a later preparation
+approval. A retry reuses the exact staged copy.
+
+The host writes the private release pin and then publishes the exact
+approved manifest to Manager. Both operations share the transaction lock
+used by new OTA requests. After an interruption, a mismatched pin and
+manifest block new requests until the command is retried. This operation
+stages engineering inputs only. Signed distribution and separate transaction
+approvals apply at their respective stages.
+
 For the controlled candidate, the root-owned recovery entry also exposes
 `--issue-prepare-authority PRIVATE_REQUEST` and
 `--issue-install-authority PRIVATE_REQUEST`. The two inputs are separate absolute

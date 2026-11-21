@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -9,12 +10,14 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 import zipfile
 from pathlib import Path
 
 from n3w_t1_core_updater_common import COMPOSE, COMPOSE_ENV, PROJECT, SERVICES_UNIT, UpdaterError, sha256_bytes
 from n3w_t1_core_updater_ha_ipc import (
-    APPROVED_MANIFEST, IPC_SERVICE_UNIT, IPC_SOCKET, IPC_SOCKET_UNIT, MANAGER_PEER_UID, ha_image_version,
+    APPROVED_MANIFEST, IPC_SERVICE_UNIT, IPC_SOCKET, IPC_SOCKET_UNIT, MANAGER_PEER_UID, RELEASE_PIN, RELEASE_PIN_SCHEMA,
+    HostOtaAdmission, candidate_admission, ha_image_version, read_local_release_input,
 )
 from n3w_t1_core_updater_ha_recovery_startup import (
     RECOVERY_ARCHIVE,
@@ -26,6 +29,7 @@ from n3w_t1_core_updater_ha_recovery_startup import (
 )
 from n3w_t1_core_updater_v2_common import SHA256, TERMINAL_TX_V2
 from n3w_t1_core_updater_v2_state import STATE_ROOT_V2, V2StateStore
+from n3w_t1_portable_image_identity import parse_verified_load_archive
 
 
 SCHEMA = "gh.n3w-t1-ha-recovery-install/1"
@@ -310,6 +314,112 @@ def _require_idle(store: V2StateStore) -> None:
             raise UpdaterError("ha_recovery_install_transaction_active")
 
 
+def _stage_target_archive(runtime: LocalHaPredecessorRuntime, source: Path, target: Path, admission: HostOtaAdmission) -> None:
+    size = admission.target_archive_size
+    digest = admission.target_archive_sha256
+    if os.path.lexists(target):
+        if stat.S_IMODE(target.lstat().st_mode) != 0o600:
+            raise UpdaterError("ha_recovery_candidate_staged_archive_invalid")
+        with runtime._open_target_source(target, size) as staged:
+            if hashlib.file_digest(staged, "sha256").hexdigest() != digest:
+                raise UpdaterError("ha_recovery_candidate_staged_archive_invalid")
+            staged.seek(0)
+            parse_verified_load_archive(
+                staged, archive_sha256=digest, archive_size_bytes=size, expected_tag=admission.target_image_ref,
+            )
+        return
+
+    with runtime._open_target_source(source, size) as incoming:
+        fd, temporary_path = tempfile.mkstemp(prefix=".ha-target-", dir=target.parent)
+        temporary = Path(temporary_path)
+        try:
+            observed = hashlib.sha256()
+            remaining = size
+            with os.fdopen(fd, "w+b") as staged:
+                while remaining:
+                    block = incoming.read(min(1024 * 1024, remaining))
+                    if not block:
+                        break
+                    staged.write(block)
+                    observed.update(block)
+                    remaining -= len(block)
+                if remaining or incoming.read(1) or observed.hexdigest() != digest:
+                    raise UpdaterError("ha_recovery_candidate_archive_digest_mismatch")
+                staged.flush()
+                staged.seek(0)
+                parse_verified_load_archive(
+                    staged, archive_sha256=digest, archive_size_bytes=size, expected_tag=admission.target_image_ref,
+                )
+                os.fsync(staged.fileno())
+            os.link(temporary, target)
+            _sync_directory(target.parent)
+        finally:
+            temporary.unlink(missing_ok=True)
+
+
+def _write_candidate_record(path: Path, content: bytes, mode: int) -> None:
+    fd, temporary_path = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    temporary = Path(temporary_path)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            os.fchmod(stream.fileno(), mode)
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+        _sync_directory(path.parent)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def materialize_candidate(
+    manifest: Path, manifest_sha256: str, archive: Path, expires_at_unix: int,
+    *, root: Path = Path("/"), runtime: LocalHaPredecessorRuntime | None = None,
+) -> dict:
+    if SHA256.fullmatch(manifest_sha256) is None:
+        raise UpdaterError("ha_recovery_candidate_approval_digest_invalid")
+    raw = read_local_release_input(manifest, limit=32768, private=False)
+    if sha256_bytes(raw) != manifest_sha256:
+        raise UpdaterError("ha_recovery_candidate_approval_digest_mismatch")
+    if type(expires_at_unix) is not int or expires_at_unix <= time.time():
+        raise UpdaterError("ha_recovery_candidate_approval_expired")
+
+    store = V2StateStore(root / STATE_ROOT_V2.relative_to("/"))
+    export = root / IPC_SOCKET.parent.relative_to("/")
+    with store.lock():
+        _require_idle(store)
+        directory = export.lstat()
+        if (
+            export.resolve(strict=True) != export or not stat.S_ISDIR(directory.st_mode)
+            or directory.st_uid != os.geteuid() or directory.st_mode & 0o022
+            or directory.st_mode & 0o005 != 0o005
+        ):
+            raise UpdaterError("ha_recovery_candidate_export_directory_invalid")
+        runtime = LocalHaPredecessorRuntime() if runtime is None else runtime
+        admission = candidate_admission(raw, runtime._runtime("homeassistant"))
+        predecessor = {
+            "current_image_ref": admission.current_image_ref,
+            "current_image_identity": admission.current_image_identity,
+        }
+        binding = runtime.capture_start_binding(predecessor)
+        target = store.root / f"ha-target-{admission.target_archive_sha256}.tar"
+        _stage_target_archive(runtime, archive, target, admission)
+        if binding != runtime.capture_start_binding(predecessor):
+            raise UpdaterError("ha_recovery_candidate_predecessor_changed")
+        if expires_at_unix <= time.time():
+            raise UpdaterError("ha_recovery_candidate_approval_expired")
+
+        pin = {
+            "schema": RELEASE_PIN_SCHEMA, "manifest_sha256": manifest_sha256,
+            "predecessor_image_id": admission.current_image_identity["runtime_image_id"],
+            "expires_at_unix": expires_at_unix,
+        }
+        # PREPARE reads both records under this lock. An interruption between them leaves a digest mismatch.
+        _write_candidate_record(store.root / RELEASE_PIN, json.dumps(pin, sort_keys=True).encode() + b"\n", 0o600)
+        _write_candidate_record(export / APPROVED_MANIFEST, raw, 0o644)
+    return {"status": "CANDIDATE_MATERIALIZED", "release_identity": admission.release_identity, "target_source": str(target)}
+
+
 def install(package: Path, expected: str, *, root: Path = Path("/"), systemctl=_systemctl) -> dict:
     source_head, payload = _verified_package(package, expected)
     store = V2StateStore(root / STATE_ROOT_V2.relative_to("/"))
@@ -360,15 +470,27 @@ def install(package: Path, expected: str, *, root: Path = Path("/"), systemctl=_
 
 def bundle_main() -> int:
     action = sys.argv[1:2]
-    if action not in (["install"], ["check-candidate-activation"]):
+    if action not in (["install"], ["check-candidate-activation"], ["materialize-candidate"]):
         return recovery_cli()
     parser = argparse.ArgumentParser(prog=f"ha-recovery.pyz {action[0]}")
-    parser.add_argument("--manifest-sha256", required=True)
+    if action == ["materialize-candidate"]:
+        parser.add_argument("--approved-manifest", type=Path, required=True)
+        parser.add_argument("--approved-manifest-sha256", required=True)
+        parser.add_argument("--target-archive", type=Path, required=True)
+        parser.add_argument("--expires-at-unix", type=int, required=True)
+    else:
+        parser.add_argument("--manifest-sha256", required=True)
     args = parser.parse_args(sys.argv[2:])
     if os.geteuid() != 0:
         parser.error("this command requires root")
-    operation = install if action == ["install"] else check_candidate_activation
-    print(json.dumps(operation(Path(sys.argv[0]).resolve().parent, args.manifest_sha256), sort_keys=True))
+    if action == ["materialize-candidate"]:
+        result = materialize_candidate(
+            args.approved_manifest, args.approved_manifest_sha256, args.target_archive, args.expires_at_unix,
+        )
+    else:
+        operation = install if action == ["install"] else check_candidate_activation
+        result = operation(Path(sys.argv[0]).resolve().parent, args.manifest_sha256)
+    print(json.dumps(result, sort_keys=True))
     return 0
 
 

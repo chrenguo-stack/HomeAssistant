@@ -126,7 +126,7 @@ class HostOtaAdmissionResolver(Protocol):
         """Independently resolve approved target and current runtime authority."""
 
 
-def _read_local_release_input(path: Path, *, limit: int, private: bool) -> bytes:
+def read_local_release_input(path: Path, *, limit: int, private: bool) -> bytes:
     reason = "ha_ota_ipc_release_input_unavailable"
     try:
         if path.resolve(strict=True) != path:
@@ -150,6 +150,45 @@ def _read_local_release_input(path: Path, *, limit: int, private: bool) -> bytes
     return value
 
 
+def candidate_admission(raw: bytes, current: dict[str, Any]) -> HostOtaAdmission:
+    try:
+        envelope = json.loads(raw, object_pairs_hook=reject_duplicate_fields)
+    except ValueError as error:
+        raise UpdaterV2Error("ha_ota_ipc_release_input_invalid") from error
+    if (
+        not isinstance(envelope, dict) or envelope.get("schema") != APPROVED_MANIFEST_SCHEMA
+        or envelope.get("approval_status") != "APPROVED" or envelope.get("signature_status") != "VERIFIED"
+        or envelope.get("validity_status") != "VALID" or envelope.get("verification_status") != "PASS"
+    ):
+        raise UpdaterV2Error("ha_ota_ipc_release_not_approved")
+    release_identity = envelope.get("release_identity")
+    if not isinstance(release_identity, str) or _RELEASE_RE.fullmatch(release_identity) is None:
+        raise UpdaterV2Error("ha_ota_ipc_release_invalid")
+    target = ComponentTarget.from_document(envelope.get("target"))
+    if target.component != "homeassistant":
+        raise UpdaterV2Error("ha_ota_ipc_release_component_invalid")
+    version = ha_image_version(target.target_image_ref)
+    if version is None or envelope.get("version") != version:
+        raise UpdaterV2Error("ha_ota_ipc_release_version_invalid")
+    image_id = current.get("image_id")
+    if (
+        current.get("image_ref") != target.expected_predecessor_image_ref
+        or current.get("platform") != target.target_platform
+        or not isinstance(image_id, str) or not image_id.startswith("sha256:")
+        or _SHA256_RE.fullmatch(image_id[7:]) is None
+    ):
+        raise UpdaterV2Error("ha_ota_ipc_predecessor_identity_drift")
+    return HostOtaAdmission(
+        release_identity=release_identity,
+        current_image_ref=target.expected_predecessor_image_ref,
+        current_image_identity={"runtime_image_id": image_id, "platform": target.target_platform},
+        target_manifest_identity={"release_identity": release_identity, "manifest_sha256": sha256_bytes(raw)},
+        target_image_ref=target.target_image_ref,
+        target_archive_sha256=target.target_archive_sha256,
+        target_archive_size=envelope.get("target_archive_size_bytes"),
+    ).validate()
+
+
 class LocalApprovedHaRelease:
     """Resolve a host-pinned engineering candidate and independently inspect its predecessor."""
 
@@ -162,7 +201,7 @@ class LocalApprovedHaRelease:
 
     def resolve_homeassistant_release(self, release_identity: str) -> HostOtaAdmission:
         try:
-            pin = json.loads(_read_local_release_input(self.pin, limit=4096, private=True),
+            pin = json.loads(read_local_release_input(self.pin, limit=4096, private=True),
                              object_pairs_hook=reject_duplicate_fields)
             if (
                 not isinstance(pin, dict)
@@ -174,39 +213,17 @@ class LocalApprovedHaRelease:
                 or _SHA256_RE.fullmatch(pin["predecessor_image_id"][7:]) is None
             ):
                 raise UpdaterV2Error("ha_ota_ipc_release_pin_invalid")
-            raw = _read_local_release_input(self.manifest, limit=32768, private=False)
-            digest = sha256_bytes(raw)
-            if pin["manifest_sha256"] != digest:
+            raw = read_local_release_input(self.manifest, limit=32768, private=False)
+            if pin["manifest_sha256"] != sha256_bytes(raw):
                 raise UpdaterV2Error("ha_ota_ipc_release_digest_mismatch")
-            envelope = json.loads(raw, object_pairs_hook=reject_duplicate_fields)
         except ValueError as error:
             raise UpdaterV2Error("ha_ota_ipc_release_input_invalid") from error
-        if (
-            not isinstance(envelope, dict) or envelope.get("schema") != APPROVED_MANIFEST_SCHEMA
-            or envelope.get("release_identity") != release_identity
-            or envelope.get("approval_status") != "APPROVED" or envelope.get("signature_status") != "VERIFIED"
-            or envelope.get("validity_status") != "VALID" or envelope.get("verification_status") != "PASS"
-        ):
+        admission = candidate_admission(raw, self.read_current())
+        if admission.release_identity != release_identity:
             raise UpdaterV2Error("ha_ota_ipc_release_not_approved")
-        target = ComponentTarget.from_document(envelope.get("target"))
-        if target.component != "homeassistant":
-            raise UpdaterV2Error("ha_ota_ipc_release_component_invalid")
-        current = self.read_current()
-        if (
-            current.get("image_ref") != target.expected_predecessor_image_ref
-            or current.get("image_id") != pin["predecessor_image_id"]
-            or current.get("platform") != target.target_platform
-        ):
+        if admission.current_image_identity["runtime_image_id"] != pin["predecessor_image_id"]:
             raise UpdaterV2Error("ha_ota_ipc_predecessor_identity_drift")
-        return HostOtaAdmission(
-            release_identity=release_identity,
-            current_image_ref=target.expected_predecessor_image_ref,
-            current_image_identity={"runtime_image_id": current["image_id"], "platform": target.target_platform},
-            target_manifest_identity={"release_identity": release_identity, "manifest_sha256": digest},
-            target_image_ref=target.target_image_ref,
-            target_archive_sha256=target.target_archive_sha256,
-            target_archive_size=envelope.get("target_archive_size_bytes"),
-        ).validate()
+        return admission
 
 
 class HaUsbIpcExecutor:
@@ -315,8 +332,8 @@ class HaUsbIpcExecutor:
     def submit(self, action: str, release_identity: str) -> dict[str, object]:
         if action not in {"PREPARE", "INSTALL"}:
             raise UpdaterV2Error("ha_ota_ipc_action_invalid")
-        admission = self._resolve(release_identity)
         with self.store.lock():
+            admission = self._resolve(release_identity)
             if action == "PREPARE":
                 document = new_transaction(
                     current_image_ref=admission.current_image_ref,

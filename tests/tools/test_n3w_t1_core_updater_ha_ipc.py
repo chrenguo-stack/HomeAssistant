@@ -76,8 +76,17 @@ def _executor(tmp_path: Path) -> tuple[HaUsbIpcExecutor, Resolver, HaUsbStateSto
     )
 
 
-def test_prepare_creates_only_u1_transaction(tmp_path: Path) -> None:
+def test_prepare_creates_only_u1_transaction(tmp_path: Path, monkeypatch) -> None:
     executor, resolver, store = _executor(tmp_path)
+    resolve = resolver.resolve_homeassistant_release
+
+    def resolve_while_locked(release_identity: str) -> HostOtaAdmission:
+        with pytest.raises(UpdaterV2Error, match="upgrade_transaction_busy"):
+            with store.lock():
+                pytest.fail("candidate resolution must share the publication lock")
+        return resolve(release_identity)
+
+    monkeypatch.setattr(resolver, "resolve_homeassistant_release", resolve_while_locked)
     status = executor.submit("PREPARE", RELEASE)
 
     document = store.read()

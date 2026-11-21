@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import copy
+import io
 import json
 import os
 import shutil
 import stat
 import subprocess
 import sys
+import tarfile
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -16,9 +18,14 @@ REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "tools"))
 
 import n3w_t1_core_updater_ha_recovery_deploy as deploy
-from n3w_t1_core_updater_common import UpdaterError
-from n3w_t1_core_updater_ha_ipc import APPROVED_MANIFEST, IPC_SOCKET
+from n3w_t1_core_updater_common import UpdaterError, sha256_bytes
+from n3w_t1_core_updater_ha_ipc import (
+    APPROVED_MANIFEST, APPROVED_MANIFEST_SCHEMA, IPC_SOCKET, RELEASE_PIN, HaUsbIpcExecutor, LocalApprovedHaRelease,
+)
+from n3w_t1_core_updater_ha_usb_state import HaUsbStateStore
+from n3w_t1_core_updater_v2_common import UpdaterV2Error
 from n3w_t1_core_updater_v2_state import HA_USB_TX_SCHEMA_GUARD
+from n3w_t1_portable_image_identity import PortableImageIdentityError
 
 
 @pytest.fixture
@@ -87,6 +94,10 @@ def test_exact_package_installs_and_executes_self_contained_recovery(package, tm
         (sys.executable, "-I", installed, "check-candidate-activation", "--help"), cwd=tmp_path, text=True,
     )
     assert "--manifest-sha256" in check_help
+    stage_help = subprocess.check_output(
+        (sys.executable, "-I", installed, "materialize-candidate", "--help"), cwd=tmp_path, text=True,
+    )
+    assert "--approved-manifest-sha256" in stage_help
     assert deploy.install(staged, digest, root=root, systemctl=manager) == result
     assert manager.changes[2:] == [("daemon-reload",)]
 
@@ -230,6 +241,91 @@ def test_activation_preflight_is_read_only(package, tmp_path, monkeypatch, fault
         }]
     assert manager.changes == changes
     assert not (root / deploy.COMPOSE.relative_to("/")).exists()
+
+
+@pytest.mark.parametrize("fault", [None, "manifest_digest", "archive_digest", "extra_tag", "interrupted_publication"])
+def test_materialize_candidate_is_bound_and_retryable(tmp_path, monkeypatch, fault):
+    target = json.loads((REPO / "infra/n3w-t1/upgrades/homeassistant-2026.10.4.json").read_bytes())
+    source = tmp_path / "incoming.tar"
+    layer = b"test layer"
+    config = json.dumps({
+        "architecture": "arm64", "os": "linux", "config": {"Entrypoint": ["homeassistant"]},
+        "rootfs": {"type": "layers", "diff_ids": ["sha256:" + sha256_bytes(layer)]},
+    }).encode()
+    config_name = sha256_bytes(config) + ".json"
+    tags = [target["target_image_ref"]]
+    if fault == "extra_tag":
+        tags.append("local/unrelated:fixture")
+    saved = [{"Config": config_name, "RepoTags": tags, "Layers": ["layer.tar"]}]
+    with tarfile.open(source, "w") as archive:
+        for name, value in ((config_name, config), ("manifest.json", json.dumps(saved).encode()), ("layer.tar", layer)):
+            member = tarfile.TarInfo(name)
+            member.size = len(value)
+            archive.addfile(member, io.BytesIO(value))
+    target["target_archive_sha256"] = "0" * 64 if fault == "archive_digest" else sha256_bytes(source.read_bytes())
+    manifest = tmp_path / "approval.json"
+    release = "homeassistant-2026.10.4"
+    manifest.write_text(json.dumps({
+        "schema": APPROVED_MANIFEST_SCHEMA, "release_identity": release, "version": "2026.10.4",
+        "approval_status": "APPROVED", "signature_status": "VERIFIED", "validity_status": "VALID",
+        "verification_status": "PASS", "target_archive_size_bytes": source.stat().st_size, "target": target,
+    }))
+    approved_digest = "0" * 64 if fault == "manifest_digest" else sha256_bytes(manifest.read_bytes())
+    current = {"image_ref": target["expected_predecessor_image_ref"], "image_id": "sha256:" + "d" * 64,
+               "platform": "linux/arm64"}
+    root = tmp_path / "host"
+    outbound = root / IPC_SOCKET.parent.relative_to("/")
+    outbound.mkdir(parents=True)
+    store = HaUsbStateStore(root / deploy.STATE_ROOT_V2.relative_to("/"))
+    public_manifest, pin = outbound / APPROVED_MANIFEST, store.root / RELEASE_PIN
+    runtime = SimpleNamespace(
+        _runtime=lambda service: current, _open_target_source=deploy.LocalHaPredecessorRuntime._open_target_source,
+        capture_start_binding=lambda transaction: transaction,
+    )
+    resolver = LocalApprovedHaRelease(pin, public_manifest, lambda: current)
+
+    def materialize():
+        return deploy.materialize_candidate(manifest, approved_digest, source, 0x7FFFFFFF, root=root, runtime=runtime)
+
+    if fault in {"manifest_digest", "archive_digest", "extra_tag"}:
+        reason = {"manifest_digest": "approval_digest_mismatch", "archive_digest": "archive_digest_mismatch",
+                  "extra_tag": "image_load_requires_exact_single_tag"}
+        with pytest.raises((UpdaterError, PortableImageIdentityError), match=reason[fault]):
+            materialize()
+        assert not pin.exists() and not public_manifest.exists() and not list(store.root.glob("*.tar"))
+        return
+
+    if fault == "interrupted_publication":
+        publish = deploy._write_candidate_record
+        public_manifest.write_bytes(b"previous manifest")
+
+        def interrupt(path, content, mode):
+            if path == public_manifest:
+                raise OSError("simulated public manifest interruption")
+            publish(path, content, mode)
+
+        with monkeypatch.context() as patch:
+            patch.setattr(deploy, "_write_candidate_record", interrupt)
+            with pytest.raises(OSError, match="simulated public manifest interruption"):
+                materialize()
+        with pytest.raises(UpdaterV2Error, match="release_digest_mismatch"):
+            resolver.resolve_homeassistant_release(release)
+
+    result = materialize()
+    staged = Path(result["target_source"])
+    assert result["status"] == "CANDIDATE_MATERIALIZED" and staged.parent == store.root
+    assert staged.read_bytes() == source.read_bytes() and staged.stat().st_mode & 0o777 == 0o600
+    assert public_manifest.read_bytes() == manifest.read_bytes() and public_manifest.stat().st_mode & 0o777 == 0o644
+    assert pin.stat().st_mode & 0o777 == 0o600
+    source.unlink()
+    assert materialize() == result
+    assert store.read() is None
+    executor = HaUsbIpcExecutor(store=store, admission_resolver=resolver)
+    assert executor.submit("PREPARE", release)["phase"] == "PREPARE_REQUESTED"
+    assert store.read()["target_archive_sha256"] == target["target_archive_sha256"]
+    assert store.read()["authorization_consumed"] is False
+    with pytest.raises(UpdaterError, match="transaction_active"):
+        materialize()
 
 
 @pytest.mark.parametrize("fault", ["payload", "candidate_compose", "active_transaction", "existing_file"])
