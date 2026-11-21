@@ -62,3 +62,9 @@
 - 定向模拟调用 HA 2026.10.0 的实际依赖加载函数和 MQTT 准备函数，复现旧顺序漏订阅。修复后模拟首次启动和重建均生成本次回执。
 - [恢复包 14714570528](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44922270595/artifacts/14714570528)回读通过。ZIP SHA-256 `a5692657f6bc3e56697c88c2d513b90384cdbb359ce68511d72f4eeabe66c4d8`，清单 SHA-256 `7cbe38be9645b2dd0cebb0d00d3c4f49edfb4c2561706e1259d0d2a2a2cd881d`。11 个文件与本地重建逐字节一致，包内回执组件清单包含新依赖。
 - `0364f5b20835` 第三次查询为 21 项通过、1 项失败、2 项运行。[隔离 ARM64 联调](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44922270584/job/136900669934)仍卡首个回执。新日志确认 HA 已订阅，Broker 接收 Manager 的挑战并向 HA 转发。CI 使用 QEMU 10.2.3，正在复核回执写入和校验的进程启动标识是否来自相同的内核视图。
+
+## 回执进程启动标识修复
+
+- CI 日志确认使用 QEMU 10.2.3。[该版本的进程视图实现](https://github.com/qemu/qemu/blob/v10.2.3/linux-user/syscall.c#L8565)在读取自身的 `/proc/self/stat` 或 `/proc/<自身PID>/stat` 时生成模拟数据。[启动时间](https://github.com/qemu/qemu/blob/v10.2.3/linux-user/main.c#L223)来自模拟器任务初始化。另一个进程读取该 PID 时使用内核启动时间。原写入端和校验端可看到不同值。
+- [修复提交 `9cb014a9b48c`](https://github.com/chrenguo-stack/HomeAssistant/commit/9cb014a9b48c5fbaf4511d540a9b0ac634b7918f)让 HA 回执写入和宿主验收都读取 `/proc/<pid>/task/<pid>/stat`，保持进程仍存活且启动标识一致的要求。联调失败时只附加回执读取退出状态和脱敏错误，避免输出回执内容。源码树 `6c97f6135e2342a2d080b05f8fd0e9b6e257fdb1`。
+- 本地跨进程测试模拟 QEMU 自身路径与内核路径返回不同启动时间。有效回执通过，写入不匹配启动时间的回执被明确拒绝。412 项相关回归通过、2 项跳过、13 项未纳入。源码编译、Git 差异检查和变更文件安全扫描通过。等待同一提交的真实 ARM64 回执验证。
