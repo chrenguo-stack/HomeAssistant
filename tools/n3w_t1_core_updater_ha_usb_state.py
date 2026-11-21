@@ -14,7 +14,8 @@ from typing import Any
 
 from n3w_t1_core_updater_common import IMAGE_ID
 from n3w_t1_core_updater_ha_acceptance import (
-    HA_ACCEPTANCE_ATTEMPTS, HA_ACCEPTANCE_RULE, expected_target_images, valid_evidence_set,
+    HA_ACCEPTANCE_ATTEMPTS, HA_ACCEPTANCE_RULE, NATURAL_MONITORING_METHOD,
+    expected_target_images, valid_evidence_set,
 )
 from n3w_t1_core_updater_ha_backup import backup_record_from_document
 from n3w_t1_core_updater_ha_data_evidence import valid_data_sample
@@ -267,12 +268,17 @@ def _validate_target_acceptance(document: dict[str, Any]) -> None:
     state = document["target_acceptance"]
     phase = document["phase"]
     reason = "ha_usb_target_acceptance_invalid"
+    fields = {"rule", "baseline", "attempts", "receipt", "data_sample", "monitoring_method"}
     if (
-        not isinstance(state, dict) or set(state) - {"rule", "baseline", "attempts", "receipt", "data_sample"}
+        not isinstance(state, dict) or set(state) - fields
         or state.get("rule") != HA_ACCEPTANCE_RULE or not valid_evidence_set(state.get("baseline"))
         or type(state.get("attempts")) is not int or not 0 <= state["attempts"] <= HA_ACCEPTANCE_ATTEMPTS
         or not _phase_at_or_after(phase, U6)
         or (state["attempts"] > 0 and not _phase_at_or_after(phase, U11))
+    ):
+        raise UpdaterV2Error(reason)
+    if "monitoring_method" in state and (
+        state["monitoring_method"] != NATURAL_MONITORING_METHOD or "data_sample" not in state
     ):
         raise UpdaterV2Error(reason)
     if "data_sample" in state and (

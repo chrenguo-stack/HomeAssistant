@@ -23,8 +23,10 @@ from n3w_t1_core_updater_common import (
     canonical,
     sha256_bytes,
 )
+from n3w_t1_core_updater_ha_acceptance import NATURAL_MONITORING_METHOD, LocalHaAcceptanceObserver
 from n3w_t1_core_updater_ha_backup import DEFAULT_HA_DATA_ROOT, HA_DATABASE_NAME, ProtectedHaDataBackup
 from n3w_t1_core_updater_ha_data_evidence import MANAGER_PAIRING_DB, HaProtectedDataEvidence
+from n3w_t1_core_updater_ha_monitoring_evidence import LocalHaMonitoringEvidence, READ_HA_RECEIPTS
 from n3w_t1_core_updater_ha_mounted_media import HaMountedBackupProvider, bound_usb_device
 from n3w_t1_core_updater_ha_usb import (
     HaDataRestoreProvider, HaPredecessorRelease, destructive_cutover_allowed, ha_data_rollback_required,
@@ -54,12 +56,43 @@ BOOT_CONDITION = f"ExecCondition={RECOVERY_COMMAND} --check-application-start"
 IMAGE_LOAD_TIMEOUT_SECONDS = 1800
 
 
+def _protected_data_evidence(origins: dict[str, dict[str, str]]) -> HaProtectedDataEvidence:
+    history = Path(origins["homeassistant"]["/config"]) / HA_DATABASE_NAME
+    manager = Path(origins["manager"][str(MANAGER_PAIRING_DB.parent)]) / MANAGER_PAIRING_DB.name
+    return HaProtectedDataEvidence(history, manager)
+
+
 class HaRecoveryMediaRequired(UpdaterError):
     pass
 
 
 class LocalHaPredecessorRuntime(LocalHost):
     ha_data_root = DEFAULT_HA_DATA_ROOT
+
+    def acceptance_observer(self) -> LocalHaAcceptanceObserver:
+        binding, origins = self._restart_binding()
+        if not all(self._check_running_predecessor(binding, origins).values()):
+            raise UpdaterError("ha_usb_predecessor_acceptance_runtime_unavailable")
+        environment = self.render_compose()["services"]["manager"]["environment"]
+        system_id = environment["GH_SYSTEM_ID"]
+        replay_root = "/var/lib/greenhouse-manager/n3w"
+        if (
+            not isinstance(system_id, str) or not system_id
+            or environment.get("GH_N3W_REPLAY_DB_PATH") != f"{replay_root}/replay.sqlite3"
+        ):
+            raise UpdaterError("ha_usb_natural_monitoring_binding_invalid")
+        monitoring = LocalHaMonitoringEvidence(
+            system_id, Path(origins["manager"][replay_root]) / "replay.sqlite3",
+            self._runtime, self._read_ha_receipts,
+        )
+        return LocalHaAcceptanceObserver(
+            monitoring, _protected_data_evidence(origins), monitoring_method=NATURAL_MONITORING_METHOD,
+        )
+
+    def _read_ha_receipts(self, container_id: str) -> bytes:
+        return self._run(
+            ("docker", "exec", container_id, "python3", "-I", "-c", READ_HA_RECEIPTS), timeout=5,
+        ).stdout
 
     def _restart_binding(
         self, *, published: dict[str, Any] | None = None, replacement: tuple[str, str] | None = None,
@@ -581,9 +614,7 @@ class LocalHaPredecessorRuntime(LocalHost):
         sample = document.get("target_acceptance", {}).get("data_sample")
         if sample is None:
             return
-        history = Path(origins["homeassistant"]["/config"]) / HA_DATABASE_NAME
-        manager = Path(origins["manager"][str(MANAGER_PAIRING_DB.parent)]) / MANAGER_PAIRING_DB.name
-        if HaProtectedDataEvidence(history, manager).compare(sample) != "PASS":
+        if _protected_data_evidence(origins).compare(sample) != "PASS":
             raise UpdaterError("ha_usb_rollback_protected_data_evidence_pending")
 
     def _verify_rollback_health(self, binding: dict[str, Any], origins: dict[str, dict[str, str]]) -> None:

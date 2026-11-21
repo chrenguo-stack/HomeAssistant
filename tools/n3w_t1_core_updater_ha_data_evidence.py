@@ -51,7 +51,7 @@ def valid_data_sample(sample: Any) -> bool:
 
 
 @contextmanager
-def _read_database(path: Path) -> Iterator[sqlite3.Connection]:
+def read_local_database(path: Path) -> Iterator[sqlite3.Connection]:
     if any(parent.is_symlink() for parent in path.parents) or not stat.S_ISREG(path.lstat().st_mode):
         raise UpdaterV2Error("ha_usb_data_evidence_database_invalid")
     with path.open("rb") as stream:
@@ -85,7 +85,7 @@ class HaProtectedDataEvidence:
         self.pairing = pairing
 
     def capture(self) -> dict[str, Any]:
-        with _read_database(self.history) as connection:
+        with read_local_database(self.history) as connection:
             history = connection.execute(
                 _HISTORY_QUERY + " WHERE s.last_updated_ts > 0 ORDER BY s.state_id DESC LIMIT 1"
             ).fetchone()
@@ -93,7 +93,7 @@ class HaProtectedDataEvidence:
                 "SELECT 1 FROM states WHERE last_updated_ts > 0 LIMIT 1"
             ).fetchone() is not None:
                 raise UpdaterV2Error("ha_usb_data_evidence_history_identity_unavailable")
-        with _read_database(self.pairing) as connection:
+        with read_local_database(self.pairing) as connection:
             pairing = connection.execute(_PAIRING_QUERY + " ORDER BY r.node_id LIMIT 1").fetchone()
         sample = {
             "history": None if history is None else {
@@ -112,7 +112,7 @@ class HaProtectedDataEvidence:
             raise UpdaterV2Error("ha_usb_data_evidence_sample_invalid")
         history, pairing = sample["history"], sample["pairing"]
         try:
-            with _read_database(self.history) as connection:
+            with read_local_database(self.history) as connection:
                 if history is None:
                     connection.execute(_HISTORY_QUERY + " LIMIT 1").fetchone()
                     history_matches = True
@@ -122,7 +122,7 @@ class HaProtectedDataEvidence:
                         (history["entity"], history["at"]),
                     ).fetchall()
                     history_matches = any(sha256_bytes(canonical(row)) == history["sha256"] for row in rows)
-            with _read_database(self.pairing) as connection:
+            with read_local_database(self.pairing) as connection:
                 if pairing is None:
                     connection.execute(_PAIRING_QUERY + " LIMIT 1").fetchone()
                 else:

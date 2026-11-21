@@ -81,6 +81,9 @@ class HaPublishedRollbackRuntime(Protocol):
 
 
 class HaPredecessorRuntime(HaPublishedRollbackRuntime, Protocol):
+    def acceptance_observer(self) -> HaAcceptanceObserver:
+        ...
+
     def require_rollback_boot_guard(self) -> None:
         ...
 
@@ -207,7 +210,7 @@ class HaPredecessorRecovery:
         materials: HaInstallMaterialVerifier,
         backups: HaDataBackupProvider,
         *,
-        acceptance: HaAcceptanceObserver,
+        acceptance: HaAcceptanceObserver | None = None,
     ) -> Iterator[dict[str, Any]]:
         """Consume a persisted install request and hold ownership through handoff."""
         with self.store.lock():
@@ -227,6 +230,8 @@ class HaPredecessorRecovery:
                 if current["phase"] == U5:
                     current = start_predecessor_recovery(current)
                 try:
+                    if acceptance is None:
+                        acceptance = self.runtime.acceptance_observer()
                     baseline = acceptance.capture_baseline(validate_transaction_document(current))
                 except Exception as error:
                     raise UpdaterV2Error("ha_usb_predecessor_acceptance_baseline_unavailable") from error
@@ -236,6 +241,8 @@ class HaPredecessorRecovery:
                 acceptance_state = {"rule": HA_ACCEPTANCE_RULE, "baseline": checks, "attempts": 0}
                 if isinstance(baseline, HaAcceptanceBaseline):
                     acceptance_state["data_sample"] = baseline.data_sample
+                    if baseline.monitoring_method is not None:
+                        acceptance_state["monitoring_method"] = baseline.monitoring_method
                 current = {
                     **current, "target_acceptance": acceptance_state,
                 }
