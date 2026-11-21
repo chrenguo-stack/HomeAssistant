@@ -12,7 +12,7 @@ import stat
 import sys
 import tarfile
 import threading
-from contextlib import nullcontext
+from contextlib import closing, nullcontext
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -24,15 +24,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 import n3w_t1_core_updater_ha_mounted_media as mounted_media
 import n3w_t1_core_updater_ha_recovery_startup as recovery_startup
 import n3w_t1_core_updater_ha_usb as ha_usb_mod
-from n3w_t1_core_updater_ha_acceptance import HA_ACCEPTANCE_CHECKS, HaAcceptanceEvidence
+from n3w_t1_core_updater_ha_acceptance import HA_ACCEPTANCE_CHECKS, HaAcceptanceEvidence, LocalHaAcceptanceObserver
 from n3w_t1_core_updater_ha_backup import (
     BACKUP_ARCHIVE_NAME,
     BACKUP_METADATA_NAME,
+    HA_DATABASE_NAME,
     HaDataBackupRecord,
     ProtectedHaDataBackup,
     backup_record_from_document,
     validate_backup_record,
 )
+from n3w_t1_core_updater_ha_data_evidence import MANAGER_PAIRING_DB, HaProtectedDataEvidence
 from n3w_t1_core_updater_ha_ipc import (
     REQUEST_SCHEMA,
     HaUsbIpcDispatcher,
@@ -830,6 +832,39 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
             return super().observe(transaction, check, fallback=fallback)
 
     observer = Acceptance()
+    real_data = fault in {"accept_ok", "accept_failed"}
+    if real_data:
+        history = runtime.ha_data_root / HA_DATABASE_NAME
+        pairing = tmp_path / "application" / "manager" / "manager" / MANAGER_PAIRING_DB.name
+        with closing(sqlite3.connect(history)) as connection:
+            connection.executescript(
+                """
+                CREATE TABLE states_meta (metadata_id INTEGER PRIMARY KEY, entity_id TEXT);
+                CREATE TABLE states (state_id INTEGER PRIMARY KEY, metadata_id INTEGER, last_updated_ts REAL, state TEXT);
+                INSERT INTO states_meta VALUES (1, 'sensor.fixture_history');
+                INSERT INTO states VALUES (1, 1, 1900000000.25, '16.5');
+                """
+            )
+        with closing(sqlite3.connect(pairing)) as connection:
+            connection.executescript(
+                """
+                CREATE TABLE registrations (
+                    node_id TEXT PRIMARY KEY, current_pairing_id TEXT, pairing_epoch INTEGER, retired_at TEXT
+                );
+                CREATE TABLE pairing_sessions (pairing_id TEXT PRIMARY KEY, state TEXT);
+                INSERT INTO pairing_sessions VALUES ('fixture-assignment', 'approved');
+                INSERT INTO registrations VALUES ('fixture-node', 'fixture-assignment', 1, NULL);
+                """
+            )
+        observer = LocalHaAcceptanceObserver(
+            SimpleNamespace(
+                capture_baseline=lambda _: "1" * 64,
+                observe=lambda *_args, **_kwargs: HaAcceptanceEvidence(
+                    "PROVEN_FAIL" if fault == "accept_failed" else "PASS", "2" * 64,
+                ),
+            ),
+            HaProtectedDataEvidence(history, pairing),
+        )
 
     def observe(argv, **kwargs):
         if argv == ("docker", "image", "inspect", TARGET) and loaded_target is not None:
@@ -847,6 +882,10 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
                 target_starts.append(document["phase"])
                 result = run(argv, **kwargs)
                 original_file.write_bytes(b"target migrated data")
+                if fault == "accept_failed":
+                    with closing(sqlite3.connect(history)) as connection:
+                        connection.execute("DELETE FROM states")
+                        connection.commit()
                 if fault == "after_target_start":
                     raise InterruptedPower()
                 if fault == "target_start_failed":
@@ -966,6 +1005,14 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
         assert json.loads(capsys.readouterr().out)["status"] == ("ROLLED_BACK" if instance_changed else "COMMITTED")
     if acceptance_case:
         result = store.read()
+        if real_data:
+            evidence = result["target_acceptance"]
+            assert evidence["data_sample"]["history"]["entity"] == "sensor.fixture_history"
+            assert HaProtectedDataEvidence(history, pairing).compare(evidence["data_sample"]) == "PASS"
+            altered = store.read()
+            altered["target_acceptance"]["data_sample"]["history"]["sha256"] = "0" * 64
+            with pytest.raises(UpdaterV2Error, match="ha_usb_target_acceptance_invalid"):
+                store.write(altered)
         projected = HaUsbIpcExecutor(store=store, admission_resolver=SimpleNamespace()).status()
         assert projected["phase"] == result["status"]
         assert result["target_acceptance"]["attempts"] == (3 if fault == "accept_unavailable" else 1)

@@ -41,6 +41,7 @@ MODULES = (
     "n3w_t1_core_updater_common",
     "n3w_t1_core_updater_ha_acceptance",
     "n3w_t1_core_updater_ha_backup",
+    "n3w_t1_core_updater_ha_data_evidence",
     "n3w_t1_core_updater_ha_mounted_media",
     "n3w_t1_core_updater_ha_recovery",
     "n3w_t1_core_updater_ha_recovery_deploy",

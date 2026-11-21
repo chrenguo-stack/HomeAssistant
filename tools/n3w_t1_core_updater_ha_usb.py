@@ -8,7 +8,7 @@ from typing import Any, BinaryIO, Protocol
 
 from n3w_t1_core_updater_ha_acceptance import (
     HA_ACCEPTANCE_ATTEMPTS, HA_ACCEPTANCE_CHECKS, HA_ACCEPTANCE_RULE,
-    HaAcceptanceEvidence, HaAcceptanceObserver, expected_target_images, valid_evidence_set,
+    HaAcceptanceBaseline, HaAcceptanceEvidence, HaAcceptanceObserver, expected_target_images, valid_evidence_set,
 )
 from n3w_t1_core_updater_ha_backup import (
     HaDataBackupProvider,
@@ -230,10 +230,14 @@ class HaPredecessorRecovery:
                     baseline = acceptance.capture_baseline(validate_transaction_document(current))
                 except Exception as error:
                     raise UpdaterV2Error("ha_usb_predecessor_acceptance_baseline_unavailable") from error
-                if not valid_evidence_set(baseline):
+                checks = baseline.checks if isinstance(baseline, HaAcceptanceBaseline) else baseline
+                if not valid_evidence_set(checks):
                     raise UpdaterV2Error("ha_usb_predecessor_acceptance_baseline_unavailable")
+                acceptance_state = {"rule": HA_ACCEPTANCE_RULE, "baseline": checks, "attempts": 0}
+                if isinstance(baseline, HaAcceptanceBaseline):
+                    acceptance_state["data_sample"] = baseline.data_sample
                 current = {
-                    **current, "target_acceptance": {"rule": HA_ACCEPTANCE_RULE, "baseline": baseline, "attempts": 0},
+                    **current, "target_acceptance": acceptance_state,
                 }
                 self.store.write(current)
             except UpdaterV2Error as error:

@@ -17,6 +17,7 @@ from n3w_t1_core_updater_ha_acceptance import (
     HA_ACCEPTANCE_ATTEMPTS, HA_ACCEPTANCE_RULE, expected_target_images, valid_evidence_set,
 )
 from n3w_t1_core_updater_ha_backup import backup_record_from_document
+from n3w_t1_core_updater_ha_data_evidence import valid_data_sample
 from n3w_t1_core_updater_ha_recovery import ImageRecoveryRecord, validate_image_recovery_record
 from n3w_t1_core_updater_ha_usb_media import (
     USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
@@ -267,11 +268,16 @@ def _validate_target_acceptance(document: dict[str, Any]) -> None:
     phase = document["phase"]
     reason = "ha_usb_target_acceptance_invalid"
     if (
-        not isinstance(state, dict) or set(state) - {"rule", "baseline", "attempts", "receipt"}
+        not isinstance(state, dict) or set(state) - {"rule", "baseline", "attempts", "receipt", "data_sample"}
         or state.get("rule") != HA_ACCEPTANCE_RULE or not valid_evidence_set(state.get("baseline"))
         or type(state.get("attempts")) is not int or not 0 <= state["attempts"] <= HA_ACCEPTANCE_ATTEMPTS
         or not _phase_at_or_after(phase, U6)
         or (state["attempts"] > 0 and not _phase_at_or_after(phase, U11))
+    ):
+        raise UpdaterV2Error(reason)
+    if "data_sample" in state and (
+        not valid_data_sample(state["data_sample"])
+        or state["baseline"]["protected_data"] != sha256_bytes(canonical(state["data_sample"]))
     ):
         raise UpdaterV2Error(reason)
     if "receipt" in state:
@@ -284,6 +290,10 @@ def _validate_target_acceptance(document: dict[str, Any]) -> None:
             or not isinstance(receipt["runtime_sha256"], str) or not SHA256.fullmatch(receipt["runtime_sha256"])
             or receipt["images"] != expected_target_images(document)
             or not valid_evidence_set(receipt["observations"])
+            or (
+                "data_sample" in state
+                and receipt["observations"]["protected_data"] != state["baseline"]["protected_data"]
+            )
         ):
             raise UpdaterV2Error(reason)
     elif phase in {U12, U13A}:

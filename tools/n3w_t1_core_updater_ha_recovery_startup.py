@@ -23,7 +23,8 @@ from n3w_t1_core_updater_common import (
     canonical,
     sha256_bytes,
 )
-from n3w_t1_core_updater_ha_backup import DEFAULT_HA_DATA_ROOT, ProtectedHaDataBackup
+from n3w_t1_core_updater_ha_backup import DEFAULT_HA_DATA_ROOT, HA_DATABASE_NAME, ProtectedHaDataBackup
+from n3w_t1_core_updater_ha_data_evidence import MANAGER_PAIRING_DB, HaProtectedDataEvidence
 from n3w_t1_core_updater_ha_mounted_media import HaMountedBackupProvider, bound_usb_device
 from n3w_t1_core_updater_ha_usb import (
     HaDataRestoreProvider, HaPredecessorRelease, destructive_cutover_allowed, ha_data_rollback_required,
@@ -566,12 +567,24 @@ class LocalHaPredecessorRuntime(LocalHost):
     def verify_published_predecessor_health(self, document: dict[str, Any]) -> None:
         binding, origins = self._verify_published_launch(document)
         self._verify_rollback_health(binding, origins)
+        self._verify_restored_data(document, origins)
 
     def verify_resident_predecessor_health(self, document: dict[str, Any]) -> None:
         binding, origins = self._restart_binding()
         if binding != document["predecessor_start"]:
             raise UpdaterError("ha_usb_predecessor_launch_binding_drift")
         self._verify_rollback_health(binding, origins)
+        self._verify_restored_data(document, origins)
+
+    @staticmethod
+    def _verify_restored_data(document: dict[str, Any], origins: dict[str, dict[str, str]]) -> None:
+        sample = document.get("target_acceptance", {}).get("data_sample")
+        if sample is None:
+            return
+        history = Path(origins["homeassistant"]["/config"]) / HA_DATABASE_NAME
+        manager = Path(origins["manager"][str(MANAGER_PAIRING_DB.parent)]) / MANAGER_PAIRING_DB.name
+        if HaProtectedDataEvidence(history, manager).compare(sample) != "PASS":
+            raise UpdaterError("ha_usb_rollback_protected_data_evidence_pending")
 
     def _verify_rollback_health(self, binding: dict[str, Any], origins: dict[str, dict[str, str]]) -> None:
         deadline = time.monotonic() + DEFAULT_SERVICES_READINESS_TIMEOUT_SECONDS
