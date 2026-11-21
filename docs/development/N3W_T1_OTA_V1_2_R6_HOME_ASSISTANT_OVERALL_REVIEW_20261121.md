@@ -27,3 +27,12 @@
 - **权限。** 候选通过只读目录开放 Unix 套接字及批准投影，套接字核对 Manager UID。路径、镜像、USB 和授权不能由 Manager 请求自填。模拟测试及精确 CI 覆盖签名内容、镜像身份、归档摘要与本地发布序号。正式发布信任根、签名发布端、升级器可信更新及客户启用仍待交付，现有恢复包安装只接受独立提供的清单摘要且只支持首次落盘和字节一致的重试。
 - **用户可见状态。** 核心事务可独立于 Manager 恢复；停启期间的本地用户只读入口、缺原盘的具体提示和安全拔盘投影仍待接通。发布投影位于 `/run/n3w/t1-ota`，工程命令负责发布；还需验证重启后的投影重建与安装前准备事务可继续交互。
 - **阶段边界。** 本轮只做源码、包及隔离模拟复核。前三项应先做源码和成对回归闭环，再把新的提交、CI 和候选包重新绑定。备用 T1 的部署、断电和回滚验证按专门授权推进。Broker OTA 等 HA OTA 完成后再开发。
+
+## 修复批次回读
+
+- [修复提交 `9dc2eed89cfb`](https://github.com/chrenguo-stack/HomeAssistant/commit/9dc2eed89cfb3ccdb9d08c3d3555b61668dcbb1d)，源码树 `dae190871efe30156991455b2b55342624eca4db`。包携带 HA 回执组件、清单与配置。HA 与 Manager 使用同一 `GH_SYSTEM_ID`，激活预检核对两个只读挂载、默认 HA 配置及正在运行的 Manager 自检入口。实际自检在激活后、首次停服前运行。
+- 新事务优先用自然遥测建立基线，并保存一次停服前验证成功的自检证明。试运行和回滚时优先用自然证据，节点静默才调用已预验自检。按本笔业务和数据证据接受前代，历史记录缺少监测方法时仍沿用原有核对。模拟覆盖无证明暂缓、自然转静默且健康、Broker 日志缺失但监测可用和业务真实不可用。
+- 本地 412 项通过、2 项跳过、13 项环境相关用例未纳入。临时恢复包的 systemd 单元、变更文件安全扫描及候选 Compose 结构检查通过。
+- [HA 候选 14707509111](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44906870780/artifacts/14707509111) 已独立回读。ZIP SHA-256 `b269a0d2d48bc8227546f5dc787876334632c44b155e8fed6dcaf5742e8054d3`，清单 SHA-256 `afc00d8283c89cce99b8fb1dce1e0785afa72ebc73cf1aebbe0242b0db9c3a82`，pyz SHA-256 `9a210a9ea1b6fc6d8fad657c86b89e734338db37c25a2006ac32f7e437a57bc4`。11 个文件摘要及内容均与本地重建一致。
+- 第三次 CI 查询时，19 项通过、2 项按策略跳过、5 项运行中。[HA 目标绑定](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44906870780)已通过源码任务，原始镜像绑定仍在运行。现有 [ARM64 基线构建](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44906896433)及 [fresh 交付包构建](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44906896411)已开始。
+- 修复源码与模拟证据已归档。后续需取得兼容 Manager 的确切工件、验证 HA 和 Manager 在同一个隔离候选上使用同一条实际收数路径，再推进 R6 结论。R7 实机预检与变更仍依原授权执行。
