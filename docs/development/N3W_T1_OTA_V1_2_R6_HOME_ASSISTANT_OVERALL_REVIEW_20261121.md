@@ -36,3 +36,9 @@
 - [HA 候选 14707509111](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44906870780/artifacts/14707509111) 已独立回读。ZIP SHA-256 `b269a0d2d48bc8227546f5dc787876334632c44b155e8fed6dcaf5742e8054d3`，清单 SHA-256 `afc00d8283c89cce99b8fb1dce1e0785afa72ebc73cf1aebbe0242b0db9c3a82`，pyz SHA-256 `9a210a9ea1b6fc6d8fad657c86b89e734338db37c25a2006ac32f7e437a57bc4`。11 个文件摘要及内容均与本地重建一致。
 - 第三次 CI 查询时，19 项通过、2 项按策略跳过、5 项运行中。[HA 目标绑定](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44906870780)已通过源码任务，原始镜像绑定仍在运行。现有 [ARM64 基线构建](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44906896433)及 [fresh 交付包构建](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44906896411)已开始。
 - 修复源码与模拟证据已归档。后续需取得兼容 Manager 的确切工件、验证 HA 和 Manager 在同一个隔离候选上使用同一条实际收数路径，再推进 R6 结论。R7 实机预检与变更仍依原授权执行。
+
+## ARM64 基线复验与 Manager 启动修复
+
+- `9dc2eed89cfb` 的 CI 终态为 24 项通过、2 项按策略跳过。[HA 原始镜像绑定](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44906870780)通过。该提交的 [ARM64 三镜像基线](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44906896433/artifacts/14708741489)和 [fresh 交付工件](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44906896411/artifacts/14708272328)已通过各自工作流下载复验。三镜像 ZIP SHA-256 `de614a6b0cbbacbe80dbedc8a924e3dd603bd6f89a4ccf83d4106e8ad1e164ee`。fresh ZIP SHA-256 `49f2d168ed852bdcee88c3e4e6d44d3cfec3db28620577434873e22bce4efdd3`。两者属于该历史提交。
+- 复核正常 Manager 启动发现，内部基础配置关闭 N3-W，却保留了要求 N3-W 的 OTA 开关。本地用仓库的 Settings 校验复现旧构造失败，并证明修复后保留了外层 OTA 桥接。[修复及隔离回归 `d1dfe7da5d17`](https://github.com/chrenguo-stack/HomeAssistant/commit/d1dfe7da5d17bb4b56215e4aa7e95165be60866f)，源码树 `2bdae150bd7c9d5906630ed531c4ebc967d4a357`。同时更新已知故障索引。
+- 本地 412 项通过、2 项跳过、13 项未纳入。已验证隔离测试可收集、容器内启动脚本可编译，并核对了提交中的工作流接线。本地缺少 Docker。现有 exact ARM64 工作流新增回归，使用精确 Manager 镜像、隔离 Broker、打包的 HA 回执组件及 HA 2026.10.0 前代，在空节点状态经正常 Manager 选择器启动并验证挑战回执。HA 容器重建后需再次取得当前进程生成的回执。这一用例对应维护自检，生产动态权限、目标 HA 和备用 T1 仍在其各自验收范围内。
