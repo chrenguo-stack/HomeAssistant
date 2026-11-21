@@ -76,3 +76,21 @@
 - PR #815 仍为打开的草稿，候选 `9cb014a9b48c5fbaf4511d540a9b0ac634b7918f` 基于 `main@4fde1b7c5cc0aa224fa3574b8b4cc638edd93647`。该候选的 24 个 PR 工作流全部通过。[精确 ARM64](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44923324802/job/136903867551)日志回读确认 `HA_EXACT_ARM64_MANAGER_MONITORING_ROUND_TRIP=PASS` 和 `R6_EXACT_ARM64_POST_UPLOAD_BINDING=PASS`。[目标 HA 冻结归档绑定与签名暂存](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44923324909/job/136904062221)同样通过。
 - 三镜像工件 `14714677167` 的下载后绑定由 CI 复验。[同提交 fresh 交付工件 `14714912137`](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44923324807/artifacts/14714912137)的 ZIP 摘要为 `sha256:7ac35773578381d7d1a024e7c982237a3a3a2c28e774b681d391de913023e620`。两项是隔离和候选材料证据。
 - R6 最初要求同时取得真实隔离容器的无节点自检与普通遥测回执。自检及 HA 重建后的复验已通过，普通遥测目前有模拟和单元证据。继续复用既有 ARM64 三容器用例补实链路验证。R7 只读预检另按设备范围与授权推进。
+
+## 普通遥测容器回归与 R7 预检准备（2026-11-22）
+
+[回归提交 `84da7cd68e2f`](https://github.com/chrenguo-stack/HomeAssistant/commit/84da7cd68e2f65fb011c32db1c3683b76a48112b)的源码树是 `06bdb7ec703daa60546765e5d63f68451f45c533`。先保留两次空节点挑战回执，随后只在隔离 Manager 容器中登记一个模拟节点。节点使用独立测试账号向 Broker 发送正常遥测。Manager 从正常入口生成持久游标和标准遥测，HA 使用常规 MQTT 客户端接收。升级器用实际 HA 回执读者和 Manager 活库的 SQLite 备份关联节点、启动会话、序号和接收时间。测试不会向标准遥测主题注入成品消息。成功时 ARM64 日志记录 `HA_EXACT_ARM64_NATURAL_MONITORING=PASS`。
+
+已在本地用固定 Manager 源码验证模拟节点登记、普通入口、实际 SQLite 备份、HA 收数记录和宿主验收。该模拟替代 Docker 和 MQTT 传输。412 项回归通过、2 项跳过、13 项未纳入；容器测试收集、Git 差异检查和变更安全扫描通过。[ARM64 容器回归](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44924757245)正在运行。
+
+R7 预检按 [V1.2 第 13 节](https://github.com/chrenguo-stack/HomeAssistant/blob/4fde1b7c5cc0aa224fa3574b8b4cc638edd93647/docs/development/N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.2_20261119.md)组织。只读核对顺序如下。
+
+| 核对项 | 通过证据或分类 |
+| --- | --- |
+| 候选材料 | 复核 PR 头、三镜像 CI、恢复包清单及目标 HA 2026.10.4 原始归档身份。旧提交的工件只作历史证据。 |
+| 备用 T1 和健康基线 | 操作员在本地确认备用机及 SSH 目标；只读核对 ARM64、三项服务状态、镜像引用和 ID、HA 健康、Manager/Broker 会话和已有数据位置，记录可用证据的脱敏摘要。观察到的 HA 版本与拟测前代不符时先分类，不重装。 |
+| 事务与恢复前提 | 核对 V2、历史 Manager 和 HA USB 活动记录及恢复服务状态。只读取状态与文件元数据，记录当前运行组合、已有恢复引导和事务状态。活动或无法判定的事务先单独处理。 |
+| 内部与 USB 空间 | 核对实际数据根和 Docker 根的容量。仅观察操作员指定介质及已存在的挂载，记录文件系统、介质身份摘要和可读的容量。尚未挂载的盘记录待测可用空间，避免从分区总大小推断可用空间；确认是否足够留到有相应授权的执行步骤。 |
+| R8 输入 | 形成前代、目标、测试盘、所需空间、受保护数据和授权的差异单。旧 Manager 缺自检入口或升级组合未就绪时记录准备缺口。准备装载、激活、OTA、故障注入和断电续办各按授权执行。 |
+
+可复用 [U0 基线只读语义](https://github.com/chrenguo-stack/HomeAssistant/blob/4fde1b7c5cc0aa224fa3574b8b4cc638edd93647/docs/development/N3W_T1_CORE_UPDATER_U0_REAL_T1_READONLY_BASELINE_PREEXECUTION_20261104.md)。实际 R7 核对应绑定本次候选和现场。候选 `check-candidate-activation` 要求新版恢复包已落盘且 socket 已运行，适合后续已经安装的状态。本轮 R7 只准备核对顺序，备用机和介质访问等待相应授权。
