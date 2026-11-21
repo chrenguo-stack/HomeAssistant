@@ -1,0 +1,607 @@
+name: N3W T1 Core Updater Broker 2.1.4 target artifact and isolated A-to-B CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/n3w-t1-core-updater-broker-target-ci.yml"
+      - "infra/n3w-t1/upgrades/broker-2.1.4.json"
+      - "infra/n3w-t1/upgrades/broker-2.1.4-compatibility-review.json"
+      - "infra/n3w-t1/production/image-lock.json"
+      - "infra/n3w-t1/production/docker-compose.fresh.yml"
+      - "infra/n3w-t1/broker/mosquitto.conf"
+      - "tools/n3w_t1_portable_image_identity.py"
+      - "tools/n3w_t1_core_updater*.py"
+      - "tests/tools/test_n3w_t1_portable_image_identity.py"
+      - "tests/tools/test_n3w_t1_core_updater_a2.py"
+      - "tests/tools/test_n3w_t1_core_updater_broker_support.py"
+      - "tests/tools/test_n3w_t1_core_updater_broker_target_ci_contract.py"
+      - "docs/development/N3W_T1_BROKER_OTA_V1_0_B6_TARGET_IMAGE_AND_ISOLATED_SIMULATION_20261121.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  packages: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      target_present: ${{ steps.phase.outputs.target_present }}
+    env:
+      SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      COMPATIBILITY_REVIEW: infra/n3w-t1/upgrades/broker-2.1.4-compatibility-review.json
+      COMPATIBILITY_REVIEW_CANONICAL_SHA256: aeb8c37ad4fa0193944f0dcd8a91bc7e66a67218e66ddc1d49325f5ce9948941
+      T1_ACCESS: "false"
+      T1_MUTATION: "false"
+      BOARD_ACCESS: "false"
+      PRODUCTION_SERVICE_START: "false"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_HEAD }}
+          fetch-depth: 0
+
+      - name: Detect frozen Broker target phase
+        id: phase
+        run: |
+          set -euo pipefail
+          if test -f infra/n3w-t1/upgrades/broker-2.1.4.json; then
+            echo "target_present=true" >> "$GITHUB_OUTPUT"
+            echo "BROKER_TARGET_PHASE=B6_TARGET_FROZEN"
+          else
+            echo "target_present=false" >> "$GITHUB_OUTPUT"
+            echo "BROKER_TARGET_PHASE=B6_ARTIFACT_BUILD_ALLOWED"
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate Broker target source contract
+        env:
+          PYTHONPATH: tools
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_HEAD"
+          python -m pip install "pytest>=8,<9"
+          python -m py_compile \
+            tools/n3w_t1_portable_image_identity.py \
+            tools/n3w_t1_core_updater.py \
+            tools/n3w_t1_core_updater_common.py \
+            tools/n3w_t1_core_updater_core.py \
+            tools/n3w_t1_core_updater_host.py \
+            tools/n3w_t1_core_updater_state.py \
+            tools/n3w_t1_core_updater_v2.py \
+            tools/n3w_t1_core_updater_v2_common.py \
+            tools/n3w_t1_core_updater_v2_state.py \
+            tools/n3w_t1_core_updater_broker_recovery.py \
+            tools/n3w_t1_core_updater_broker_support.py
+          python -m pytest -q \
+            tests/tools/test_n3w_t1_portable_image_identity.py \
+            tests/tools/test_n3w_t1_core_updater_a2.py \
+            tests/tools/test_n3w_t1_core_updater_broker_support.py \
+            tests/tools/test_n3w_t1_core_updater_broker_target_ci_contract.py
+          python - "$COMPATIBILITY_REVIEW" "$COMPATIBILITY_REVIEW_CANONICAL_SHA256" <<'PY'
+          import hashlib
+          import json
+          import sys
+          from pathlib import Path
+
+          path = Path(sys.argv[1])
+          expected = sys.argv[2]
+          document = json.loads(path.read_text(encoding="utf-8"))
+          canonical = json.dumps(
+              document,
+              sort_keys=True,
+              separators=(",", ":"),
+              ensure_ascii=False,
+          ).encode("utf-8")
+          observed = hashlib.sha256(canonical).hexdigest()
+          assert observed == expected
+          assert document["component"] == "broker"
+          assert document["mutation_profile"] == "IMAGE_ONLY_V1"
+          assert document["predecessor"]["version"] == "2.1.2"
+          assert document["predecessor"]["local_image"] == (
+              "local/n3w-mosquitto:2.1.2-3184566d"
+          )
+          assert document["candidate"]["version"] == "2.1.4"
+          assert document["candidate"]["upstream_image"] == (
+              "docker.io/library/eclipse-mosquitto:2.1.4-alpine"
+          )
+          review = document["source_review"]
+          assert review["peer_contracts_compatible"] is True
+          assert review["persistent_schema_compatible"] is True
+          assert review["tls_ca_migration_required"] is False
+          assert review["mosquitto_config_migration_required"] is False
+          assert review["dynsec_schema_migration_required"] is False
+          assert review["manager_or_homeassistant_change_required"] is False
+          assert review["exact_arm64_artifact_required"] is True
+          assert review["isolated_a_to_b_simulation_required"] is True
+          assert document["live_apply_authorized"] is False
+          assert document["t1_access"] is False
+          print("BROKER_2_1_4_COMPATIBILITY_SOURCE_REVIEW=PASS")
+          PY
+          grep -Fx 'global_plugin /usr/lib/mosquitto_dynamic_security.so' infra/n3w-t1/broker/mosquitto.conf
+          grep -Fx 'plugin_opt_config_file /mosquitto/data/dynamic-security.json' infra/n3w-t1/broker/mosquitto.conf
+          grep -Fx 'persistence_location /mosquitto/data/' infra/n3w-t1/broker/mosquitto.conf
+          grep -F 'image: "${GH_BROKER_IMAGE:?GH_BROKER_IMAGE required}"' infra/n3w-t1/production/docker-compose.fresh.yml
+          echo "T1_ACCESS=false"
+          echo "T1_MUTATION=false"
+
+  exact-artifact:
+    needs: source
+    if: needs.source.outputs.target_present != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      artifact_digest: ${{ steps.upload.outputs.artifact-digest }}
+    env:
+      CONTROL_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      UPSTREAM_REPOSITORY: docker.io/library/eclipse-mosquitto
+      UPSTREAM_TAG: "2.1.4-alpine"
+      PREDECESSOR_IMAGE: local/n3w-mosquitto:2.1.2-3184566d
+      COMPATIBILITY_REVIEW: infra/n3w-t1/upgrades/broker-2.1.4-compatibility-review.json
+      COMPATIBILITY_REVIEW_CANONICAL_SHA256: aeb8c37ad4fa0193944f0dcd8a91bc7e66a67218e66ddc1d49325f5ce9948941
+      T1_ACCESS: "false"
+      T1_MUTATION: "false"
+      BOARD_ACCESS: "false"
+      PRODUCTION_SERVICE_START: "false"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CONTROL_HEAD }}
+          fetch-depth: 0
+
+      - name: Resolve exact linux arm64 upstream manifest
+        run: |
+          set -euo pipefail
+          docker buildx version
+          docker buildx imagetools inspect "$UPSTREAM_REPOSITORY:$UPSTREAM_TAG" --raw > "$RUNNER_TEMP/upstream-index.json"
+          python - "$RUNNER_TEMP/upstream-index.json" "$GITHUB_ENV" <<'PY'
+          import hashlib
+          import json
+          import sys
+          from pathlib import Path
+
+          raw = Path(sys.argv[1]).read_bytes()
+          document = json.loads(raw)
+          assert document.get("schemaVersion") == 2
+          manifests = document.get("manifests")
+          assert isinstance(manifests, list) and manifests
+          selected = []
+          for descriptor in manifests:
+              if not isinstance(descriptor, dict):
+                  continue
+              platform = descriptor.get("platform")
+              if not isinstance(platform, dict):
+                  continue
+              if (
+                  platform.get("os") == "linux"
+                  and platform.get("architecture") == "arm64"
+              ):
+                  selected.append(descriptor)
+          assert len(selected) == 1
+          descriptor = selected[0]
+          digest = descriptor.get("digest")
+          size = descriptor.get("size")
+          assert isinstance(digest, str) and digest.startswith("sha256:")
+          assert len(digest) == 71
+          assert isinstance(size, int) and size > 0
+          variant = descriptor.get("platform", {}).get("variant")
+          index_digest = "sha256:" + hashlib.sha256(raw).hexdigest()
+          short = digest.removeprefix("sha256:")[:8]
+          local_image = f"local/n3w-mosquitto:2.1.4-{short}"
+          with Path(sys.argv[2]).open("a", encoding="utf-8") as stream:
+              stream.write(f"UPSTREAM_INDEX_DIGEST={index_digest}\n")
+              stream.write(f"UPSTREAM_MANIFEST_DIGEST={digest}\n")
+              stream.write(f"UPSTREAM_MANIFEST_SIZE={size}\n")
+              stream.write(f"UPSTREAM_VARIANT={variant or ''}\n")
+              stream.write(f"LOCAL_IMAGE={local_image}\n")
+          print(f"UPSTREAM_INDEX_DIGEST={index_digest}")
+          print(f"UPSTREAM_MANIFEST_DIGEST={digest}")
+          print(f"LOCAL_IMAGE={local_image}")
+          PY
+
+      - name: Pull exact ARM64 manifest and build compressed transport archive
+        run: |
+          set -euo pipefail
+          docker pull --platform linux/arm64 "$UPSTREAM_REPOSITORY@$UPSTREAM_MANIFEST_DIGEST"
+          docker tag "$UPSTREAM_REPOSITORY@$UPSTREAM_MANIFEST_DIGEST" "$LOCAL_IMAGE"
+          docker image inspect "$LOCAL_IMAGE" > "$RUNNER_TEMP/runtime-image-inspect.json"
+          mkdir "$RUNNER_TEMP/package"
+          docker save "$LOCAL_IMAGE" | gzip -1 > "$RUNNER_TEMP/package/broker-arm64.tar.gz"
+
+      - name: Verify portable image identity and Docker load compatibility
+        env:
+          PYTHONPATH: tools
+        run: |
+          set -euo pipefail
+          python - "$RUNNER_TEMP/package/broker-arm64.tar.gz" "$RUNNER_TEMP/runtime-image-inspect.json" "$RUNNER_TEMP/package/portable-image-identity.json" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          import n3w_t1_portable_image_identity as portable
+
+          archive = Path(sys.argv[1])
+          runtime = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+          assert isinstance(runtime, list) and len(runtime) == 1
+          runtime = runtime[0]
+          assert runtime.get("Os") == "linux"
+          assert runtime.get("Architecture") == "arm64"
+          identity = portable.parse_image_archive(
+              archive,
+              expected_tag=os.environ["LOCAL_IMAGE"],
+              platform_os="linux",
+              platform_architecture="arm64",
+          )
+          verdict = portable.verify_runtime_document(identity, runtime)
+          assert verdict.status == "VERIFIED"
+          Path(sys.argv[3]).write_text(
+              json.dumps(identity.to_dict(), sort_keys=True, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          print(f"BROKER_ARCHIVE_SHA256={identity.archive_sha256}")
+          print(f"BROKER_ARCHIVE_SIZE_BYTES={identity.archive_size_bytes}")
+          print(f"BROKER_CONFIG_DIGEST={identity.config_digest}")
+          print(f"BROKER_ROOTFS_DIFF_IDS_SHA256={identity.rootfs_diff_ids_sha256}")
+          PY
+          IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$LOCAL_IMAGE")"
+          docker image rm -f "$IMAGE_ID"
+          ! docker image inspect "$LOCAL_IMAGE" >/dev/null 2>&1
+          docker load -i "$RUNNER_TEMP/package/broker-arm64.tar.gz"
+          docker image inspect "$LOCAL_IMAGE" > "$RUNNER_TEMP/runtime-image-reloaded.json"
+          python - "$RUNNER_TEMP/package/portable-image-identity.json" "$RUNNER_TEMP/runtime-image-reloaded.json" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          import n3w_t1_portable_image_identity as portable
+
+          identity = portable.identity_from_dict(
+              json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          )
+          runtime = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+          assert isinstance(runtime, list) and len(runtime) == 1
+          verdict = portable.verify_runtime_document(identity, runtime[0])
+          assert verdict.status == "VERIFIED"
+          print("BROKER_COMPRESSED_DOCKER_LOAD_SMOKE=PASS")
+          PY
+
+      - name: Freeze upstream binding
+        run: |
+          set -euo pipefail
+          python - "$RUNNER_TEMP/package/broker-arm64.tar.gz" "$RUNNER_TEMP/package/portable-image-identity.json" "$RUNNER_TEMP/package/upstream-binding.json" <<'PY'
+          import hashlib
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          archive = Path(sys.argv[1])
+          identity = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+          compatibility = json.loads(
+              Path(os.environ["COMPATIBILITY_REVIEW"]).read_text(encoding="utf-8")
+          )
+          canonical = json.dumps(
+              compatibility,
+              sort_keys=True,
+              separators=(",", ":"),
+              ensure_ascii=False,
+          ).encode("utf-8")
+          compatibility_sha = hashlib.sha256(canonical).hexdigest()
+          assert compatibility_sha == os.environ["COMPATIBILITY_REVIEW_CANONICAL_SHA256"]
+
+          def sha(path):
+              digest = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for block in iter(lambda: stream.read(1024 * 1024), b""):
+                      digest.update(block)
+              return digest.hexdigest()
+
+          assert sha(archive) == identity["archive_sha256"]
+          binding = {
+              "schema": "gh.n3w-t1-core-updater-broker-upstream-artifact/1",
+              "control_plane_head": os.environ["CONTROL_HEAD"],
+              "component": "broker",
+              "version": "2.1.4",
+              "platform": "linux/arm64",
+              "upstream_repository": os.environ["UPSTREAM_REPOSITORY"],
+              "upstream_tag": os.environ["UPSTREAM_TAG"],
+              "upstream_index_digest": os.environ["UPSTREAM_INDEX_DIGEST"],
+              "upstream_manifest_digest": os.environ["UPSTREAM_MANIFEST_DIGEST"],
+              "upstream_manifest_size": int(os.environ["UPSTREAM_MANIFEST_SIZE"]),
+              "upstream_variant": os.environ["UPSTREAM_VARIANT"] or None,
+              "local_image": os.environ["LOCAL_IMAGE"],
+              "predecessor_image": os.environ["PREDECESSOR_IMAGE"],
+              "archive_name": archive.name,
+              "archive_sha256": identity["archive_sha256"],
+              "archive_size_bytes": identity["archive_size_bytes"],
+              "portable_identity_schema": identity["schema"],
+              "portable_config_digest": identity["config_digest"],
+              "portable_config_semantics_sha256": identity["config_semantics_sha256"],
+              "portable_rootfs_diff_ids_sha256": identity["rootfs_diff_ids_sha256"],
+              "compatibility_review_canonical_sha256": compatibility_sha,
+              "secret_values_included": False,
+              "t1_access": False,
+              "t1_mutation": False,
+              "service_restart": False,
+              "board_access": False,
+          }
+          Path(sys.argv[3]).write_text(
+              json.dumps(binding, sort_keys=True, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(binding, sort_keys=True))
+          PY
+
+      - name: Upload exact Broker 2.1.4 ARM64 artifact
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: n3w-t1-core-updater-broker-2.1.4-arm64-${{ env.CONTROL_HEAD }}
+          path: ${{ runner.temp }}/package/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Re-download and verify exact artifact
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ steps.upload.outputs.artifact-id }}
+          path: ${{ runner.temp }}/redownload
+          merge-multiple: true
+
+      - name: Close exact artifact byte binding
+        env:
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+          PYTHONPATH: tools
+        run: |
+          set -euo pipefail
+          python - "$RUNNER_TEMP/redownload" <<'PY'
+          import hashlib
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          import n3w_t1_portable_image_identity as portable
+
+          root = Path(sys.argv[1])
+          assert {p.name for p in root.iterdir()} == {
+              "broker-arm64.tar.gz",
+              "portable-image-identity.json",
+              "upstream-binding.json",
+          }
+          identity_doc = json.loads(
+              (root / "portable-image-identity.json").read_text(encoding="utf-8")
+          )
+          binding = json.loads(
+              (root / "upstream-binding.json").read_text(encoding="utf-8")
+          )
+          identity = portable.identity_from_dict(identity_doc)
+          archive = root / "broker-arm64.tar.gz"
+          digest = hashlib.sha256()
+          with archive.open("rb") as stream:
+              for block in iter(lambda: stream.read(1024 * 1024), b""):
+                  digest.update(block)
+          assert digest.hexdigest() == identity.archive_sha256
+          assert archive.stat().st_size == identity.archive_size_bytes
+          assert binding["control_plane_head"] == os.environ["CONTROL_HEAD"]
+          assert binding["local_image"] == os.environ["LOCAL_IMAGE"]
+          assert binding["upstream_manifest_digest"] == os.environ["UPSTREAM_MANIFEST_DIGEST"]
+          assert binding["archive_sha256"] == identity.archive_sha256
+          assert binding["archive_size_bytes"] == identity.archive_size_bytes
+          assert binding["t1_access"] is False
+          assert binding["t1_mutation"] is False
+          assert binding["service_restart"] is False
+          assert binding["board_access"] is False
+          print(f"BROKER_EXACT_ARTIFACT_ID={os.environ['ARTIFACT_ID']}")
+          print(f"BROKER_EXACT_ARTIFACT_DIGEST={os.environ['ARTIFACT_DIGEST']}")
+          print(f"BROKER_EXACT_ARCHIVE_SHA256={identity.archive_sha256}")
+          print(f"BROKER_EXACT_ARCHIVE_SIZE_BYTES={identity.archive_size_bytes}")
+          print(f"BROKER_EXACT_LOCAL_IMAGE={binding['local_image']}")
+          print(f"BROKER_EXACT_UPSTREAM_MANIFEST_DIGEST={binding['upstream_manifest_digest']}")
+          print("BROKER_2_1_4_EXACT_ARM64_ARTIFACT=PASS")
+          print("T1_ACCESS=false")
+          print("T1_MUTATION=false")
+          PY
+
+  isolated-a-to-b:
+    needs: source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      PREDECESSOR_UPSTREAM: docker.io/library/eclipse-mosquitto:2.1.2-alpine
+      TARGET_UPSTREAM: docker.io/library/eclipse-mosquitto:2.1.4-alpine
+      T1_ACCESS: "false"
+      T1_MUTATION: "false"
+      BOARD_ACCESS: "false"
+      PRODUCTION_SERVICE_START: "false"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run isolated real Mosquitto A-to-B state compatibility and rollback simulation
+        env:
+          PYTHONPATH: tools
+        run: |
+          set -euo pipefail
+          WORK="$RUNNER_TEMP/broker-b6"
+          ADMIN="b6-admin-password-not-production"
+          mkdir -p "$WORK/config" "$WORK/data" "$WORK/tls"
+          cp infra/n3w-t1/broker/mosquitto.conf "$WORK/config/mosquitto.conf"
+
+          openssl req -x509 -newkey rsa:2048 -nodes \
+            -keyout "$WORK/tls/ca.key" \
+            -out "$WORK/tls/ca.pem" \
+            -days 1 \
+            -subj "/CN=N3W-B6-Test-CA"
+          openssl req -newkey rsa:2048 -nodes \
+            -keyout "$WORK/tls/server.key" \
+            -out "$WORK/tls/server.csr" \
+            -subj "/CN=localhost"
+          printf 'subjectAltName=DNS:localhost,IP:127.0.0.1\n' > "$WORK/tls/server-ext.cnf"
+          openssl x509 -req \
+            -in "$WORK/tls/server.csr" \
+            -CA "$WORK/tls/ca.pem" \
+            -CAkey "$WORK/tls/ca.key" \
+            -CAcreateserial \
+            -out "$WORK/tls/server.pem" \
+            -days 1 \
+            -sha256 \
+            -extfile "$WORK/tls/server-ext.cnf"
+
+          docker pull "$PREDECESSOR_UPSTREAM"
+          docker pull "$TARGET_UPSTREAM"
+          docker run --rm \
+            --user 0:0 \
+            -e ADMIN="$ADMIN" \
+            -v "$WORK/data:/mosquitto/data" \
+            "$PREDECESSOR_UPSTREAM" \
+            sh -ec 'printf "%s\n%s\n" "$ADMIN" "$ADMIN" | mosquitto_ctrl dynsec init /mosquitto/data/dynamic-security.json admin; chown -R 1883:1883 /mosquitto/data; chmod 700 /mosquitto/data; chmod 600 /mosquitto/data/dynamic-security.json'
+          sudo chown -R 1883:1883 "$WORK/data" "$WORK/tls"
+          sudo chmod 700 "$WORK/data"
+          sudo chmod 600 "$WORK/tls/server.key"
+
+          cleanup() {
+            docker rm -f n3w-b6-broker >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          start_broker() {
+            image="$1"
+            docker run -d --name n3w-b6-broker \
+              -v "$WORK/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro" \
+              -v "$WORK/data:/mosquitto/data" \
+              -v "$WORK/tls:/mosquitto/tls:ro" \
+              "$image" >/dev/null
+            for attempt in $(seq 1 30); do
+              if docker exec n3w-b6-broker mosquitto_pub \
+                -h 127.0.0.1 -p 1883 \
+                -u admin -P "$ADMIN" \
+                -t n3w/b6/probe -m "$image" >/dev/null 2>&1; then
+                return 0
+              fi
+              sleep 1
+            done
+            docker logs n3w-b6-broker
+            return 1
+          }
+
+          stop_broker() {
+            docker stop -t 10 n3w-b6-broker >/dev/null
+            docker rm n3w-b6-broker >/dev/null
+          }
+
+          start_broker "$PREDECESSOR_UPSTREAM"
+          docker exec n3w-b6-broker mosquitto -h 2>&1 | grep -F 'mosquitto version 2.1.2'
+          docker exec n3w-b6-broker mosquitto_pub \
+            -h 127.0.0.1 -p 1883 \
+            -u admin -P "$ADMIN" \
+            -r -t n3w/b6/predecessor -m A
+          stop_broker
+          test -s "$WORK/data/dynamic-security.json"
+          test -s "$WORK/data/mosquitto.db"
+          sha256sum "$WORK/data/dynamic-security.json" "$WORK/data/mosquitto.db" > "$WORK/pre-target.sha256"
+
+          sudo env PYTHONPATH="$GITHUB_WORKSPACE/tools" WORK="$WORK" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from n3w_t1_core_updater_broker_recovery import LocalBrokerRecoveryPoint
+
+          work = Path(os.environ["WORK"])
+          source = work / "data"
+          stat = source.stat()
+          provider = LocalBrokerRecoveryPoint(
+              source,
+              work / "recovery",
+              expected_source_uid=stat.st_uid,
+              expected_source_gid=stat.st_gid,
+              reserve_bytes=0,
+          )
+          assert provider.preflight()["status"] == "PASS"
+          record = provider.create("0123456789abcdef-6")
+          assert provider.verify(record)["status"] == "PASS"
+          (work / "recovery-record.json").write_text(
+              json.dumps(record, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print("BROKER_B6_REAL_RECOVERY_POINT_CREATE=PASS")
+          PY
+
+          start_broker "$TARGET_UPSTREAM"
+          docker exec n3w-b6-broker mosquitto -h 2>&1 | grep -F 'mosquitto version 2.1.4'
+          test "$(docker exec n3w-b6-broker mosquitto_sub \
+            -h 127.0.0.1 -p 1883 \
+            -u admin -P "$ADMIN" \
+            -t n3w/b6/predecessor -C 1 -W 3)" = "A"
+          docker exec n3w-b6-broker mosquitto_pub \
+            -h 127.0.0.1 -p 1883 \
+            -u admin -P "$ADMIN" \
+            -r -t n3w/b6/target -m B
+          stop_broker
+          ! sha256sum -c "$WORK/pre-target.sha256" >/dev/null 2>&1
+
+          sudo env PYTHONPATH="$GITHUB_WORKSPACE/tools" WORK="$WORK" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from n3w_t1_core_updater_broker_recovery import LocalBrokerRecoveryPoint
+
+          work = Path(os.environ["WORK"])
+          source = work / "data"
+          stat = source.stat()
+          provider = LocalBrokerRecoveryPoint(
+              source,
+              work / "recovery",
+              expected_source_uid=stat.st_uid,
+              expected_source_gid=stat.st_gid,
+              reserve_bytes=0,
+          )
+          record = json.loads(
+              (work / "recovery-record.json").read_text(encoding="utf-8")
+          )
+          restored = provider.restore(record)
+          assert restored["status"] == "PASS"
+          print("BROKER_B6_REAL_RECOVERY_POINT_RESTORE=PASS")
+          PY
+          sha256sum -c "$WORK/pre-target.sha256"
+
+          start_broker "$PREDECESSOR_UPSTREAM"
+          test "$(docker exec n3w-b6-broker mosquitto_sub \
+            -h 127.0.0.1 -p 1883 \
+            -u admin -P "$ADMIN" \
+            -t n3w/b6/predecessor -C 1 -W 3)" = "A"
+          set +e
+          TARGET_VALUE="$(docker exec n3w-b6-broker mosquitto_sub \
+            -h 127.0.0.1 -p 1883 \
+            -u admin -P "$ADMIN" \
+            -t n3w/b6/target -C 1 -W 1 2>/dev/null)"
+          set -e
+          test -z "$TARGET_VALUE"
+          stop_broker
+
+          echo "BROKER_B6_ISOLATED_A_TO_B_COMPATIBILITY=PASS"
+          echo "BROKER_B6_TARGET_PERSISTENCE_WRITE=PASS"
+          echo "BROKER_B6_PREDECESSOR_RECOVERY=PASS"
+          echo "BROKER_B6_DYNSEC_AUTH_COMPATIBILITY=PASS"
+          echo "T1_ACCESS=false"
+          echo "T1_MUTATION=false"
+          echo "PRODUCTION_SERVICE_START=false"
