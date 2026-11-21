@@ -15,7 +15,16 @@ class N3wCiPolicyCheckTest(unittest.TestCase):
     def test_repository_policy_alignment(self) -> None:
         result = audit(ROOT)
         self.assertEqual(result["errors"], [])
-        self.assertEqual(result["workflow_count"], 84)
+        self.assertEqual(result["workflow_count"], 85)
+        policy = json.loads(
+            (ROOT / "docs/development/N3W_CI_POLICY_MANIFEST_V1.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertIn(
+            "n3w-t1-core-updater-broker-recovery-support-ci.yml",
+            policy["workflows"],
+        )
 
     def test_unregistered_workflow_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
