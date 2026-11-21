@@ -37,11 +37,6 @@ from n3w_t1_core_updater_common import (
     sha256_text,
 )
 
-from n3w_t1_core_updater_broker_recovery import (
-    BrokerRecoveryError,
-    LocalBrokerRecoveryPoint,
-)
-
 from n3w_t1_core_updater_v2_common import (
     COMPONENTS,
     IMAGE_BINDINGS,
@@ -1306,13 +1301,24 @@ class LocalHost:
                 f"{component}_binding_restore_failed"
             ) from error
 
-    def _broker_recovery(self) -> LocalBrokerRecoveryPoint:
-        return LocalBrokerRecoveryPoint()
+    @staticmethod
+    def _broker_recovery_module():
+        # Broker recovery is an optional component adapter dependency. Keep it
+        # lazy so existing HA/Manager self-contained recovery bundles that
+        # import LocalHost do not need Broker-only implementation modules.
+        import n3w_t1_core_updater_broker_recovery as broker_recovery
+
+        return broker_recovery
+
+    def _broker_recovery(self):
+        module = self._broker_recovery_module()
+        return module.LocalBrokerRecoveryPoint()
 
     def broker_recovery_preflight(self) -> dict[str, Any]:
+        module = self._broker_recovery_module()
         try:
-            return self._broker_recovery().preflight()
-        except BrokerRecoveryError as error:
+            return module.LocalBrokerRecoveryPoint().preflight()
+        except module.BrokerRecoveryError as error:
             raise UpdaterError(str(error)) from error
 
     def create_broker_recovery_point(self, key: str) -> dict[str, Any]:
@@ -1324,9 +1330,10 @@ class LocalHost:
             or self._running_count("broker")
         ):
             raise UpdaterError("broker_recovery_writers_not_quiescent")
+        module = self._broker_recovery_module()
         try:
-            return self._broker_recovery().create(key)
-        except BrokerRecoveryError as error:
+            return module.LocalBrokerRecoveryPoint().create(key)
+        except module.BrokerRecoveryError as error:
             raise UpdaterError(str(error)) from error
 
     def restore_broker_recovery_point(
@@ -1341,9 +1348,10 @@ class LocalHost:
             or self._running_count("broker")
         ):
             raise UpdaterError("broker_recovery_writers_not_quiescent")
+        module = self._broker_recovery_module()
         try:
-            return self._broker_recovery().restore(record)
-        except BrokerRecoveryError as error:
+            return module.LocalBrokerRecoveryPoint().restore(record)
+        except module.BrokerRecoveryError as error:
             raise UpdaterError(str(error)) from error
 
     def stop_broker(self) -> None:
