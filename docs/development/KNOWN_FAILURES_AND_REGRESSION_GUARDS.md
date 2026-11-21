@@ -1,3 +1,9 @@
+### 2026-11-21 T1 OTA V1.2 R6 · Manager startup with OTA enabled
+
+- **现象**：候选启用 OTA 后，Manager 的 N3-W 简化服务初始化抛出 `GH_N3W_T1_OTA_ENABLED requires GH_N3W_RUNTIME_ENABLED`。
+- **根因**：外层已按完整 N3-W 配置创建 OTA 桥接。构造内部基础服务时关闭了 N3-W 模式，却沿用了只在完整配置中有效的 OTA 开关。
+- **防回归**：内部基础服务关闭两个开关，继续接收外层创建的桥接。隔离 ARM64 检查创建空节点状态，经正常 Manager 选择器启动，再用候选 HA 回执组件验证维护自检及 HA 重建后的新回执。此处为隔离回归，实机另行验收。
+
 ### 2026-11-05 KF-142 — P5 host-side ad-hoc SSH reuse causes repeated authentication and pre-claim staging STOP
 
 | ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
