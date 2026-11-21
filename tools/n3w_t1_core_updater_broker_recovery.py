@@ -79,6 +79,27 @@ class LocalBrokerRecoveryPoint:
         self.expected_source_gid = expected_source_gid
         self.reserve_bytes = reserve_bytes
 
+    @staticmethod
+    def _root_document(metadata: os.stat_result) -> dict[str, int]:
+        return {
+            "mode": stat.S_IMODE(metadata.st_mode),
+            "uid": metadata.st_uid,
+            "gid": metadata.st_gid,
+        }
+
+    @staticmethod
+    def _source_file_matches(
+        metadata: os.stat_result,
+        row: dict[str, Any],
+    ) -> bool:
+        return (
+            stat.S_ISREG(metadata.st_mode)
+            and metadata.st_size == int(row["size"])
+            and stat.S_IMODE(metadata.st_mode) == int(row["mode"])
+            and metadata.st_uid == int(row["uid"])
+            and metadata.st_gid == int(row["gid"])
+        )
+
     def _validate_source_root(self) -> os.stat_result:
         if self.source_root.is_symlink() or not self.source_root.is_dir():
             raise BrokerRecoveryError("broker_recovery_source_root_invalid")
@@ -126,11 +147,7 @@ class LocalBrokerRecoveryPoint:
         total = sum(int(row["size"]) for row in rows)
         largest = max((int(row["size"]) for row in rows), default=0)
         return {
-            "root": {
-                "mode": stat.S_IMODE(root.st_mode),
-                "uid": root.st_uid,
-                "gid": root.st_gid,
-            },
+            "root": self._root_document(root),
             "files": rows,
             "total_bytes": total,
             "largest_file_bytes": largest,
@@ -258,13 +275,20 @@ class LocalBrokerRecoveryPoint:
                     )
                     try:
                         observed = os.fstat(source_descriptor)
-                        if not stat.S_ISREG(observed.st_mode):
-                            raise BrokerRecoveryError("broker_recovery_source_entry_invalid")
+                        if not self._source_file_matches(observed, row):
+                            raise BrokerRecoveryError(
+                                "broker_recovery_source_file_changed"
+                            )
                         with os.fdopen(source_descriptor, "rb", closefd=False) as input_stream:
                             with os.fdopen(descriptor, "wb", closefd=False) as output_stream:
                                 shutil.copyfileobj(input_stream, output_stream, length=1024 * 1024)
                                 output_stream.flush()
                                 os.fsync(output_stream.fileno())
+                        observed_after = os.fstat(source_descriptor)
+                        if not self._source_file_matches(observed_after, row):
+                            raise BrokerRecoveryError(
+                                "broker_recovery_source_file_changed"
+                            )
                     finally:
                         os.close(source_descriptor)
                 finally:
@@ -274,6 +298,9 @@ class LocalBrokerRecoveryPoint:
                     or _sha256_file(destination) != row["sha256"]
                 ):
                     raise BrokerRecoveryError("broker_recovery_snapshot_verify_failed")
+            current_root = self._root_document(self._validate_source_root())
+            if current_root != inventory["root"]:
+                raise BrokerRecoveryError("broker_recovery_source_root_changed")
             _fsync_directory(state)
             manifest = self._manifest_document(key, inventory)
             manifest_bytes = (
@@ -344,7 +371,14 @@ class LocalBrokerRecoveryPoint:
             raise BrokerRecoveryError("broker_recovery_manifest_binding_invalid")
         tree = manifest.get("source_tree")
         rows = tree.get("files") if isinstance(tree, dict) else None
-        if not isinstance(rows, list) or not rows:
+        root = tree.get("root") if isinstance(tree, dict) else None
+        if (
+            not isinstance(root, dict)
+            or set(root) != {"mode", "uid", "gid"}
+            or not all(isinstance(root.get(key), int) for key in ("mode", "uid", "gid"))
+            or not isinstance(rows, list)
+            or not rows
+        ):
             raise BrokerRecoveryError("broker_recovery_manifest_shape_invalid")
         expected_names: set[str] = set()
         for row in rows:
@@ -398,7 +432,9 @@ class LocalBrokerRecoveryPoint:
 
     def restore(self, record: dict[str, Any]) -> dict[str, Any]:
         manifest = self._load_verified_manifest(record)
-        self._validate_source_root()
+        current_root = self._root_document(self._validate_source_root())
+        if current_root != manifest["source_tree"]["root"]:
+            raise BrokerRecoveryError("broker_recovery_source_root_drift")
         key = manifest["key"]
         state = self.recovery_root / key / "state"
         prefix = f".n3w-broker-restore-{key}-"

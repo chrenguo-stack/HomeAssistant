@@ -1730,6 +1730,64 @@ def test_broker_recovery_point_round_trip_restores_exact_state(tmp_path: Path):
     assert provider.restore(record)["source_tree_sha256"] == record["source_tree_sha256"]
 
 
+def test_broker_recovery_point_rejects_scan_to_open_metadata_race(
+    tmp_path: Path,
+    monkeypatch,
+):
+    source, recovery, uid, gid = _broker_state_fixture(tmp_path)
+    provider = broker_recovery_mod.LocalBrokerRecoveryPoint(
+        source,
+        recovery,
+        expected_source_uid=uid,
+        expected_source_gid=gid,
+        reserve_bytes=0,
+    )
+    original_scan = provider._scan_source
+    changed = {"done": False}
+
+    def scan_with_metadata_change(*, include_hashes: bool):
+        inventory = original_scan(include_hashes=include_hashes)
+        if include_hashes and not changed["done"]:
+            changed["done"] = True
+            (source / "mosquitto.db").chmod(0o640)
+        return inventory
+
+    monkeypatch.setattr(provider, "_scan_source", scan_with_metadata_change)
+
+    with pytest.raises(
+        broker_recovery_mod.BrokerRecoveryError,
+        match="broker_recovery_source_file_changed",
+    ):
+        provider.create("0123456789abcdef-11")
+
+
+def test_broker_recovery_point_rejects_root_drift_before_restore_mutation(
+    tmp_path: Path,
+):
+    source, recovery, uid, gid = _broker_state_fixture(tmp_path)
+    provider = broker_recovery_mod.LocalBrokerRecoveryPoint(
+        source,
+        recovery,
+        expected_source_uid=uid,
+        expected_source_gid=gid,
+        reserve_bytes=0,
+    )
+    record = provider.create("0123456789abcdef-12")
+    target_payload = b'{"clients":["target-write"]}\n'
+    target = source / "dynamic-security.json"
+    target.write_bytes(target_payload)
+    target.chmod(0o600)
+    source.chmod(0o750)
+
+    with pytest.raises(
+        broker_recovery_mod.BrokerRecoveryError,
+        match="broker_recovery_source_root_drift",
+    ):
+        provider.restore(record)
+
+    assert target.read_bytes() == target_payload
+
+
 def test_broker_recovery_point_rejects_snapshot_tamper(tmp_path: Path):
     source, recovery, uid, gid = _broker_state_fixture(tmp_path)
     provider = broker_recovery_mod.LocalBrokerRecoveryPoint(

@@ -1,5 +1,26 @@
 ## Current T1 Core Stack authority index
 
+### 2026-11-22 — B8 handoff / authorization alignment
+
+- Formal handoff: [`N3W_T1_BROKER_OTA_B7_CLOSED_TO_B8_REAL_T1_READONLY_PREFLIGHT_NEW_CHAT_HANDOFF_V1.0_20261122.md`](N3W_T1_BROKER_OTA_B7_CLOSED_TO_B8_REAL_T1_READONLY_PREFLIGHT_NEW_CHAT_HANDOFF_V1.0_20261122.md), template 1.4.
+- `main=4fde1b7c5cc0aa224fa3574b8b4cc638edd93647`; PR #820 pre-handoff validated head `ad37f39c108631d252fe1972f16c8602d00cafa7`; that head passed 18/18 workflows. The handoff archive adds docs-only commits, so the new conversation must fresh rebind the actual current PR head.
+- User explicitly authorized entry into `N3W_T1_BROKER_OTA_B8_REAL_T1_READONLY_PREFLIGHT_20261121_01` in the next conversation. Scope is real-T1 read-only preflight only; no live mutation/reboot/merge/release authority.
+- B8 candidate remains target artifact `14713718457` plus Recovery Support artifact `14714301747` from executable source `dbc4f1ca5ce90f39e64887fb361d074ec51a7130`.
+- Docs-only rerun Recovery Support artifact `14714610810` is recorded but not auto-promoted as B8 candidate.
+- Planned successor context is preserved in the handoff: B9 live-mutation preauthorization/apply → B10 reboot/power-loss recovery acceptance → B11 business continuity/failure-recovery acceptance → B12 final integration/merge/release decision. None is authorized by B8.
+
+### 2026-11-21 — Broker OTA B6/B7 CLOSED_PASS; B8 read-only boundary
+
+- Draft PR [#820](https://github.com/chrenguo-stack/HomeAssistant/pull/820) executable authority `dbc4f1ca5ce90f39e64887fb361d074ec51a7130` closed B6 Phase 2 with frozen exact-binding and isolated A→B SUCCESS.
+- Frozen Broker target: `local/n3w-mosquitto:2.1.4-5d96ab48`; target artifact ID `14713718457`; archive SHA256 `35630ff4b3ba710d26f1b44ac022b806c3ad53c2f1a015195e48c79690d26f3e`; upstream linux/arm64 manifest `sha256:5d96ab48dab65f1198659af538139d999ab474dd78ee1c231ffff0f4d52552e0`.
+- Frozen Phase 2 run [44922182784](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44922182784): source SUCCESS, exact-binding SUCCESS, isolated-a-to-b SUCCESS; exact-artifact correctly SKIPPED after target freeze.
+- B7 independent source review found `NEW_SOURCE_BLOCKER_COUNT=0` across Recovery Point create/restore/retire, Generic V2 rollback/re-entry, host writer quiescence, certificate lifecycle lock, terminal cleanup and bounded startup recovery.
+- Current recovery-support exact run [44922182840](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44922182840) produced artifact ID `14714301747`, digest `sha256:ca2d4ffdce131b2916d2a4d8ccf3d38d5a9c28781a65af51fdbb0cbac0068f09`, manifest SHA256 `29be11a66e3bf53c4073120340064fab9f56fbe2c0c6e4a55e0dfb299ddf652f`, updater SHA256 `1daed02060fe51b64d0ee648fd5855926e5759770a6634fccddc7c2804d2371d`, unit SHA256 `d5bea0c625edfcf46729170eac30872ae8a11c59fce14c89c6c585d46438ce19`.
+- Historical B5 artifact `14711625754` is superseded for B8 candidate use.
+- Closure authority: [B7 independent review / B8 candidate closure](N3W_T1_BROKER_OTA_V1_0_B7_INDEPENDENT_SOURCE_REVIEW_AND_B8_CANDIDATE_CLOSURE_20261121.md).
+- Next gate: `N3W_T1_BROKER_OTA_B8_REAL_T1_READONLY_PREFLIGHT_20261121_01`. B8 requires explicit T1 read-only authorization; no live install, Broker apply, reboot/power-loss, merge or release is authorized.
+
+
 ### 2026-11-21 — Broker OTA B1-B5 source/package foundation CLOSED_PASS
 
 - Canonical `main` at fresh rebind remains `4fde1b7c5cc0aa224fa3574b8b4cc638edd93647`; the V1.2 alignment line is still Draft PR [#815](https://github.com/chrenguo-stack/HomeAssistant/pull/815) at `9dc2eed89cfb3ccdb9d08c3d3555b61668dcbb1d`.

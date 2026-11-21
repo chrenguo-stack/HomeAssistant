@@ -1,0 +1,44 @@
+{
+  "schema": "gh.n3w-t1-core-updater-broker-compatibility-review/1",
+  "component": "broker",
+  "mutation_profile": "IMAGE_ONLY_V1",
+  "predecessor": {
+    "version": "2.1.2",
+    "source_image": "m.daocloud.io/docker.io/library/eclipse-mosquitto:2.1.2-alpine",
+    "local_image": "local/n3w-mosquitto:2.1.2-3184566d",
+    "platform": "linux/arm64",
+    "manifest_digest": "sha256:3184566df484a083411a0e70e92c87a264b8f0648df632f10eb23d54d99f4549"
+  },
+  "candidate": {
+    "version": "2.1.4",
+    "upstream_image": "docker.io/library/eclipse-mosquitto:2.1.4-alpine",
+    "platform": "linux/arm64",
+    "release_date": "2026-11-17"
+  },
+  "selection_rationale": {
+    "same_minor_patch_successor": true,
+    "security_chain": "2.1.3 is a critical security release; 2.1.4 retains those fixes and repairs the legacy sha512 password regression introduced in 2.1.3.",
+    "official_release_url": "https://mosquitto.org/blog/2026/11/version-2-1-4-2-0-23-released/"
+  },
+  "runtime_contract": {
+    "mosquitto_config": "infra/n3w-t1/broker/mosquitto.conf",
+    "compose_template": "infra/n3w-t1/production/docker-compose.fresh.yml",
+    "persistent_root": "/var/lib/n3wfc4-broker",
+    "container_data_path": "/mosquitto/data",
+    "dynamic_security_path": "/mosquitto/data/dynamic-security.json",
+    "persistence_database": "/mosquitto/data/mosquitto.db"
+  },
+  "source_review": {
+    "peer_contracts_compatible": true,
+    "persistent_schema_compatible": true,
+    "tls_ca_migration_required": false,
+    "mosquitto_config_migration_required": false,
+    "dynsec_schema_migration_required": false,
+    "manager_or_homeassistant_change_required": false,
+    "exact_arm64_artifact_required": true,
+    "isolated_a_to_b_simulation_required": true
+  },
+  "live_apply_authorized": false,
+  "t1_access": false,
+  "production_mutation": false
+}

@@ -1,0 +1,26 @@
+{
+  "schema": "gh.n3w-t1-core-updater-target/2",
+  "component": "broker",
+  "mutation_profile": "IMAGE_ONLY_V1",
+  "target_image_ref": "local/n3w-mosquitto:2.1.4-5d96ab48",
+  "target_platform": "linux/arm64",
+  "target_archive_sha256": "35630ff4b3ba710d26f1b44ac022b806c3ad53c2f1a015195e48c79690d26f3e",
+  "artifact_identity": {
+    "artifact_id": 14713718457,
+    "artifact_digest_sha256": "36d2d820b1d793f64014d910d08eace4d7ef90375adb2e43b1ba8e46a5195cf3",
+    "artifact_name": "n3w-t1-core-updater-broker-2.1.4-arm64-46d14f7187de68c1500d3051e957109b97a21774"
+  },
+  "expected_predecessor_image_ref": "local/n3w-mosquitto:2.1.2-3184566d",
+  "rollback_compatible": true,
+  "compatibility_evidence": {
+    "schema": "gh.n3w-t1-core-updater-compatibility/1",
+    "mutation_profile": "IMAGE_ONLY_V1",
+    "peer_contracts_compatible": true,
+    "persistent_schema_compatible": true,
+    "review_evidence_sha256": "aeb8c37ad4fa0193944f0dcd8a91bc7e66a67218e66ddc1d49325f5ce9948941",
+    "predecessor_manifest_digest_sha256": "3184566df484a083411a0e70e92c87a264b8f0648df632f10eb23d54d99f4549",
+    "target_manifest_digest_sha256": "5d96ab48dab65f1198659af538139d999ab474dd78ee1c231ffff0f4d52552e0",
+    "target_artifact_source_head": "46d14f7187de68c1500d3051e957109b97a21774"
+  },
+  "a1_classification_sha256": "e664ced300ea2bb743b116550b7a3e22237e7f556f54400a060eef30671d30e7"
+}
