@@ -28,6 +28,7 @@ from n3w_t1_core_updater_ha_usb_media import (
 )
 from n3w_t1_core_updater_ha_usb_state import (
     HA_DATA_RESTORE_PHASES,
+    TARGET_WRITES_POSSIBLE,
     U10,
     U7,
     HaUsbStateStore,
@@ -551,6 +552,7 @@ class HaMountedBackupProvider:
         release_only = (
             current["phase"] == U10 and current["recovery_required"]
             and current.get("predecessor_release_observed") is True and "ha_data_restore" not in current
+            and current.get("target_activation") != TARGET_WRITES_POSSIBLE
         )
         if (
             current["phase"] not in HA_DATA_RESTORE_PHASES or current["status"] != "ACTIVE"

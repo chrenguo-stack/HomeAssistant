@@ -23,10 +23,13 @@ from n3w_t1_core_updater_common import (
 from n3w_t1_core_updater_ha_backup import DEFAULT_HA_DATA_ROOT, ProtectedHaDataBackup
 from n3w_t1_core_updater_ha_mounted_media import HaMountedBackupProvider
 from n3w_t1_core_updater_ha_usb import (
-    HaDataRestoreProvider, HaPredecessorRelease, destructive_cutover_allowed, resume_ha_data_rollback,
+    HaDataRestoreProvider, HaPredecessorRelease, destructive_cutover_allowed, ha_data_rollback_required,
+    resume_ha_data_rollback,
     resume_interrupted_predecessor_release, resume_pre_cutover_services,
 )
-from n3w_t1_core_updater_ha_usb_state import HA_DATA_RESTORE_PHASES, U9, U10, HaUsbStateStore
+from n3w_t1_core_updater_ha_usb_state import (
+    TARGET_BINDING, TARGET_WRITES_POSSIBLE, U9, U10, HaUsbStateStore,
+)
 from n3w_t1_core_updater_host import DEFAULT_SERVICES_READINESS_TIMEOUT_SECONDS, LocalHost
 from n3w_t1_core_updater_v2_common import COMPONENTS, SHA256
 from n3w_t1_portable_image_identity import (
@@ -76,6 +79,8 @@ class LocalHaPredecessorRuntime(LocalHost):
         for name, reference in references.items():
             if compose["services"][name].get("pull_policy") != "never":
                 raise UpdaterError("ha_usb_predecessor_image_pull_allowed")
+            if name in PROTECTED_BINDS and compose["services"][name].get("restart", "no") != "no":
+                raise UpdaterError("ha_usb_unguarded_container_restart_enabled")
             runtime_id = self.image_id(reference)
             if (
                 runtime_id is None and name == "homeassistant" and missing_predecessor is not None
@@ -170,6 +175,7 @@ class LocalHaPredecessorRuntime(LocalHost):
         if (
             binding["images"]["homeassistant"]["reference"]
             != transaction["current_image_ref"]
+            or origins["homeassistant"]["/config"] != str(self.ha_data_root.resolve(strict=True))
             or self._systemctl("is-active", SERVICES_UNIT) != "active"
             or not all(self._check_running_predecessor(binding, origins).values())
         ):
@@ -242,13 +248,79 @@ class LocalHaPredecessorRuntime(LocalHost):
             raise UpdaterError("ha_usb_release_predecessor_image_binding_drift")
         return False
 
-    def verify_untouched_release_launch(self, document: dict[str, Any]) -> None:
+    def _verify_original_launch(
+        self, document: dict[str, Any], *, allow_target_binding: bool,
+    ) -> tuple[dict[str, Any], dict[str, dict[str, str]]]:
         expected = document["predecessor_start"]
         old = expected["images"]["homeassistant"]
         missing = old if self._release_image(old["reference"]) is None else None
-        binding, origins = self._restart_binding(missing_predecessor=missing)
+        binding, origins = self._restart_binding(
+            replacement=self._target_replacement(document) if allow_target_binding else None,
+            missing_predecessor=missing,
+        )
         if binding != expected:
             raise UpdaterError("ha_usb_predecessor_launch_binding_drift")
+        return binding, origins
+
+    def _target_replacement(self, document: dict[str, Any]) -> tuple[str, str] | None:
+        target = document["target_image_ref"]
+        if self.image_bindings_v2()["homeassistant"] == target:
+            return target, document["current_image_ref"]
+        return None
+
+    def restore_untouched_launch_binding(self, document: dict[str, Any]) -> None:
+        replacement = self._target_replacement(document)
+        if replacement is not None:
+            if not self.rollback_writers_quiesced():
+                raise UpdaterError("ha_usb_rollback_application_not_quiesced")
+            self.verify_untouched_release_launch(document)
+            self.rewrite_component_image("homeassistant", *replacement)
+
+    def check_cutover_target_start(
+        self, document: dict[str, Any],
+    ) -> tuple[dict[str, Any], dict[str, dict[str, str]]]:
+        if self._target_replacement(document) is None:
+            raise UpdaterError("ha_usb_target_launch_binding_missing")
+        binding, origins = self._verify_original_launch(document, allow_target_binding=True)
+        target = document["target_image_ref"]
+        image_id = self._verify_target_image(
+            document, identity_from_dict(document["target_load_identity"]), self._release_image(target),
+        )
+        if image_id != document["target_loaded_image_id"]:
+            raise UpdaterError("ha_usb_target_image_runtime_drift")
+        binding["images"]["homeassistant"] = {"reference": target, "runtime_id": image_id}
+        return binding, origins
+
+    def bind_cutover_target(self, document: dict[str, Any]) -> None:
+        self.require_rollback_boot_guard()
+        if (
+            not self.rollback_writers_quiesced() or not self.observe_predecessor_released(document)
+            or self.image_binding_modes_v2()["homeassistant"] != "dynamic"
+        ):
+            raise UpdaterError("ha_usb_target_activation_prestate_changed")
+        self.verify_untouched_release_launch(document)
+        self.rewrite_component_image("homeassistant", document["current_image_ref"], document["target_image_ref"])
+        self.check_cutover_target_start(document)
+
+    def start_cutover_target(self) -> None:
+        self._run(("systemctl", "start", SERVICES_UNIT), timeout=180)
+
+    def verify_cutover_target_started(self, document: dict[str, Any]) -> None:
+        binding, origins = self.check_cutover_target_start(document)
+        deadline = time.monotonic() + DEFAULT_SERVICES_READINESS_TIMEOUT_SECONDS
+        while time.monotonic() < deadline:
+            if self._systemctl("is-active", SERVICES_UNIT) == "active" and all(
+                self._check_running_predecessor(binding, origins).values()
+            ):
+                self.check_cutover_target_start(document)
+                return
+            time.sleep(2)
+        raise UpdaterError("ha_usb_target_start_not_observed")
+
+    def verify_untouched_release_launch(self, document: dict[str, Any]) -> None:
+        binding, origins = self._verify_original_launch(
+            document, allow_target_binding=document.get("target_activation") == TARGET_BINDING,
+        )
         self._check_running_predecessor(binding, origins)
 
     def load_cutover_target(
@@ -290,6 +362,8 @@ class LocalHaPredecessorRuntime(LocalHost):
 
     def capture_predecessor_release(self, document: dict[str, Any]) -> HaPredecessorRelease:
         self.require_rollback_boot_guard()
+        if self.image_binding_modes_v2()["homeassistant"] != "dynamic":
+            raise UpdaterError("ha_usb_target_dynamic_binding_required")
         binding, origins = self._restart_binding()
         if binding != document["predecessor_start"] or not self.rollback_writers_quiesced():
             raise UpdaterError("ha_usb_release_predecessor_launch_drift")
@@ -348,6 +422,8 @@ class LocalHaPredecessorRuntime(LocalHost):
             self.stop_services()
         if not self.rollback_writers_quiesced():
             raise UpdaterError("ha_usb_rollback_application_not_quiesced")
+        if "predecessor_release_intent" in document and "ha_data_restore" not in document:
+            self._verify_original_launch(document, allow_target_binding=True)
 
     def _verify_published_launch(
         self, document: dict[str, Any], *, replacement: tuple[str, str] | None = None,
@@ -466,7 +542,7 @@ class LocalHaPredecessorRuntime(LocalHost):
         self, store: HaUsbStateStore, document: dict[str, Any], *, require_original: bool = False,
     ) -> HaMountedBackupProvider:
         mountpoint = store.root
-        if require_original or document["ha_data_restore"]["step"] == "STAGING":
+        if require_original or document.get("ha_data_restore", {}).get("step", "STAGING") == "STAGING":
             result = self._run((
                 "findmnt", "--list", "--json", "--source", f'UUID={document["usb_filesystem_uuid"]}',
                 "--output", "TARGET",
@@ -496,14 +572,20 @@ class LocalHaPredecessorRuntime(LocalHost):
 def check_application_start(store: HaUsbStateStore, runtime: LocalHaPredecessorRuntime) -> int:
     # The recovery worker may hold the transaction lock while systemd evaluates this condition.
     document = store.read()
-    if document and document["phase"] in HA_DATA_RESTORE_PHASES and "ha_data_restore" in document:
-        if document["status"] != "ACTIVE" or document["ha_data_restore"]["step"] != "PUBLISHED":
+    if document and ha_data_rollback_required(document):
+        if (
+            document["phase"] == U10 and document.get("target_activation") == TARGET_WRITES_POSSIBLE
+            and destructive_cutover_allowed(document)
+            and store.take_target_start_permit(document["transaction_id_sha256"])
+        ):
+            runtime.check_cutover_target_start(document)
+            return 0
+        if document["status"] != "ACTIVE" or document.get("ha_data_restore", {}).get("step") != "PUBLISHED":
             return 1
         runtime.check_rollback_application_start(document)
     elif document and document["phase"] in {U9, U10} and "predecessor_release_intent" in document:
         if (
             document["status"] != "ACTIVE" or not document["recovery_required"]
-            or runtime.observe_predecessor_released(document)
         ):
             return 1
         binding, _ = runtime._restart_binding()
@@ -521,7 +603,7 @@ def main(*, application_condition: bool = False) -> int:
         if application_condition:
             return check_application_start(store, runtime)
         current = store.read()
-        if current and current["phase"] in HA_DATA_RESTORE_PHASES and "ha_data_restore" in current:
+        if current and ha_data_rollback_required(current):
             runtime.require_rollback_boot_guard()
             resumed = resume_ha_data_rollback(
                 store, runtime, lambda document: runtime.mounted_recovery_provider(store, document),

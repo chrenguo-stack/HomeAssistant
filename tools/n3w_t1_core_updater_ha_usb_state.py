@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import copy
+import fcntl
 import json
 import os
 import stat
 import tempfile
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -53,6 +56,8 @@ U13A = "U13A_COMMITTED"
 U13B = "U13B_ROLLED_BACK"
 PRE_CUTOVER_RECOVERY_PHASES = frozenset({U6, U7, U8})
 HA_DATA_RESTORE_PHASES = frozenset({U10, U11, U12})
+TARGET_BINDING = "BINDING"
+TARGET_WRITES_POSSIBLE = "WRITES_POSSIBLE"
 
 PHASES = (
     U0,
@@ -492,6 +497,17 @@ def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
         loaded = document["target_loaded_image_id"]
         if "target_load_identity" not in document or not isinstance(loaded, str) or IMAGE_ID.fullmatch(loaded) is None:
             raise UpdaterV2Error("ha_usb_target_loaded_image_invalid")
+    if "target_activation" in document:
+        activation = document["target_activation"]
+        if (
+            activation not in (TARGET_BINDING, TARGET_WRITES_POSSIBLE)
+            or "target_loaded_image_id" not in document
+            or phase not in {U10, U11, U12, U13A, U13B}
+            or (activation == TARGET_BINDING and (phase not in {U10, U13B} or "ha_data_restore" in document))
+            or (activation == TARGET_WRITES_POSSIBLE and "predecessor_reload_identity" in document)
+            or (activation == TARGET_WRITES_POSSIBLE and phase == U13B and "ha_data_restore" not in document)
+        ):
+            raise UpdaterV2Error("ha_usb_target_activation_state_invalid")
     return copy.deepcopy(document)
 
 
@@ -562,6 +578,11 @@ def transition(
         raise UpdaterV2Error("ha_usb_phase_transition_invalid")
     if "ha_data_restore" in current and next_phase != U13B:
         raise UpdaterV2Error("ha_usb_data_restore_in_progress")
+    if (
+        "predecessor_release_intent" in current and next_phase in {U11, U12, U13A}
+        and current.get("target_activation") != TARGET_WRITES_POSSIBLE
+    ):
+        raise UpdaterV2Error("ha_usb_target_write_intent_missing")
     if current.get("usb_binding_mode") == "existing_filesystem":
         if next_phase == U9 and "predecessor_release_admission" not in (updates or {}):
             raise UpdaterV2Error("ha_usb_predecessor_release_admission_missing")
@@ -584,6 +605,7 @@ def transition(
                 "ha_data_restore",
                 "target_load_identity",
                 "target_loaded_image_id",
+                "target_activation",
                 "predecessor_reload_identity",
             }:
                 raise UpdaterV2Error("ha_usb_immutable_field_update_forbidden")
@@ -636,6 +658,43 @@ class HaUsbStateStore:
 
     def lock(self):
         return V2StateStore(self.root).lock()
+
+    @contextmanager
+    def _activation_descriptor(self, path: Path, flags: int) -> Iterator[int]:
+        # The private inode is stable across transaction record replacements.
+        descriptor = os.open(path, flags | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+        try:
+            metadata = os.fstat(descriptor)
+            if not stat.S_ISREG(metadata.st_mode) or stat.S_IMODE(metadata.st_mode) != 0o600 or metadata.st_uid != os.getuid():
+                raise UpdaterV2Error("ha_usb_target_start_permit_invalid")
+            yield descriptor
+        finally:
+            os.close(descriptor)
+
+    @contextmanager
+    def allow_target_start(self, transaction_id: str) -> Iterator[None]:
+        path = self.root / f".ha-target-start-{transaction_id}"
+        with self._activation_descriptor(path, os.O_RDWR | os.O_CREAT) as descriptor:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            try:
+                yield
+            finally:
+                path.unlink(missing_ok=True)
+
+    def take_target_start_permit(self, transaction_id: str) -> bool:
+        # Process exit and reboot release the permit without replaying a pending start.
+        path = self.root / f".ha-target-start-{transaction_id}"
+        try:
+            with self._activation_descriptor(path, os.O_RDONLY) as descriptor:
+                try:
+                    fcntl.flock(descriptor, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    # Only one systemd start condition may use this live permit.
+                    path.unlink()
+                    return True
+        except FileNotFoundError:
+            pass
+        return False
 
     def _validate_private_dir(self, path: Path) -> None:
         if path.is_symlink() or not path.is_dir():

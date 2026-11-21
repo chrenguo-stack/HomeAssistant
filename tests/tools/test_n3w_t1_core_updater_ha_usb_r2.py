@@ -693,14 +693,24 @@ def _bind_test_image(record, archive):
     )
 
 
-@pytest.mark.parametrize("fault", [None, "rollback_reserve", "after_target_import", "after_old_reload"])
-def test_target_import_keeps_a_path_back_to_the_untouched_data(tmp_path, monkeypatch, capsys, fault):
+@pytest.mark.parametrize("fault", [
+    None, "rollback_reserve", "after_target_import", "after_old_reload",
+    "target_runtime_drift", "after_target_binding", "write_intent_failed", "before_target_start",
+    "after_target_start", "target_start_failed", "after_target_observed",
+])
+def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, monkeypatch, capsys, fault):
     _, usb, _, _, target, predecessor, backup = drive_to_u8(tmp_path)
     store = HaUsbStateStore(tmp_path / "state")
     runtime = ReleaseStartupRuntime(tmp_path / "application", None)
     original_file = runtime.ha_data_root / "recorder"
     original_file.write_bytes(b"original data")
     original_inode = original_file.stat().st_ino
+    live_inode = runtime.ha_data_root.stat().st_ino
+    activation_fault = fault in {
+        "target_runtime_drift", "after_target_binding", "write_intent_failed", "before_target_start",
+        "after_target_start", "target_start_failed", "after_target_observed",
+    }
+    data_rollback = fault in {"before_target_start", "after_target_start", "target_start_failed", "after_target_observed"}
     target_path, old_path = tmp_path / "target.tar", tmp_path / "predecessor.tar"
     target_config, target_layers = _write_restorable_image_archive(target_path, reference=TARGET)
     old_config, old_layers = _write_restorable_image_archive(old_path)
@@ -713,7 +723,7 @@ def test_target_import_keeps_a_path_back_to_the_untouched_data(tmp_path, monkeyp
     shutil.copyfile(target_path, directory / "target.tar")
     shutil.copyfile(old_path, directory / "predecessor.tar")
     device = mounted_media._device_number(usb.root.stat().st_dev)
-    mounts = [{"target": str(usb.root), "fstype": "ext4", "fsroot": "/", "options": "ro",
+    mounts = [{"target": str(usb.root), "fstype": "ext4", "fsroot": "/", "options": "rw" if activation_fault else "ro",
                "maj:min": device, "uuid": USB_UUID}]
     devices = [{"type": "disk", "tran": "usb", "maj:min": "8:0", "children": [
         {"type": "part", "uuid": USB_UUID, "maj:min": device},
@@ -723,30 +733,78 @@ def test_target_import_keeps_a_path_back_to_the_untouched_data(tmp_path, monkeyp
         {"filesystems": mounts} if command == "findmnt" else {"blockdevices": devices}
     ))
     available = 4 * 1024**2 if fault == "rollback_reserve" else 16 * 1024**2
+    filesystem_id = os.statvfs(runtime.ha_data_root).f_fsid
     monkeypatch.setattr(mounted_media.os, "statvfs", lambda path: SimpleNamespace(
-        f_bavail=available, f_frsize=1, f_fsid=1,
+        f_bavail=available, f_frsize=1, f_fsid=filesystem_id,
     ))
+    work = tmp_path / "protected-work"
+    work.mkdir(mode=0o700)
+    key = work / "fixture-root"
+    key.write_bytes(os.urandom(32))
+    key.chmod(0o600)
     provider = mounted_media.HaMountedBackupProvider(
         store=store, mountpoint=usb.root, internal_storage=tmp_path,
-        backup=ProtectedHaDataBackup(work_root=tmp_path, ha_data_root=runtime.ha_data_root),
+        backup=ProtectedHaDataBackup(
+            work_root=work, ha_data_root=runtime.ha_data_root, system_root_key=key,
+            product_config=work / "fixture-config.yaml",
+        ),
         verify_quiesced=runtime.rollback_writers_quiesced,
     )
     store.write(request_install(prepared))
     verification = SimpleNamespace(verify_install_materials=lambda _: HaInstallMaterials(
         USB_UUID, target, predecessor, usb.report, True, HaInternalSpace(8 * 1024**2, 3 * 1024**2, 3 * 1024**2),
     ))
-    backups = SimpleNamespace(create_consistent_backup=lambda **_: backup, verify_backup=lambda record: record)
+    backups = provider if activation_fault else SimpleNamespace(
+        create_consistent_backup=lambda **_: backup, verify_backup=lambda record: record,
+    )
     recovery = HaPredecessorRecovery(store, runtime, SimpleNamespace(verify_predecessor_health=lambda _: None))
 
     runtime_id = "sha256:" + "9" * 64
     loaded_target = None
     run = runtime._run
+    prior_runtime = runtime._runtime
+    prior_rewrite = runtime.rewrite_component_image
+    target_starts = []
     loads = []
 
     def observe(argv, **kwargs):
         if argv == ("docker", "image", "inspect", TARGET) and loaded_target is not None:
             return SimpleNamespace(returncode=0, stdout=json.dumps([loaded_target]).encode())
+        if argv == ("systemctl", "start", recovery_startup.SERVICES_UNIT) and activation_fault:
+            document = store.read()
+            forward = runtime.compose["services"]["homeassistant"]["image"] == TARGET
+            if forward:
+                assert document["phase"] == U10
+                assert document["target_activation"] == "WRITES_POSSIBLE"
+                assert recovery_startup.main(application_condition=True) == 0
+                assert recovery_startup.main(application_condition=True) == 1
+                if fault == "before_target_start":
+                    raise InterruptedPower()
+                target_starts.append(document["phase"])
+                result = run(argv, **kwargs)
+                original_file.write_bytes(b"target migrated data")
+                if fault == "after_target_start":
+                    raise InterruptedPower()
+                if fault == "target_start_failed":
+                    raise recovery_startup.UpdaterError("synthetic_target_start_failure")
+                return result
+            assert recovery_startup.main(application_condition=True) == 0
+            assert original_file.read_bytes() == b"original data"
         return run(argv, **kwargs)
+
+    def rewrite(component, expected, replacement):
+        prior_rewrite(component, expected, replacement)
+        if replacement == TARGET:
+            assert store.read()["target_activation"] == "BINDING"
+            assert recovery_startup.main(application_condition=True) == 1
+            if fault == "after_target_binding":
+                raise InterruptedPower()
+
+    def observed_runtime(name):
+        value = prior_runtime(name)
+        if name == "homeassistant" and runtime.compose["services"][name]["image"] == TARGET:
+            return {**value, "image_ref": TARGET, "image_id": runtime_id}
+        return value
 
     def load(source):
         nonlocal loaded_target
@@ -760,13 +818,18 @@ def test_target_import_keeps_a_path_back_to_the_untouched_data(tmp_path, monkeyp
                 raise InterruptedPower()
         else:
             assert payload == old_path.read_bytes()
-            assert store.read()["predecessor_reload_identity"]["archive_sha256"] == predecessor.archive_sha256
+            document = store.read()
+            intent = (document["ha_data_restore"]["predecessor_load_identity"] if data_rollback
+                      else document["predecessor_reload_identity"])
+            assert intent["archive_sha256"] == predecessor.archive_sha256
             loads.append(CURRENT)
             runtime.image_present = True
             if fault == "after_old_reload":
                 raise InterruptedPower()
 
     monkeypatch.setattr(runtime, "_run", observe)
+    monkeypatch.setattr(runtime, "_runtime", observed_runtime)
+    monkeypatch.setattr(runtime, "rewrite_component_image", rewrite)
     monkeypatch.setattr(runtime, "_load_ha_image", load)
     monkeypatch.setattr(runtime, "_image_document", lambda _: {
         "Id": runtime.image_id(CURRENT), "Os": "linux", "Architecture": "arm64",
@@ -779,18 +842,57 @@ def test_target_import_keeps_a_path_back_to_the_untouched_data(tmp_path, monkeyp
     outcome = nullcontext()
     if fault == "rollback_reserve":
         outcome = pytest.raises(UpdaterV2Error, match="recovery_space_insufficient")
-    elif fault == "after_target_import":
+    elif fault in {"after_target_import", "after_target_binding", "before_target_start", "after_target_start"}:
         outcome = pytest.raises(InterruptedPower)
+    elif fault == "target_start_failed":
+        outcome = pytest.raises(recovery_startup.UpdaterError, match="synthetic_target_start_failure")
+    elif fault == "target_runtime_drift":
+        outcome = pytest.raises(recovery_startup.UpdaterError, match="target_image_runtime_drift")
+    elif fault == "write_intent_failed":
+        outcome = pytest.raises(OSError, match="synthetic write intent failure")
     with outcome, recovery.install_recovery_point(verification, backups):
         recovery.release_predecessor_image(verification, backups, AUTHORIZATION_ID)
         with pytest.raises(UpdaterV2Error, match="target_image_load_not_admitted"):
             HaPredecessorRecovery(store, runtime, runtime).load_target_after_release(provider)
         loaded = recovery.load_target_after_release(provider)
         assert loaded["phase"] == U10 and loaded["target_loaded_image_id"] == runtime_id
+        with pytest.raises(UpdaterV2Error, match="target_write_intent_missing"):
+            record_target_started(loaded)
+        assert recovery_startup.main(application_condition=True) == 1
+        if activation_fault:
+            with pytest.raises(UpdaterV2Error, match="target_activation_not_admitted"):
+                HaPredecessorRecovery(store, runtime, runtime).activate_target_after_import(provider)
+            if fault == "target_runtime_drift":
+                loaded_target["Id"] = "sha256:" + "8" * 64
+            if fault == "write_intent_failed":
+                write = store.write
+
+                def fail_write_intent(document):
+                    if document.get("target_activation") == "WRITES_POSSIBLE":
+                        raise OSError("synthetic write intent failure")
+                    write(document)
+
+                monkeypatch.setattr(store, "write", fail_write_intent)
+            started = recovery.activate_target_after_import(provider)
+            assert started["phase"] == U11 and not started["recovery_required"]
+            assert recovery_startup.main(application_condition=True) == 1
+            assert original_file.read_bytes() == b"target migrated data"
+
+    if fault in {"before_target_start", "after_target_start", "after_target_observed"}:
+        assert not store.take_target_start_permit(prepared["transaction_id_sha256"])
+        assert recovery_startup.main(application_condition=True) == 1
+        with monkeypatch.context() as patch:
+            def absent_media(*_args, **_kwargs):
+                raise recovery_startup.HaRecoveryMediaRequired("original media absent")
+
+            patch.setattr(runtime, "mounted_recovery_provider", absent_media)
+            assert recovery_startup.main() == 0
+            assert json.loads(capsys.readouterr().out) == {"status": "RECOVERY_MEDIA_REQUIRED"}
+        assert store.read()["recovery_required"]
+        assert not {"homeassistant", "manager"} & runtime.running
         assert recovery_startup.main(application_condition=True) == 1
 
-    if fault != "rollback_reserve":
-        assert runtime.starts == 0
+    if fault not in {"rollback_reserve", "target_runtime_drift", "write_intent_failed", "target_start_failed"}:
         if fault == "after_old_reload":
             with pytest.raises(InterruptedPower):
                 recovery_startup.main()
@@ -798,10 +900,15 @@ def test_target_import_keeps_a_path_back_to_the_untouched_data(tmp_path, monkeyp
         assert recovery_startup.main() == 0
         assert json.loads(capsys.readouterr().out) == {"status": "ROLLED_BACK"}
     assert store.read()["phase"] == U13B
-    assert "ha_data_restore" not in store.read() and store.read()["authorization_consumed"]
+    assert ("ha_data_restore" in store.read()) is data_rollback
+    assert store.read()["authorization_consumed"]
     assert loads == ([CURRENT] if fault == "rollback_reserve" else [TARGET, CURRENT])
-    assert original_file.read_bytes() == b"original data" and original_file.stat().st_ino == original_inode
-    assert runtime.starts == 1 and runtime.rewrites == 0
+    assert original_file.read_bytes() == b"original data"
+    assert (original_file.stat().st_ino == original_inode) is not data_rollback
+    assert (runtime.ha_data_root.stat().st_ino == live_inode) is not data_rollback
+    assert len(target_starts) == int(fault in {"after_target_start", "target_start_failed", "after_target_observed"})
+    assert runtime.starts == 1 + len(target_starts)
+    assert runtime.rewrites == (2 if activation_fault and fault != "target_runtime_drift" else 0)
     assert len(runtime.removals) == 2
 
 
