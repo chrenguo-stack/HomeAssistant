@@ -1,5 +1,5 @@
 [Unit]
-Description=Check for the original media needed by pending N3-W Home Assistant OTA recovery
+Description=Check for authorized Home Assistant OTA work and retry pending recovery
 
 [Timer]
 OnCalendar=*-*-* *:*:00,30

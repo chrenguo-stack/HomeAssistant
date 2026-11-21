@@ -30,15 +30,23 @@ history. A status query has no request path. During rollback, inconclusive
 monitoring evidence leaves the restored services running and the journal
 pending for a later check.
 
-For the HA-only test candidate, the product installation intent is recorded
-before the host runner is invoked. The recovery archive's
-`--install-requested` mode admits a prepared transaction using a private
-`ha-install-authority.json` in the transaction state directory. The
-authority binds the prepared transaction and original media, the exact
-predecessor launch, the authorized ID, expiry, and checked storage budgets.
-The running predecessor must prove the configured monitoring path before
-the first service stop. An interrupted install is handled by the existing
-recovery entry.
+For the HA-only test candidate, the host timer checks durable requests after
+recovery work. A PREPARE request uses a mode-0600, host-owned
+`ha-prepare-authority.json` in the transaction state directory. It names
+the transaction, existing mounted USB filesystem UUID, exact running launch
+fingerprint, expiry, host path to a staged target archive, maximum predecessor
+export size, and required USB reserve. The host validates the staged target
+against the transaction digest and exports the currently running predecessor
+to its USB transaction directory. Services stay up. The host can reopen
+independently verified archives after interruption before publishing ready.
 
-Candidate preparation must supply the approved inputs and arrange host
-worker invocation. The repository does not contain a live authority file.
+An INSTALL request still needs a separate private
+`ha-install-authority.json` matching the prepared materials and predecessor
+launch, with its own authorized ID, expiry, and storage budgets. The same
+timer wakes the host worker when both are available. The
+`--install-requested` mode remains available for an explicit host invocation.
+The running predecessor must prove the configured monitoring path before
+the first service stop.
+
+Acquisition of the staged release and issuance of both authorities belong
+to the approved candidate inputs. The repository contains no live authority.

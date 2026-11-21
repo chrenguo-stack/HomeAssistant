@@ -33,20 +33,21 @@ from n3w_t1_core_updater_ha_monitoring_evidence import (
 )
 from n3w_t1_core_updater_ha_mounted_media import (
     HaInstallSpaceBudget, HaMountedBackupProvider, HaMountedInstallMaterialVerifier, bound_usb_device,
+    measure_preparation_capacity, prepare_mounted_archives,
 )
 from n3w_t1_core_updater_ha_usb import (
     HaDataRestoreProvider, HaPredecessorRecovery, HaPredecessorRelease, destructive_cutover_allowed,
-    ha_data_rollback_required,
-    resume_host_recovery,
+    ha_data_rollback_required, record_existing_media_bound, record_target_ready, resume_host_recovery,
+    start_target_preparation,
 )
-from n3w_t1_core_updater_ha_usb_media import USB_FILESYSTEM
+from n3w_t1_core_updater_ha_usb_media import USB_FILESYSTEM, validate_filesystem_uuid
 from n3w_t1_core_updater_ha_usb_state import (
-    TARGET_BINDING, TARGET_WRITES_POSSIBLE, U5, U6, U9, U10, HaUsbStateStore,
+    TARGET_BINDING, TARGET_WRITES_POSSIBLE, U1, U2, U3, U5, U6, U9, U10, HaUsbStateStore,
 )
 from n3w_t1_core_updater_host import DEFAULT_SERVICES_READINESS_TIMEOUT_SECONDS, LocalHost
 from n3w_t1_core_updater_v2_common import AUTHORIZATION_ID, COMPONENTS, SHA256, UpdaterV2Error
 from n3w_t1_portable_image_identity import (
-    PortableImageIdentity, identity_from_dict, observe_docker_image, verify_runtime_document,
+    MAX_ARCHIVE_BYTES, PortableImageIdentity, identity_from_dict, observe_docker_image, verify_runtime_document,
 )
 
 
@@ -61,6 +62,8 @@ RECOVERY_RETRY_UNIT = "n3w-t1-ha-recovery-retry.service"
 RECOVERY_TIMER = "n3w-t1-ha-recovery-retry.timer"
 BOOT_CONDITION = f"ExecCondition={RECOVERY_COMMAND} --check-application-start"
 IMAGE_LOAD_TIMEOUT_SECONDS = 1800
+PREPARE_AUTHORITY_FILE = "ha-prepare-authority.json"
+PREPARE_AUTHORITY_SCHEMA = "gh.n3w-t1-ha-prepare-authority/1"
 INSTALL_AUTHORITY_FILE = "ha-install-authority.json"
 INSTALL_AUTHORITY_SCHEMA = "gh.n3w-t1-ha-install-authority/1"
 INSTALL_BUDGET_FIELDS = {
@@ -76,9 +79,8 @@ def requested_install_binding_sha256(document: dict[str, Any]) -> str:
     }))
 
 
-def _read_install_authority(store: HaUsbStateStore, document: dict[str, Any]) -> dict[str, Any]:
-    reason = "ha_usb_install_authority_invalid"
-    fd = os.open(store.root / INSTALL_AUTHORITY_FILE, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+def _read_authority(path: Path, reason: str) -> dict[str, Any]:
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     with os.fdopen(fd, "rb") as stream:
         metadata = os.fstat(stream.fileno())
         if (
@@ -87,15 +89,45 @@ def _read_install_authority(store: HaUsbStateStore, document: dict[str, Any]) ->
         ):
             raise UpdaterV2Error(reason)
         raw = stream.read(4097)
+    if len(raw) > 4096:
+        raise UpdaterV2Error(reason)
     grant = json.loads(raw)
     if (
-        len(raw) > 4096 or not isinstance(grant, dict)
-        or set(grant) != {"schema", "binding_sha256", "authorization_id", "launch_sha256", "expires_at_unix", "space"}
+        not isinstance(grant, dict) or type(grant.get("expires_at_unix")) is not int
+        or time.time() >= grant["expires_at_unix"]
+        or not isinstance(grant.get("launch_sha256"), str) or not SHA256.fullmatch(grant["launch_sha256"])
+    ):
+        raise UpdaterV2Error(reason)
+    return grant
+
+
+def _read_prepare_authority(store: HaUsbStateStore, document: dict[str, Any]) -> dict[str, Any]:
+    reason = "ha_usb_prepare_authority_invalid"
+    grant = _read_authority(store.root / PREPARE_AUTHORITY_FILE, reason)
+    if (
+        set(grant) != {
+            "schema", "transaction_id_sha256", "usb_filesystem_uuid", "target_source",
+            "launch_sha256", "expires_at_unix", "max_predecessor_bytes", "usb_reserve_bytes",
+        }
+        or grant["schema"] != PREPARE_AUTHORITY_SCHEMA
+        or grant["transaction_id_sha256"] != document["transaction_id_sha256"]
+        or not isinstance(grant["target_source"], str) or not Path(grant["target_source"]).is_absolute()
+        or any(type(grant[key]) is not int or not 0 < grant[key] <= MAX_ARCHIVE_BYTES
+               for key in ("max_predecessor_bytes", "usb_reserve_bytes"))
+    ):
+        raise UpdaterV2Error(reason)
+    grant["usb_filesystem_uuid"] = validate_filesystem_uuid(grant["usb_filesystem_uuid"])
+    return grant
+
+
+def _read_install_authority(store: HaUsbStateStore, document: dict[str, Any]) -> dict[str, Any]:
+    reason = "ha_usb_install_authority_invalid"
+    grant = _read_authority(store.root / INSTALL_AUTHORITY_FILE, reason)
+    if (
+        set(grant) != {"schema", "binding_sha256", "authorization_id", "launch_sha256", "expires_at_unix", "space"}
         or grant["schema"] != INSTALL_AUTHORITY_SCHEMA
         or grant["binding_sha256"] != requested_install_binding_sha256(document)
-        or type(grant["expires_at_unix"]) is not int or time.time() >= grant["expires_at_unix"]
         or not isinstance(grant["authorization_id"], str) or not AUTHORIZATION_ID.fullmatch(grant["authorization_id"])
-        or not isinstance(grant["launch_sha256"], str) or not SHA256.fullmatch(grant["launch_sha256"])
         or not isinstance(grant["space"], dict) or grant["space"].keys() != INSTALL_BUDGET_FIELDS
         or any(type(value) is not int or value <= 0 for value in grant["space"].values())
     ):
@@ -143,6 +175,94 @@ class LocalHaPredecessorRuntime(LocalHost):
             system_id, Path(origins["manager"][replay_root]) / "replay.sqlite3",
             self._runtime, self._read_ha_receipts, self._request_ha_monitoring_self_test,
         )
+
+    @staticmethod
+    @contextmanager
+    def _open_target_source(path: Path, size: int) -> Iterator[BinaryIO]:
+        if path.resolve(strict=True) != path:
+            raise UpdaterV2Error("ha_usb_preparation_target_source_invalid")
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(fd, "rb") as source:
+            info = os.fstat(source.fileno())
+            if (
+                not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid()
+                or info.st_mode & 0o022 or info.st_size != size
+            ):
+                raise UpdaterV2Error("ha_usb_preparation_target_source_invalid")
+            yield source
+
+    @staticmethod
+    @contextmanager
+    def _export_predecessor(reference: str) -> Iterator[BinaryIO]:
+        with subprocess.Popen(
+            ("docker", "image", "save", "--", reference), stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        ) as process:
+            assert process.stdout is not None
+            timeout = threading.Timer(IMAGE_LOAD_TIMEOUT_SECONDS, process.kill)
+            timeout.start()
+            try:
+                with process.stdout as source:
+                    yield source
+                if process.wait() != 0:
+                    raise UpdaterError("ha_usb_preparation_predecessor_export_failed")
+            finally:
+                timeout.cancel()
+                if process.poll() is None:
+                    process.kill()
+
+    def prepare_requested(self, store: HaUsbStateStore) -> str:
+        with store.lock():
+            document = store.read()
+            if (
+                document is None or document["status"] != "ACTIVE"
+                or document["phase"] not in {U1, U2, U3} or document["recovery_required"]
+                or (document["phase"] != U1 and document.get("usb_binding_mode") != "existing_filesystem")
+            ):
+                return "NO_ADMITTED_PREPARE_REQUEST"
+            grant = _read_prepare_authority(store, document)
+            uuid = grant["usb_filesystem_uuid"]
+            if document["phase"] != U1 and document["usb_filesystem_uuid"] != uuid:
+                raise UpdaterV2Error("ha_usb_prepare_authority_drift")
+            binding = self.capture_start_binding(document)
+            if binding["launch_sha256"] != grant["launch_sha256"]:
+                raise UpdaterV2Error("ha_usb_prepare_authority_drift")
+            mountpoint = self._original_mountpoint(uuid)
+            reserve = grant["usb_reserve_bytes"]
+            max_predecessor = grant["max_predecessor_bytes"]
+            if document["phase"] == U1:
+                capacity = measure_preparation_capacity(
+                    mountpoint, store.root, uuid, document["target_archive_size"] + max_predecessor + reserve,
+                )
+                document = record_existing_media_bound(document, filesystem_uuid=uuid, capacity_report=capacity)
+                store.write(document)
+            if document["phase"] == U2:
+                document = start_target_preparation(document)
+                store.write(document)
+
+            old = binding["images"]["homeassistant"]
+
+            def verify_predecessor(identity: PortableImageIdentity) -> None:
+                observed = self._release_image(old["reference"])
+                if (
+                    observed is None or observed.get("Id") != old["runtime_id"]
+                    or verify_runtime_document(identity, observed).status != "VERIFIED"
+                ):
+                    raise UpdaterV2Error("ha_usb_preparation_predecessor_image_drift")
+                expected = document["current_image_identity"].get("portable_identity_sha256")
+                if expected is not None and expected != sha256_bytes(canonical(identity.to_dict())):
+                    raise UpdaterV2Error("ha_usb_preparation_predecessor_archive_drift")
+
+            target, predecessor = prepare_mounted_archives(
+                mountpoint, store.root, document,
+                target_source=lambda: self._open_target_source(Path(grant["target_source"]), document["target_archive_size"]),
+                predecessor_source=lambda: self._export_predecessor(old["reference"]),
+                verify_predecessor=verify_predecessor, max_predecessor_bytes=max_predecessor, reserve=reserve,
+            )
+            if _read_prepare_authority(store, document) != grant or self.capture_start_binding(document) != binding:
+                raise UpdaterV2Error("ha_usb_prepare_authority_drift")
+            store.write(record_target_ready(document, target=target, predecessor=predecessor))
+            return "READY_TO_INSTALL"
 
     def install_requested(self, store: HaUsbStateStore) -> str:
         document = store.read()
@@ -762,32 +882,32 @@ class LocalHaPredecessorRuntime(LocalHost):
             time.sleep(2)
         raise UpdaterError("ha_usb_rollback_predecessor_health_pending")
 
+    def _original_mountpoint(self, uuid: str) -> Path:
+        result = self._run((
+            "findmnt", "--list", "--json", "--source", f"UUID={uuid}", "--output", "TARGET",
+        ), timeout=10, check=False)
+        if result.returncode == 1:
+            raise HaRecoveryMediaRequired("ha_usb_rollback_original_mount_required")
+        if result.returncode:
+            raise UpdaterError("ha_usb_rollback_mount_discovery_failed")
+        result_document = json.loads(result.stdout)
+        filesystems = result_document.get("filesystems") if isinstance(result_document, dict) else None
+        if filesystems == []:
+            raise HaRecoveryMediaRequired("ha_usb_rollback_original_mount_required")
+        if not isinstance(filesystems, list) or len(filesystems) != 1:
+            raise UpdaterError("ha_usb_rollback_mount_discovery_failed")
+        filesystem = filesystems[0]
+        target = filesystem.get("target") if isinstance(filesystem, dict) else None
+        if not isinstance(target, str) or not Path(target).is_absolute():
+            raise UpdaterError("ha_usb_rollback_mount_discovery_failed")
+        return Path(target)
+
     def mounted_recovery_provider(
         self, store: HaUsbStateStore, document: dict[str, Any], *, require_original: bool = False,
     ) -> HaMountedBackupProvider:
         mountpoint = store.root
         if require_original or document.get("ha_data_restore", {}).get("step", "STAGING") == "STAGING":
-            result = self._run((
-                "findmnt", "--list", "--json", "--source", f'UUID={document["usb_filesystem_uuid"]}',
-                "--output", "TARGET",
-            ), timeout=10, check=False)
-            if result.returncode == 1:
-                raise HaRecoveryMediaRequired("ha_usb_rollback_original_mount_required")
-            if result.returncode:
-                raise UpdaterError("ha_usb_rollback_mount_discovery_failed")
-            result_document = json.loads(result.stdout)
-            filesystems = result_document.get("filesystems") if isinstance(result_document, dict) else None
-            if filesystems == []:
-                raise HaRecoveryMediaRequired("ha_usb_rollback_original_mount_required")
-            if not isinstance(filesystems, list) or len(filesystems) != 1:
-                raise UpdaterError("ha_usb_rollback_mount_discovery_failed")
-            filesystem = filesystems[0]
-            target = filesystem.get("target") if isinstance(filesystem, dict) else None
-            if not isinstance(target, str):
-                raise UpdaterError("ha_usb_rollback_mount_discovery_failed")
-            mountpoint = Path(target)
-            if not mountpoint.is_absolute():
-                raise UpdaterError("ha_usb_rollback_mount_discovery_failed")
+            mountpoint = self._original_mountpoint(document["usb_filesystem_uuid"])
         return HaMountedBackupProvider(
             store=store, mountpoint=mountpoint, internal_storage=store.root,
             backup=ProtectedHaDataBackup(work_root=store.root, ha_data_root=self.ha_data_root),
@@ -856,6 +976,20 @@ def check_application_start(store: HaUsbStateStore, runtime: LocalHaPredecessorR
     return 0
 
 
+def _dispatch_pending_candidate(store: HaUsbStateStore, runtime: LocalHaPredecessorRuntime) -> str:
+    document = store.read()
+    if document is None or document["status"] != "ACTIVE" or document["recovery_required"]:
+        return "NO_PENDING_RECOVERY"
+    if document["phase"] in {U1, U2, U3} and (store.root / PREPARE_AUTHORITY_FILE).exists():
+        return runtime.prepare_requested(store)
+    if (
+        document["phase"] in {U5, U6} and "predecessor_start" not in document
+        and (store.root / INSTALL_AUTHORITY_FILE).exists()
+    ):
+        return runtime.install_requested(store)
+    return "NO_PENDING_RECOVERY"
+
+
 def main(
     *, application_condition: bool = False, pending_only: bool = False, install_requested: bool = False,
 ) -> int:
@@ -883,6 +1017,8 @@ def main(
                 store, runtime, provider, lambda document: provider(document, require_original=True),
                 pending_only=pending_only, health=runtime,
             )
+        if pending_only and status == "NO_PENDING_RECOVERY":
+            status = _dispatch_pending_candidate(store, runtime)
     except HaRecoveryMediaRequired:
         print(json.dumps({"status": "RECOVERY_MEDIA_REQUIRED"}))
         return 0

@@ -13,7 +13,7 @@ from collections.abc import Callable, Iterator
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, BinaryIO
+from typing import Any, BinaryIO, ContextManager
 
 from n3w_t1_core_updater_ha_backup import (
     HA_DATABASE_NAME, HaDataBackupRecord, ProtectedHaDataBackup, backup_record_from_document,
@@ -327,7 +327,7 @@ def _ha_restore_workspace_bytes(root: Path, device: int, block_size: int) -> int
 @contextmanager
 def _open_transaction_directory(
     mountpoint: Path, internal_storage: Path, document: dict[str, Any],
-    *, allow_read_only: bool = False,
+    *, allow_read_only: bool = False, create: bool = False,
 ) -> Iterator[tuple[int, int]]:
     expected_uuid = document["usb_filesystem_uuid"].lower()
     try:
@@ -343,6 +343,12 @@ def _open_transaction_directory(
             opened_directories = []
             for name in ("N3W-OTA", document["transaction_id_sha256"]):
                 parent = directory
+                if create:
+                    try:
+                        os.mkdir(name, 0o700, dir_fd=parent)
+                    except FileExistsError:
+                        pass
+                    os.fsync(parent)
                 directory = os.open(
                     name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent
                 )
@@ -350,6 +356,8 @@ def _open_transaction_directory(
                 binding = os.fstat(directory)
                 if binding.st_dev != mount_stat.st_dev:
                     raise UpdaterV2Error("ha_usb_transaction_directory_off_device")
+                if create and (binding.st_uid != os.geteuid() or binding.st_mode & 0o022):
+                    raise UpdaterV2Error("ha_usb_transaction_directory_not_protected")
                 opened_directories.append((parent, name, binding))
             yield fd, directory
             for parent, name, binding in opened_directories:
@@ -366,6 +374,116 @@ def _open_transaction_directory(
                 raise UpdaterV2Error("ha_usb_original_mount_changed")
     except OSError as error:
         raise UpdaterV2Error("ha_usb_original_material_unavailable") from error
+
+
+@contextmanager
+def _open_preparation_archive(directory: int, name: str, flags: int) -> Iterator[BinaryIO]:
+    fd = os.open(name, flags | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600, dir_fd=directory)
+    with os.fdopen(fd, "r+b" if flags & os.O_RDWR else "rb") as stream:
+        metadata = os.fstat(stream.fileno())
+        if (
+            not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.geteuid()
+            or metadata.st_mode & 0o077 or metadata.st_nlink != 1
+            or metadata.st_dev != os.fstat(directory).st_dev
+        ):
+            raise UpdaterV2Error("ha_usb_preparation_archive_file_invalid")
+        yield stream
+
+
+def _prepare_archive(
+    directory: int, kind: str, image_ref: str, source: Callable[[], ContextManager[BinaryIO]],
+    *, limit: int, reserve: int, expected_sha256: str | None = None,
+    validate: Callable[[PortableImageIdentity], None] | None = None,
+) -> ImageRecoveryRecord:
+    final = f"{kind}.tar"
+    partial = f".{final}.part"
+
+    def inspect(name: str) -> ImageRecoveryRecord:
+        with _open_preparation_archive(directory, name, os.O_RDONLY) as stream:
+            fd = stream.fileno()
+            metadata = os.fstat(fd)
+            if not 0 < metadata.st_size <= limit:
+                raise UpdaterV2Error("ha_usb_preparation_archive_size_invalid")
+            digest = hashlib.file_digest(stream, "sha256").hexdigest()
+            if expected_sha256 is not None and (digest != expected_sha256 or metadata.st_size != limit):
+                raise UpdaterV2Error("ha_usb_preparation_target_rejected")
+            stream.seek(0)
+            try:
+                identity = parse_verified_load_archive(
+                    stream, archive_sha256=digest, archive_size_bytes=metadata.st_size, expected_tag=image_ref,
+                )
+            except PortableImageIdentityError as error:
+                raise UpdaterV2Error("ha_usb_preparation_archive_identity_invalid") from error
+            if validate is not None:
+                validate(identity)
+            os.fsync(fd)
+            _require_same_archive(directory, name, metadata)
+            return ImageRecoveryRecord(
+                kind, image_ref, digest, metadata.st_size, sha256_bytes(canonical(identity.to_dict())),
+                "linux/arm64", True, True,
+            )
+
+    try:
+        record = inspect(final)
+    except FileNotFoundError:
+        with _open_preparation_archive(directory, partial, os.O_RDWR | os.O_CREAT) as output:
+            output.truncate(0)
+            free = os.fstatvfs(directory)
+            if free.f_frsize * free.f_bavail < limit + reserve:
+                raise UpdaterV2Error("ha_usb_preparation_space_insufficient")
+            with source() as reader:
+                written = 0
+                while block := reader.read(min(ARCHIVE_BLOCK_BYTES, limit - written + 1)):
+                    written += len(block)
+                    if written > limit:
+                        raise UpdaterV2Error("ha_usb_preparation_archive_size_invalid")
+                    output.write(block)
+            output.flush()
+            os.fsync(output.fileno())
+        record = inspect(partial)
+        os.rename(partial, final, src_dir_fd=directory, dst_dir_fd=directory)
+    os.fsync(directory)
+    return record
+
+
+def prepare_mounted_archives(
+    mountpoint: Path, internal_storage: Path, document: dict[str, Any],
+    *, target_source: Callable[[], ContextManager[BinaryIO]],
+    predecessor_source: Callable[[], ContextManager[BinaryIO]],
+    verify_predecessor: Callable[[PortableImageIdentity], None],
+    max_predecessor_bytes: int, reserve: int,
+) -> tuple[ImageRecoveryRecord, ImageRecoveryRecord]:
+    with _open_transaction_directory(mountpoint, internal_storage, document, create=True) as (_, directory):
+        target = _prepare_archive(
+            directory, "target", document["target_image_ref"], target_source,
+            limit=document["target_archive_size"], reserve=max_predecessor_bytes + reserve,
+            expected_sha256=document["target_archive_sha256"],
+        )
+        predecessor = _prepare_archive(
+            directory, "predecessor", document["current_image_ref"], predecessor_source,
+            limit=max_predecessor_bytes, reserve=reserve, validate=verify_predecessor,
+        )
+        free = os.fstatvfs(directory)
+        if free.f_frsize * free.f_bavail < reserve:
+            raise UpdaterV2Error("ha_usb_preparation_space_insufficient")
+    return target, predecessor
+
+
+def measure_preparation_capacity(
+    mountpoint: Path, internal_storage: Path, expected_uuid: str, required: int,
+) -> UsbCapacityReport:
+    device = _mount_device(mountpoint, expected_uuid, _protected_devices(internal_storage), allow_read_only=False)
+    fd = os.open(mountpoint, DIRECTORY_FLAGS)
+    try:
+        if _device_number(os.fstat(fd).st_dev) != device:
+            raise UpdaterV2Error("ha_usb_original_mount_device_mismatch")
+        info = os.fstatvfs(fd)
+    finally:
+        os.close(fd)
+    usable = (info.f_blocks - info.f_bfree + info.f_bavail) * info.f_frsize
+    floor = USB_MEASURED_USABLE_CAPACITY_MIN_BYTES
+    enough = info.f_bavail * info.f_frsize >= required
+    return UsbCapacityReport(usable, required, floor, usable >= floor, enough, usable >= floor and enough)
 
 
 class HaMountedInstallMaterialVerifier:

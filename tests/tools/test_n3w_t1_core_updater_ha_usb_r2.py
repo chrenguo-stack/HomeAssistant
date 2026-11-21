@@ -771,9 +771,10 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
     bound = record_existing_media_bound(request_prepare(initial), filesystem_uuid=USB_UUID, capacity_report=usb.report)
     prepared = record_target_ready(start_target_preparation(bound), target=target, predecessor=predecessor)
     directory = usb.root / "N3W-OTA" / prepared["transaction_id_sha256"]
-    directory.mkdir(parents=True)
-    shutil.copyfile(target_path, directory / "target.tar")
-    shutil.copyfile(old_path, directory / "predecessor.tar")
+    if fault != "install_worker":
+        directory.mkdir(parents=True)
+        shutil.copyfile(target_path, directory / "target.tar")
+        shutil.copyfile(old_path, directory / "predecessor.tar")
     device = mounted_media._device_number(usb.root.stat().st_dev)
     mounts = [{"target": str(usb.root), "fstype": "ext4", "fsroot": "/", "options": "rw" if activation_fault else "ro",
                "maj:min": device, "uuid": USB_UUID}]
@@ -802,9 +803,7 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
         ),
         verify_quiesced=runtime.rollback_writers_quiesced,
     )
-    if fault == "install_worker":
-        store.write(prepared)
-    else:
+    if fault != "install_worker":
         store.write(request_install(prepared))
     verification = SimpleNamespace(verify_install_materials=lambda _: HaInstallMaterials(
         USB_UUID, target, predecessor, usb.report, True, HaInternalSpace(8 * 1024**2, 3 * 1024**2, 3 * 1024**2),
@@ -965,31 +964,97 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
         ))
         assert recovery_startup.cli(["--install-requested"]) == 0
         assert json.loads(capsys.readouterr().out)["status"] == "NO_ADMITTED_INSTALL_REQUEST"
-        result = ipc.handle(json.dumps({
-            "schema": REQUEST_SCHEMA, "operation": "submit", "action": "INSTALL",
-            "target_release_id": admission.release_identity,
-        }).encode())
-        assert json.loads(result)["accepted"] is True
-        requested = store.read()
-        assert requested["phase"] == U5
-        assert recovery_startup.cli(["--install-requested"]) == 1
-        assert json.loads(capsys.readouterr().out)["status"] == "INSTALL_NEEDS_REVIEW"
-        assert store.read() == requested and runtime.starts == runtime.rewrites == 0
+        def submit(action):
+            return json.loads(ipc.handle(json.dumps({
+                "schema": REQUEST_SCHEMA, "operation": "submit", "action": action,
+                "target_release_id": admission.release_identity,
+            }).encode()))
+
+        assert submit("PREPARE")["accepted"] is True
+        pending = store.read()
+        assert pending["phase"] == U1
+        assert recovery_startup.cli(["--resume-pending"]) == 0
+        assert capsys.readouterr().out == "" and store.read() == pending
 
         original_run = runtime._run
 
         def installer_command(argv, **kwargs):
             if argv == ("docker", "info", "--format", "{{.DockerRootDir}}"):
                 return SimpleNamespace(stdout=str(store.root).encode())
+            if argv[0] == "findmnt":
+                assert f"UUID={USB_UUID}" in argv
+                return SimpleNamespace(returncode=0, stdout=json.dumps({"filesystems": mounts}).encode())
+            if argv == ("docker", "image", "inspect", CURRENT) and runtime.image_present:
+                observed = {**runtime._image_document(CURRENT), "RepoTags": [CURRENT], "RepoDigests": []}
+                return SimpleNamespace(returncode=0, stdout=json.dumps([observed]).encode())
             return original_run(argv, **kwargs)
 
         monkeypatch.setattr(runtime, "_run", installer_command)
         monkeypatch.setattr(runtime, "acceptance_observer", lambda: observer)
-        usable = requested["usb_measured_usable_bytes"]
+        exports = []
+
+        def export(reference):
+            exports.append(reference)
+            return old_path.open("rb")
+
+        monkeypatch.setattr(runtime, "_export_predecessor", export)
+        usable = usb.report.measured_usable_bytes
         monkeypatch.setattr(mounted_media.os, "fstatvfs", lambda _: SimpleNamespace(
             f_bavail=usable, f_blocks=usable, f_bfree=usable, f_frsize=1,
         ))
-        binding = runtime.capture_start_binding(requested)
+        binding = runtime.capture_start_binding(pending)
+        prepare_path = store.root / recovery_startup.PREPARE_AUTHORITY_FILE
+        prepare_path.write_text(json.dumps({
+            "schema": recovery_startup.PREPARE_AUTHORITY_SCHEMA,
+            "transaction_id_sha256": pending["transaction_id_sha256"],
+            "launch_sha256": binding["launch_sha256"],
+            "usb_filesystem_uuid": USB_UUID,
+            "target_source": str(target_path),
+            "max_predecessor_bytes": predecessor.archive_size_bytes,
+            "usb_reserve_bytes": 1024,
+            "expires_at_unix": 0x7FFFFFFF,
+        }))
+        prepare_path.chmod(0o600)
+        customer_file = usb.root / "customer.txt"
+        customer_file.write_bytes(b"keep this file")
+        candidate_data = target_path.read_bytes()
+        target_path.write_bytes(b"X" + candidate_data[1:])
+        assert recovery_startup.cli(["--resume-pending"]) == 1
+        assert json.loads(capsys.readouterr().out)["status"] == "RECOVERY_STARTUP_NEEDS_REVIEW"
+        directory = usb.root / "N3W-OTA" / pending["transaction_id_sha256"]
+        assert store.read()["phase"] == U3
+        assert not (directory / "target.tar").exists() and not exports and not loads
+        assert runtime.running == {"broker", "manager", "homeassistant"}
+
+        target_path.write_bytes(candidate_data)
+        write = store.write
+        with monkeypatch.context() as interruption:
+            def fail_ready(document):
+                if document["phase"] == U4:
+                    raise InterruptedPower()
+                write(document)
+
+            interruption.setattr(recovery_startup, "HaUsbStateStore", lambda: store)
+            interruption.setattr(store, "write", fail_ready)
+            with pytest.raises(InterruptedPower):
+                recovery_startup.cli(["--resume-pending"])
+        assert store.read()["phase"] == U3 and exports == [CURRENT]
+        assert recovery_startup.cli(["--resume-pending"]) == 0
+        assert json.loads(capsys.readouterr().out)["status"] == "READY_TO_INSTALL"
+        assert store.read()["phase"] == U4 and exports == [CURRENT]
+        assert (directory / "target.tar").read_bytes() == candidate_data
+        assert (directory / "predecessor.tar").read_bytes() == old_path.read_bytes()
+        assert customer_file.read_bytes() == b"keep this file"
+        assert not loads and runtime.starts == runtime.rewrites == 0
+        assert recovery_startup.cli(["--resume-pending"]) == 0
+        assert capsys.readouterr().out == "" and store.read()["phase"] == U4
+        assert submit("INSTALL")["accepted"] is True
+        requested = store.read()
+        assert requested["phase"] == U5
+        assert recovery_startup.cli(["--resume-pending"]) == 0
+        assert capsys.readouterr().out == "" and store.read() == requested
+        assert runtime.starts == runtime.rewrites == 0
+
         grant_path = store.root / recovery_startup.INSTALL_AUTHORITY_FILE
         grant = {
             "schema": recovery_startup.INSTALL_AUTHORITY_SCHEMA,
@@ -1008,12 +1073,9 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
             assert json.loads(capsys.readouterr().out)["status"] == "INSTALL_NEEDS_REVIEW"
             assert runtime.running == {"broker", "manager", "homeassistant"}
             if store.read()["phase"] == U4:
-                assert json.loads(ipc.handle(json.dumps({
-                    "schema": REQUEST_SCHEMA, "operation": "submit", "action": "INSTALL",
-                    "target_release_id": admission.release_identity,
-                }).encode()))["accepted"] is True
+                assert submit("INSTALL")["accepted"] is True
         grant_path.write_text(json.dumps(grant))
-        assert recovery_startup.cli(["--install-requested"]) == 0
+        assert recovery_startup.cli(["--resume-pending"]) == 0
         assert json.loads(capsys.readouterr().out)["status"] == "COMMITTED"
         committed = store.read()
         assert committed["phase"] == U13A and committed["authorization_consumed"] is True
