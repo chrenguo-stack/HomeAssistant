@@ -194,6 +194,39 @@ After current image release:
 
 If USB recovery media becomes unavailable after current image release, the transaction must report a recovery-required terminal and must not fabricate success.
 
+## 9. Interrupted-process / power-loss recovery
+
+This predecessor setup is a one-time laboratory preparation transaction, not the shipped R8 OTA runtime. It therefore does not install a new permanent systemd recovery daemon.
+
+Before the first destructive action the transaction writes a root-owned private journal. Each subsequent phase records:
+- exact source head;
+- exact current and predecessor image refs/IDs;
+- exact P3 rollback transaction/archive authority;
+- exact bound USB device identity;
+- exact predecessor archive identity and import worst-case;
+- fresh backup identity;
+- original/staged filesystem IDs and inode identities;
+- post-release capacity result where available.
+
+The same exact source exposes:
+- `status`: read-only journal observation;
+- `recover`: continue the already-authorized transaction only toward exact healthy 2026.10.4.
+
+Recovery does not require a new predecessor-switch authorization because it cannot advance toward 10.0. It can only:
+1. verify the persisted exact recovery authority;
+2. bind and verify the exact P3 USB recovery point;
+3. quiesce application writers;
+4. remove an exact 10.0 image/container only when ownership is provable;
+5. infer the published/preserved data side from the journaled filesystem/inode identities and restore the original 10.4 directory;
+6. restore the exact 10.4 image from the P3 USB archive if it is absent;
+7. restore the exact current binding;
+8. start and prove full 10.4 health;
+9. record `ROLLED_BACK`.
+
+The exact recovery zipapp is cached on the operator Mac after source-check/preflight so recovery does not depend on GitHub artifact availability after the live transaction has started.
+
+A narrow fail-closed boundary remains for interruption **inside** `docker load`: if Docker leaves storage residue that is not attributable to the exact 10.0 image ID and that residue prevents the exact 10.4 recovery image from loading, the recovery path reports `RECOVERY_REQUIRED`. It must not use global prune or guess ownership. PR #821's product R8 single-image design remains unchanged; this limitation is specific to the one-time predecessor-setup streaming operation and is not silently promoted to a product guarantee.
+
 ## 9. Authorization
 
 Source, tests, CI and read-only preflight may proceed now.
@@ -219,7 +252,7 @@ A later live grant must bind at minimum:
 
 The grant must not be committed to GitHub.
 
-## 10. Out of scope
+## 11. Out of scope
 
 - Broker OTA;
 - Manager OTA;
@@ -231,7 +264,7 @@ The grant must not be committed to GitHub.
 - deleting the preserved original 10.4 data directory;
 - historical-data migration coverage outside the frozen 10.0↔10.4 compatibility review.
 
-## 11. Next gates
+## 12. Next gates
 
 ```text
 PRED_SWITCH_SOURCE_AND_TESTS
