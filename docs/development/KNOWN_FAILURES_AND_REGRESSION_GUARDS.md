@@ -10,6 +10,11 @@
 - OTA 运行基线仍为 `BLOCKED:relevant_failed_units`，运行结果为 `diagnostic_only=true`。HA 恢复包尚未部署，三项恢复单元均未激活。宿主机可用空间为 4,756,381,696 字节，这次未验证 U 盘挂载。
 - 现场 HA 为 `local/n3w-homeassistant:2026.10.4-5881590f`，与既定候选的目标引用相同。候选绑定的前代是 `local/n3w-homeassistant:2026.10.0-0c73235a`。R8 开始前需核对目标与前代关系，并处理正式运行基线的旧初始化单元依赖。此处只归档只读观测。 [候选清单](https://github.com/chrenguo-stack/HomeAssistant/blob/741a1463e7de065401749e47e59d30b295d5d6e8/infra/n3w-t1/upgrades/homeassistant-2026.10.4.json)
 
+**备用 T1 初始化服务入口复验**
+
+- 候选 `741a1463e7de` 与 Clean Reference `24382caae4a1` 的历史依赖摘要相符。现场以只读方式在内存中调用 `resume-if-needed`，结果为 `R7_PROVISION_RESUME_NOOP_PASS / UNPROVISIONED / NOOP`。测试拦截了可续跑旧初始化的分支。`UNPROVISIONED` 对应旧初始化状态，Clean Reference 的 R2A/R2B 记录已独立核对。
+- 该结果验证了修复候选在本机的开机路径。设备仍待部署该脚本、单独运行初始化单元并重新采集正式运行基线。HA 当前仍为 `2026.10.4`，后续 R8 验收沿用 `2026.10.0 → 2026.10.4`。
+
 ### 2026-11-05 KF-142 — P5 host-side ad-hoc SSH reuse causes repeated authentication and pre-claim staging STOP
 
 | ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
