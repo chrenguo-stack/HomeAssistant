@@ -441,3 +441,40 @@ def test_midstream_load_ambiguity_is_not_hidden_by_global_cleanup():
     assert "RECOVERY_REQUIRED" in source
     assert "docker system prune" not in source
     assert "docker image prune" not in source
+
+
+def test_readonly_preflight_binds_actual_docker_filesystem_and_no_prior_state():
+    source = (PACKAGE / "remote_live.py").read_text()
+    preflight = source.split("def preflight_report", 1)[1].split("def main", 1)[0]
+    assert "read_state() is not None" in preflight
+    assert "DockerRootDir" in preflight
+    assert "switch_internal_filesystem_split" in preflight
+    assert '"internal_filesystem_shared": True' in preflight
+    assert "docker_info.f_bavail * docker_info.f_frsize" in preflight
+
+
+def test_usb_mount_modes_are_verified_and_p3_archive_is_private():
+    source = (PACKAGE / "remote_live.py").read_text()
+    assert "def verify_usb_mount_mode" in source
+    assert '"ro,noload,nodev,nosuid,noexec"' in source
+    assert '"rw,nodev,nosuid,noexec"' in source
+    archive = source.split("def p3_rollback_archive", 1)[1].split(
+        "def verify_current_archive_identity", 1
+    )[0]
+    assert "require_private_directory(directory)" in archive
+    assert "metadata.st_uid != os.geteuid()" in archive
+    assert "metadata.st_nlink != 1" in archive
+
+
+def test_operator_persists_exact_recovery_package_cache():
+    source = (PACKAGE / "operator.py").read_text()
+    assert "RECOVERY_CACHE" in source
+    assert "RECOVERY_PACKAGE_SHA256" in source
+    assert "os.replace(temporary, RECOVERY_CACHE)" in source
+    assert "os.fsync(directory_fd)" in source
+
+
+def test_backup_evidence_names_manifest_hash_not_tree_hash():
+    source = (PACKAGE / "executor.py").read_text() + (PACKAGE / "remote_live.py").read_text()
+    assert "staged_manifest_sha256" in source
+    assert "staged_data_sha256" not in source
