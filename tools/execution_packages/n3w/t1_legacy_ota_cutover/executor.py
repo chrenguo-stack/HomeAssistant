@@ -22,6 +22,12 @@ OVERLAY_HASH = "1b0fd19cb3f8047d0ce50ecfdd69f0e71d8256bed2198de10d7d78c39eacd618
 DROPIN_HASH = "cee2d95971a1d91adeec4f7974d0bac1f4b7eab379168e91459d3d07641f1800"
 APP_HASH = "9f7fecb6135284ceb2c9a293ed791509e6820e16a916b17b0d346334073de1d8"
 LEGACY_HASH = "af8d9755ba13d9300fb5318d077e5d20078229814fdc29e4127806ef78ddb370"
+FAULT_DROPIN = Path("/etc/systemd/system/n3w-t1-ha-ota.service.d/90-u9plus-fault-acceptance.conf")
+FAULT_DROPIN_HASH = "dcb4e566c12e6f57add6bcfb100a69001b3146b47abf4cb824a166726938aa6a"
+FAULT_DAEMON = Path(
+    "/var/lib/n3w-t1-core-updater/u9plus-fault-acceptance-r1/candidate-tools/"
+    "n3w_t1_core_updater_ha_daemon.py"
+)
 PACKAGE_HASH = "f39629268ffeab9906f9de8cb60362d604d5b9150ef4c13571926b00921e6b84"
 LEGACY_MOUNT = ("bind", "/run/n3w-t1-ota", "/run/n3w/t1-ota", False)
 LEGACY_SOCKET = Path("/run/n3w-t1-ota/ha-ota.sock")
@@ -125,9 +131,11 @@ def run():
 
     def transaction_snapshot():
         rows = []
-        for doc in (store.read(), store.read_legacy(), usb_store.read()):
+        usb_record = usb_store.read()
+        for doc in (store.read(), store.read_legacy(), usb_record):
             rows.append((doc["status"], digest(canonical(doc))) if doc else (None, None))
         need(tuple(rows) == TRANSACTIONS, "ota_transaction_evidence_changed")
+        need(usb_record.get("phase") == "U13B_ROLLED_BACK", "legacy_usb_phase_not_terminal")
         need(not prepare_path.is_symlink(), "legacy_prepare_state_invalid")
         return digest(prepare_path.read_bytes()) if prepare_path.exists() else None
 
@@ -139,7 +147,8 @@ def run():
     def legacy_props():
         return unit_props(LEGACY, "LoadState", "ActiveState", "UnitFileState",
                           "FragmentPath", "DropInPaths", "NeedDaemonReload",
-                          "RequiredBy", "BoundBy", "ConsistsOf", "PropagatesStopTo")
+                          "RequiredBy", "BoundBy", "ConsistsOf", "PropagatesStopTo",
+                          "MainPID", "ExecStart", "ExecStop", "ExecStopPost", "RefuseManualStop")
 
     def supervision(legacy, active):
         props = app_props()
@@ -167,17 +176,28 @@ def run():
             need(loaded == [argv], "loaded_application_command_mismatch")
         return drop
 
-    def legacy_daemon(active, enabled):
+    def legacy_daemon(active, enabled, expected_pid=None):
         props = legacy_props()
-        need(props["LoadState"] == "loaded" and props["ActiveState"] == active
-             and props["UnitFileState"] == enabled and props["NeedDaemonReload"] == "no"
-             and not props["DropInPaths"], "legacy_daemon_state_mismatch")
+        need(props["LoadState"] == "loaded" and props["NeedDaemonReload"] == "no",
+             "legacy_daemon_load_state_mismatch")
+        need(props["ActiveState"] == active, "legacy_daemon_active_state_mismatch")
+        need(props["UnitFileState"] == enabled, "legacy_daemon_enablement_mismatch")
         checked_file(Path(props["FragmentPath"]), LEGACY_HASH)
+        need(props["DropInPaths"] == str(FAULT_DROPIN), "legacy_fault_dropin_path_mismatch")
+        checked_file(FAULT_DROPIN, FAULT_DROPIN_HASH)
+        loaded = re.findall(r"argv\[\]=(.*?)\s+;", props["ExecStart"])
+        need(loaded == [f"/usr/bin/python3 {FAULT_DAEMON}"], "legacy_fault_start_command_mismatch")
         need(set(props["RequiredBy"].split()) <= {APP} and not any(
-            props[k] for k in ("BoundBy", "ConsistsOf", "PropagatesStopTo")
-        ), "legacy_daemon_extra_dependencies")
+            props[k] for k in ("BoundBy", "ConsistsOf", "PropagatesStopTo", "ExecStop", "ExecStopPost")
+        ), "legacy_daemon_extra_dependencies_or_commands")
+        need(props["RefuseManualStop"] == "no", "legacy_daemon_manual_stop_refused")
+        pid = int(props["MainPID"])
         if active == "active":
-            need(LEGACY_SOCKET.is_socket(), "legacy_socket_missing")
+            need(pid > 0 and LEGACY_SOCKET.is_socket(), "legacy_process_or_socket_missing")
+            need(expected_pid is None or pid == expected_pid, "legacy_daemon_pid_changed")
+        else:
+            need(pid == 0 and not LEGACY_SOCKET.is_socket(), "legacy_daemon_not_quiesced")
+        return pid
 
     def container_shape(service, runtime, legacy):
         item = json.loads(host._run(("docker", "inspect", runtime["container_id"]), timeout=20).stdout)[0]
@@ -229,7 +249,10 @@ def run():
                 raise ValueError(last)
             time.sleep(3)
 
-    def restore(drop, backup, new_start_attempted):
+    def restore(drop, backup, new_start_attempted, legacy_pid):
+        # The pre-existing fault acceptance daemon can re-enter a USB oracle
+        # at startup even after the durable U13B record is terminal.
+        legacy_daemon("active", "enabled", legacy_pid)
         if new_start_attempted:
             systemctl("stop", APP)
             try:
@@ -243,28 +266,17 @@ def run():
             sync_parent(drop)
         checked_file(drop, DROPIN_HASH)
         systemctl("daemon-reload")
-        current = legacy_props()
-        if current["UnitFileState"] != "enabled":
-            systemctl("enable", LEGACY)
-        if current["ActiveState"] != "active":
-            systemctl("start", LEGACY)
-        wait_socket()
-        legacy_daemon("active", "enabled")
+        legacy_daemon("active", "enabled", legacy_pid)
         if app_props()["ActiveState"] != "active":
             systemctl("start", APP)
         supervision(True, "active")
-
-    def wait_socket():
-        deadline = time.monotonic() + 15
-        while not LEGACY_SOCKET.is_socket() and time.monotonic() < deadline:
-            time.sleep(1)
 
     progress("PRECHECK")
     need(store._existing_root(), "transaction_root_missing")
     with store.lock():
         prepare_hash = transaction_snapshot()
         drop = supervision(True, "active")
-        legacy_daemon("active", "enabled")
+        legacy_pid = legacy_daemon("active", "enabled")
         checked_file(OVERLAY, OVERLAY_HASH)
         parent = drop.parent.lstat()
         need(stat.S_ISDIR(parent.st_mode) and parent.st_uid == 0 and not parent.st_mode & 0o022
@@ -315,19 +327,14 @@ def run():
             sync_parent(drop)
             systemctl("daemon-reload")
             supervision(False, "inactive")
-            systemctl("stop", LEGACY)
-            systemctl("disable", LEGACY)
-            legacy_daemon("inactive", "disabled")
+            legacy_daemon("active", "enabled", legacy_pid)
             progress("START_STANDARD_APPLICATION")
             new_start_attempted = True
             systemctl("start", APP)
             progress("VERIFY_STANDARD_APPLICATION")
             report.update(wait_healthy(False, before, expected_mounts, prepare_hash))
             supervision(False, "active")
-            legacy_daemon("inactive", "disabled")
-            report.update(status="R7_LEGACY_CUTOVER_PASS", broker_unchanged=True,
-                          application_data_mounts_preserved=True, transactions_unchanged=True)
-            return 0, report
+            legacy_daemon("active", "enabled", legacy_pid)
         except (Exception, KeyboardInterrupt) as error:
             report["error_code"] = error_code(error)
             progress("ROLLBACK")
@@ -335,8 +342,9 @@ def run():
                 signal.signal(signal.SIGINT, signal.SIG_IGN)
                 signal.signal(signal.SIGTERM, signal.SIG_IGN)
                 signal.signal(signal.SIGHUP, signal.SIG_IGN)
-                restore(drop, backup, new_start_attempted)
+                restore(drop, backup, new_start_attempted, legacy_pid)
                 report.update(wait_healthy(True, before, expected_mounts, prepare_hash))
+                legacy_daemon("active", "enabled", legacy_pid)
                 report.update(status="R7_LEGACY_CUTOVER_ROLLED_BACK", broker_unchanged=True,
                               application_data_mounts_preserved=True, transactions_unchanged=True)
                 return 3, report
@@ -344,6 +352,28 @@ def run():
                 report.update(status="R7_LEGACY_CUTOVER_ROLLBACK_INCOMPLETE",
                               rollback_error=error_code(rollback_error))
                 return 4, report
+
+        # After proving the standard stack, retire the old service. If a stop
+        # result is ambiguous, keep the verified standard scope in service
+        # instead of allowing systemd to restart the fault acceptance daemon.
+        try:
+            progress("RETIRE_LEGACY_DAEMON")
+            systemctl("disable", LEGACY)
+            legacy_daemon("active", "disabled", legacy_pid)
+            need(not legacy_props()["RequiredBy"], "legacy_daemon_still_required")
+            systemctl("stop", LEGACY)
+            legacy_daemon("inactive", "disabled")
+            supervision(False, "active")
+            need(host._runtime("broker") == before["broker"], "broker_identity_changed")
+            need(transaction_snapshot() == prepare_hash, "legacy_prepare_state_changed")
+        except (Exception, KeyboardInterrupt) as error:
+            report.update(status="R7_LEGACY_CUTOVER_FINALIZATION_PENDING",
+                          error_code=error_code(error), standard_application_verified=True)
+            return 5, report
+
+        report.update(status="R7_LEGACY_CUTOVER_PASS", broker_unchanged=True,
+                      application_data_mounts_preserved=True, transactions_unchanged=True)
+        return 0, report
 
 
 def main():
