@@ -65,6 +65,12 @@ from n3w_t1_portable_image_identity import PortableImageIdentity
 
 
 class HaPublishedRollbackRuntime(Protocol):
+    def capture_rollback_target(self, document: dict[str, Any]) -> str | None:
+        ...
+
+    def release_rollback_target(self, document: dict[str, Any]) -> None:
+        ...
+
     def quiesce_for_data_restore(self, document: dict[str, Any]) -> None:
         ...
 
@@ -148,6 +154,12 @@ class HaPredecessorHealth(Protocol):
 
 
 class HaDataRestoreProvider(Protocol):
+    def verify_rollback_materials(self, *, data_restore: bool) -> None:
+        ...
+
+    def require_rollback_space(self, *, include_workspace: bool) -> None:
+        ...
+
     def restore_preupgrade_data(self) -> None:
         ...
 
@@ -172,6 +184,13 @@ class HaInternalSpace:
     available_bytes: int
     install_required_bytes: int
     recovery_required_bytes: int
+    recovery_workspace_bytes: int | None = None
+
+    @property
+    def required_bytes(self) -> int:
+        if self.recovery_workspace_bytes is None:
+            return self.install_required_bytes + self.recovery_required_bytes
+        return max(self.install_required_bytes, self.recovery_required_bytes)
 
 
 @dataclass(frozen=True, slots=True)
@@ -679,6 +698,9 @@ def _reconcile_predecessor_release(
 
     runtime.verify_untouched_release_launch(current)
     if original_media is not None:
+        if released:
+            current = _release_failed_target(store, runtime, current, original_media, data_restore=False)
+
         def record_reload_intent(identity: PortableImageIdentity) -> None:
             nonlocal current
             current = _record_image_load(store, current, "predecessor_reload_identity", identity)
@@ -759,6 +781,7 @@ def _resume_ha_data_rollback(
     if not current["recovery_required"]:
         current = {**current, "recovery_required": True}
         store.write(current)
+    current = _release_failed_target(store, runtime, current, image_provider, data_restore=True)
     if current.get("ha_data_restore", {}).get("step") != "PUBLISHED":
         runtime.quiesce_for_data_restore(current)
         restore_provider(current).restore_preupgrade_data()
@@ -787,6 +810,33 @@ def _resume_ha_data_rollback(
     runtime.verify_published_predecessor_health(current)
     store.write(transition(current, U13B))
     return True
+
+
+def _release_failed_target(
+    store: HaUsbStateStore,
+    runtime: HaPublishedRollbackRuntime,
+    document: dict[str, Any],
+    original_media: Callable[[dict[str, Any]], HaDataRestoreProvider],
+    *, data_restore: bool,
+) -> dict[str, Any]:
+    admission = document.get("predecessor_release_admission", {})
+    if "recovery_workspace_bytes" not in admission or document.get("target_release_step") == "RELEASED":
+        return document
+    runtime.quiesce_for_data_restore(document)
+    provider = original_media(document)
+    provider.verify_rollback_materials(data_restore=data_restore)
+    if document.get("target_release_step") != "INTENT":
+        document = {
+            **document,
+            "target_release_step": "INTENT",
+            "target_release_image_id": runtime.capture_rollback_target(document),
+        }
+        store.write(document)
+    runtime.release_rollback_target(document)
+    provider.require_rollback_space(include_workspace=data_restore)
+    document = {**document, "target_release_step": "RELEASED"}
+    store.write(document)
+    return document
 
 
 def _finish_pre_cutover_recovery(store: HaUsbStateStore, document: dict[str, Any]) -> None:
@@ -1129,13 +1179,17 @@ def claim_live_authorization(
     if current.get("usb_binding_mode") == "existing_filesystem":
         if internal_space is None:
             raise UpdaterV2Error("ha_usb_predecessor_release_admission_missing")
-        if internal_space.available_bytes < internal_space.install_required_bytes + internal_space.recovery_required_bytes:
+        if internal_space.available_bytes < internal_space.required_bytes:
             raise UpdaterV2Error("ha_usb_predecessor_release_recovery_reserve_insufficient")
         release_admission["predecessor_release_admission"] = {
             "internal_available_bytes": internal_space.available_bytes,
             "install_required_bytes": internal_space.install_required_bytes,
             "recovery_required_bytes": internal_space.recovery_required_bytes,
         }
+        if internal_space.recovery_workspace_bytes is not None:
+            release_admission["predecessor_release_admission"][
+                "recovery_workspace_bytes"
+            ] = internal_space.recovery_workspace_bytes
         if release_intent is not None:
             if "target_acceptance" not in current:
                 raise UpdaterV2Error("ha_usb_predecessor_acceptance_baseline_unavailable")

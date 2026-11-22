@@ -555,13 +555,14 @@ class HaMountedInstallMaterialVerifier:
             available_bytes=internal.f_bavail * internal.f_frsize,
             install_required_bytes=max(budget.internal_install_bytes, target_bytes),
             recovery_required_bytes=predecessor_bytes + workspace + budget.internal_recovery_overhead_bytes,
+            recovery_workspace_bytes=workspace,
         )
         usable = (usb.f_blocks - usb.f_bfree + usb.f_bavail) * usb.f_frsize
         required = max(values[:2])
         floor = USB_MEASURED_USABLE_CAPACITY_MIN_BYTES
         space_ok = (
             (usb.f_bavail * usb.f_frsize) >= required
-            and space.available_bytes >= space.install_required_bytes + space.recovery_required_bytes
+            and space.available_bytes >= space.required_bytes
         )
         return UsbCapacityReport(
             measured_usable_bytes=usable,
@@ -673,6 +674,33 @@ class HaMountedBackupProvider:
         with self._backup_directory(current) as directory:
             return self.backup.verify(directory, current["transaction_id_sha256"], record)
 
+    def verify_rollback_materials(self, *, data_restore: bool) -> None:
+        current = self._document()
+        self._require_restore_quiesced()
+        _, predecessor = prepared_image_materials(current)
+        with _open_transaction_directory(
+            self.mountpoint, self.internal_storage, current, allow_read_only=True,
+        ) as (_, directory):
+            _verify_archive(directory, "predecessor.tar", predecessor)
+        if data_restore:
+            record = backup_record_from_document(current["install_recovery_materials"]["backup"])
+            if self.verify_backup(record) != record:
+                raise UpdaterV2Error("ha_usb_rollback_data_backup_identity_drift")
+        if self._document() != current:
+            raise UpdaterV2Error("ha_usb_rollback_material_transaction_changed")
+
+    def require_rollback_space(self, *, include_workspace: bool) -> None:
+        admission = self._document()["predecessor_release_admission"]
+        required = admission["recovery_required_bytes"]
+        if not include_workspace:
+            required -= admission["recovery_workspace_bytes"]
+        self._require_internal_space(required, "ha_usb_rollback_space_insufficient")
+
+    def _require_internal_space(self, required: int, reason: str) -> None:
+        storage = os.statvfs(self.internal_storage)
+        if storage.f_bavail * storage.f_frsize < required:
+            raise UpdaterV2Error(reason)
+
     def load_predecessor_image(
         self, load: Callable[[BinaryIO, PortableImageIdentity], None],
     ) -> PortableImageIdentity:
@@ -714,18 +742,22 @@ class HaMountedBackupProvider:
             if self._document() != current:
                 raise UpdaterV2Error(f"ha_usb_{record.kind}_image_load_transaction_changed")
             self._require_restore_quiesced()
+            admission = current.get("predecessor_release_admission", {})
+            single_image = "recovery_workspace_bytes" in admission
             if record.kind == "target":
-                admission = current["predecessor_release_admission"]
-                required = max(unpacked, admission["install_required_bytes"]) + admission["recovery_required_bytes"]
-                storage = os.statvfs(self.internal_storage)
-                if storage.f_bavail * storage.f_frsize < required:
-                    raise UpdaterV2Error("ha_usb_target_image_recovery_space_insufficient")
+                install = max(unpacked, admission["install_required_bytes"])
+                recovery = admission["recovery_required_bytes"]
+                required = max(install, recovery) if single_image else install + recovery
+                self._require_internal_space(required, "ha_usb_target_image_recovery_space_insufficient")
+            elif single_image:
+                if current.get("target_release_step") != "RELEASED":
+                    raise UpdaterV2Error("ha_usb_rollback_target_release_not_observed")
+                required = admission["recovery_required_bytes"] - admission["recovery_workspace_bytes"]
+                self._require_internal_space(max(unpacked, required), "ha_usb_rollback_space_insufficient")
             with io.BufferedReader(_AuthenticatedArchiveReader(fd, record.archive_size_bytes, blocks)) as source:
                 load(source, identity)
-            if record.kind == "target":
-                storage = os.statvfs(self.internal_storage)
-                if storage.f_bavail * storage.f_frsize < admission["recovery_required_bytes"]:
-                    raise UpdaterV2Error("ha_usb_target_image_recovery_reserve_lost")
+            if record.kind == "target" and not single_image:
+                self._require_internal_space(admission["recovery_required_bytes"], "ha_usb_target_image_recovery_reserve_lost")
         return identity
 
     @contextmanager

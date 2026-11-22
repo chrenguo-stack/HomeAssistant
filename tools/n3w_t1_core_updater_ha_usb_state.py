@@ -511,17 +511,22 @@ def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
         raise UpdaterV2Error("ha_usb_failed_emergency_without_recovery")
     if "ha_data_restore" in document:
         _validate_data_restore(document)
+    single_image = False
     if "predecessor_release_admission" in document:
         admission = document["predecessor_release_admission"]
         fields = {"internal_available_bytes", "install_required_bytes", "recovery_required_bytes"}
         reason = "ha_usb_predecessor_release_admission_invalid"
         if (
             not _phase_at_or_after(phase, U9) or document.get("usb_binding_mode") != "existing_filesystem"
-            or not isinstance(admission, dict) or set(admission) != fields
+            or not isinstance(admission, dict)
+            or set(admission) not in (fields, fields | {"recovery_workspace_bytes"})
         ):
             raise UpdaterV2Error(reason)
         available = _positive_int(admission["internal_available_bytes"], reason)
         if any(available < _positive_int(admission[key], reason) for key in fields - {"internal_available_bytes"}):
+            raise UpdaterV2Error(reason)
+        single_image = "recovery_workspace_bytes" in admission
+        if single_image and _positive_int(admission["recovery_workspace_bytes"], reason) >= admission["recovery_required_bytes"]:
             raise UpdaterV2Error(reason)
     if "predecessor_release_intent" in document:
         intent = document["predecessor_release_intent"]
@@ -555,6 +560,28 @@ def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
         loaded = document["target_loaded_image_id"]
         if "target_load_identity" not in document or not isinstance(loaded, str) or IMAGE_ID.fullmatch(loaded) is None:
             raise UpdaterV2Error("ha_usb_target_loaded_image_invalid")
+    target_release = document.get("target_release_step")
+    release_image_id = document.get("target_release_image_id")
+    if ("target_release_image_id" in document) != ("target_release_step" in document) or (
+        release_image_id is not None and (
+            not isinstance(release_image_id, str) or IMAGE_ID.fullmatch(release_image_id) is None
+            or "target_load_identity" not in document
+            or document.get("target_loaded_image_id", release_image_id) != release_image_id
+        )
+    ):
+        raise UpdaterV2Error("ha_usb_rollback_target_release_identity_invalid")
+    if "target_release_step" in document and (
+        not single_image or target_release not in ("INTENT", "RELEASED")
+        or document.get("predecessor_release_observed") is not True
+        or (phase == U13B and target_release != "RELEASED")
+        or (phase != U13B and (phase not in HA_DATA_RESTORE_PHASES or not recovery_required))
+    ):
+        raise UpdaterV2Error("ha_usb_rollback_target_release_invalid")
+    if single_image and target_release != "RELEASED" and (
+        "predecessor_reload_identity" in document or "ha_data_restore" in document
+        or (phase == U13B and document.get("predecessor_release_observed") is True)
+    ):
+        raise UpdaterV2Error("ha_usb_rollback_target_release_not_observed")
     if "target_activation" in document:
         activation = document["target_activation"]
         if (
@@ -672,6 +699,8 @@ def transition(
                 "target_load_identity",
                 "target_loaded_image_id",
                 "target_activation",
+                "target_release_step",
+                "target_release_image_id",
                 "predecessor_reload_identity",
             }:
                 raise UpdaterV2Error("ha_usb_immutable_field_update_forbidden")
