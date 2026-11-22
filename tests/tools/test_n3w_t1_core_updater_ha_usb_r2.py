@@ -1146,6 +1146,7 @@ def _exercise_target_import(tmp_path, monkeypatch, capsys, fault, *, single_imag
         assert store.read()["phase"] == U4 and exports == [CURRENT]
         assert (directory / "target.tar").read_bytes() == candidate_data
         assert (directory / "predecessor.tar").read_bytes() == old_path.read_bytes()
+        assert target_path.read_bytes() == candidate_data
         assert customer_file.read_bytes() == b"keep this file"
         assert not loads and runtime.starts == runtime.rewrites == 0
         assert recovery_startup.cli(["--resume-pending"]) == 0
