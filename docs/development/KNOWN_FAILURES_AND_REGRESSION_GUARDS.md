@@ -21,6 +21,12 @@
 - 复跑 R7 已越过原初始化单元阻断。后续正式运行基线停在 `services_supervision_contract_drift`。HA HTTP 返回预期的 401，Manager 和 HA 的 MQTT 认证正常，Stack `COMMITTED` 和 HA USB `ROLLED_BACK` 事务在观察期间保持一致。HA 恢复包与 USB 挂载资格尚待验证。
 - 源码中的标准服务与 Clean Reference 服务使用相同的 `ExecStart` 和 `ExecStop`。Clean Reference 的额外 `ExecStartPre` 不参与当前拒绝条件。需读取实机主单元和覆盖文件的摘要及生效启动与停止命令，再定位不匹配来源。
 
+**服务监督阻断的现场归因**
+
+- 主单元 SHA-256 `9f7fecb6135284ceb2c9a293ed791509e6820e16a916b17b0d346334073de1d8` 与 Clean Reference 源码一致。磁盘与已加载命令均显示覆盖文件以空指令清除原启动和停止命令，并用包含第二份 Compose 文件的命令替换。无待重载状态，无 `--force-recreate`。
+- `95-n3w-ha-ota.conf` 的 SHA-256 `cee2d95971a1d91adeec4f7974d0bac1f4b7eab379168e91459d3d07641f1800` 与 PR #807 的 `7811b6bc2fc3` 覆盖源完全一致。它加载旧 `docker-compose.ha-ota.yml`，为 Manager 提供旧 OTA IPC 配置和挂载，还令应用服务依赖 `n3w-t1-ha-ota.service`。旧后台服务停止可能连带停止应用单元，已在 KF-152 现场证实。 [覆盖源](https://github.com/chrenguo-stack/HomeAssistant/blob/7811b6bc2fc3cdc5b1cecb45549cb81b6d80784c/infra/n3w-t1/systemd/n3wfc4-services-activation.ha-ota.conf) · [依赖链证据](https://github.com/chrenguo-stack/HomeAssistant/pull/807#issuecomment-6845620794)
+- 旧测试环境的精确配置触发了新候选的标准启停合同。下一步先只读确认旧后台服务状态、Compose 覆盖摘要及 Manager 上的绑定。R7 安装准入仍阻断。历史覆盖、服务和事务未改动。
+
 ### 2026-11-05 KF-142 — P5 host-side ad-hoc SSH reuse causes repeated authentication and pre-claim staging STOP
 
 | ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
