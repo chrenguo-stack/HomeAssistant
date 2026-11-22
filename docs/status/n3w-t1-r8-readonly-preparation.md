@@ -233,3 +233,16 @@ Docker 汇总报告 5 个镜像、3 个活跃，显示 `5.536GB` 可回收。该
 | 上一行再按无层复用估算装入前代 HA 与候选 Manager，原镜像还在盘上 | 2615179776 | −2280360448 |
 
 下限还未包括 HA 恢复工作区、恢复附加预算及可能高于目标展开层的安装预算。共享层、导入暂存与原镜像退出测试运行后的实际可回收量会改变装入后余量。归档候选合计不足以证明 R8 准入；应在文件核对、经批准的迁出和容量实测后，按冻结候选公式复核。此次仅作估算，实际未迁出或释放文件。
+
+### V1.0 同版本实机容量对照
+
+[Core Stack V1.0 第 12–13 节](https://github.com/chrenguo-stack/HomeAssistant/blob/09722741020004ba9b89c93fbe8ab33d150faed7/docs/development/N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.0_20261106.md#L321-L366) 要求涉及 HA 镜像更新时使用 USB。在前代仍运行时准备目标包，USB 保存前代恢复镜像与升级前数据。U13A 实机路线在恢复材料校验通过后，由 R38/U10 释放精确的已停 HA 容器及其前代镜像，Broker 不释放。R39 再核内置盘导入预算，之后读得目标已装入时的内置盘余量。 [R38 实机回执](https://github.com/chrenguo-stack/HomeAssistant/commit/d2bc4fcd1bd9d6466f403b3f4155872ac2bac230)
+
+| 实测阶段 | 容量 |
+| --- | --- |
+| 2026-11-05 早期内置盘基线 | 总 `14453903360` 字节，已用 `8651415552`，可用 `5785710592`。[基线](https://github.com/chrenguo-stack/HomeAssistant/blob/38cf7df4c38d1c6260a562b8d8f6ddadfeff5c37/docs/development/N3W_T1_CORE_UPDATER_HOMEASSISTANT_STORAGE_POLICY_REVIEW_CLOSURE_20261105.md#L33-L65) |
+| 2026-11-16 U13A U10 完成后的 R39 | 内置盘可用 `10887344128` 字节。门槛 `4950401057` 由目标导入预算 `3339788321` 与余量 `1610612736` 构成。[实机回执](https://github.com/chrenguo-stack/HomeAssistant/pull/807#issuecomment-6907345808) · [预算清单](https://github.com/chrenguo-stack/HomeAssistant/blob/d81c6de0a25fd9d4ae662f55e8cffc5c4a7036c4/tools/execution_packages/n3w/r7a/u11_target_install_readonly_preflight_r39/manifest.json#L124-L131) |
+| 同日目标装入后的 R41 | 内置盘可用 `5665595392` 字节。相对 R39 的差为 `5221748736` 字节，属于前后快照差，不能据此归因到单个镜像或推断整个过程的峰值。[实机回执](https://github.com/chrenguo-stack/HomeAssistant/pull/807#issuecomment-6918937368) |
+| 同笔 U13A 的 USB | 目标包 `835309535`、前代包 `743074537`、加密数据备份 `2178281` 字节，三笔材料合计 `1580562353` 字节（不含目录和元数据），当时盘上实测可用 `28132077568` 字节。[USB 回执](https://github.com/chrenguo-stack/HomeAssistant/pull/807#issuecomment-6906029215) · [加密备份](https://github.com/chrenguo-stack/HomeAssistant/commit/51186e69b1885a9f1b98c4713558c41767e19d79) |
+
+早期基线与 U10 释放前不是同一时点，未从这两项证据推算旧镜像释放字节。R8 当前冻结候选在释放前代前就核验目标导入与整个前代恢复预算之和，导入前还会重核。V1.0 实机余量和准入时点不用于本次放行；本次仅作历史对照。
