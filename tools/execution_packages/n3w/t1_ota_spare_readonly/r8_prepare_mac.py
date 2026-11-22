@@ -16,8 +16,11 @@ OBSERVER_PATH = "tools/execution_packages/n3w/t1_ota_spare_readonly/observe.py"
 OBSERVER_SHA256 = "e9f9a5740dd9482a441fc962923ffb24f7eea46072f3daec2357147caaa68110"
 RECOVERY = (14715501376, "078500292fba59c2acd187ca3613258a7c6d1c6594113d925e98352d4bc9b055")
 FACTORY = (13070404405, "99eae7602eb2f8318bb7c0fff29d71fa61471071902b854a90666d4beb931b93")
+CANDIDATE_HEAD = "741a1463e7de065401749e47e59d30b295d5d6e8"
+CANDIDATE = (14716899788, "1d4f857de78e5967ff94978411b813c8b7af0391d56e52ff3407ab480f0ae277")
 TARGET = (13391983948, "df95749cec1e48796d2cf3241d19739601fe7be78c48638284d10eec786e4fd2")
 TARGET_ARCHIVE_SHA256 = "eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973"
+PREDECESSOR_IMAGE_ID = "sha256:c261fa53f30508951833492ba2a19af6cfbb6aa8f2806b531d8f5c6599265306"
 
 USB_OBSERVATION = r'''
 import hashlib
@@ -111,19 +114,31 @@ def observe(ssh):
     ], input=USB_OBSERVATION, text=True, check=True)
 
 
-def verify_images(directory):
+def verify_bundled_image(archive, image, member_name, expected_ref):
+    check(image["image"] == expected_ref and image["platform"] == "linux/arm64",
+          f"{member_name} image identity mismatch")
+    member = archive.getinfo(member_name)
+    with archive.open(member) as content:
+        check(member.file_size == image["tar_size_bytes"] and sha256(content) == image["tar_sha256"],
+              f"{member_name} archive mismatch")
+
+
+def verify_images(directory, candidate_bundle=False):
     directory.mkdir(parents=True, exist_ok=True)
-    with get_zip(FACTORY, directory) as factory:
+    bundle = CANDIDATE if candidate_bundle else FACTORY
+    expected_source = CANDIDATE_HEAD if candidate_bundle else "24382caae4a1f5d459297f86e8d18f10a848ca64"
+    with get_zip(bundle, directory) as factory:
         binding = json.loads(factory.read("binding.json"))
+        check(binding["source_head"] == expected_source, "three-image bundle source mismatch")
         image = binding["homeassistant"]
-        check(binding["source_head"] == "24382caae4a1f5d459297f86e8d18f10a848ca64", "factory source mismatch")
-        check(image["image"] == "local/n3w-homeassistant:2026.10.0-0c73235a"
-              and image["platform"] == "linux/arm64", "factory HA identity mismatch")
-        member = factory.getinfo("homeassistant-arm64.tar")
-        with factory.open(member) as content:
-            check(member.file_size == image["tar_size_bytes"] and sha256(content) == image["tar_sha256"],
-                  "factory HA archive mismatch")
-        print(json.dumps({"artifact_id": FACTORY[0], "factory_ha_archive_verified": True, "image": image}), flush=True)
+        check(image["image_id"] == PREDECESSOR_IMAGE_ID, "frozen predecessor HA image ID mismatch")
+        verify_bundled_image(factory, image, "homeassistant-arm64.tar", "local/n3w-homeassistant:2026.10.0-0c73235a")
+        print(json.dumps({"artifact_id": bundle[0], "factory_ha_archive_verified": True, "image": image}), flush=True)
+        if candidate_bundle:
+            manager = binding["manager"]
+            verify_bundled_image(factory, manager, "greenhouse-manager-arm64.tar",
+                                 f"local/greenhouse-manager:fresh-{CANDIDATE_HEAD[:12]}")
+            print(json.dumps({"artifact_id": bundle[0], "manager_archive_verified": True, "image": manager}), flush=True)
     with get_zip(TARGET, directory) as target:
         identity = json.loads(target.read("portable-image-identity.json"))
         binding = json.loads(target.read("upstream-binding.json"))
@@ -144,14 +159,18 @@ def main():
     actions = parser.add_mutually_exclusive_group(required=True)
     actions.add_argument("--ssh", metavar="VERIFIED_SPARE_T1_ALIAS")
     actions.add_argument("--verify-images", type=Path, metavar="MAC_DOWNLOAD_DIRECTORY")
+    parser.add_argument("--candidate-bundle", action="store_true",
+                        help="verify the compatible Manager and predecessor HA from the same ARM64 artifact")
     args = parser.parse_args()
+    if args.candidate_bundle and args.verify_images is None:
+        parser.error("--candidate-bundle requires --verify-images")
     if args.ssh is not None and not args.ssh.strip():
         parser.error("--ssh requires a non-empty spare T1 target")
     try:
         if args.ssh is not None:
             observe(args.ssh)
         else:
-            verify_images(args.verify_images)
+            verify_images(args.verify_images, candidate_bundle=args.candidate_bundle)
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         parser.exit(1, f"R8 preparation stopped: {error}\n")
 
