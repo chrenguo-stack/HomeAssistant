@@ -130,7 +130,7 @@ fi
 | 离机副本 | `R8_MAC_ENCRYPTED_COPY_VERIFIED=true`，私人备份目录只留在操作端 |
 | 原环境服务恢复 | `original_stack_healthy=true`，HA HTTP 401，HA 与 Manager 的 MQTT 认证均通过 |
 | Broker 连续性与 OTA 事务 | `broker_same_instance=true`，`transactions_unchanged=true` |
-| 自然业务收数 | `NO_FRESH_CURSOR_OBSERVED`，本次观察未取得新游标，仍需补证 |
+| 自然业务收数 | `NO_FRESH_CURSOR_OBSERVED`。操作者确认观察期间没有节点连接，现象符合预期 |
 
 这份数据恢复点用于同一备用机的现存密钥。回执证明当前环境的数据保护和服务恢复，尚未覆盖真实升级、OTA 回滚或断电续办。切入 `2026.10.0` 独立测试环境之前，先保全当前 HA 与 Manager 的镜像，并验证导出归档的可携带镜像身份。此前下载的 R8 镜像仍作为测试输入。
 
@@ -149,7 +149,7 @@ fi
 | HA `2026.10.4-5881590f` | `sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365` | `2447090176` 字节，SHA-256 `6502b8cdbf706d746e32311fdaa39ffc5ca703d76f766806bbb21d3c71278d1f`，`portable_identity_verified=true` |
 | Manager `fresh-44e7d7472714` | `sha256:1471828ab07cf9b71c01a6e78994711a5954f0a178b8be087a28bb65a967c7d2` | `62957568` 字节，SHA-256 `4c1dbbc999aa678057da96da1d8161907ce9e8c25ef004e88c7fb725ac3db9fe`，`portable_identity_verified=true` |
 
-本次观察返回 `R8_MANAGER_RECEIVE=NO_FRESH_CURSOR_OBSERVED`。观察窗口内未取得新的 Manager 游标，只有自然收数证据仍待补。该结果不影响镜像校验结论，也不据此判定业务故障。HA 的 SHA-256 对应从备用机运行镜像导出的原环境回退归档，正式 OTA 目标仍使用工件 13391983948 的冻结归档。
+本次观察返回 `R8_MANAGER_RECEIVE=NO_FRESH_CURSOR_OBSERVED`。操作者确认观察期间没有测试节点连接备用 T1，因此原环境这一轮未看到新游标符合预期，镜像校验通过。R8 测试环境仍须取得受控收数和历史样本，供升级及回滚验收使用。HA 的 SHA-256 对应从备用机运行镜像导出的原环境回退归档，正式 OTA 目标仍使用工件 13391983948 的冻结归档。
 
 ### 建立前代基线和返回原环境的顺序
 
@@ -161,3 +161,10 @@ fi
 4. **准备前代失败或 R8 结束时回到原环境。** 未启动正式 OTA 时按切换恢复标记停止测试应用、回接原目录和启动配置。正式 OTA 开始后先通过产品恢复路径处理该事务，取得稳定终态后再恢复原环境。使用本地保留的原镜像或 Mac 上已核验的两份归档恢复原启动引用。原目录不可用时，将加密副本认证解密到隔离暂存区，核验权限、配置和 SQLite 后再恢复。恢复启动后核对标准单元、实际 HA 与 Manager 身份、HTTP、MQTT、历史样本及当时可用的收数证据。核对连续运行阶段的 Broker 实例和事务稳定性。
 5. **授权边界。** 之前的授权覆盖原环境数据备份和恢复。前代环境切换、V1.2 恢复组件部署、USB 写入、正式 OTA 或断电均需对应实机授权。USB 已见 ext4 分区，实际可用空间和独占访问资格待核。
 
+## 切换和回退容量取证
+
+PR #815 仍为草稿，候选 `741a1463e7de065401749e47e59d30b295d5d6e8` 与原记录一致，base SHA `4fde1b7c5cc0aa224fa3574b8b4cc638edd93647`。使用 [固定取证脚本](https://github.com/chrenguo-stack/HomeAssistant/blob/9984b567eca3e72d0640c490fe8307f4098d90c3/tools/execution_packages/n3w/t1_ota_spare_readonly/r8_space_evidence.py)，SHA-256 `ba9b81a4b9787e498c9ed4e2c0085f0c46cfdeb0963cd51d4921f7c669ebce85`。
+
+- T1 端绑定既有备份回执和三项运行镜像，只读取文件系统可用空间、候选镜像标签是否已存在，以及 USB 介质和挂载状态。已绑定的 ext4 分区在未发现挂载且超级块显示干净时读出扣除保留块的估算余量。最终以正式预检的实测容量为准。
+- Mac 端复用原有两个 ZIP 缓存，只读出三个已固定摘要的成员。临时文件一次保留一件，用原候选恢复包中的解析器校验并测量镜像层展开字节数。结合 T1 实测用于比较切换、回退与 [OTA 容量计算](https://github.com/chrenguo-stack/HomeAssistant/blob/741a1463e7de065401749e47e59d30b295d5d6e8/tools/n3w_t1_core_updater_ha_mounted_media.py#L534-L571)。镜像层展开值和 Docker 实际峰值空间有差别，需结合存储驱动、镜像共用层与临时写入预算。
+- 本地编译与离线样例通过，覆盖普通及 gzip 镜像包、摘要不符、干净 ext4 估算、待回放日志、介质身份变化和其他命名空间挂载。尚待操作人运行并返回 `R8_T1_STORAGE`、三个 `R8_IMAGE_SPACE` 和最终取证标记。本脚本不在 T1 写入文件、不装载镜像、不停服、不挂载 U 盘。实机切换、镜像标签变更及 OTA 各按相应授权执行。
