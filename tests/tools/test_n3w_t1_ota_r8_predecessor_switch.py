@@ -83,7 +83,7 @@ class FakeBackend:
             filesystem_id=100,
             original_data_inode=200,
             staged_data_inode=300,
-            preserved_path="/var/lib/.n3w-r8-preserved-test",
+            preserved_path="/var/lib/.n3w-r8-preserved-10.4-test",
         )
 
     def exchange_data_root(self, grant, txid, backup):
@@ -288,7 +288,7 @@ def test_state_journal_contains_data_exchange_identities():
     assert backup["filesystem_id"] == 100
     assert backup["original_data_inode"] == 200
     assert backup["staged_data_inode"] == 300
-    assert backup["preserved_path"] == "/var/lib/.n3w-r8-preserved-test"
+    assert backup["preserved_path"] == "/var/lib/.n3w-r8-preserved-10.4-test"
 
 
 def test_remote_backend_uses_fresh_backup_isolated_restore_and_direct_stream():
