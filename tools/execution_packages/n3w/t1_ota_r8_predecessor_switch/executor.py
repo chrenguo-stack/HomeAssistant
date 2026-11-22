@@ -32,7 +32,7 @@ class BackupEvidence:
     archive_sha256: str
     archive_size_bytes: int
     manifest_sha256: str
-    staged_data_sha256: str
+    staged_manifest_sha256: str
     filesystem_id: int
     original_data_inode: int
     staged_data_inode: int
@@ -122,7 +122,7 @@ def _state(
             "archive_sha256": backup.archive_sha256,
             "archive_size_bytes": backup.archive_size_bytes,
             "manifest_sha256": backup.manifest_sha256,
-            "staged_data_sha256": backup.staged_data_sha256,
+            "staged_manifest_sha256": backup.staged_manifest_sha256,
             "filesystem_id": backup.filesystem_id,
             "original_data_inode": backup.original_data_inode,
             "staged_data_inode": backup.staged_data_inode,
