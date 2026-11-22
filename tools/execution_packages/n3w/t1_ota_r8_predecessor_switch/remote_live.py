@@ -378,7 +378,7 @@ def remove_exact_stopped_ha_container(image_ref: str, image_id: str) -> None:
                 raise LiveError("ha_container_not_stopped")
             matching.append(container_id)
     users = container_ids_by_ancestor(image_id)
-    if users != matching:
+    if sorted(users) != sorted(matching):
         raise LiveError("ha_image_has_other_container_users")
     if len(matching) > 1:
         raise LiveError("ha_container_ambiguous")
@@ -426,6 +426,7 @@ def stream_docker_load(expected_size: int, expected_sha256: str) -> None:
             total += len(block)
             process.stdin.write(block)
         process.stdin.close()
+        process.stdin = None
         stdout, stderr = process.communicate(timeout=1800)
     except BaseException:
         if process.poll() is None:
@@ -493,11 +494,8 @@ class LocalSwitchBackend:
         if time.time() >= grant.expires_at_unix:
             raise LiveError("switch_grant_expired")
         existing = read_state()
-        if existing is not None and existing.get("phase") not in {
-            contract.PHASE_ROLLED_BACK,
-            contract.PHASE_PREDECESSOR_HEALTHY,
-        }:
-            raise LiveError("switch_transaction_recovery_required")
+        if existing is not None:
+            raise LiveError("switch_transaction_state_already_exists")
         self.baseline = self._current_health()
         current = p3_transaction()
         verify_usb_binding(current)
@@ -527,10 +525,6 @@ class LocalSwitchBackend:
         verify_current_archive_against_runtime(self.host)
 
     def _fresh_backup_directory(self, txid: str) -> Path:
-        root = USB_MOUNT / R8_USB_ROOT
-        current = root
-        for name in R8_USB_ROOT.parts:
-            pass
         # mkdir one level at a time and never replace existing content.
         current = USB_MOUNT
         for name in R8_USB_ROOT.parts:
@@ -889,6 +883,14 @@ def main() -> int:
         raise LiveError("switch_grant_required")
     if args.grant.is_symlink() or not args.grant.is_file():
         raise LiveError("switch_grant_invalid")
+    grant_info = args.grant.stat()
+    if (
+        grant_info.st_uid != os.geteuid()
+        or stat.S_IMODE(grant_info.st_mode) != 0o600
+        or grant_info.st_size <= 0
+        or grant_info.st_size > 16 * 1024
+    ):
+        raise LiveError("switch_grant_metadata_invalid")
     raw = json.loads(args.grant.read_text(encoding="utf-8"))
     grant = contract.SwitchGrant.from_document(raw)
     backend = LocalSwitchBackend(
