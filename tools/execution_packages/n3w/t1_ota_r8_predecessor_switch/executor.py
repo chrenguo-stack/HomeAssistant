@@ -111,6 +111,13 @@ def _state(
         "predecessor_image": grant.predecessor_image,
         "predecessor_image_id": grant.predecessor_image_id,
         "rollback_transaction_sha256": grant.rollback_transaction_sha256,
+        "rollback_archive_sha256": grant.rollback_archive_sha256,
+        "rollback_archive_size": grant.rollback_archive_size,
+        "usb_device": grant.usb_device,
+        "usb_major_minor": grant.usb_major_minor,
+        "predecessor_archive_sha256": grant.predecessor_archive_sha256,
+        "predecessor_archive_size": grant.predecessor_archive_size,
+        "predecessor_import_worst_case_bytes": grant.predecessor_import_worst_case_bytes,
         "backup": None if backup is None else {
             "archive_sha256": backup.archive_sha256,
             "archive_size_bytes": backup.archive_size_bytes,
