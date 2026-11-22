@@ -156,3 +156,59 @@ Source repair:
 
 ATTEMPT02_REQUIRED=true
 LIVE_WRITE_AUTHORIZATION=NONE
+
+
+## Isolated bound-USB verification Attempt 02
+
+ATTEMPT=02
+RESULT=STOP_READONLY_HISTORICAL_FIELD_MAPPING
+T1_MUTATION=false
+SERVICE_MUTATION=false
+DOCKER_MUTATION=false
+USB_WRITE=false
+USB_FORMAT=false
+HOST_NAMESPACE_USB_MOUNT_BEFORE=false
+HOST_NAMESPACE_USB_MOUNT_AFTER=false
+HOST_USB_MOUNT_STATE=UNCHANGED_UNMOUNTED
+ISOLATED_NAMESPACE_USB_MOUNT=true
+ISOLATED_MOUNT_OPTIONS=ro,nosuid,nodev,noexec,relatime,norecovery
+EXT4_JOURNAL_REPLAY=false
+
+Fresh observations:
+- exact bound USB remained `/dev/sda1`, `8:1`, ext4;
+- isolated USB available bytes: `28132188160`;
+- current Home Assistant remained exact `2026.10.4`;
+- runtime baseline remained `RUNNING_BASELINE_PASS`;
+- transactions remained stable;
+- pre-release internal available bytes: `4754456576`;
+- capacity decision remained `DEFER_UNTIL_POST_RELEASE_MEASUREMENT`.
+
+The material verifier stopped with:
+`recovery_material_records_unavailable`.
+
+Exact historical-source review against commit
+`48292d4c8c3da82574f63761a4ed9a62fc8ce338`
+proved that the P3 transaction predates both later record representations:
+- `prepared_image_materials` did not exist;
+- `install_recovery_materials` did not exist;
+- P3 persisted `target_artifact_identity`;
+- P3 persisted `predecessor_recovery_identity`;
+- P3 persisted `ha_data_backup_identity`;
+- P3 bound them with `recovery_content_manifest_sha256`.
+
+The exact P3 removable-media layout was also re-established from its execution package:
+- target: `n3w-update/target/homeassistant-arm64.tar.gz`;
+- predecessor: `n3w-update/predecessor/homeassistant-predecessor.tar.gz`;
+- protected HA backup directory: `n3w-update/ha-data`.
+
+Therefore Attempt 02 is another diagnostic compatibility stop, not evidence of recovery-byte corruption.
+
+Source repair after Attempt 02:
+- `1efdc4454aae9843fa424c4c077abf90a815ba5c`: add original P3 identity fields and original removable-media layout;
+- `f30a5125035c8d3788a1b70bc32785174846cbce`: keep historical recovery-manifest recomputation standalone and byte-compatible with the original canonical JSON contract;
+- `8007716a42d1a5e09645984a1ef18007c17c20d1`: add focused tests for the original P3 recovery authority.
+
+The compatibility path remains fail-closed. It must verify the historical recovery-content manifest, exact predecessor archive record and bytes, protected backup record, ciphertext hash, HMAC authentication, decrypted manifest, transaction stability, and private path metadata. It does not authorize a downgrade or any T1 mutation.
+
+ATTEMPT03_REQUIRED=true
+LIVE_WRITE_AUTHORIZATION=NONE
