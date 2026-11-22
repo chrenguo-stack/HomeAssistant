@@ -1,6 +1,7 @@
 """Read spare T1 storage and measure the frozen R8 image inputs on the Mac."""
 
 import argparse
+from collections import Counter
 import hashlib
 import io
 import json
@@ -91,7 +92,38 @@ def usb_evidence():
                 nonreserved_free_estimate_bytes=max(0, free - reserved) * bs)
 
 
-def observe():
+def reclaim_inventory(docker, root):
+    def inspect_rows(command, ids, template):
+        if not ids:
+            return []
+        raw = read(docker, *command, "--format", template, *ids)
+        return [line.split("\t") for line in raw.splitlines()]
+
+    all_containers = read(docker, "ps", "-aq", "--no-trunc").splitlines()
+    attached = Counter(row[0] for row in inspect_rows(
+        ("inspect", "--type", "container"), all_containers, "{{.Image}}"))
+    protected = {identity for _, identity in ORIGINAL.values()}
+    image_ids = sorted(set(read(docker, "image", "ls", "-aq", "--no-trunc").splitlines()))
+    rows = inspect_rows(("image", "inspect"), image_ids, "{{.Id}}\t{{.Size}}\t{{json .RepoTags}}")
+    unreferenced = [{"image_id": identity, "nominal_size_bytes": int(size), "tags": json.loads(tags) or []}
+                    for identity, size, tags in rows if not attached[identity] and identity not in protected]
+    try:
+        summary = [json.loads(row) for row in
+                   read(docker, "system", "df", "--format", "{{json .}}").splitlines()]
+    except (OSError, subprocess.SubprocessError):
+        summary = None
+    usage = {}
+    for label, path in {"apt_archives": "/var/cache/apt/archives", "logs": "/var/log", "var_tmp": "/var/tmp"}.items():
+        location = Path(path)
+        if location.is_dir() and location.stat().st_dev == root.stat().st_dev:
+            usage[label] = int(read("du", "-sx", "-B1", "--", path).split()[0])
+    return {"scope": "READ_ONLY_NO_RECLAIM_ESTIMATE", "unreferenced_images": sorted(
+            unreferenced, key=lambda item: item["nominal_size_bytes"], reverse=True),
+            "original_ha_container_reference_count": attached[ORIGINAL["homeassistant"][1]],
+            "docker_space_summary": summary, "other_same_filesystem_usage_bytes": usage}
+
+
+def observe(inventory=False):
     require(sys.platform == "linux" and os.geteuid() == 0 and os.uname().machine in {"aarch64", "arm64"},
             "unexpected_spare_environment")
     os.environ["LC_ALL"] = "C"
@@ -124,6 +156,9 @@ def observe():
         disk = os.statvfs(path)
         state[name] = {"same_filesystem_as_docker": path.stat().st_dev == root.stat().st_dev,
                        "available_bytes": disk.f_bavail * disk.f_frsize}
+    if inventory:
+        print(json.dumps({"storage": state, "inventory": reclaim_inventory(docker, root)}, sort_keys=True))
+        return
     print(json.dumps({"storage": state, "docker_storage_driver": driver, "usb": usb_evidence(),
                       "input_tags": {key: listing.get(spec[2]) for key, spec in INPUTS.items()}},
                      sort_keys=True))
@@ -157,15 +192,21 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--ssh", required=True)
     parser.add_argument("--assets", type=Path, default=Path.home() / "Downloads" / "n3w-r8-artifacts")
+    parser.add_argument("--inventory", action="store_true")
     args = parser.parse_args()
-    for filename in {spec[0] for spec in INPUTS.values()}:
-        require((args.assets / filename).is_file(), f"local_artifact_missing:{filename}")
+    if not args.inventory:
+        for filename in {spec[0] for spec in INPUTS.values()}:
+            require((args.assets / filename).is_file(), f"local_artifact_missing:{filename}")
     ssh = ("ssh", "-o", "StrictHostKeyChecking=yes", "-o", "ForwardAgent=no", "-o",
            "ClearAllForwardings=yes", "-o", "ConnectTimeout=10", "-T", "--", args.ssh,
            "/usr/bin/python3 -I -B -")
-    print("正在读取备用 T1 容量和镜像标签。", flush=True)
-    source = b"REMOTE = True\n" + Path(__file__).read_bytes()
+    print("正在只读盘点备用 T1 的镜像和缓存。" if args.inventory else
+          "正在读取备用 T1 容量和镜像标签。", flush=True)
+    source = f"REMOTE_INVENTORY = {args.inventory!r}\n".encode() + Path(__file__).read_bytes()
     snapshot = json.loads(subprocess.run(ssh, input=source, stdout=subprocess.PIPE, check=True).stdout)
+    if args.inventory:
+        print("R8_T1_STORAGE_INVENTORY=" + json.dumps(snapshot, sort_keys=True))
+        return
     print("R8_T1_STORAGE=" + json.dumps(snapshot, sort_keys=True), flush=True)
     zipped = subprocess.check_output(("gh", "api", f"repos/{REPO}/actions/artifacts/14717720726/zip"), timeout=120)
     require(sha(zipped) == RECOVERY_ZIP_SHA, "recovery_zip_sha_mismatch")
@@ -186,7 +227,7 @@ def main():
 
 if __name__ == "__main__":
     try:
-        observe() if "REMOTE" in globals() else main()
+        observe(REMOTE_INVENTORY) if "REMOTE_INVENTORY" in globals() else main()
     except (ValueError, KeyError, OSError, RuntimeError, subprocess.SubprocessError) as error:
         detail = str(error) if isinstance(error, ValueError) else type(error).__name__
         print(f"R8 space evidence stopped: {detail}", file=sys.stderr)
