@@ -112,3 +112,47 @@ Next source-only work may prepare:
 - the independent 2026.10.0 predecessor-switch execution package in fail-closed / unauthorized-by-default form.
 
 No persistent T1 mutation may execute until the exact corresponding live authorization is checked.
+
+
+## Isolated bound-USB verification Attempt 01
+
+ATTEMPT=01
+RESULT=STOP_READONLY_COMPATIBILITY
+T1_MUTATION=false
+SERVICE_MUTATION=false
+DOCKER_MUTATION=false
+USB_WRITE=false
+USB_FORMAT=false
+HOST_NAMESPACE_USB_MOUNT_REQUESTED=false
+ISOLATED_NAMESPACE_USB_MOUNT=true
+ISOLATED_MOUNT_OPTIONS=ro,nosuid,nodev,noexec,relatime,norecovery
+EXT4_JOURNAL_REPLAY=false
+
+Fresh observations:
+- bound USB remained exact `/dev/sda1`, `8:1`, ext4;
+- isolated mount was read-only;
+- USB available bytes: `28132188160`;
+- current Home Assistant remained exact `2026.10.4`;
+- runtime baseline remained `RUNNING_BASELINE_PASS`;
+- transactions remained stable;
+- pre-release internal available bytes: `4754538496`;
+- capacity decision remained `DEFER_UNTIL_POST_RELEASE_MEASUREMENT`.
+
+The material verifier stopped before any archive/hash failure with:
+`ha_usb_prepared_image_materials_invalid`.
+
+Interpretation:
+- this is not evidence that the USB recovery bytes are corrupt;
+- the historical terminal U13B transaction predates the newer `prepared_image_materials` read path used by the first R8 diagnostic;
+- the diagnostic incorrectly required the newer field instead of accepting the already-bound legacy terminal `install_recovery_materials` representation and revalidating it.
+
+Because the verifier raised before its original post-validation host-mount probe, Attempt 01 does not claim a fresh post-run host-namespace mount observation. The USB mount itself existed only inside a private `unshare --mount --propagation private` namespace and that remote process exited. Attempt 02 must still begin by proving the host namespace is unmounted before creating any new isolated mount.
+
+Source repair:
+- `e2e49077aa66ee4e4f280a600070876492bdc912`: accept legacy terminal recovery-record representation only as an alternate source of records, while independently validating record kind, image refs, target archive SHA/size, predecessor portable identity, predecessor archive bytes and protected backup authentication;
+- `33d717f84a263fa004c0a41106630598cdfdd30b`: always perform the host mount-leak probe before returning a validation failure;
+- `5c594ca9cdd3dbc038dfbae24dad0971be64480b`: deterministic compatibility tests;
+- `0824b4fa3e5833b295dca68870c06704610a183a`: focused CI definition corrected to run pytest explicitly.
+
+ATTEMPT02_REQUIRED=true
+LIVE_WRITE_AUTHORIZATION=NONE
