@@ -4,6 +4,12 @@
 - **根因**：旧 `verify` 只接受显式设备初始化完成记录。Clean Reference 走独立启动和重启验收路径。当前 OTA 运行基线还要求旧初始化单元有效，因此一次失败会提前截断 R7 的运行观测。
 - **防回归**：R7 仍执行原始运行基线检查，仅在本机 Clean Reference 记录匹配且阻断原因单独指向旧初始化单元时，用只读调用继续采集当前运行状态。补充采集明确标为诊断，原始阻断仍保留。R7 实机复验和 OTA 产品准入处理待完成。
 
+**R7 补采结果**
+
+- 观察器 `3af2bf616d5e` 使用 `84da7cd68e2f` 只读依赖包在备用 T1 输出 `R7_OBSERVATION_COLLECTED`，Clean Reference 记录匹配。容器、Compose 镜像引用和预期监听一致，三项重启计数均为 0。HA 接口返回预期的 401，Manager 和 HA 的 MQTT 认证探测通过。Stack 记录保持 `COMMITTED`，HA USB 记录保持 `ROLLED_BACK`。
+- OTA 运行基线仍为 `BLOCKED:relevant_failed_units`，运行结果为 `diagnostic_only=true`。HA 恢复包尚未部署，三项恢复单元均未激活。宿主机可用空间为 4,756,381,696 字节，这次未验证 U 盘挂载。
+- 现场 HA 为 `local/n3w-homeassistant:2026.10.4-5881590f`，与既定候选的目标引用相同。候选绑定的前代是 `local/n3w-homeassistant:2026.10.0-0c73235a`。R8 开始前需核对目标与前代关系，并处理正式运行基线的旧初始化单元依赖。此处只归档只读观测。 [候选清单](https://github.com/chrenguo-stack/HomeAssistant/blob/741a1463e7de065401749e47e59d30b295d5d6e8/infra/n3w-t1/upgrades/homeassistant-2026.10.4.json)
+
 ### 2026-11-05 KF-142 — P5 host-side ad-hoc SSH reuse causes repeated authentication and pre-claim staging STOP
 
 | ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
