@@ -252,3 +252,9 @@ Docker 汇总报告 5 个镜像、3 个活跃，显示 `5.536GB` 可回收。该
 新版导入和旧镜像恢复按分支顺序发生。当前冻结候选在已导入目标之后回滚时，会停止应用写入，按写入边界恢复原数据，然后装回前代镜像；装回前代之前没有针对本笔失败目标的镜像释放步骤。因此，新版的磁盘占用可能与恢复前代所需空间重叠。加法是当前实现对重叠占用的预留，不表示两次 Docker 导入会并发。候选还在释放前代之前执行该容量判定，因而低空间设备可能在可以回收前代占用之前被拒绝。 [回滚调度](https://github.com/chrenguo-stack/HomeAssistant/blob/741a1463e7de065401749e47e59d30b295d5d6e8/tools/n3w_t1_core_updater_ha_usb.py#L748-L788) · [前代装回及启动](https://github.com/chrenguo-stack/HomeAssistant/blob/741a1463e7de065401749e47e59d30b295d5d6e8/tools/n3w_t1_core_updater_ha_recovery_startup.py#L939-L988) · [预算公式](https://github.com/chrenguo-stack/HomeAssistant/blob/741a1463e7de065401749e47e59d30b295d5d6e8/tools/n3w_t1_core_updater_ha_mounted_media.py#L534-L565)
 
 低空间改进需在确认两个回退材料已可用之后，明确失败目标的事务身份、写入已静止、精确释放及断电后的续办，再按目标安装与前代恢复的阶段预算和实际可回收空间核算。仅修改加法会让当前回滚继续保留失败目标的占用。本次为只读源码核对，冻结候选和实机状态未变。
+
+### 失败新版的回滚规则已纳入 V1.2
+
+按操作者确认的规则，回滚时先释放本笔失败目标的内部占用，再装回旧镜像。同步修订第 4 节的分阶段空间计算、第 5 节的停写与释放顺序和第 10 节的低空间与断电对照。设计要求同时覆盖目标已进入试运行，以及目标装入中断但仍产生本笔占用的情况。已有固定候选在数据恢复路径和未写数据恢复路径都可调用前代装回，现有两条路径均缺少此前的失败目标释放；产品实现须同步修正释放、断电续办和空间核验。 [V1.2 设计](https://github.com/chrenguo-stack/HomeAssistant/blob/71fe06152d8a928934f3d10feb25de90e5c692bc/docs/development/N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.2_20261119.md#L${sec+1})
+
+本次只修订设计与 R8 记录。实机 R8 容量标记仍为阻塞，需由新的实现候选完成离线低空间和断电验证后，按相应授权复核现场容量。
