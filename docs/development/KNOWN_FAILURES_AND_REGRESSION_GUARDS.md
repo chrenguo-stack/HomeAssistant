@@ -27,6 +27,12 @@
 - `95-n3w-ha-ota.conf` 的 SHA-256 `cee2d95971a1d91adeec4f7974d0bac1f4b7eab379168e91459d3d07641f1800` 与 PR #807 的 `7811b6bc2fc3` 覆盖源完全一致。它加载旧 `docker-compose.ha-ota.yml`，为 Manager 提供旧 OTA IPC 配置和挂载，还令应用服务依赖 `n3w-t1-ha-ota.service`。旧后台服务停止可能连带停止应用单元，已在 KF-152 现场证实。 [覆盖源](https://github.com/chrenguo-stack/HomeAssistant/blob/7811b6bc2fc3cdc5b1cecb45549cb81b6d80784c/infra/n3w-t1/systemd/n3wfc4-services-activation.ha-ota.conf) · [依赖链证据](https://github.com/chrenguo-stack/HomeAssistant/pull/807#issuecomment-6845620794)
 - 旧测试环境的精确配置触发了新候选的标准启停合同。下一步先只读确认旧后台服务状态、Compose 覆盖摘要及 Manager 上的绑定。R7 安装准入仍阻断。历史覆盖、服务和事务未改动。
 
+**旧 OTA 依赖复核及备用 T1 切换边界**
+
+- 现场证明旧 `n3w-t1-ha-ota.service` 已加载、已启用且正在运行。单元摘要 `af8d9755ba13d9300fb5318d077e5d20078229814fdc29e4127806ef78ddb370` 和 Compose 覆盖摘要 `1b0fd19cb3f8047d0ce50ecfdd69f0e71d8256bed2198de10d7d78c39eacd618` 均与 PR #807 的 `7811b6bc2fc3` 一致。应用单元当前依赖旧后台服务，旧 Unix 套接字存在，唯一运行的 Manager 容器使用旧只读挂载，且旧 OTA 已开启。 [旧后台服务](https://github.com/chrenguo-stack/HomeAssistant/blob/7811b6bc2fc3cdc5b1cecb45549cb81b6d80784c/infra/n3w-t1/systemd/n3w-t1-ha-ota.service)
+- V1.2 候选另外使用 `n3w-t1-ha-ota-ipc.socket`。它在宿主机监听 `/run/n3w/t1-ota/ha-ota.sock`，旧 Manager 读取的是从 `/run/n3w-t1-ota` 映射进容器的旧套接字。两套运行方式应在同一备用 T1 上分阶段切换。 [V1.2 套接字](https://github.com/chrenguo-stack/HomeAssistant/blob/741a1463e7de065401749e47e59d30b295d5d6e8/infra/n3w-t1/systemd/n3w-t1-ha-ota-ipc.socket)
+- 拟在 HA `2026.10.4` 上先恢复 Clean Reference 标准启停。切换前重验终态且无在途升级，备份确切覆盖文件，使用标准 Compose 渲染检查三组件镜像和受保护数据挂载。应用仍由旧命令监管时先停止应用单元，停妥后移出旧覆盖并重新加载 systemd，核对新启停命令及依赖，再停用旧后台服务，启动标准应用单元。检查 HA 和 Manager 健康、Broker 连续性、当前镜像与事务摘要。失败时恢复旧覆盖与启用状态，先启动旧后台服务，再按旧配置恢复应用。保留旧事务、介质及初始化修复。此切换会短暂停止 HA 和 Manager，等待专项实机授权。V1.2 部署和恢复 `2026.10.0` 后续单独验收。
+
 ### 2026-11-05 KF-142 — P5 host-side ad-hoc SSH reuse causes repeated authentication and pre-claim staging STOP
 
 | ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
