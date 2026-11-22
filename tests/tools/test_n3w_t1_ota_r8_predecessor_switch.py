@@ -273,3 +273,80 @@ def test_no_global_prune_or_two_image_capacity_formula_in_source():
     assert "docker image prune" not in source
     assert "install_required_bytes + recovery_required_bytes" not in source
     assert "AFTER_RELEASE_BEFORE_NEXT_IMPORT" in source
+
+
+def test_state_journal_contains_data_exchange_identities():
+    backend = FakeBackend()
+    result = executor.execute_switch(backend, valid_grant())
+    assert result.status == "PREDECESSOR_SWITCH_PASS"
+    backup_states = [
+        state for state in backend.states
+        if state["phase"] == contract.PHASE_BACKUP_VERIFIED
+    ]
+    assert len(backup_states) == 1
+    backup = backup_states[0]["backup"]
+    assert backup["filesystem_id"] == 100
+    assert backup["original_data_inode"] == 200
+    assert backup["staged_data_inode"] == 300
+    assert backup["preserved_path"] == "/var/lib/.n3w-r8-preserved-test"
+
+
+def test_remote_backend_uses_fresh_backup_isolated_restore_and_direct_stream():
+    source = (PACKAGE / "remote_live.py").read_text()
+    assert "ProtectedHaDataBackup" in source
+    assert ".create(backup_fd, txid)" in source
+    assert ".verify(backup_fd, txid, record)" in source
+    assert "restore_to_stage(backup_fd, txid, record, preserved)" in source
+    assert "exchange_directories(HA_DATA_ROOT, preserved)" in source
+    assert "sys.stdin.buffer.read" in source
+    assert '("docker", "load")' in source
+    assert '("docker", "image", "rm", "--no-prune", image_id)' in source
+    assert "docker system prune" not in source
+    assert "docker image prune" not in source
+
+
+def test_remote_preflight_is_readonly_no_journal_replay():
+    source = (PACKAGE / "remote_live.py").read_text()
+    assert '"ro,noload,nodev,nosuid,noexec"' in source
+    assert "R8_PREDECESSOR_SWITCH_READONLY_PREFLIGHT_PASS" in source
+    assert '"capacity_decision": "DEFER_UNTIL_POST_RELEASE_MEASUREMENT"' in source
+
+
+def test_operator_readonly_path_is_memory_only(tmp_path):
+    import operator as python_operator
+
+    # The stdlib module name is already occupied, so load the package entrypoint
+    # by file path under a distinct name.
+    source = PACKAGE / "operator.py"
+    spec = importlib.util.spec_from_file_location("r8_switch_operator", source)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    recovery = tmp_path / "ha-recovery.pyz"
+    recovery.write_bytes(b"synthetic")
+    payload = module.readonly_bootstrap(
+        recovery_pyz=recovery,
+        mode="preflight",
+        source_head="1" * 40,
+    )
+    assert "os.memfd_create" in payload
+    assert "unshare" not in payload
+    assert "scp" not in payload
+    assert "docker load" not in payload
+
+
+def test_operator_execute_streams_cache_without_remote_archive_staging():
+    source = (PACKAGE / "operator.py").read_text()
+    assert 'with cache_path.open("rb") as source:' in source
+    assert "input_file=source" in source
+    assert "homeassistant-arm64.tar" not in source.split("def stage_execute_bundle", 1)[1].split("def execute_live", 1)[0]
+
+
+def test_live_grant_is_not_committed_in_package():
+    source = "\n".join(
+        (PACKAGE / name).read_text()
+        for name in ("contract.py", "executor.py", "remote_live.py", "operator.py")
+    )
+    assert '"schema": contract.GRANT_SCHEMA' not in source
+    assert "LIVE_WRITE_AUTHORIZATION=true" not in source
