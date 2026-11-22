@@ -317,7 +317,7 @@ def test_operator_readonly_path_is_memory_only(tmp_path):
 
     # The stdlib module name is already occupied, so load the package entrypoint
     # by file path under a distinct name.
-    source = PACKAGE / "operator.py"
+    source = PACKAGE / "switchctl.py"
     spec = importlib.util.spec_from_file_location("r8_switch_operator", source)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -337,7 +337,7 @@ def test_operator_readonly_path_is_memory_only(tmp_path):
 
 
 def test_operator_execute_streams_cache_without_remote_archive_staging():
-    source = (PACKAGE / "operator.py").read_text()
+    source = (PACKAGE / "switchctl.py").read_text()
     assert 'with cache_path.open("rb") as source:' in source
     assert "input_file=source" in source
     assert "homeassistant-arm64.tar" not in source.split("def stage_execute_bundle", 1)[1].split("def execute_live", 1)[0]
@@ -346,7 +346,7 @@ def test_operator_execute_streams_cache_without_remote_archive_staging():
 def test_live_grant_is_not_committed_in_package():
     source = "\n".join(
         (PACKAGE / name).read_text()
-        for name in ("contract.py", "executor.py", "remote_live.py", "operator.py")
+        for name in ("contract.py", "executor.py", "remote_live.py", "switchctl.py")
     )
     assert '"schema": contract.GRANT_SCHEMA' not in source
     assert "LIVE_WRITE_AUTHORIZATION=true" not in source
@@ -420,7 +420,7 @@ def test_remote_recovery_is_journal_driven_and_exact_only():
 
 
 def test_recovery_does_not_require_new_grant_or_predecessor_cache_stream():
-    source = (PACKAGE / "operator.py").read_text()
+    source = (PACKAGE / "switchctl.py").read_text()
     recover = source.split("def recover_live", 1)[1].split("def main", 1)[0]
     assert "grant.json" not in recover
     assert "cache_path" not in recover
@@ -429,7 +429,7 @@ def test_recovery_does_not_require_new_grant_or_predecessor_cache_stream():
 
 
 def test_status_and_recover_do_not_require_mac_predecessor_cache():
-    source = (PACKAGE / "operator.py").read_text()
+    source = (PACKAGE / "switchctl.py").read_text()
     assert 'if args.mode in {"source-check", "preflight", "execute"}' in source
 
 
@@ -467,7 +467,7 @@ def test_usb_mount_modes_are_verified_and_p3_archive_is_private():
 
 
 def test_operator_persists_exact_recovery_package_cache():
-    source = (PACKAGE / "operator.py").read_text()
+    source = (PACKAGE / "switchctl.py").read_text()
     assert "RECOVERY_CACHE" in source
     assert "RECOVERY_PACKAGE_SHA256" in source
     assert "os.replace(temporary, RECOVERY_CACHE)" in source
