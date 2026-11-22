@@ -47,4 +47,40 @@ R8 的正常升级、真实故障后自动回滚及关键边界断电续办均�
 
 - 前代构建镜像 ID 为 `sha256:b0e1ee82adfb19fa1ff3049034535633b1c4f0df6606721c0e77383854b99879`，ARM64 manifest 摘要为 `sha256:0c73235a9140a9b02e4bf618d06d8c496b12ae70656ecddb0e02ad31ad122be4`，与 [冻结前代构建步骤](https://github.com/chrenguo-stack/HomeAssistant/blob/741a1463e7de065401749e47e59d30b295d5d6e8/.github/workflows/n3w-t1-fresh-install-exact-arm64-ci.yml#L54-L55) 一致。
 - Manager 构建镜像 ID 为 `sha256:7e7447f081cb2168720121a70137b30cd3ec502446be63ca0306a92c011400fb`。目标归档的配置摘要为 `sha256:59160fc724d82aa83186f577f46aa8c8abe40af4052502eb32b621943582a5f6`，归档 SHA-256 与冻结清单一致。这两项身份来自归档回读，备用 T1 的实际运行身份须在实机阶段另行核对。
-- 镜像准备完成。独立 `2026.10.0` 测试数据范围待确认。备用机当前 `2026.10.4` 环境的一致性备份、隔离恢复验证和后续实机阶段仍待执行。此回执只覆盖 Mac 本地文件，无 T1 停服、装载或写入授权。
+- 镜像准备完成。用户已确认独立 `2026.10.0` 测试数据范围，见下文。备用机当前 `2026.10.4` 环境的一致性备份、隔离恢复验证和后续实机阶段仍待执行。此回执只覆盖 Mac 本地文件，无 T1 停服、装载或写入授权。
+
+## 独立测试数据已确认，当前版本备份前预检
+
+2026-11-22（新加坡时间），操作者确认使用由精确 HA `2026.10.0` 自行初始化的独立数据。用本机 MQTT 引导建立已知输入和可查询的 Recorder 历史，为正常升级、故障回滚和断电续办分别留证。R32 历史数据迁移继续列为未覆盖。镜像归档与候选绑定沿用上节通过的证据。该确认涉及测试数据范围，当前停服备份、介质写入、装载候选、切换数据路径和 OTA 执行仍待相应授权。
+
+先从 Mac 实测标准应用单元、Broker 单元、现有运行镜像、读写挂载、Docker 与数据路径所在文件系统空间、HA 和 Manager 数据大小，以及 U 盘可见情况。本命令读取配置和密钥文件的元数据，不打印其内容。HA 数据大小是运行中测量，只用于估算容量；未挂载 U 盘的可用空间仍未知。命令已通过 Bash 语法和替身命令模拟验证，备用 T1 实际回执待收集。
+
+```bash
+printf '输入上一轮核验过的备用 T1 SSH 目标：'
+IFS= read -r r8_t1 </dev/tty
+if [ -n "$r8_t1" ]; then
+  ssh -o StrictHostKeyChecking=yes -o ForwardAgent=no -o ClearAllForwardings=yes -o ConnectTimeout=10 -T -- "$r8_t1" 'if [ "$(id -u)" -eq 0 ]; then exec /bin/bash -s; else exec sudo -n /bin/bash -s; fi' <<'R8_REMOTE'
+set -eu
+unset DOCKER_CONTEXT DOCKER_TLS DOCKER_TLS_VERIFY
+export DOCKER_HOST=unix:///var/run/docker.sock
+systemctl show n3wfc4-services-activation.service n3wfc4-broker-activation.service n3w-t1-ha-ota.service -p Id -p ActiveState -p SubState -p NeedDaemonReload --no-pager
+for service in broker manager homeassistant; do
+  container=$(docker ps --filter label=com.docker.compose.project=n3wfc4 --filter "label=com.docker.compose.service=$service" -q)
+  printf '%s ' "$service"
+  docker inspect --type container --format '{{.Config.Image}} {{.Image}} {{.State.Status}} restarts={{.RestartCount}}{{range .Mounts}}{{if .RW}} {{.Type}}:{{.Source}}:{{.Destination}}{{end}}{{end}}' "$container"
+done
+docker_root=$(docker info --format '{{.DockerRootDir}}')
+df -P -B1 -- "$docker_root" /var/lib/n3wfc4-homeassistant /var/lib/greenhouse-manager
+du -sbx -- /var/lib/n3wfc4-homeassistant /var/lib/greenhouse-manager/manager /var/lib/greenhouse-manager/n3w
+stat -c '%F mode=%a uid=%u size=%s links=%h %n' -- /etc/n3wfc4/docker-compose.yml /etc/n3wfc4/docker-compose.env /var/lib/greenhouse-manager/identity/system-root.key
+if [ -f /var/lib/n3wfc4-homeassistant/home-assistant_v2.db ]; then
+  stat -c 'RECORDER_DB_BYTES=%s' -- /var/lib/n3wfc4-homeassistant/home-assistant_v2.db
+else
+  printf 'RECORDER_DB_NOT_FOUND_AT_DEFAULT_PATH\n'
+fi
+lsblk -b -o NAME,TYPE,TRAN,FSTYPE,SIZE,FSAVAIL,MOUNTPOINTS
+R8_REMOTE
+fi
+```
+
+预检结束后把备份执行单绑定已核验的备用机、当前运行镜像、标准启动配置及备份目的地。停服备份范围拟为由同一应用单元管理的 HA 和 Manager，先根据实际单位依赖与容器状态证明写入已停止，并观察 Broker 的运行连续性。保留本机密钥与对应的私有恢复路径；备份覆盖 HA 数据、Recorder 数据库及伴随文件、Manager 数据与回放目录及恢复所需启动绑定。HA 复用产品的 [ProtectedHaDataBackup](https://github.com/chrenguo-stack/HomeAssistant/blob/741a1463e7de065401749e47e59d30b295d5d6e8/tools/n3w_t1_core_updater_ha_backup.py)，在隔离路径认证、解密、比对并检查 SQLite。Manager 回退也须有一致性副本及可恢复证明。先恢复并验证原 `2026.10.4` 组合的健康，再考虑切入 `2026.10.0` 独立环境。任何大小与峰值容量判断使用本轮回执；现场不格式化介质或覆盖既有事务。
