@@ -21,9 +21,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: n3w-t1-ota-r8-spare-preflight-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   focused:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
