@@ -166,3 +166,26 @@ def test_existing_transaction_accepts_reverse_preparation_only_through_privilege
     assert document["authorization_consumed"] is False
     assert "predecessor_start" not in document
     assert "ha_data_restore" not in document
+
+
+def test_updater_owned_internal_target_spool_is_retired_but_external_source_is_preserved(tmp_path: Path) -> None:
+    store = HaUsbStateStore(tmp_path / "state")
+    store.root.mkdir(mode=0o700)
+    document = {
+        "target_archive_sha256": "a" * 64,
+        "target_archive_size": 4,
+    }
+    owned = store.root / ("ha-target-" + document["target_archive_sha256"] + ".tar")
+    owned.write_bytes(b"test")
+    owned.chmod(0o600)
+
+    assert startup._retire_owned_candidate_archive(store, document, owned) is True
+    assert not owned.exists()
+    # Retry after a crash between source retirement and the durable U4 write is idempotent.
+    assert startup._retire_owned_candidate_archive(store, document, owned) is True
+
+    external = tmp_path / "operator-source.tar"
+    external.write_bytes(b"test")
+    external.chmod(0o600)
+    assert startup._retire_owned_candidate_archive(store, document, external) is False
+    assert external.read_bytes() == b"test"
