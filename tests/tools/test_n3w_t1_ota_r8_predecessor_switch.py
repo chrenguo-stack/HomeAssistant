@@ -79,7 +79,7 @@ class FakeBackend:
             archive_sha256="a" * 64,
             archive_size_bytes=123,
             manifest_sha256="b" * 64,
-            staged_data_sha256="c" * 64,
+            staged_manifest_sha256="c" * 64,
             filesystem_id=100,
             original_data_inode=200,
             staged_data_inode=300,
