@@ -44,7 +44,15 @@ def read_package(directory):
 def recovery_material_documents(document):
     prepared = document.get("prepared_image_materials")
     if isinstance(prepared, dict) and set(prepared) == {"target", "predecessor"}:
-        return prepared["target"], prepared["predecessor"], "prepared_image_materials"
+        installed = document.get("install_recovery_materials")
+        backup = installed.get("backup") if isinstance(installed, dict) else None
+        return (
+            prepared["target"],
+            prepared["predecessor"],
+            backup,
+            "prepared_image_materials",
+            "transaction_directory_v2",
+        )
     installed = document.get("install_recovery_materials")
     if (
         isinstance(installed, dict)
@@ -54,9 +62,49 @@ def recovery_material_documents(document):
         return (
             installed["target"],
             installed["predecessor"],
+            installed.get("backup"),
             "install_recovery_materials_legacy",
+            "transaction_directory_v2",
+        )
+    if (
+        isinstance(document.get("target_artifact_identity"), dict)
+        and isinstance(document.get("predecessor_recovery_identity"), dict)
+        and isinstance(document.get("ha_data_backup_identity"), dict)
+    ):
+        return (
+            document["target_artifact_identity"],
+            document["predecessor_recovery_identity"],
+            document["ha_data_backup_identity"],
+            "p3_terminal_identity_fields",
+            "p3_n3w_update_layout",
         )
     raise ValueError("recovery_material_records_unavailable")
+
+
+def p3_recovery_content_manifest(document):
+    manifest = document.get("target_manifest_identity")
+    release_identity = (
+        manifest.get("release_identity")
+        if isinstance(manifest, dict)
+        else None
+    )
+    value = {
+        "transaction_id_sha256": document.get("transaction_id_sha256"),
+        "release_identity": release_identity,
+        "target_artifact_identity": document.get("target_artifact_identity"),
+        "predecessor_recovery_identity": document.get("predecessor_recovery_identity"),
+        "ha_data_backup_identity": document.get("ha_data_backup_identity"),
+    }
+    if (
+        not isinstance(value["transaction_id_sha256"], str)
+        or not isinstance(release_identity, str)
+        or not release_identity
+        or not isinstance(value["target_artifact_identity"], dict)
+        or not isinstance(value["predecessor_recovery_identity"], dict)
+        or not isinstance(value["ha_data_backup_identity"], dict)
+    ):
+        raise ValueError("p3_recovery_content_authority_incomplete")
+    return digest(canonical(value))
 
 
 def run_operator():
@@ -397,7 +445,9 @@ def observe_spare(report):
         if not isinstance(target, str) or not Path(target).is_absolute():
             raise ValueError("rollback_material_mount_target_invalid")
         mountpoint = Path(target)
-        target_document, predecessor_document, record_source = recovery_material_documents(current)
+        target_document, predecessor_document, backup_document, record_source, media_layout = (
+            recovery_material_documents(current)
+        )
         try:
             prepared_target = validate_image_recovery_record(
                 ImageRecoveryRecord(**target_document),
@@ -423,30 +473,58 @@ def observe_spare(report):
                 "record_source": record_source,
                 "predecessor": predecessor.public(),
             }
-        materials = current.get("install_recovery_materials")
-        if not isinstance(materials, dict) or "backup" not in materials:
+        if backup_document is None:
             return {
                 "status": "CURRENT_IMAGE_ARCHIVE_VERIFIED_DATA_BACKUP_UNAVAILABLE",
                 "record_source": record_source,
+                "media_layout": media_layout,
                 "predecessor": predecessor.public(),
             }
-        backup = backup_record_from_document(materials["backup"])
-        with _open_transaction_directory(
-            mountpoint, store.root, current, allow_read_only=True
-        ) as (_, directory):
-            _verify_archive(directory, "predecessor.tar", predecessor)
-            backup_directory = os.open(
-                "ha-backup", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
-                dir_fd=directory,
+        backup = backup_record_from_document(backup_document)
+
+        if media_layout == "p3_n3w_update_layout":
+            observed_manifest = current.get("recovery_content_manifest_sha256")
+            if (
+                not isinstance(observed_manifest, str)
+                or observed_manifest != p3_recovery_content_manifest(current)
+                or current.get("target_artifact_verified") is not True
+                or current.get("predecessor_recovery_verified") is not True
+                or current.get("ha_data_backup_verified") is not True
+                or current.get("rollback_recovery_content_verified") is not True
+            ):
+                raise ValueError("p3_recovery_content_authority_invalid")
+
+            legacy_root = mountpoint / "n3w-update"
+            predecessor_root = legacy_root / "predecessor"
+            backup_root = legacy_root / "ha-data"
+
+            for path in (legacy_root, predecessor_root, backup_root):
+                metadata = path.lstat()
+                if (
+                    not stat.S_ISDIR(metadata.st_mode)
+                    or metadata.st_uid != os.geteuid()
+                    or stat.S_IMODE(metadata.st_mode) & 0o077
+                ):
+                    raise ValueError("p3_recovery_directory_invalid")
+
+            predecessor_directory = os.open(
+                predecessor_root,
+                os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
             )
             try:
-                metadata = os.fstat(backup_directory)
-                if (
-                    metadata.st_dev != os.fstat(directory).st_dev
-                    or metadata.st_uid != os.geteuid()
-                    or stat.S_IMODE(metadata.st_mode) != 0o700
-                ):
-                    raise ValueError("recovery_backup_directory_invalid")
+                _verify_archive(
+                    predecessor_directory,
+                    "homeassistant-predecessor.tar.gz",
+                    predecessor,
+                )
+            finally:
+                os.close(predecessor_directory)
+
+            backup_directory = os.open(
+                backup_root,
+                os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+            )
+            try:
                 verified_backup = ProtectedHaDataBackup(
                     work_root=store.root
                 ).verify(
@@ -456,11 +534,38 @@ def observe_spare(report):
                 )
             finally:
                 os.close(backup_directory)
+        else:
+            with _open_transaction_directory(
+                mountpoint, store.root, current, allow_read_only=True
+            ) as (_, directory):
+                _verify_archive(directory, "predecessor.tar", predecessor)
+                backup_directory = os.open(
+                    "ha-backup", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                    dir_fd=directory,
+                )
+                try:
+                    metadata = os.fstat(backup_directory)
+                    if (
+                        metadata.st_dev != os.fstat(directory).st_dev
+                        or metadata.st_uid != os.geteuid()
+                        or stat.S_IMODE(metadata.st_mode) != 0o700
+                    ):
+                        raise ValueError("recovery_backup_directory_invalid")
+                    verified_backup = ProtectedHaDataBackup(
+                        work_root=store.root
+                    ).verify(
+                        backup_directory,
+                        current["transaction_id_sha256"],
+                        backup,
+                    )
+                finally:
+                    os.close(backup_directory)
         if store.read() != current:
             raise ValueError("recovery_material_transaction_changed")
         return {
             "status": "CURRENT_2026_10_4_ROLLBACK_MATERIALS_VERIFIED",
             "record_source": record_source,
+            "media_layout": media_layout,
             "predecessor": predecessor.public(),
             "backup": {
                 "archive_sha256": verified_backup.archive_sha256,
