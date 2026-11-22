@@ -223,7 +223,7 @@ Recovery does not require a new predecessor-switch authorization because it cann
 8. start and prove full 10.4 health;
 9. record `ROLLED_BACK`.
 
-The exact recovery zipapp is cached on the operator Mac after source-check/preflight so recovery does not depend on GitHub artifact availability after the live transaction has started.
+The exact recovery zipapp is cached on the operator Mac during the mandatory read-only preflight, so recovery does not depend on GitHub artifact availability after the live transaction has started.
 
 A narrow fail-closed boundary remains for interruption **inside** `docker load`: if Docker leaves storage residue that is not attributable to the exact 10.0 image ID and that residue prevents the exact 10.4 recovery image from loading, the recovery path reports `RECOVERY_REQUIRED`. It must not use global prune or guess ownership. PR #821's product R8 single-image design remains unchanged; this limitation is specific to the one-time predecessor-setup streaming operation and is not silently promoted to a product guarantee.
 
