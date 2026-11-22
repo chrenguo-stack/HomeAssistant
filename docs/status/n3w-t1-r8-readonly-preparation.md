@@ -255,7 +255,7 @@ Docker 汇总报告 5 个镜像、3 个活跃，显示 `5.536GB` 可回收。该
 
 ### 失败新版的回滚规则已纳入 V1.2
 
-按操作者确认的规则，回滚时先释放本笔失败目标的内部占用，再装回旧镜像。同步修订第 4 节的分阶段空间计算、第 5 节的停写与释放顺序和第 10 节的低空间与断电对照。设计要求同时覆盖目标已进入试运行，以及目标装入中断但仍产生本笔占用的情况。已有固定候选在数据恢复路径和未写数据恢复路径都可调用前代装回，现有两条路径均缺少此前的失败目标释放；产品实现须同步修正释放、断电续办和空间核验。 [V1.2 设计](https://github.com/chrenguo-stack/HomeAssistant/blob/71fe06152d8a928934f3d10feb25de90e5c692bc/docs/development/N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.2_20261119.md#L${sec+1})
+按操作者确认的规则，回滚时先释放本笔失败目标的内部占用，再装回旧镜像。同步修订第 4 节的分阶段空间计算、第 5 节的停写与释放顺序和第 10 节的低空间与断电对照。设计要求同时覆盖目标已进入试运行，以及目标装入中断但仍产生本笔占用的情况。已有固定候选在数据恢复路径和未写数据恢复路径都可调用前代装回，现有两条路径均缺少此前的失败目标释放；产品实现须同步修正释放、断电续办和空间核验。 [V1.2 设计](https://github.com/chrenguo-stack/HomeAssistant/blob/71fe06152d8a928934f3d10feb25de90e5c692bc/docs/development/N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.2_20261119.md#L69)
 
 本次只修订设计与 R8 记录。实机 R8 容量标记仍为阻塞，需由新的实现候选完成离线低空间和断电验证后，按相应授权复核现场容量。
 
@@ -271,7 +271,7 @@ Docker 汇总报告 5 个镜像、3 个活跃，显示 `5.536GB` 可回收。该
 
 修复后首先验收 [单笔 HA OTA 的内置盘单版本约束](https://github.com/chrenguo-stack/HomeAssistant/blob/1deb6422a136347d6ca9a852d5c07247b532f688/docs/development/N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.2_20261119.md#L69)：正常路径确认前代释放后才装入目标；失败路径确认本笔目标释放后才装回前代。测试用单版本峰值空间验证该顺序与准入。目标完全导入后启动失败、导入中断留下本笔资源、释放失败目标前后断电三类路径，均须证明只释放已核实属于本笔的资源、复测内置盘并按需恢复前代数据。把释放不足、USB 恢复材料不可用以及目标身份或容器引用不符作为反例。共享层仍被其他镜像引用时以实际可用空间为准。
 
-本节给出冻结包缺口的可重复证据。目前没有修复后候选的通过结果，也没有新的实机写入或容量放行。
+本节给出冻结包缺口的可重复证据。本节为旧候选对照，修复后代码与 CI 见文末。此节没有实机写入或容量放行。
 
 ### R8 单版本回滚候选
 
@@ -297,3 +297,11 @@ Docker 汇总报告 5 个镜像、3 个活跃，显示 `5.536GB` 可回收。该
 `df` 报告使用率 68%。同一文件系统的四行不可相加。两份 HA 镜像中最大的单版本层展开量为 `2448486400` 字节，实测余量高于这个单镜像下限 `2306691072` 字节。该差未扣除导入暂存、数据恢复工作区和附加预算。仅作无共享层、无迁出也不释放当前镜像的情景估算，装入测试前代 HA 和候选 Manager 后余量约 `2093718016` 字节，低于单镜像展开下限 `354768384` 字节。真实装入成本和实际释放量待核验，当前基线余量不直接外推为 R8 准入。
 
 [PR #821](https://github.com/chrenguo-stack/HomeAssistant/pull/821) 精确源码 `eac5794afbeef265dee0f5f60d5e5223de111e35`。本地扩展复测 311 通过、2 跳过、4 项因本地无 Docker 或 AF_UNIX 限制排除。第三次查询时 11 项工作流成功，[HA 目标与恢复包](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/45024175717) 与 [Manager A-to-B](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/45024175726) 仍运行，按本轮轮询上限停止查询。备用 T1 的当前容量复测完成。新候选尚未部署，切换后准入和现场回滚仍待验。
+
+### R8 单版本候选 CI 终态与交接
+
+GitHub 对齐确认 `main` 为 `4fde1b7c5cc0aa224fa3574b8b4cc638edd93647`。PR #815 仍为 `741a1463e7de065401749e47e59d30b295d5d6e8`，PR #821 仍为 `eac5794afbeef265dee0f5f60d5e5223de111e35`，两份均为开放草稿。#821 精确 head 13 项工作流全部成功。[HA CI](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/45024175717) · [Manager CI](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/45024175726)
+
+[恢复产物 14755286389](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/45024175717/artifacts/14755286389) 已下载并回读。ZIP SHA-256 `3e8d9be4100392403aef5af15c9782fe866db77be159dbe5c53814eda486c15e`，清单 SHA-256 `f3dd26c2074c721e45d37f134cf9f90a1e269370b11eaf992e1f892b9053cd6c`，`ha-recovery.pyz` SHA-256 `823a4522a34aae926913e8980fb9442af457084ff4243c74419ccdd66ff6a4e7`。清单 11 件文件均一致，四个已改模块和验证用源码逐字节相符，包内 CLI 启动通过。14716899788 与 13391983948 的工件身份及未过期状态已核对。
+
+备用 T1 最后运行 HA `2026.10.4`，内置盘可用 `4755177472` 字节。此数为释放前基线。按单版本设计，以每次释放完成后、对应导入前的实测余量和工作区预算决定是否继续。本次交接未部署、未迁出、未格式化或写入 USB。 [模板 1.4 交接](../development/N3W_T1_OTA_V1_2_R8_SINGLE_IMAGE_CI_PASS_TO_SPARE_PREFLIGHT_NEW_CHAT_HANDOFF_V1.0_20261122.md)

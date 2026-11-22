@@ -1,6 +1,12 @@
 ## 备用 T1 的 OTA V1.2 验收进度
 
-### 2026-11-22 — 备用 T1 的 OTA V1.2 R7 运行基线与 R8 停点
+### 2026-11-22 — R8 单版本候选 CI 成功，待备用 T1 写前只读复核
+
+- [PR #821](https://github.com/chrenguo-stack/HomeAssistant/pull/821) 为开放草稿，精确 head `eac5794afbeef265dee0f5f60d5e5223de111e35`，叠加 PR #815 的 `741a1463e7de065401749e47e59d30b295d5d6e8`。13 项 CI 成功，[恢复包 14755286389](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/45024175717/artifacts/14755286389) 已回读校验。升级与回滚按单版本装载并分别核算容量。
+- 备用 T1 最后仍运行 HA `2026.10.4`，原环境备份与离机镜像已验证，最近内置盘可用 `4755177472` 字节。R8 使用隔离的 `2026.10.0` 测试数据，现场切换后、装入前的容量待测。新恢复包未部署，无新实机写入授权。
+- 下一步按 [最新交接](N3W_T1_OTA_V1_2_R8_SINGLE_IMAGE_CI_PASS_TO_SPARE_PREFLIGHT_NEW_CHAT_HANDOFF_V1.0_20261122.md) 做精确产物和备用机最小只读核对，准备前代切换与恢复执行包。执行证据见 [R8 累计记录](../status/n3w-t1-r8-readonly-preparation.md)。
+
+### 2026-11-22 — 备用 T1 的 OTA V1.2 R7 运行基线与 R8 停点（历史）
 
 - 实机已取得 `R7_LEGACY_CUTOVER_PASS`、`RUNNING_BASELINE_PASS` 和 `EXIT_CODE=0`。初始化服务按 Clean Reference 状态执行 `NOOP`。旧 OTA 守护进程已停用，标准应用、HA HTTP 和 Manager／HA MQTT 复核通过。Broker 实例、应用数据挂载及历史 OTA 事务记录通过核对。 [实机回执](https://github.com/chrenguo-stack/HomeAssistant/blob/851d0fb958fb1858171b862ef5a068151abc4591/docs/status/n3w-t1-r7-legacy-ota-cutover-precheck.md)
 - 末次实机 HA 为 `local/n3w-homeassistant:2026.10.4-5881590f`。V1.2 恢复包尚未部署，U 盘资格尚未验证。R8 沿用 `2026.10.0 → 2026.10.4`，缺少匹配的前代运行和数据基线。新会话由只读核对及备份、恢复方案开始，实机写入需相应授权。

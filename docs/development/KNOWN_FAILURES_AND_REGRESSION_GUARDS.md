@@ -1,3 +1,9 @@
+### 2026-11-22 T1 OTA V1.2 R8 · 回滚目标占用与容量判定
+
+- **现象**　冻结候选 `741a1463e7de` 在备用机内置盘可用约 4.76 GB 时按两个 HA 展开量合计约 4.90 GB 阻断。目标导入前后重复要求两笔预算重叠。
+- **根因**　已有数据恢复和未写数据恢复两条路径会在失败新版仍留盘时请求装回前代。旧容量规则为这种占用重叠预留空间。
+- **修复与防回归**　升级确认前代已释放后导入目标。回滚核对原盘材料、持久记录本笔失败目标身份、释放其停止容器和独占镜像、实测空间后再装回前代及所需数据。分别核算单镜像和相应工作区。验证目标导入中断、释放前后断电、错误引用、缺盘、释放不足及作业实际顺序。[PR #821](https://github.com/chrenguo-stack/HomeAssistant/pull/821) 精确 CI 已通过，现场仍待验。 [复现和容量记录](../status/n3w-t1-r8-readonly-preparation.md)
+
 ### 2026-11-22 T1 OTA V1.2 R7 · Clean Reference 的初始化记录与运行基线
 
 - **现象**：备用 T1 的内存候选 `741a1463e7de` 报 `firstboot_complete_missing`。只读复核确认出厂清单绑定 `24382caae4a1`，R2A 启动记录与 R2B 重启验收记录均匹配，运行身份标记的方式与 Clean Reference 一致，旧设备初始化事务及完成记录均缺失。历史依据见 [Clean Reference R3 现场状态](N3W_CURRENT_STATE.md#2026-11-02--r3-pairing-readiness-bridge-source-repair-committed-ci_pending)。

@@ -1,6 +1,11 @@
 ## 备用 T1 实机验收索引
 
-### 2026-11-22 — 备用 T1 的 OTA V1.2 R7 运行基线与 R8 停点
+### 2026-11-22 — R8 单版本候选 CI 成功，待备用机写前复核
+
+- [最新交接](N3W_T1_OTA_V1_2_R8_SINGLE_IMAGE_CI_PASS_TO_SPARE_PREFLIGHT_NEW_CHAT_HANDOFF_V1.0_20261122.md) · [R8 实机基线、容量与备份](../status/n3w-t1-r8-readonly-preparation.md) · [单版本容量防回归](KNOWN_FAILURES_AND_REGRESSION_GUARDS.md#2026-11-22-t1-ota-v12-r8--回滚目标占用与容量判定)。
+- [PR #821](https://github.com/chrenguo-stack/HomeAssistant/pull/821) 精确 head `eac5794afbeef265dee0f5f60d5e5223de111e35`，13 项 CI 成功。[恢复包 14755286389](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/45024175717/artifacts/14755286389) 已回读。新候选未部署，备用 T1 最后仍运行 `2026.10.4`。
+
+### 2026-11-22 — 备用 T1 的 OTA V1.2 R7 运行基线与 R8 停点（历史）
 
 - [最新交接](N3W_T1_OTA_V1_2_R7_BASELINE_PASS_TO_R8_NEW_CHAT_HANDOFF_V1.0_20261122.md)。R7 已通过标准应用切换及严格只读运行基线。R8 固定为 Home Assistant `2026.10.0 → 2026.10.4`，等待前代恢复准备。
 - [实机回执与回退记录](https://github.com/chrenguo-stack/HomeAssistant/blob/851d0fb958fb1858171b862ef5a068151abc4591/docs/status/n3w-t1-r7-legacy-ota-cutover-precheck.md)、[停机误判防回归](https://github.com/chrenguo-stack/HomeAssistant/blob/0b206e46ab427d22161e8565e56d4f3fda384710/docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md)。V1.2 恢复包及 U 盘资格待验。
