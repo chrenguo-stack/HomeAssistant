@@ -41,6 +41,12 @@ DEFAULT_CACHE = (
     / "24382caae4a1f5d459297f86e8d18f10a848ca64"
     / "homeassistant-arm64.tar"
 )
+RECOVERY_CACHE = (
+    Path.home()
+    / "Documents/N3W/t1-core-stack-cache"
+    / RECOVERY_SOURCE_HEAD
+    / "ha-recovery.pyz"
+)
 COMPATIBILITY = (
     REPO_ROOT
     / "infra/n3w-t1/upgrades/homeassistant-2026.10.4-compatibility-review.json"
@@ -166,6 +172,15 @@ def _sha256_file(path: Path) -> str:
 
 
 def recovery_package(temp_root: Path) -> Path:
+    if (
+        RECOVERY_CACHE.exists()
+        and not RECOVERY_CACHE.is_symlink()
+        and RECOVERY_CACHE.is_file()
+        and RECOVERY_CACHE.stat().st_size > 0
+        and _sha256_file(RECOVERY_CACHE) == RECOVERY_PACKAGE_SHA256
+    ):
+        return RECOVERY_CACHE
+
     archive = temp_root / "recovery.zip"
     downloaded = False
     for _ in range(3):
@@ -229,7 +244,36 @@ def recovery_package(temp_root: Path) -> Path:
             or _sha256_file(path) != expected
         ):
             raise OperatorError("recovery_artifact_file_drift")
-    return package
+
+    RECOVERY_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    if RECOVERY_CACHE.parent.is_symlink() or not RECOVERY_CACHE.parent.is_dir():
+        raise OperatorError("recovery_cache_parent_invalid")
+    fd, raw = tempfile.mkstemp(
+        prefix=".ha-recovery.",
+        dir=RECOVERY_CACHE.parent,
+    )
+    temporary = Path(raw)
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "wb") as stream:
+            with package.open("rb") as source:
+                shutil.copyfileobj(source, stream, length=1024 * 1024)
+            stream.flush()
+            os.fsync(stream.fileno())
+        if _sha256_file(temporary) != RECOVERY_PACKAGE_SHA256:
+            raise OperatorError("recovery_cache_write_drift")
+        os.replace(temporary, RECOVERY_CACHE)
+        directory_fd = os.open(
+            RECOVERY_CACHE.parent,
+            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+        )
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return RECOVERY_CACHE
 
 
 def _encoded_source(path: Path) -> str:
