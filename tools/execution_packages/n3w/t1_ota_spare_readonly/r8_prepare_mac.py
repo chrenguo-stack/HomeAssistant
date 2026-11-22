@@ -20,7 +20,7 @@ CANDIDATE_HEAD = "741a1463e7de065401749e47e59d30b295d5d6e8"
 CANDIDATE = (14716899788, "1d4f857de78e5967ff94978411b813c8b7af0391d56e52ff3407ab480f0ae277")
 TARGET = (13391983948, "df95749cec1e48796d2cf3241d19739601fe7be78c48638284d10eec786e4fd2")
 TARGET_ARCHIVE_SHA256 = "eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973"
-PREDECESSOR_IMAGE_ID = "sha256:c261fa53f30508951833492ba2a19af6cfbb6aa8f2806b531d8f5c6599265306"
+PREDECESSOR_BUILD_IMAGE_ID = "sha256:b0e1ee82adfb19fa1ff3049034535633b1c4f0df6606721c0e77383854b99879"
 
 USB_OBSERVATION = r'''
 import hashlib
@@ -131,7 +131,7 @@ def verify_images(directory, candidate_bundle=False):
         binding = json.loads(factory.read("binding.json"))
         check(binding["source_head"] == expected_source, "three-image bundle source mismatch")
         image = binding["homeassistant"]
-        check(image["image_id"] == PREDECESSOR_IMAGE_ID, "frozen predecessor HA image ID mismatch")
+        check(image["image_id"] == PREDECESSOR_BUILD_IMAGE_ID, "frozen predecessor HA build image ID mismatch")
         verify_bundled_image(factory, image, "homeassistant-arm64.tar", "local/n3w-homeassistant:2026.10.0-0c73235a")
         print(json.dumps({"artifact_id": bundle[0], "factory_ha_archive_verified": True, "image": image}), flush=True)
         if candidate_bundle:
