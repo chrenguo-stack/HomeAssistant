@@ -280,3 +280,79 @@ def transition_allowed(current: str, next_phase: str) -> bool:
 def require_transition(current: str, next_phase: str) -> None:
     if not transition_allowed(current, next_phase):
         raise ContractError("switch_phase_transition_invalid")
+
+
+ALL_PHASES = frozenset((*PHASE_ORDER, PHASE_ROLLED_BACK, PHASE_RECOVERY_REQUIRED))
+
+
+def validate_recovery_state(
+    document: dict[str, Any],
+    *,
+    expected_source_head: str,
+) -> dict[str, Any]:
+    if (
+        not isinstance(document, dict)
+        or document.get("schema") != "gh.n3w-t1-r8-predecessor-switch-state/1"
+        or document.get("source_head") != expected_source_head
+        or not isinstance(document.get("transaction_id"), str)
+        or SHA256_RE.fullmatch(document["transaction_id"]) is None
+        or document.get("phase") not in ALL_PHASES
+        or document.get("current_image") != CURRENT_IMAGE
+        or document.get("current_image_id") != CURRENT_IMAGE_ID
+        or document.get("predecessor_image") != PREDECESSOR_IMAGE
+        or document.get("predecessor_image_id") != PREDECESSOR_IMAGE_ID
+        or document.get("rollback_transaction_sha256") != CURRENT_ROLLBACK_TX_SHA256
+        or document.get("rollback_archive_sha256") != CURRENT_ROLLBACK_ARCHIVE_SHA256
+        or document.get("rollback_archive_size") != CURRENT_ROLLBACK_ARCHIVE_SIZE
+        or document.get("usb_device") != BOUND_USB_DEVICE
+        or document.get("usb_major_minor") != BOUND_USB_MAJOR_MINOR
+        or document.get("predecessor_archive_sha256") != PREDECESSOR_ARCHIVE_SHA256
+        or document.get("predecessor_archive_size") != PREDECESSOR_ARCHIVE_SIZE
+        or type(document.get("predecessor_import_worst_case_bytes")) is not int
+        or document["predecessor_import_worst_case_bytes"] <= 0
+    ):
+        raise ContractError("switch_recovery_state_authority_invalid")
+
+    backup = document.get("backup")
+    if backup is not None:
+        required = {
+            "archive_sha256",
+            "archive_size_bytes",
+            "manifest_sha256",
+            "staged_data_sha256",
+            "filesystem_id",
+            "original_data_inode",
+            "staged_data_inode",
+            "preserved_path",
+        }
+        if (
+            not isinstance(backup, dict)
+            or set(backup) != required
+            or SHA256_RE.fullmatch(str(backup.get("archive_sha256"))) is None
+            or SHA256_RE.fullmatch(str(backup.get("manifest_sha256"))) is None
+            or SHA256_RE.fullmatch(str(backup.get("staged_data_sha256"))) is None
+            or type(backup.get("archive_size_bytes")) is not int
+            or backup["archive_size_bytes"] <= 0
+            or any(
+                type(backup.get(key)) is not int or backup[key] <= 0
+                for key in ("filesystem_id", "original_data_inode", "staged_data_inode")
+            )
+            or backup["original_data_inode"] == backup["staged_data_inode"]
+            or not isinstance(backup.get("preserved_path"), str)
+            or not backup["preserved_path"].startswith("/var/lib/.n3w-r8-preserved-10.4-")
+        ):
+            raise ContractError("switch_recovery_backup_authority_invalid")
+
+    if document["phase"] in {
+        PHASE_BACKUP_VERIFIED,
+        PHASE_DATA_EXCHANGED,
+        PHASE_CURRENT_RELEASE_INTENT,
+        PHASE_CURRENT_RELEASED,
+        PHASE_CAPACITY_PASSED,
+        PHASE_PREDECESSOR_LOADED,
+        PHASE_BINDING_SWITCHED,
+        PHASE_PREDECESSOR_HEALTHY,
+    } and backup is None:
+        raise ContractError("switch_recovery_backup_missing")
+
+    return document
