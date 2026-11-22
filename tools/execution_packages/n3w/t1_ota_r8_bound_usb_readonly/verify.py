@@ -289,12 +289,18 @@ def main() -> int:
             )
 
         report = _parse_report(completed.stdout)
-        validate_report(report)
+        validation_error = None
+        try:
+            validate_report(report)
+        except Exception as error:
+            validation_error = error
 
         if _host_mount_state(transport):
-            raise RuntimeError("host_usb_mount_leaked")
+            raise RuntimeError("host_usb_mount_leaked") from validation_error
         print("HOST_USB_MOUNT_STATE=UNCHANGED_UNMOUNTED")
         print("EXT4_JOURNAL_REPLAY=DISABLED_BY_RO_NOLOAD")
+        if validation_error is not None:
+            raise validation_error
         print("CURRENT_2026_10_4_ROLLBACK_MATERIALS=VERIFIED")
         print("ISOLATED_USB_VERIFY=PASS")
         return 0
