@@ -142,12 +142,14 @@ fi
 
 ### 实机导出回执
 
-2026-11-22（新加坡时间），操作者返回 `R8_ORIGINAL_IMAGE_EXPORT_PASS=true`。固定执行器仅在两项镜像都通过归档及运行身份校验并保存至 Mac 后打印该标记。两份归档已通过。当前聊天只收到 Manager 的明细，HA 的归档大小、摘要及本次 `R8_MANAGER_RECEIVE` 行尚未回传。
+2026-11-22（新加坡时间），操作者返回 `R8_ORIGINAL_IMAGE_EXPORT_PASS=true`。固定执行器仅在两项镜像都通过归档及运行身份校验并保存至 Mac 后打印该标记。两份归档及本次收数观察均已取得完整回执。
 
 | 原运行组件 | 运行镜像 ID | Mac 归档 |
 | --- | --- | --- |
-| HA `2026.10.4-5881590f` | `sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365` | 归档通过，以固定执行器最终标记为证。待补实际归档大小和摘要 |
+| HA `2026.10.4-5881590f` | `sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365` | `2447090176` 字节，SHA-256 `6502b8cdbf706d746e32311fdaa39ffc5ca703d76f766806bbb21d3c71278d1f`，`portable_identity_verified=true` |
 | Manager `fresh-44e7d7472714` | `sha256:1471828ab07cf9b71c01a6e78994711a5954f0a178b8be087a28bb65a967c7d2` | `62957568` 字节，SHA-256 `4c1dbbc999aa678057da96da1d8161907ce9e8c25ef004e88c7fb725ac3db9fe`，`portable_identity_verified=true` |
+
+本次观察返回 `R8_MANAGER_RECEIVE=NO_FRESH_CURSOR_OBSERVED`。观察窗口内未取得新的 Manager 游标，只有自然收数证据仍待补。该结果不影响镜像校验结论，也不据此判定业务故障。HA 的 SHA-256 对应从备用机运行镜像导出的原环境回退归档，正式 OTA 目标仍使用工件 13391983948 的冻结归档。
 
 ### 建立前代基线和返回原环境的顺序
 
