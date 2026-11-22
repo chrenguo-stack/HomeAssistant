@@ -26,3 +26,11 @@
 - 找到 [2026-11-15 R32 实机备份成功回执](https://github.com/chrenguo-stack/HomeAssistant/commit/51186e69b1885a9f1b98c4713558c41767e19d79) 及 [明确绑定 HA 2026.10.0 的恢复依据](https://github.com/chrenguo-stack/HomeAssistant/blob/7811b6bc2fc3cdc5b1cecb45549cb81b6d80784c/tools/execution_packages/n3w/r7a/u13a_live_commit_authorized/manifest.json#L58-L89)。加密数据包 `homeassistant-preupgrade.tar.gz.enc` 为 2,178,281 字节，SHA-256 `9473d5d199fd16c185425f5f0a0676d6cfab1888db28617f5ac4c9e4fa9e1c4c`，清单 SHA-256 `fd9a2f279a6e9fed99c2af6c2d4502227cafebe4d0ea5d5bb0a467e34415a704`。前代 HA 运行镜像 ID `sha256:c261fa53f30508951833492ba2a19af6cfbb6aa8f2806b531d8f5c6599265306`。旧 U13A 介质随后完成 [11 月 18 日重置](https://github.com/chrenguo-stack/HomeAssistant/commit/f725bbc7) 及 [P3 新建 ext4 恢复](https://github.com/chrenguo-stack/HomeAssistant/blob/7811b6bc2fc3cdc5b1cecb45549cb81b6d80784c/docs/development/N3W_T1_U13B_P3_U4_RECOVERY_PASS_TO_U5_NEW_CHAT_HANDOFF_V1.0_20261118.md)。前代数据副本可得性待查。若找到副本，另找配套认证元数据，并核验同机密钥能打开归档及隔离恢复结果。大小和 SHA-256 仅用于候选定位。
 
 R8 的正常升级、真实故障后自动回滚及关键边界断电续办均待实机。当前没有 R8 写入授权。
+
+## R32 副本搜索与 R8 备选准备
+
+- Mac 和备用 T1 的指定本地路径按原归档大小和 SHA-256 搜索，结果为 `R32_T1_SEARCH_EXIT=0` / `R32_BACKUP_MATCH=NOT_FOUND_IN_CHECKED_PATHS`。搜索结论限于已查路径，其他介质和离线副本状态未知。
+- [精确 ARM64 三镜像产物 14716899788](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44930275030/artifacts/14716899788) 绑定 `741a1463e7de065401749e47e59d30b295d5d6e8`，包含冻结的 `2026.10.0-0c73235a` HA 镜像和具备自检的 `fresh-741a1463e7de` Manager。[独立容器验证步骤](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44930275030/job/136925172766#step:13)通过了确切 ARM64 组合的 MQTT 引导、自然收数和自检回执，上传后工件回读核验亦成功。Mac 工具的 `--verify-images … --candidate-bundle` 仅在 Mac 校验该 ZIP、其中两项镜像及冻结 `2026.10.4` 目标 ZIP。脚本的选择逻辑和篡改摘要拒绝已用本地测试样本验证，大包在 Mac 的回读仍待执行。
+- 若采用独立测试数据，先准备一份由精确 `2026.10.0` 自行初始化的干净 HA 数据目录，使用受控收数和历史样本作为前代基线。CI 测试凭据和身份仅用于 CI，备用机仍使用本机 MQTT 引导与认证。此路线覆盖受控数据的正常升级、回滚及断电续办。R32 历史数据的迁移作为一项未覆盖范围单独记录。
+- 保留 `2026.10.4` 当前数据、镜像、现有应用启动绑定及将要调整的 Manager 状态。定向源码核对表明 OTA 运行态要求实际受保护路径为产品的 `/var/lib/n3wfc4-homeassistant`，并绑定目录与文件系统身份。实机只能在独立授权后先静止写入、验证当前版本备份和回退，随后把测试副本切入标准路径，且回退到原目录后重验 `2026.10.4` 与业务样本。禁止用改代码放宽路径检查的方式通过验收。应用管理单元可能同时停 HA 与 Manager，Broker 保持服务的条件要以执行前预检和实测确认。
+- 当前仅完成方案、定位和模拟验证。未停止服务、未生成新实机备份、未应用 Manager 候选，也未用测试数据替代历史数据。
