@@ -46,6 +46,7 @@ COMPATIBILITY = (
     / "infra/n3w-t1/upgrades/homeassistant-2026.10.4-compatibility-review.json"
 )
 TARGET = REPO_ROOT / "infra/n3w-t1/upgrades/homeassistant-2026.10.4.json"
+STORAGE_POLICY = REPO_ROOT / "infra/n3w-t1/upgrades/homeassistant-2026.10.4-storage-policy.json"
 
 
 class OperatorError(RuntimeError):
@@ -103,11 +104,24 @@ def validate_source(expected_head: str) -> dict[str, Any]:
     if contract.sha256_bytes(contract.canonical(review)) != contract.COMPATIBILITY_REVIEW_SHA256:
         raise OperatorError("compatibility_review_sha256_drift")
     contract.validate_compatibility_authority(review, target)
+    policy = json.loads(STORAGE_POLICY.read_text(encoding="utf-8"))
+    admission = policy.get("p5_upgrade_admission")
+    if (
+        policy.get("schema")
+        != "gh.n3w-t1-core-updater-homeassistant-storage-policy/1"
+        or policy.get("component") != "homeassistant"
+        or not isinstance(admission, dict)
+        or admission.get("historical_fixed_5_gib_retired") is not True
+        or admission.get("derived_post_peak_reserve_bytes")
+        != contract.POST_PEAK_RESERVE_BYTES
+    ):
+        raise OperatorError("storage_policy_authority_invalid")
     return {
         "source_head": expected_head,
         "compatibility_review_sha256": contract.COMPATIBILITY_REVIEW_SHA256,
         "persistent_schema_compatible": True,
         "rollback_compatible": True,
+        "post_peak_reserve_bytes": contract.POST_PEAK_RESERVE_BYTES,
     }
 
 
@@ -393,19 +407,19 @@ def stage_execute_bundle(
         env=env,
         timeout=30,
     )
-    for source in (
-        PACKAGE_DIR / "contract.py",
-        PACKAGE_DIR / "executor.py",
-        PACKAGE_DIR / "remote_live.py",
-        recovery_pyz,
-        grant_path,
-    ):
+    sources = (
+        (PACKAGE_DIR / "contract.py", "contract.py"),
+        (PACKAGE_DIR / "executor.py", "executor.py"),
+        (PACKAGE_DIR / "remote_live.py", "remote_live.py"),
+        (recovery_pyz, "ha-recovery.pyz"),
+        (grant_path, "grant.json"),
+    )
+    for source, remote_name in sources:
         run(
             [
                 "scp",
-                "--",
                 str(source),
-                target + ":" + remote_dir + "/" + source.name,
+                target + ":" + remote_dir + "/" + remote_name,
             ],
             env=env,
             timeout=120,
@@ -422,8 +436,8 @@ def stage_execute_bundle(
                     "contract.py",
                     "executor.py",
                     "remote_live.py",
-                    recovery_pyz.name,
-                    grant_path.name,
+                    "ha-recovery.pyz",
+                    "grant.json",
                 )
             ),
         ],
@@ -467,13 +481,13 @@ def execute_live(
             + "/remote_live.py --mode execute --recovery-pyz "
             + remote_dir
             + "/"
-            + recovery_pyz.name
+            + "ha-recovery.pyz"
             + " --source-head "
             + source_head
             + " --grant "
             + remote_dir
             + "/"
-            + grant_path.name
+            + "grant.json"
         )
         with cache_path.open("rb") as source:
             result = run(
