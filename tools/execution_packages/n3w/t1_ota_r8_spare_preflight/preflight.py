@@ -104,7 +104,9 @@ def p3_recovery_content_manifest(document):
         or not isinstance(value["ha_data_backup_identity"], dict)
     ):
         raise ValueError("p3_recovery_content_authority_incomplete")
-    return digest(canonical(value))
+    return digest(
+        json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    )
 
 
 def run_operator():
