@@ -33,6 +33,10 @@ class BackupEvidence:
     archive_size_bytes: int
     manifest_sha256: str
     staged_data_sha256: str
+    filesystem_id: int
+    original_data_inode: int
+    staged_data_inode: int
+    preserved_path: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,6 +116,10 @@ def _state(
             "archive_size_bytes": backup.archive_size_bytes,
             "manifest_sha256": backup.manifest_sha256,
             "staged_data_sha256": backup.staged_data_sha256,
+            "filesystem_id": backup.filesystem_id,
+            "original_data_inode": backup.original_data_inode,
+            "staged_data_inode": backup.staged_data_inode,
+            "preserved_path": backup.preserved_path,
         },
         "post_release_capacity": capacity,
         "failure": failure,
