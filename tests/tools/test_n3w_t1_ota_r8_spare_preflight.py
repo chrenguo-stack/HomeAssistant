@@ -62,3 +62,46 @@ def test_r8_spare_preflight_wrapper_contains_no_live_mutation_commands():
     )
     for token in forbidden:
         assert token not in source
+
+
+def test_recovery_material_documents_prefers_prepared_records():
+    module = load_module()
+    prepared = {
+        "target": {"kind": "target"},
+        "predecessor": {"kind": "predecessor"},
+    }
+    installed = {
+        "target": {"kind": "target-old"},
+        "predecessor": {"kind": "predecessor-old"},
+        "backup": {},
+    }
+    target, predecessor, source = module.recovery_material_documents(
+        {
+            "prepared_image_materials": prepared,
+            "install_recovery_materials": installed,
+        }
+    )
+    assert target == prepared["target"]
+    assert predecessor == prepared["predecessor"]
+    assert source == "prepared_image_materials"
+
+
+def test_recovery_material_documents_accepts_legacy_install_records():
+    module = load_module()
+    installed = {
+        "target": {"kind": "target"},
+        "predecessor": {"kind": "predecessor"},
+        "backup": {},
+    }
+    target, predecessor, source = module.recovery_material_documents(
+        {"install_recovery_materials": installed}
+    )
+    assert target == installed["target"]
+    assert predecessor == installed["predecessor"]
+    assert source == "install_recovery_materials_legacy"
+
+
+def test_recovery_material_documents_fails_closed_without_records():
+    module = load_module()
+    with pytest.raises(ValueError, match="recovery_material_records_unavailable"):
+        module.recovery_material_documents({})
