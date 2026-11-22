@@ -134,6 +134,19 @@ verify target + exact current recovery bytes
 If the actual post-release space is insufficient, the target is not loaded. Recovery continues from the same
 transaction and the exact 10.4 recovery material.
 
+Attempt 03 observed `4754415616` bytes available before release. The exact 10.0 tar is `2448553472`
+bytes, so candidate materialization temporarily needs a large internal spool. Existing materialization names that
+updater-owned spool `ha-target-<archive-sha256>.tar`.
+
+R8 now retires **only that updater-owned internal spool** after the exact target and exact current predecessor
+have both been fully verified and fsynced under the transaction directory on the bound USB, and before U4
+`READY_TO_INSTALL` is durably recorded. The retirement is idempotent for crash replay. An operator-supplied
+external target source is never deleted by this rule.
+
+Therefore the temporary internal transfer copy does not remain present to poison the later single-image
+install/recovery capacity measurement. The actual capacity authority remains
+`AFTER_RELEASE_BEFORE_NEXT_IMPORT`; the pre-release `4754415616` bytes is not itself a PASS decision.
+
 ## 6. Focused source coverage
 
 The new focused test proves:
@@ -141,7 +154,9 @@ The new focused test proves:
 1. the exact 10.0 target is bound to the archived artifact and canonical compatibility review;
 2. the normal Manager refuses to expose the reverse target as a customer update;
 3. the privileged maintenance entry creates only the existing U1 transaction with current=10.4 and target=10.0;
-4. no authorization is claimed/consumed at PREPARE.
+4. no authorization is claimed/consumed at PREPARE;
+5. only the deterministic updater-owned internal target spool is retired after USB preparation; arbitrary
+   operator target-source paths are preserved, and repeated retirement after a crash is idempotent.
 
 The existing HA USB R2/single-image suite remains the authoritative fault matrix for the shared primitives,
 including normal cutover, insufficient internal capacity, archive drift, target import/activation failure,
