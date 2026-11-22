@@ -92,15 +92,26 @@ ARTIFACT_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
 The 2026-11-01 clean-reference closure records the same image ID, archive size, archive SHA-256 and platform.
 Attempt 03 binds the operator Mac cache to the same archive values, so no 10.0 rebuild is required.
 
-The reverse preparation target reuses the canonical 10.0/10.4 compatibility review:
+The reverse preparation target does not relabel the forward 10.0 -> 10.4 review as reverse evidence.
+Instead it binds a directional R8 predecessor-preparation review:
 
 ```text
-REVIEW_CANONICAL_SHA256=8b02e9bb0143fc4fc7900c4c0e4c52b27f92725cd41f1f03b82ba67ffb9e0267
+PREPARATION_REVIEW=infra/n3w-t1/upgrades/homeassistant-2026.10.0-r8-predecessor-preparation-compatibility-review.json
+PREPARATION_REVIEW_CANONICAL_SHA256=69c1d8add67d445917738873329caee11f35ad5707e9ecdb5edab24c86b48cde
+SOURCE_REVIEW_BASIS_CANONICAL_SHA256=8b02e9bb0143fc4fc7900c4c0e4c52b27f92725cd41f1f03b82ba67ffb9e0267
 PERSISTENT_SCHEMA_COMPATIBLE=true
-ROLLBACK_COMPATIBLE_SOURCE_REVIEW=true
+REVERSE_PREPARATION_SOURCE_REVIEW=true
+HISTORICAL_2026_10_0_DATA_BACKUP_REQUIRED=false
+CURRENT_2026_10_4_PROTECTED_BACKUP_REQUIRED=true
+CURRENT_2026_10_4_ROLLBACK_IMAGE_REQUIRED=true
 PREPARATION_PREDECESSOR_SOURCE_HEAD=fb7cfc857003ace3d368521d76ca2320ba399736
 PREPARATION_TARGET_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
 ```
+
+The directional review inherits only the facts actually established by the canonical source review: the three
+core HA storage contracts are identical for this exact pair, peer contracts are compatible, and the source review
+accepted rollback compatibility. It does **not** waive the new preparation transaction's own current-10.4
+protected backup or exact current-10.4 rollback image.
 
 ## 4. User-control isolation
 
