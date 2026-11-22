@@ -88,8 +88,12 @@ def test_exact_2026_10_0_predecessor_preparation_target_is_bound_to_archived_aut
         "target_source_head": "5b32e1ae82104a42f9e4e6907fe44d9172e87615",
     }
     assert review_sha == REVIEW_CANONICAL_SHA256
-    assert review["rollback_compatible_source_review"] is True
+    assert review["reverse_preparation_source_review"] is True
     assert review["persistent_schema_compatible"] is True
+    assert review["historical_2026_10_0_data_backup_required"] is False
+    assert review["current_2026_10_4_protected_backup_required"] is True
+    assert review["current_2026_10_4_rollback_image_required"] is True
+    assert review["source_review_basis"]["canonical_sha256"] == "8b02e9bb0143fc4fc7900c4c0e4c52b27f92725cd41f1f03b82ba67ffb9e0267"
 
 
 def test_reverse_preparation_manifest_is_valid_but_not_exposed_as_customer_update() -> None:
