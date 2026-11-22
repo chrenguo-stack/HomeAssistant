@@ -271,12 +271,9 @@ def p3_rollback_archive() -> Path:
     return path
 
 
-def verify_current_archive_against_runtime(host) -> None:
+def verify_current_archive_identity():
     from n3w_t1_core_updater_v2_common import canonical
-    from n3w_t1_portable_image_identity import (
-        parse_image_archive,
-        verify_runtime_document,
-    )
+    from n3w_t1_portable_image_identity import parse_image_archive
 
     path = p3_rollback_archive()
     identity = parse_image_archive(
@@ -292,6 +289,13 @@ def verify_current_archive_against_runtime(host) -> None:
         != contract.CURRENT_ROLLBACK_PORTABLE_SHA256
     ):
         raise LiveError("p3_rollback_portable_identity_drift")
+    return identity
+
+
+def verify_current_archive_against_runtime(host) -> None:
+    from n3w_t1_portable_image_identity import verify_runtime_document
+
+    identity = verify_current_archive_identity()
     document = host._image_document(contract.CURRENT_IMAGE)
     if document is None:
         raise LiveError("current_image_missing")
@@ -438,6 +442,169 @@ def stream_docker_load(expected_size: int, expected_sha256: str) -> None:
         raise LiveError("predecessor_stream_size_mismatch")
     if digest.hexdigest() != expected_sha256:
         raise LiveError("predecessor_stream_sha256_mismatch")
+
+
+def backup_evidence_from_state(state: dict[str, Any]) -> executor.BackupEvidence | None:
+    value = state.get("backup")
+    if value is None:
+        return None
+    return executor.BackupEvidence(
+        archive_sha256=value["archive_sha256"],
+        archive_size_bytes=value["archive_size_bytes"],
+        manifest_sha256=value["manifest_sha256"],
+        staged_data_sha256=value["staged_data_sha256"],
+        filesystem_id=value["filesystem_id"],
+        original_data_inode=value["original_data_inode"],
+        staged_data_inode=value["staged_data_inode"],
+        preserved_path=value["preserved_path"],
+    )
+
+
+def restore_original_data_from_evidence(
+    backup: executor.BackupEvidence | None,
+) -> None:
+    if backup is None:
+        return
+    preserved = Path(backup.preserved_path)
+    if not preserved.exists() or preserved.is_symlink():
+        raise LiveError("preserved_original_data_missing")
+    current_identity = directory_identity(HA_DATA_ROOT)
+    preserved_identity = directory_identity(preserved)
+    original = (backup.filesystem_id, backup.original_data_inode)
+    staged = (backup.filesystem_id, backup.staged_data_inode)
+    if current_identity == original and preserved_identity == staged:
+        return
+    if current_identity == staged and preserved_identity == original:
+        exchange_directories(HA_DATA_ROOT, preserved)
+    else:
+        raise LiveError("data_exchange_recovery_ambiguous")
+    if directory_identity(HA_DATA_ROOT) != original:
+        raise LiveError("original_data_restore_failed")
+
+
+def remove_predecessor_if_exact(host) -> None:
+    document = image_document(host, contract.PREDECESSOR_IMAGE)
+    if document is None:
+        return
+    if document.get("Id") != contract.PREDECESSOR_IMAGE_ID:
+        raise LiveError("predecessor_cleanup_identity_drift")
+    remove_exact_stopped_ha_container(
+        contract.PREDECESSOR_IMAGE,
+        contract.PREDECESSOR_IMAGE_ID,
+    )
+    remove_exact_image(
+        host,
+        contract.PREDECESSOR_IMAGE,
+        contract.PREDECESSOR_IMAGE_ID,
+    )
+
+
+def restore_current_image_if_needed(host) -> None:
+    document = image_document(host, contract.CURRENT_IMAGE)
+    if document is not None:
+        if document.get("Id") != contract.CURRENT_IMAGE_ID:
+            raise LiveError("current_restore_preexisting_identity_drift")
+        return
+    verify_current_archive_identity()
+    path = p3_rollback_archive()
+    run(("docker", "load", "-i", str(path)), timeout=1800)
+    document = image_document(host, contract.CURRENT_IMAGE)
+    if document is None or document.get("Id") != contract.CURRENT_IMAGE_ID:
+        raise LiveError("current_image_restore_failed")
+
+
+def recover_to_current(source_head: str) -> dict[str, Any]:
+    from n3w_t1_core_updater_ha_recovery_startup import LocalHaPredecessorRuntime
+
+    state = read_state()
+    if state is None:
+        raise LiveError("switch_recovery_state_missing")
+    contract.validate_recovery_state(
+        state,
+        expected_source_head=source_head,
+    )
+    phase = state["phase"]
+    if phase == contract.PHASE_PREDECESSOR_HEALTHY:
+        return {
+            "status": "PREDECESSOR_SWITCH_ALREADY_HEALTHY",
+            "phase": phase,
+            "transaction_id": state["transaction_id"],
+        }
+    if phase == contract.PHASE_ROLLED_BACK:
+        return {
+            "status": "PREDECESSOR_SWITCH_ALREADY_ROLLED_BACK",
+            "phase": phase,
+            "transaction_id": state["transaction_id"],
+        }
+
+    host = LocalHaPredecessorRuntime()
+    current = p3_transaction()
+    verify_usb_binding(current)
+    mount_usb(read_only=False)
+    failure = None
+    try:
+        verify_current_archive_identity()
+        try:
+            host.stop_services()
+        except Exception:
+            if host.rollback_writers_quiesced() is not True:
+                raise
+
+        remove_predecessor_if_exact(host)
+        backup = backup_evidence_from_state(state)
+        restore_original_data_from_evidence(backup)
+        restore_current_image_if_needed(host)
+
+        binding = host.component_binding_v2("homeassistant")
+        if binding == contract.PREDECESSOR_IMAGE:
+            host.rewrite_component_image(
+                "homeassistant",
+                contract.PREDECESSOR_IMAGE,
+                contract.CURRENT_IMAGE,
+            )
+        elif binding != contract.CURRENT_IMAGE:
+            raise LiveError("current_binding_recovery_ambiguous")
+
+        host.start_services(readiness_timeout=READINESS_TIMEOUT_SECONDS)
+        runtime = host._runtime("homeassistant")
+        if (
+            runtime["image_ref"] != contract.CURRENT_IMAGE
+            or runtime["image_id"] != contract.CURRENT_IMAGE_ID
+            or runtime["restart_count"] != 0
+        ):
+            raise LiveError("current_runtime_recovery_failed")
+        snapshot = host.observe_v2()
+        if host._converged_health_v2(snapshot) is not True:
+            raise LiveError("current_health_recovery_failed")
+
+        terminal = {
+            **state,
+            "phase": contract.PHASE_ROLLED_BACK,
+            "failure": "recovered_from:" + phase,
+        }
+        atomic_write_state(terminal)
+        return {
+            "status": "PREDECESSOR_SWITCH_RECOVERED_TO_CURRENT",
+            "phase": contract.PHASE_ROLLED_BACK,
+            "transaction_id": state["transaction_id"],
+            "recovered_from": phase,
+        }
+    except Exception as error:
+        failure = str(error).partition(":")[0] or type(error).__name__
+        terminal = {
+            **state,
+            "phase": contract.PHASE_RECOVERY_REQUIRED,
+            "failure": "recovery_failed:" + failure,
+        }
+        atomic_write_state(terminal)
+        return {
+            "status": "PREDECESSOR_SWITCH_RECOVERY_REQUIRED",
+            "phase": contract.PHASE_RECOVERY_REQUIRED,
+            "transaction_id": state["transaction_id"],
+            "failure": failure,
+        }
+    finally:
+        unmount_usb()
 
 
 class LocalSwitchBackend:
@@ -721,51 +888,13 @@ class LocalSwitchBackend:
         self,
         backup: executor.BackupEvidence | None,
     ) -> None:
-        if backup is None:
-            return
-        preserved = Path(backup.preserved_path)
-        if not preserved.exists():
-            raise LiveError("preserved_original_data_missing")
-        current_identity = directory_identity(HA_DATA_ROOT)
-        preserved_identity = directory_identity(preserved)
-        original = (backup.filesystem_id, backup.original_data_inode)
-        staged = (backup.filesystem_id, backup.staged_data_inode)
-        if current_identity == original and preserved_identity == staged:
-            return
-        if current_identity == staged and preserved_identity == original:
-            exchange_directories(HA_DATA_ROOT, preserved)
-        else:
-            raise LiveError("data_exchange_recovery_ambiguous")
-        if directory_identity(HA_DATA_ROOT) != original:
-            raise LiveError("original_data_restore_failed")
+        restore_original_data_from_evidence(backup)
 
     def _remove_predecessor_if_present(self) -> None:
-        document = image_document(self.host, contract.PREDECESSOR_IMAGE)
-        if document is None:
-            return
-        if document.get("Id") != contract.PREDECESSOR_IMAGE_ID:
-            raise LiveError("predecessor_cleanup_identity_drift")
-        remove_exact_stopped_ha_container(
-            contract.PREDECESSOR_IMAGE,
-            contract.PREDECESSOR_IMAGE_ID,
-        )
-        remove_exact_image(
-            self.host,
-            contract.PREDECESSOR_IMAGE,
-            contract.PREDECESSOR_IMAGE_ID,
-        )
+        remove_predecessor_if_exact(self.host)
 
     def _restore_current_image(self) -> None:
-        document = image_document(self.host, contract.CURRENT_IMAGE)
-        if document is not None:
-            if document.get("Id") != contract.CURRENT_IMAGE_ID:
-                raise LiveError("current_restore_preexisting_identity_drift")
-            return
-        path = p3_rollback_archive()
-        run(("docker", "load", "-i", str(path)), timeout=1800)
-        document = image_document(self.host, contract.CURRENT_IMAGE)
-        if document is None or document.get("Id") != contract.CURRENT_IMAGE_ID:
-            raise LiveError("current_image_restore_failed")
+        restore_current_image_if_needed(self.host)
 
     def rollback_to_current(
         self,
@@ -857,7 +986,7 @@ def preflight_report(source_head: str) -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=("preflight", "execute", "status"), required=True)
+    parser.add_argument("--mode", choices=("preflight", "execute", "recover", "status"), required=True)
     parser.add_argument("--recovery-pyz", type=Path, required=True)
     parser.add_argument("--source-head", required=True)
     parser.add_argument("--grant", type=Path)
@@ -868,6 +997,19 @@ def main() -> int:
     if args.mode == "status":
         print(json.dumps({"status": "OBSERVED", "state": read_state()}, sort_keys=True))
         return 0
+
+    if args.mode == "recover":
+        try:
+            report = recover_to_current(args.source_head)
+        finally:
+            if source_mounts(contract.BOUND_USB_DEVICE):
+                raise LiveError("host_usb_mount_leaked")
+        print(json.dumps(report, sort_keys=True))
+        return 0 if report["status"] in {
+            "PREDECESSOR_SWITCH_RECOVERED_TO_CURRENT",
+            "PREDECESSOR_SWITCH_ALREADY_ROLLED_BACK",
+            "PREDECESSOR_SWITCH_ALREADY_HEALTHY",
+        } else 3
 
     if args.mode == "preflight":
         try:
