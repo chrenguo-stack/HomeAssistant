@@ -897,6 +897,78 @@ class LocalHaPredecessorRuntime(LocalHost):
         if "predecessor_release_intent" in document and "ha_data_restore" not in document:
             self._verify_original_launch(document, allow_target_binding=True)
 
+    def _rollback_target_image(self, document: dict[str, Any]) -> dict[str, Any] | None:
+        reference = document["target_image_ref"]
+        image = self._release_image(reference)
+        proof = document.get("target_load_identity")
+        recorded_id = document.get("target_release_image_id") or document.get("target_loaded_image_id")
+        if image is None:
+            if recorded_id is not None:
+                return self._release_image(recorded_id)
+            if proof is not None and self._release_image(identity_from_dict(proof).config_digest) is not None:
+                raise UpdaterError("ha_usb_rollback_untagged_target_ownership_unverified")
+        return image
+
+    def capture_rollback_target(self, document: dict[str, Any]) -> str | None:
+        image = self._rollback_target_image(document)
+        if image is None:
+            return None
+        proof = document.get("target_load_identity")
+        if proof is None:
+            raise UpdaterError("ha_usb_rollback_target_ownership_unverified")
+        reference = document["target_image_ref"]
+        image_id = self._verify_target_image(document, identity_from_dict(proof), image)
+        if (
+            document.get("target_loaded_image_id", image_id) != image_id
+            or image.get("RepoTags") not in ([reference], [], None)
+            or image.get("RepoDigests") not in ([], None)
+        ):
+            raise UpdaterError("ha_usb_rollback_target_exclusive_reference_unverified")
+        return image_id
+
+    def release_rollback_target(self, document: dict[str, Any]) -> None:
+        if (
+            document.get("target_release_step") != "INTENT" or document.get("recovery_required") is not True
+            or document.get("predecessor_release_observed") is not True
+            or not self.rollback_writers_quiesced()
+        ):
+            raise UpdaterError("ha_usb_rollback_target_release_not_admitted")
+        image_id = self.capture_rollback_target(document)
+        if image_id is None:
+            return
+        if image_id != document["target_release_image_id"]:
+            raise UpdaterError("ha_usb_rollback_target_release_identity_drift")
+        reference = document["target_image_ref"]
+        residue = self.component_container_residue("homeassistant")
+        if len(residue) > 1:
+            raise UpdaterError("ha_usb_rollback_target_container_ambiguous")
+        containers = []
+        if residue:
+            container = residue[0]
+            container_id = container["container_id"]
+            if (
+                SHA256.fullmatch(container_id) is None or container["status"] not in {"created", "exited"}
+                or container["replace"] or (container["image_ref"], container["image_id"]) != (reference, image_id)
+            ):
+                raise UpdaterError("ha_usb_rollback_target_container_drift")
+            self._check_protected_mounts(container_id, {"/config": str(self.ha_data_root)})
+            containers.append(container_id)
+        users = self._run((
+            "docker", "ps", "--all", "--no-trunc", "--quiet", "--filter", f"ancestor={image_id}",
+        ), timeout=30).stdout.decode().split()
+        if users != containers or not self.rollback_writers_quiesced():
+            raise UpdaterError("ha_usb_rollback_target_has_other_users")
+        if containers:
+            self._run(("docker", "container", "rm", containers[0]), timeout=120)
+        if (
+            not self.rollback_writers_quiesced()
+            or self.capture_rollback_target(document) != image_id
+        ):
+            raise UpdaterError("ha_usb_rollback_target_release_prestate_changed")
+        self._run(("docker", "image", "rm", "--no-prune", image_id), timeout=300)
+        if self._rollback_target_image(document) is not None or self._release_image(image_id) is not None:
+            raise UpdaterError("ha_usb_rollback_target_release_not_observed")
+
     def _verify_published_launch(
         self, document: dict[str, Any], *, replacement: tuple[str, str] | None = None,
     ) -> tuple[dict[str, Any], dict[str, dict[str, str]]]:
@@ -943,6 +1015,10 @@ class LocalHaPredecessorRuntime(LocalHost):
         binding = document["predecessor_start"]["images"]["homeassistant"]
         reference, expected_id = binding["reference"], binding["runtime_id"]
         local_id = self.image_id(reference)
+        if "recovery_workspace_bytes" in document.get("predecessor_release_admission", {}) and (
+            document.get("target_release_step") != "RELEASED" or self._rollback_target_image(document) is not None
+        ):
+            raise UpdaterError("ha_usb_rollback_target_release_not_observed")
         if local_id == expected_id:
             value = document.get("predecessor_reload_identity") or document.get("ha_data_restore", {}).get("predecessor_load_identity")
             if value is not None:

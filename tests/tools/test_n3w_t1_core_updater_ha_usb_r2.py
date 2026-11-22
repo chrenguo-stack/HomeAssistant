@@ -776,6 +776,18 @@ def _bind_test_image(record, archive):
     "commit_interrupted", "commit_runtime_drift", "install_worker",
 ])
 def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, monkeypatch, capsys, fault):
+    _exercise_target_import(tmp_path, monkeypatch, capsys, fault, single_image=False)
+
+
+@pytest.mark.parametrize("fault", [
+    "install_worker", "accept_failed", "after_target_import", "after_target_binding",
+    "before_target_start", "after_old_reload",
+])
+def test_single_image_install_and_rollback(tmp_path, monkeypatch, capsys, fault):
+    _exercise_target_import(tmp_path, monkeypatch, capsys, fault, single_image=True)
+
+
+def _exercise_target_import(tmp_path, monkeypatch, capsys, fault, *, single_image):
     _, usb, _, _, target, predecessor, backup = drive_to_u8(tmp_path)
     store = HaUsbStateStore(tmp_path / "state")
     runtime = ReleaseStartupRuntime(tmp_path / "application", None)
@@ -817,7 +829,7 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
     monkeypatch.setattr(mounted_media, "_command_json", lambda command, *_: (
         {"filesystems": mounts} if command == "findmnt" else {"blockdevices": devices}
     ))
-    available = 4 * 1024**2 if fault == "rollback_reserve" else 16 * 1024**2
+    available = (5 if single_image else 4 if fault == "rollback_reserve" else 16) * 1024**2
     filesystem_id = os.statvfs(runtime.ha_data_root).f_fsid
     monkeypatch.setattr(mounted_media.os, "statvfs", lambda path: SimpleNamespace(
         f_bavail=available, f_frsize=1, f_fsid=filesystem_id,
@@ -837,8 +849,11 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
     )
     if fault != "install_worker":
         store.write(request_install(prepared))
+    single_workspace = 512 * 1024 if single_image else None
+    recovery_bytes = 3 * 1024**2 + (single_workspace or 0)
     verification = SimpleNamespace(verify_install_materials=lambda _: HaInstallMaterials(
-        USB_UUID, target, predecessor, usb.report, True, HaInternalSpace(8 * 1024**2, 3 * 1024**2, 3 * 1024**2),
+        USB_UUID, target, predecessor, usb.report, True,
+        HaInternalSpace(available if single_image else 8 * 1024**2, 3 * 1024**2, recovery_bytes, single_workspace),
     ))
     backups = provider if activation_fault else SimpleNamespace(
         create_consistent_backup=lambda **_: backup, verify_backup=lambda record: record,
@@ -854,6 +869,9 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
     loads = []
     observations = []
     instance_changed = False
+    target_releases = []
+    target_release_attempts = []
+    target_config_id = "sha256:" + sha256_bytes(target_config)
 
     class Acceptance(SyntheticAcceptance):
         def capture_baseline(self, transaction):
@@ -916,8 +934,26 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
         )
 
     def observe(argv, **kwargs):
-        if argv == ("docker", "image", "inspect", TARGET) and loaded_target is not None:
-            return SimpleNamespace(returncode=0, stdout=json.dumps([loaded_target]).encode())
+        nonlocal loaded_target, available
+        if argv[:3] == ("docker", "image", "inspect") and argv[-1] in {TARGET, runtime_id, target_config_id}:
+            if loaded_target is not None and argv[-1] in {TARGET, runtime_id}:
+                return SimpleNamespace(returncode=0, stdout=json.dumps([loaded_target]).encode())
+            return SimpleNamespace(returncode=1, stdout=b"", stderr=b"Error: No such image")
+        if single_image and argv == ("docker", "image", "rm", "--no-prune", runtime_id):
+            assert store.read()["target_release_step"] == "INTENT"
+            assert store.read()["target_release_image_id"] == runtime_id
+            assert runtime.running == {"broker"} and loaded_target is not None
+            target_release_attempts.append(runtime_id)
+            if fault == "after_target_binding" and len(target_release_attempts) == 1:
+                raise InterruptedPower()
+            loaded_target = None
+            available += 3 * 1024**2
+            if fault == "before_target_start":
+                available -= 2 * 1024**2  # Unreclaimed bytes still count against recovery.
+            target_releases.append(runtime_id)
+            if fault == "after_target_import":
+                raise InterruptedPower()
+            return SimpleNamespace(stdout=b"")
         if argv == ("systemctl", "start", recovery_startup.SERVICES_UNIT) and activation_fault:
             document = store.read()
             forward = runtime.compose["services"]["homeassistant"]["image"] == TARGET
@@ -958,19 +994,36 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
             return {**value, "image_ref": TARGET, "image_id": runtime_id, "restart_count": int(instance_changed)}
         return value
 
+    prior_residue = runtime.component_container_residue
+
+    def residue(component):
+        rows = prior_residue(component)
+        if single_image and target_starts and loaded_target is not None:
+            return [{**row, "image_ref": TARGET, "image_id": runtime_id} for row in rows]
+        return rows
+
     def load(source):
-        nonlocal loaded_target
+        nonlocal loaded_target, available
         payload = source.read()
         if payload == target_path.read_bytes():
             assert store.read()["target_load_identity"]["archive_sha256"] == target.archive_sha256
             loads.append(TARGET)
             loaded_target = {"Id": runtime_id, "Os": "linux", "Architecture": "arm64",
-                             "Config": json.loads(target_config)["config"], "RootFS": {"Layers": target_layers}}
+                             "Config": json.loads(target_config)["config"], "RootFS": {"Layers": target_layers},
+                             "RepoTags": [TARGET], "RepoDigests": []}
+            if single_image:
+                assert not runtime.image_present
+                assert available < store.read()["predecessor_release_admission"]["install_required_bytes"] + recovery_bytes
+                available -= 3 * 1024**2
             if fault == "after_target_import":
                 raise InterruptedPower()
         else:
             assert payload == old_path.read_bytes()
             document = store.read()
+            if single_image:
+                assert document["target_release_step"] == "RELEASED"
+                assert loaded_target is None and target_releases == [runtime_id]
+                assert available >= 3 * 1024**2
             intent = (document["ha_data_restore"]["predecessor_load_identity"] if data_rollback
                       else document["predecessor_reload_identity"])
             assert intent["archive_sha256"] == predecessor.archive_sha256
@@ -981,6 +1034,7 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
 
     monkeypatch.setattr(runtime, "_run", observe)
     monkeypatch.setattr(runtime, "_runtime", observed_runtime)
+    monkeypatch.setattr(runtime, "component_container_residue", residue)
     monkeypatch.setattr(runtime, "rewrite_component_image", rewrite)
     monkeypatch.setattr(runtime, "_load_ha_image", load)
     monkeypatch.setattr(runtime, "_image_document", lambda _: {
@@ -1274,11 +1328,33 @@ def test_target_import_and_activation_select_the_bound_rollback_path(tmp_path, m
             patch.setattr(runtime, "mount_original_for_recovery", absent_media)
             assert recovery_startup.main(pending_only=fault == "after_target_observed") == 0
             assert json.loads(capsys.readouterr().out) == {"status": "RECOVERY_MEDIA_REQUIRED"}
+        if single_image:
+            assert not target_releases and loaded_target is not None
         assert store.read()["recovery_required"]
         assert not {"homeassistant", "manager"} & runtime.running
         assert recovery_startup.main(application_condition=True) == 1
 
     if fault not in {"rollback_reserve", "target_runtime_drift", "write_intent_failed", "target_start_failed"}:
+        if single_image and fault == "after_target_binding":
+            loaded_target["RepoTags"] = [TARGET, "local/retained:fixture"]
+            assert recovery_startup.main() == 1
+            assert json.loads(capsys.readouterr().out) == {"status": "RECOVERY_STARTUP_NEEDS_REVIEW"}
+            assert not target_release_attempts and "target_release_step" not in store.read()
+            loaded_target["RepoTags"] = [TARGET]
+            with pytest.raises(InterruptedPower):
+                recovery_startup.main()
+            assert store.read()["target_release_step"] == "INTENT" and loaded_target is not None
+        if single_image and fault == "after_target_import":
+            with pytest.raises(InterruptedPower):
+                recovery_startup.main()
+            assert store.read()["target_release_step"] == "INTENT"
+            assert loaded_target is None and target_releases == [runtime_id]
+        if single_image and fault == "before_target_start":
+            assert recovery_startup.main() == 1
+            assert json.loads(capsys.readouterr().out) == {"status": "RECOVERY_STARTUP_NEEDS_REVIEW"}
+            assert store.read()["target_release_step"] == "INTENT"
+            assert "ha_data_restore" not in store.read() and loads == [TARGET]
+            available += 2 * 1024**2
         if fault == "after_old_reload":
             with pytest.raises(InterruptedPower):
                 recovery_startup.main()
@@ -1849,10 +1925,15 @@ def test_verify_existing_usb_media_from_bound_archives(tmp_path, monkeypatch, fa
         observed = verifier.verify_install_materials(pending)
         assert observed.target == target
         assert observed.predecessor == predecessor
-        assert observed.capacity.capacity_pass is (fault != "internal_space")
+        assert observed.capacity.capacity_pass is True
         assert observed.internal_space.recovery_required_bytes > 2 * 1024 * 1024
         if fault == "internal_space":
             assert max(observed.internal_space.install_required_bytes, observed.internal_space.recovery_required_bytes) < available
+            assert available < observed.internal_space.install_required_bytes + observed.internal_space.recovery_required_bytes
+            available = max(observed.internal_space.install_required_bytes, observed.internal_space.recovery_required_bytes) - 1
+            assert not verifier.verify_install_materials(pending).capacity.capacity_pass
+            assert commands == ["findmnt", "lsblk"] * 4
+            return
         assert commands == ["findmnt", "lsblk", "findmnt", "lsblk"]
     assert set(commands) <= {"findmnt", "lsblk"}
     assert sentinel.read_bytes() == b"keep unchanged"
@@ -1928,7 +2009,11 @@ def test_verify_existing_usb_media_from_bound_archives(tmp_path, monkeypatch, fa
                     backups.stage_preupgrade_data(),
                 ):
                     pytest.fail("an unclaimed transaction must not stage a restore")
-                claimed = recovery.admit_predecessor_release(verifier, backups, AUTHORIZATION_ID)
+                space = verifier.verify_install_materials(document).internal_space
+                # This direct data-publication fixture models a transaction written by older code.
+                claimed = claim_live_authorization(document, AUTHORIZATION_ID, internal_space=replace(
+                    space, recovery_workspace_bytes=None,
+                ))
                 assert claimed["predecessor_release_admission"]["recovery_required_bytes"] > 3 * 1024 * 1024
                 cutover = record_target_started(record_predecessor_capacity_released(claimed))
                 store.write(cutover)
