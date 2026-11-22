@@ -123,6 +123,7 @@ def test_existing_transaction_accepts_reverse_preparation_only_through_privilege
     assert admission.target_archive_size == TARGET_ARCHIVE_SIZE
 
     store = HaUsbStateStore(tmp_path / "state")
+    store.root.mkdir(mode=0o700)
     export = tmp_path / "run"
     export.mkdir()
     manifest_path = export / APPROVED_MANIFEST
