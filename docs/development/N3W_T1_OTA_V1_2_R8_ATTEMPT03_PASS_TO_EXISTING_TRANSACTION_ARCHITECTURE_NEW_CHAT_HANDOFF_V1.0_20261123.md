@@ -25,8 +25,9 @@
 - 核对时 main／本任务源码：
   - `MAIN=4fde1b7c5cc0aa224fa3574b8b4cc638edd93647`
   - `PR821_HEAD=eac5794afbeef265dee0f5f60d5e5223de111e35`
-  - `PR822_HEAD=ba01d2d6d65d71cfbbb5cd54c397646dfee0cc63`
+  - `PR822_ATTEMPT03_SOURCE_HEAD=ba01d2d6d65d71cfbbb5cd54c397646dfee0cc63`
   - PR #822 base = PR #821 exact head。
+  - 本交接为 docs-only advance；新会话必须 fresh rebind PR #822 current head，并确认除交接/归档外无新的产品源码漂移。
 - 证据入口：
   - `docs/development/N3W_T1_OTA_V1_2_R8_SPARE_READONLY_PREFLIGHT_PHYSICAL_EVIDENCE_20261122.md`
     - 读取 “Isolated bound-USB verification Attempt 03”；
@@ -106,7 +107,7 @@
   - 先 fresh rebind：
     1. `main`
     2. PR #821 exact head `eac5794afbeef265dee0f5f60d5e5223de111e35`
-    3. PR #822 exact head `ba01d2d6d65d71cfbbb5cd54c397646dfee0cc63`
+    3. PR #822 Attempt 03/source stop head `ba01d2d6d65d71cfbbb5cd54c397646dfee0cc63`；随后仅有本交接 docs-only advance，current head 在新会话 fresh rebind
     4. V1.2 architecture
     5. existing T1_Core_Updater transaction/recovery modules
     6. exact 10.0↔10.4 compatibility authority
@@ -157,8 +158,9 @@
   - current formal handoff template：
     `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md`，`HANDOFF_TEMPLATE_VERSION=1.4`
 - 已归档：
-  - PR #822 exact head `ba01d2d6d65d71cfbbb5cd54c397646dfee0cc63`
-  - Attempt 03 physical evidence 已在 PR #822 的 evidence 文档中固定；
+  - PR #822 Attempt 03/source stop head `ba01d2d6d65d71cfbbb5cd54c397646dfee0cc63`；
+  - Attempt 03 physical evidence 已在该 stop head 的 evidence 文档中固定；
+  - 本交接为后续 docs-only advance，不改变 Attempt 03 产品源码/实机事实；
   - 本交接文档本身归档到 PR #822 branch。
 - 未归档重要资料：无。错误 scratch predecessor-switch 分支已保留为非产品历史材料，但已明确禁止作为后续 authority。
 
