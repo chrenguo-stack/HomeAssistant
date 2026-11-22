@@ -99,6 +99,7 @@ def test_exact_package_installs_and_executes_self_contained_recovery(package, tm
     stdout = subprocess.check_output((sys.executable, "-I", installed, "--help"), cwd=tmp_path, text=True)
     assert all(flag in stdout for flag in ("--check-application-start", "--resume-pending", "--install-requested", "--serve-ipc"))
     assert "--issue-prepare-authority" in stdout and "--issue-install-authority" in stdout
+    assert "--maintenance-submit-approved-release" in stdout and "--release-identity" in stdout
     check_help = subprocess.check_output(
         (sys.executable, "-I", installed, "check-candidate-activation", "--help"), cwd=tmp_path, text=True,
     )
