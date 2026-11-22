@@ -35,7 +35,7 @@ jobs:
             tools/execution_packages/n3w/t1_ota_r8_predecessor_switch/contract.py \
             tools/execution_packages/n3w/t1_ota_r8_predecessor_switch/executor.py \
             tools/execution_packages/n3w/t1_ota_r8_predecessor_switch/remote_live.py \
-            tools/execution_packages/n3w/t1_ota_r8_predecessor_switch/operator.py \
+            tools/execution_packages/n3w/t1_ota_r8_predecessor_switch/switchctl.py \
             tests/tools/test_n3w_t1_ota_r8_predecessor_switch.py
       - name: Run focused predecessor switch tests
         env:
