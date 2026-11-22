@@ -29,7 +29,7 @@ from n3w_t1_core_updater_ha_usb_state import U1, HaUsbStateStore
 from n3w_t1_core_updater_v2_common import ComponentTarget, canonical, sha256_bytes
 
 TARGET_PATH = REPO / "infra/n3w-t1/upgrades/homeassistant-2026.10.0-r8-predecessor-preparation.json"
-REVIEW_PATH = REPO / "infra/n3w-t1/upgrades/homeassistant-2026.10.4-compatibility-review.json"
+REVIEW_PATH = REPO / "infra/n3w-t1/upgrades/homeassistant-2026.10.0-r8-predecessor-preparation-compatibility-review.json"
 
 RELEASE = "homeassistant-r8-predecessor-2026.10.0"
 CURRENT = "local/n3w-homeassistant:2026.10.4-5881590f"
@@ -40,7 +40,7 @@ TARGET_ARCHIVE_SHA256 = "e52d12779f7562d3f37a265d622fbaf31e758deba5998e40cafb5a3
 ARTIFACT_ID = 13070404405
 ARTIFACT_DIGEST_SHA256 = "99eae7602eb2f8318bb7c0fff29d71fa61471071902b854a90666d4beb931b93"
 ARTIFACT_NAME = "n3w-t1-fresh-exact-arm64-24382caae4a1f5d459297f86e8d18f10a848ca64"
-REVIEW_CANONICAL_SHA256 = "8b02e9bb0143fc4fc7900c4c0e4c52b27f92725cd41f1f03b82ba67ffb9e0267"
+REVIEW_CANONICAL_SHA256 = "69c1d8add67d445917738873329caee11f35ad5707e9ecdb5edab24c86b48cde"
 
 
 def approved_envelope() -> dict:
