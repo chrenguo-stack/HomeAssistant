@@ -33,6 +33,12 @@
 - V1.2 候选另外使用 `n3w-t1-ha-ota-ipc.socket`。它在宿主机监听 `/run/n3w/t1-ota/ha-ota.sock`，旧 Manager 读取的是从 `/run/n3w-t1-ota` 映射进容器的旧套接字。两套运行方式应在同一备用 T1 上分阶段切换。 [V1.2 套接字](https://github.com/chrenguo-stack/HomeAssistant/blob/741a1463e7de065401749e47e59d30b295d5d6e8/infra/n3w-t1/systemd/n3w-t1-ha-ota-ipc.socket)
 - 拟在 HA `2026.10.4` 上先恢复 Clean Reference 标准启停。切换前重验终态且无在途升级，备份确切覆盖文件，使用标准 Compose 渲染检查三组件镜像和受保护数据挂载。应用仍由旧命令监管时先停止应用单元，停妥后移出旧覆盖并重新加载 systemd，核对新启停命令及依赖，再停用旧后台服务，启动标准应用单元。检查 HA 和 Manager 健康、Broker 连续性、当前镜像与事务摘要。失败时恢复旧覆盖与启用状态，先启动旧后台服务，再按旧配置恢复应用。保留旧事务、介质及初始化修复。此切换会短暂停止 HA 和 Manager，等待专项实机授权。V1.2 部署和恢复 `2026.10.0` 后续单独验收。
 
+**备用 T1 标准运行基线验收通过**
+
+- 实机确认 `R7_LEGACY_CUTOVER_PASS` 和 `RUNNING_BASELINE_PASS`，`diagnostic_only=false`，`errors={}`。旧守护进程保持运行直至标准应用健康验证通过，随后才停用。验证确认应用仍为 HA `2026.10.4`，Broker 实例未更换，应用数据挂载和历史 OTA 事务一致。 [实机回执与修复过程](https://github.com/chrenguo-stack/HomeAssistant/blob/851d0fb958fb1858171b862ef5a068151abc4591/docs/status/n3w-t1-r7-legacy-ota-cutover-precheck.md)
+- **停机防回归**：本次 systemd 和两个原应用容器均报告退出码 `137`。两个容器退出后无运行 PID、重启、Docker 运行时错误或 OOM 标记。依据 KF-158，判定完全停止时使用停止中的实际进程与容器状态，退出码单独存证。
+- **后续边界**：R8 固定路径 `2026.10.0 → 2026.10.4` 仍缺少合格前代。GitHub 复核确认 2026.10.0 [出厂三镜像构建](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/41275979177)、2026.10.4 [目标构建](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/41976542377)、[V1.2 恢复组件构建](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44924757335) 的精确产物均未过期。出厂镜像构建用于重建运行环境。复位方案需要另行绑定与 2026.10.0 匹配的数据基线。恢复组件部署、U 盘资格和 OTA 执行待后续阶段。
+
 ### 2026-11-05 KF-142 — P5 host-side ad-hoc SSH reuse causes repeated authentication and pre-claim staging STOP
 
 | ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
