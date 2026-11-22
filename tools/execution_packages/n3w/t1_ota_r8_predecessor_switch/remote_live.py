@@ -165,6 +165,37 @@ def mount_usb(*, read_only: bool) -> None:
         ),
         timeout=30,
     )
+    verify_usb_mount_mode(read_only=read_only)
+
+
+def verify_usb_mount_mode(*, read_only: bool) -> None:
+    result = run(
+        (
+            "findmnt",
+            "--noheadings",
+            "--output",
+            "SOURCE,FSTYPE,OPTIONS",
+            "--mountpoint",
+            str(USB_MOUNT),
+        ),
+        timeout=20,
+    )
+    fields = result.stdout.decode().strip().split(None, 2)
+    if len(fields) != 3:
+        raise LiveError("usb_mount_observation_invalid")
+    source, fstype, options = fields
+    option_set = set(options.split(","))
+    if (
+        source not in {contract.BOUND_USB_DEVICE, "/dev/sda1"}
+        or fstype != "ext4"
+        or ("ro" in option_set) is not read_only
+        or ("rw" in option_set) is read_only
+        or "nodev" not in option_set
+        or "nosuid" not in option_set
+        or "noexec" not in option_set
+        or (read_only and not ({"noload", "norecovery"} & option_set))
+    ):
+        raise LiveError("usb_mount_mode_invalid")
 
 
 def unmount_usb() -> None:
@@ -261,10 +292,21 @@ def verify_usb_binding(current: dict[str, Any]) -> None:
 
 
 def p3_rollback_archive() -> Path:
+    root = USB_MOUNT / "n3w-update"
+    predecessor = root / "predecessor"
+    for directory in (root, predecessor):
+        require_private_directory(directory)
     path = USB_MOUNT / P3_PREDECESSOR_ARCHIVE
     if path.is_symlink() or not path.is_file():
         raise LiveError("p3_rollback_archive_missing")
-    if path.stat().st_size != contract.CURRENT_ROLLBACK_ARCHIVE_SIZE:
+    metadata = path.stat()
+    if (
+        metadata.st_uid != os.geteuid()
+        or stat.S_IMODE(metadata.st_mode) & 0o077
+        or metadata.st_nlink != 1
+    ):
+        raise LiveError("p3_rollback_archive_metadata_invalid")
+    if metadata.st_size != contract.CURRENT_ROLLBACK_ARCHIVE_SIZE:
         raise LiveError("p3_rollback_archive_size_drift")
     if contract.sha256_file(path) != contract.CURRENT_ROLLBACK_ARCHIVE_SHA256:
         raise LiveError("p3_rollback_archive_sha256_drift")
@@ -938,6 +980,8 @@ def preflight_report(source_head: str) -> dict[str, Any]:
     from n3w_t1_core_updater_ha_recovery_startup import LocalHaPredecessorRuntime
 
     host = LocalHaPredecessorRuntime()
+    if read_state() is not None:
+        raise LiveError("switch_transaction_state_already_exists")
     if source_mounts(contract.BOUND_USB_DEVICE):
         raise LiveError("host_usb_already_mounted")
     baseline = {
@@ -960,8 +1004,20 @@ def preflight_report(source_head: str) -> dict[str, Any]:
     mount_usb(read_only=True)
     try:
         verify_current_archive_against_runtime(host)
-        root_info = os.statvfs("/")
         data_fsid, data_inode = directory_identity(HA_DATA_ROOT)
+        docker_root = Path(
+            host._run(
+                ("docker", "info", "--format", "{{.DockerRootDir}}")
+            ).stdout.decode().strip()
+        )
+        if not docker_root.is_absolute() or not docker_root.is_dir():
+            raise LiveError("docker_root_invalid")
+        docker_info = os.statvfs(docker_root)
+        if (
+            docker_root.stat().st_dev != HA_DATA_ROOT.stat().st_dev
+            or docker_info.f_fsid != data_fsid
+        ):
+            raise LiveError("switch_internal_filesystem_split")
         return {
             "schema": contract.SCHEMA,
             "status": "R8_PREDECESSOR_SWITCH_READONLY_PREFLIGHT_PASS",
@@ -973,8 +1029,10 @@ def preflight_report(source_head: str) -> dict[str, Any]:
             "rollback_archive_sha256": contract.CURRENT_ROLLBACK_ARCHIVE_SHA256,
             "data_filesystem_id": data_fsid,
             "data_inode": data_inode,
+            "docker_root": str(docker_root),
+            "internal_filesystem_shared": True,
             "pre_release_available_bytes": (
-                root_info.f_bavail * root_info.f_frsize
+                docker_info.f_bavail * docker_info.f_frsize
             ),
             "capacity_decision": "DEFER_UNTIL_POST_RELEASE_MEASUREMENT",
             "host_usb_mount_before": False,
