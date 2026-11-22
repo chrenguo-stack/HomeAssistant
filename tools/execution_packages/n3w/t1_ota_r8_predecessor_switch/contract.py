@@ -319,7 +319,7 @@ def validate_recovery_state(
             "archive_sha256",
             "archive_size_bytes",
             "manifest_sha256",
-            "staged_data_sha256",
+            "staged_manifest_sha256",
             "filesystem_id",
             "original_data_inode",
             "staged_data_inode",
@@ -330,7 +330,7 @@ def validate_recovery_state(
             or set(backup) != required
             or SHA256_RE.fullmatch(str(backup.get("archive_sha256"))) is None
             or SHA256_RE.fullmatch(str(backup.get("manifest_sha256"))) is None
-            or SHA256_RE.fullmatch(str(backup.get("staged_data_sha256"))) is None
+            or SHA256_RE.fullmatch(str(backup.get("staged_manifest_sha256"))) is None
             or type(backup.get("archive_size_bytes")) is not int
             or backup["archive_size_bytes"] <= 0
             or any(
