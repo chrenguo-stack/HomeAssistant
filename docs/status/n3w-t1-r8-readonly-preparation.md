@@ -246,3 +246,9 @@ Docker 汇总报告 5 个镜像、3 个活跃，显示 `5.536GB` 可回收。该
 | 同笔 U13A 的 USB | 目标包 `835309535`、前代包 `743074537`、加密数据备份 `2178281` 字节，三笔材料合计 `1580562353` 字节（不含目录和元数据），当时盘上实测可用 `28132077568` 字节。[USB 回执](https://github.com/chrenguo-stack/HomeAssistant/pull/807#issuecomment-6906029215) · [加密备份](https://github.com/chrenguo-stack/HomeAssistant/commit/51186e69b1885a9f1b98c4713558c41767e19d79) |
 
 早期基线与 U10 释放前不是同一时点，未从这两项证据推算旧镜像释放字节。R8 当前冻结候选在释放前代前就核验目标导入与整个前代恢复预算之和，导入前还会重核。V1.0 实机余量和准入时点不用于本次放行；本次仅作历史对照。
+
+### 两项预算相加的源码原因
+
+新版导入和旧镜像恢复按分支顺序发生。当前冻结候选在已导入目标之后回滚时，会停止应用写入，按写入边界恢复原数据，然后装回前代镜像；装回前代之前没有针对本笔失败目标的镜像释放步骤。因此，新版的磁盘占用可能与恢复前代所需空间重叠。加法是当前实现对重叠占用的预留，不表示两次 Docker 导入会并发。候选还在释放前代之前执行该容量判定，因而低空间设备可能在可以回收前代占用之前被拒绝。 [回滚调度](https://github.com/chrenguo-stack/HomeAssistant/blob/741a1463e7de065401749e47e59d30b295d5d6e8/tools/n3w_t1_core_updater_ha_usb.py#L748-L788) · [前代装回及启动](https://github.com/chrenguo-stack/HomeAssistant/blob/741a1463e7de065401749e47e59d30b295d5d6e8/tools/n3w_t1_core_updater_ha_recovery_startup.py#L939-L988) · [预算公式](https://github.com/chrenguo-stack/HomeAssistant/blob/741a1463e7de065401749e47e59d30b295d5d6e8/tools/n3w_t1_core_updater_ha_mounted_media.py#L534-L565)
+
+低空间改进需在确认两个回退材料已可用之后，明确失败目标的事务身份、写入已静止、精确释放及断电后的续办，再按目标安装与前代恢复的阶段预算和实际可回收空间核算。仅修改加法会让当前回滚继续保留失败目标的占用。本次为只读源码核对，冻结候选和实机状态未变。
