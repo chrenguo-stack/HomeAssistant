@@ -27,3 +27,20 @@ The revised [executor](https://github.com/chrenguo-stack/HomeAssistant/blob/d7d1
 The follow-up attempt reused the verified backup, stopped at `STOP_APPLICATION`, and returned `R7_LEGACY_CUTOVER_ROLLED_BACK` / exit 3. Systemd reported `failed/failed/exit-code`, `ExecMainStatus=137`, `MainPID=0`, `ControlPID=0`, and `NRestarts=0`. The receipt came from the systemd owner; the previous guard returned before reading the individual container states. Rollback verified both MQTT identities authenticated, Home Assistant HTTP 401 at version 2026.10.4, preserved application mount bindings, the same Broker instance, and unchanged OTA transaction records. Supervision was not switched in this attempt.
 
 The revised [executor](https://github.com/chrenguo-stack/HomeAssistant/blob/6e9928a04fb81b9613c5e46e422eb10770926785/tools/execution_packages/n3w/t1_legacy_ota_cutover/executor.py) follows the stopped-owner semantics in `LocalHost.stop_services` and reuses its Docker running counts. Stop admission requires a terminal systemd state, no main/control process or restart, no running application replicas, and both original Docker containers exited. It records the systemd and per-container exit codes independently. A running/restarting container, Docker runtime error, or container OOM still blocks the switch. Nineteen offline scenarios passed. The combined launcher verifies all payload digests and runs the previously bound R7 read-only observer only after cutover success, with USB observation unrequested. Shell syntax, exact payload and observer sequencing passed offline. The revised attempt is pending on the spare T1.
+
+## Spare T1 cutover and strict R7 running baseline passed
+
+The operator ran cutover executor `6e9928a04fb81b9613c5e46e422eb10770926785` and read-only observer `3af2bf616d5e56c69f695b18a16d5377bb070950` against the recovery build for `84da7cd68e2f65fb011c32db1c3683b76a48112b`. The combined command returned `EXIT_CODE=0`.
+
+| Evidence | Physical result |
+| --- | --- |
+| Legacy cutover | `R7_LEGACY_CUTOVER_PASS`; standard application verified, legacy daemon retired, verified drop-in backup reused |
+| Strict running baseline | `RUNNING_BASELINE_PASS`, `diagnostic_only=false`, `errors={}`, Clean Reference records match |
+| Runtime | ARM64; expected listeners and Compose references match; each reported restart count is zero |
+| Application | Home Assistant stays at 2026.10.4; API returned the expected HTTP 401; Manager and Home Assistant MQTT identities authenticated |
+| Continuity | Same Broker instance; application data mount bindings preserved; stable OTA transaction records (`COMMITTED` stack, `ROLLED_BACK` HA USB, no legacy Manager record) |
+| Stop evidence | systemd main status 137 before and after reload; both original containers independently reported `exited` with exit 137, zero PID, no restart, no Docker runtime error and no OOM flag |
+| Free host and Docker space | 4,759,891,968 bytes available; observed runtime storage is writable |
+| Recovery package and USB | package absent, three recovery units inactive; USB `NOT_REQUESTED` |
+
+This closes the standard-supervision drift and the running-baseline scope of R7. Package deployment, USB qualification and OTA execution are still pending. The existing target manifest binds predecessor `local/n3w-homeassistant:2026.10.0-0c73235a` and target `local/n3w-homeassistant:2026.10.4-5881590f`. The current live image is already the target, so this manifest cannot admit a genuine OTA from the present baseline.
