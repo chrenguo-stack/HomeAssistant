@@ -15,6 +15,12 @@
 - 候选 `741a1463e7de` 与 Clean Reference `24382caae4a1` 的历史依赖摘要相符。现场以只读方式在内存中调用 `resume-if-needed`，结果为 `R7_PROVISION_RESUME_NOOP_PASS / UNPROVISIONED / NOOP`。测试拦截了可续跑旧初始化的分支。`UNPROVISIONED` 对应旧初始化状态，Clean Reference 的 R2A/R2B 记录已独立核对。
 - 该结果验证了修复候选在本机的开机路径。设备仍待部署该脚本、单独运行初始化单元并重新采集正式运行基线。HA 当前仍为 `2026.10.4`，后续 R8 验收沿用 `2026.10.0 → 2026.10.4`。
 
+**备用 T1 部署与 R7 复跑**
+
+- 按授权执行单文件替换和初始化服务验证。部署工具 `c77fc1e42c8f` 返回 `R7_PROVISION_DEPLOY_PASS`。在位脚本对应 `741a1463e7de`，初始化服务为 `active/exited`，本次调用日志确认 `NOOP`，三个容器在观察区间内保持原状态。
+- 复跑 R7 已越过原初始化单元阻断。后续正式运行基线停在 `services_supervision_contract_drift`。HA HTTP 返回预期的 401，Manager 和 HA 的 MQTT 认证正常，Stack `COMMITTED` 和 HA USB `ROLLED_BACK` 事务在观察期间保持一致。HA 恢复包与 USB 挂载资格尚待验证。
+- 源码中的标准服务与 Clean Reference 服务使用相同的 `ExecStart` 和 `ExecStop`。Clean Reference 的额外 `ExecStartPre` 不参与当前拒绝条件。需读取实机主单元和覆盖文件的摘要及生效启动与停止命令，再定位不匹配来源。
+
 ### 2026-11-05 KF-142 — P5 host-side ad-hoc SSH reuse causes repeated authentication and pre-claim staging STOP
 
 | ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
