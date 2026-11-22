@@ -195,6 +195,41 @@ def _validate_install_authority(grant: dict[str, Any], document: dict[str, Any])
     return grant
 
 
+def _retire_owned_candidate_archive(
+    store: HaUsbStateStore,
+    document: dict[str, Any],
+    source: Path,
+) -> bool:
+    """Free only the updater-owned internal candidate after USB has exact durable copies."""
+    expected = store.root / f"ha-target-{document['target_archive_sha256']}.tar"
+    if source != expected:
+        return False
+    try:
+        metadata = source.lstat()
+    except FileNotFoundError:
+        return True
+    if (
+        source.resolve(strict=True) != source
+        or source.parent.resolve(strict=True) != store.root.resolve(strict=True)
+        or not stat.S_ISREG(metadata.st_mode)
+        or stat.S_IMODE(metadata.st_mode) != 0o600
+        or metadata.st_uid != os.geteuid()
+        or metadata.st_nlink != 1
+        or metadata.st_size != document["target_archive_size"]
+    ):
+        raise UpdaterV2Error("ha_usb_owned_target_source_invalid")
+    try:
+        source.unlink()
+        parent = os.open(store.root, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(parent)
+        finally:
+            os.close(parent)
+    except OSError as error:
+        raise UpdaterV2Error("ha_usb_owned_target_source_retirement_failed") from error
+    return True
+
+
 def _protected_data_evidence(origins: dict[str, dict[str, str]]) -> HaProtectedDataEvidence:
     history = Path(origins["homeassistant"]["/config"]) / HA_DATABASE_NAME
     manager = Path(origins["manager"][str(MANAGER_PAIRING_DB.parent)]) / MANAGER_PAIRING_DB.name
@@ -407,6 +442,7 @@ class LocalHaPredecessorRuntime(LocalHost):
             )
             if _read_prepare_authority(store, document) != grant or self.capture_start_binding(document) != binding:
                 raise UpdaterV2Error("ha_usb_prepare_authority_drift")
+            _retire_owned_candidate_archive(store, document, Path(grant["target_source"]))
             store.write(record_target_ready(document, target=target, predecessor=predecessor))
             return "READY_TO_INSTALL"
 
