@@ -1225,6 +1225,29 @@ def _dispatch_pending_candidate(store: HaUsbStateStore, runtime: LocalHaPredeces
     return "NO_PENDING_RECOVERY"
 
 
+def maintenance_submit_approved_release(
+    store: HaUsbStateStore,
+    runtime: LocalHaPredecessorRuntime,
+    *,
+    action: str,
+    release_identity: str,
+) -> dict[str, object]:
+    """Submit an operator-maintenance intent through the durable HA transaction executor.
+
+    This intentionally bypasses the Manager's user-facing version ordering only.
+    Candidate admission, release pinning, transaction persistence, recovery ownership,
+    and every destructive install boundary remain unchanged.
+    """
+    resolver = LocalApprovedHaRelease(
+        store.root / RELEASE_PIN,
+        IPC_SOCKET.with_name(APPROVED_MANIFEST),
+        lambda: runtime._runtime("homeassistant"),
+    )
+    return HaUsbIpcExecutor(store=store, admission_resolver=resolver).submit(
+        action, release_identity,
+    )
+
+
 def main(
     *, application_condition: bool = False, pending_only: bool = False,
     install_requested: bool = False, serve_ipc: bool = False,
@@ -1289,7 +1312,41 @@ def cli(argv: Sequence[str] | None = None) -> int:
     action.add_argument("--serve-ipc", action="store_true")
     action.add_argument("--issue-prepare-authority", type=Path, metavar="PRIVATE_REQUEST")
     action.add_argument("--issue-install-authority", type=Path, metavar="PRIVATE_REQUEST")
+    action.add_argument(
+        "--maintenance-submit-approved-release",
+        choices=("PREPARE", "INSTALL"),
+        metavar="ACTION",
+    )
+    parser.add_argument("--release-identity")
     args = parser.parse_args(argv)
+    if args.maintenance_submit_approved_release is not None:
+        if os.geteuid() != 0:
+            parser.error("maintenance release submission requires root")
+        if not args.release_identity:
+            parser.error("--release-identity is required for maintenance release submission")
+        try:
+            status = maintenance_submit_approved_release(
+                HaUsbStateStore(),
+                LocalHaPredecessorRuntime(),
+                action=args.maintenance_submit_approved_release,
+                release_identity=args.release_identity,
+            )
+        except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as error:
+            response = {"status": "MAINTENANCE_INTENT_NOT_SUBMITTED"}
+            if isinstance(error, UpdaterV2Error):
+                response["reason"] = str(error)
+            print(json.dumps(response, sort_keys=True))
+            return 1
+        print(json.dumps({
+            "status": "MAINTENANCE_INTENT_SUBMITTED",
+            "action": args.maintenance_submit_approved_release,
+            "release_identity": args.release_identity,
+            "transaction": status,
+        }, sort_keys=True))
+        return 0
+    if args.release_identity is not None:
+        parser.error("--release-identity requires --maintenance-submit-approved-release")
+
     request_path = args.issue_prepare_authority or args.issue_install_authority
     if request_path is not None:
         if os.geteuid() != 0:
