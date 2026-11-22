@@ -58,9 +58,22 @@ def need(condition, error):
         raise ValueError(error)
 
 
+class SystemdPropertiesMissing(ValueError):
+    def __init__(self, unit, properties):
+        super().__init__("systemd_properties_missing")
+        self.unit = unit
+        self.properties = sorted(properties)
+
+
 def error_code(error):
     code = str(error).split(":", 1)[0]
     return code if re.fullmatch(r"[a-z][a-z0-9_]{2,95}", code) else type(error).__name__
+
+
+def error_details(error):
+    if isinstance(error, SystemdPropertiesMissing):
+        return {"systemd_unit": error.unit, "missing_properties": error.properties}
+    return {}
 
 
 def progress(phase):
@@ -85,13 +98,17 @@ def sync_parent(path):
         os.close(fd)
 
 
-def unit_props(unit, *fields):
+def unit_props(unit, *required, optional=()):
     args = ["systemctl", "show", "--all", "--no-pager"]
-    for field in fields:
+    for field in (*required, *optional):
         args += ["--property", field]
     result = subprocess.run([*args, unit], capture_output=True, timeout=20, check=True)
     props = dict(line.split("=", 1) for line in result.stdout.decode().splitlines())
-    need(props.keys() == set(fields), "systemd_properties_missing")
+    missing = set(required) - props.keys()
+    if missing:
+        raise SystemdPropertiesMissing(unit, missing)
+    for field in optional:
+        props.setdefault(field, "")
     return props
 
 
@@ -148,7 +165,8 @@ def run():
         return unit_props(LEGACY, "LoadState", "ActiveState", "UnitFileState",
                           "FragmentPath", "DropInPaths", "NeedDaemonReload",
                           "RequiredBy", "BoundBy", "ConsistsOf", "PropagatesStopTo",
-                          "MainPID", "ExecStart", "ExecStop", "ExecStopPost", "RefuseManualStop")
+                          "MainPID", "ExecStart", "RefuseManualStop",
+                          optional=("ExecStop", "ExecStopPost"))
 
     def supervision(legacy, active):
         props = app_props()
@@ -187,6 +205,8 @@ def run():
         checked_file(FAULT_DROPIN, FAULT_DROPIN_HASH)
         loaded = re.findall(r"argv\[\]=(.*?)\s+;", props["ExecStart"])
         need(loaded == [f"/usr/bin/python3 {FAULT_DAEMON}"], "legacy_fault_start_command_mismatch")
+        # Empty stop commands can be omitted by systemctl. Both files that
+        # define this unit have exact-byte checks and contain no stop hooks.
         need(set(props["RequiredBy"].split()) <= {APP} and not any(
             props[k] for k in ("BoundBy", "ConsistsOf", "PropagatesStopTo", "ExecStop", "ExecStopPost")
         ), "legacy_daemon_extra_dependencies_or_commands")
@@ -336,7 +356,7 @@ def run():
             supervision(False, "active")
             legacy_daemon("active", "enabled", legacy_pid)
         except (Exception, KeyboardInterrupt) as error:
-            report["error_code"] = error_code(error)
+            report.update(error_code=error_code(error), **error_details(error))
             progress("ROLLBACK")
             try:
                 signal.signal(signal.SIGINT, signal.SIG_IGN)
@@ -351,6 +371,8 @@ def run():
             except Exception as rollback_error:
                 report.update(status="R7_LEGACY_CUTOVER_ROLLBACK_INCOMPLETE",
                               rollback_error=error_code(rollback_error))
+                if details := error_details(rollback_error):
+                    report["rollback_details"] = details
                 return 4, report
 
         # After proving the standard stack, retire the old service. If a stop
@@ -368,7 +390,8 @@ def run():
             need(transaction_snapshot() == prepare_hash, "legacy_prepare_state_changed")
         except (Exception, KeyboardInterrupt) as error:
             report.update(status="R7_LEGACY_CUTOVER_FINALIZATION_PENDING",
-                          error_code=error_code(error), standard_application_verified=True)
+                          error_code=error_code(error), standard_application_verified=True,
+                          **error_details(error))
             return 5, report
 
         report.update(status="R7_LEGACY_CUTOVER_PASS", broker_unchanged=True,
@@ -398,7 +421,7 @@ def main():
             os.close(fd)
     except (Exception, KeyboardInterrupt) as error:
         rc, report = 2, {"status": "R7_LEGACY_CUTOVER_PRECHECK_STOP",
-                         "error_code": error_code(error)}
+                         "error_code": error_code(error), **error_details(error)}
     print(json.dumps(report, sort_keys=True), flush=True)
     return rc
 
