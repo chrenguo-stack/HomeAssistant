@@ -6,12 +6,12 @@
 
 - `main` 为 `4fde1b7c5cc0aa224fa3574b8b4cc638edd93647`。[PR #815](https://github.com/chrenguo-stack/HomeAssistant/pull/815) 仍为草稿，候选 `741a1463e7de065401749e47e59d30b295d5d6e8` 返回 25 项已完成且成功的工作流。依据 [R7 交接](https://github.com/chrenguo-stack/HomeAssistant/blob/82f738dd37a5ad99f66e9e69679027fa843d0ca0/docs/development/N3W_T1_OTA_V1_2_R7_BASELINE_PASS_TO_R8_NEW_CHAT_HANDOFF_V1.0_20261122.md) 和 `main` 的 [V1.2 方案及 R8 路线](https://github.com/chrenguo-stack/HomeAssistant/blob/4fde1b7c5cc0aa224fa3574b8b4cc638edd93647/docs/development/N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.2_20261119.md)。
 - [R7 恢复包 14715501376](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44924757335/artifacts/14715501376) 和 [候选恢复包 14717720726](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44930275032/artifacts/14717720726) 已下载并核验 ZIP、清单所列 11 个文件和包内 `ha-recovery.pyz`。11 个文件的字节一致，两份清单分别绑定 `84da7cd68e2f` 和 `741a1463e7de`。候选清单 SHA-256 `55d188d61dec4f55540b20a32155e00fa11d3f7582581da9b9817b652859cdcb`。
-- [出厂镜像 13070404405](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/41275979177/artifacts/13070404405) 和 [目标镜像 13391983948](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/41976542377/artifacts/13391983948) 的任务均成功，工件的 ID、源码、摘要及有效性与交接一致。本会话下载接口每件上限为 512 MiB，两个工件仍待在 Mac 回读。目标与前代标签、平台和压缩归档摘要见 [冻结清单](https://github.com/chrenguo-stack/HomeAssistant/blob/741a1463e7de065401749e47e59d30b295d5d6e8/infra/n3w-t1/upgrades/homeassistant-2026.10.4.json)。
+- [出厂镜像 13070404405](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/41275979177/artifacts/13070404405) 和 [目标镜像 13391983948](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/41976542377/artifacts/13391983948) 的任务均成功，工件的 ID、源码、摘要及有效性与交接一致。本会话下载接口每件上限为 512 MiB，原出厂工件 13070404405 留作历史来源，R8 本地镜像校验使用已在 Mac 回读的 14716899788 和 13391983948。目标与前代标签、平台和压缩归档摘要见 [冻结清单](https://github.com/chrenguo-stack/HomeAssistant/blob/741a1463e7de065401749e47e59d30b295d5d6e8/infra/n3w-t1/upgrades/homeassistant-2026.10.4.json)。
 - R7 回执的运行 Manager `fresh-44e7d7472714` 对应源码没有 `_publish_ota_monitoring_self_test`。冻结候选的 `check-candidate-activation` 明确检查运行 Manager 的此能力。若新鲜观测仍为该镜像，须先资格确认并在独立授权下建立兼容 Manager 基线，然后在两条 R8 实机用例中固定 Manager 和 Broker。 [候选运行检查](https://github.com/chrenguo-stack/HomeAssistant/blob/741a1463e7de065401749e47e59d30b295d5d6e8/tools/n3w_t1_core_updater_ha_recovery_startup.py#L215) · [同候选 ARM64 Manager 的构建来源](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44930275030/artifacts/14716899788)
 
 ## 备用 T1 只读取证
 
-从 Mac 通过已单独核对的 R7 备用机 SSH 目标运行 [`r8_prepare_mac.py`](../../tools/execution_packages/n3w/t1_ota_spare_readonly/r8_prepare_mac.py)。`--ssh` 使用原 R7 观察器，在宿主内存中读取运行身份、启动方式、健康、存储及事务，并补充 USB 文件系统与可见挂载命名空间计数。分区未挂载时，介质资格和可用空间继续待验。`--verify-images` 单独在 Mac 校验两个 ZIP 及各自的 HA 镜像归档，接受用工件 ID 命名的本地 ZIP 缓存。工具已做已知 ZIP、错误摘要拒绝、模拟 SSH 调用和 USB 输出验证。Mac 只读回执已取得，见下文。两个大镜像工件的本地回读仍待确认。
+从 Mac 通过已单独核对的 R7 备用机 SSH 目标运行 [`r8_prepare_mac.py`](../../tools/execution_packages/n3w/t1_ota_spare_readonly/r8_prepare_mac.py)。`--ssh` 使用原 R7 观察器，在宿主内存中读取运行身份、启动方式、健康、存储及事务，并补充 USB 文件系统与可见挂载命名空间计数。分区未挂载时，介质资格和可用空间继续待验。`--verify-images` 单独在 Mac 校验两个 ZIP 及各自的 HA 镜像归档，接受用工件 ID 命名的本地 ZIP 缓存。工具已做已知 ZIP、错误摘要拒绝、模拟 SSH 调用和 USB 输出验证。Mac 只读回执已取得，见下文。R8 所需两个 ZIP 的 Mac 本地回读通过，见下文。
 
 ## 需要准备的两个独立恢复点
 
@@ -30,7 +30,21 @@ R8 的正常升级、真实故障后自动回滚及关键边界断电续办均�
 ## R32 副本搜索与 R8 备选准备
 
 - Mac 和备用 T1 的指定本地路径按原归档大小和 SHA-256 搜索，结果为 `R32_T1_SEARCH_EXIT=0` / `R32_BACKUP_MATCH=NOT_FOUND_IN_CHECKED_PATHS`。搜索结论限于已查路径，其他介质和离线副本状态未知。
-- [精确 ARM64 三镜像产物 14716899788](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44930275030/artifacts/14716899788) 绑定 `741a1463e7de065401749e47e59d30b295d5d6e8`，包含冻结的 `2026.10.0-0c73235a` HA 镜像和具备自检的 `fresh-741a1463e7de` Manager。[独立容器验证步骤](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44930275030/job/136925172766#step:13)通过了确切 ARM64 组合的 MQTT 引导、自然收数和自检回执，上传后工件回读核验亦成功。Mac 工具的 `--verify-images … --candidate-bundle` 仅在 Mac 校验该 ZIP、其中两项镜像及冻结 `2026.10.4` 目标 ZIP。脚本的选择逻辑和篡改摘要拒绝已用本地测试样本验证，大包在 Mac 的回读仍待执行。
+- [精确 ARM64 三镜像产物 14716899788](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44930275030/artifacts/14716899788) 绑定 `741a1463e7de065401749e47e59d30b295d5d6e8`，包含冻结的 `2026.10.0-0c73235a` HA 镜像和具备自检的 `fresh-741a1463e7de` Manager。[独立容器验证步骤](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/44930275030/job/136925172766#step:13)通过了确切 ARM64 组合的 MQTT 引导、自然收数和自检回执，上传后工件回读核验亦成功。Mac 工具的 `--verify-images … --candidate-bundle` 仅在 Mac 校验该 ZIP、其中两项镜像及冻结 `2026.10.4` 目标 ZIP。脚本的选择逻辑和篡改摘要拒绝已用本地测试样本验证，两份 R8 镜像包在 Mac 的回读已通过，见下文。
 - 若采用独立测试数据，先准备一份由精确 `2026.10.0` 自行初始化的干净 HA 数据目录，使用受控收数和历史样本作为前代基线。CI 测试凭据和身份仅用于 CI，备用机仍使用本机 MQTT 引导与认证。此路线覆盖受控数据的正常升级、回滚及断电续办。R32 历史数据的迁移作为一项未覆盖范围单独记录。
 - 保留 `2026.10.4` 当前数据、镜像、现有应用启动绑定及将要调整的 Manager 状态。定向源码核对表明 OTA 运行态要求实际受保护路径为产品的 `/var/lib/n3wfc4-homeassistant`，并绑定目录与文件系统身份。实机只能在独立授权后先静止写入、验证当前版本备份和回退，随后把测试副本切入标准路径，且回退到原目录后重验 `2026.10.4` 与业务样本。禁止用改代码放宽路径检查的方式通过验收。应用管理单元可能同时停 HA 与 Manager，Broker 保持服务的条件要以执行前预检和实测确认。
 - 当前仅完成方案、定位和模拟验证。未停止服务、未生成新实机备份、未应用 Manager 候选，也未用测试数据替代历史数据。
+
+## Mac 本地镜像回读通过
+
+2026-11-22（新加坡时间），操作者返回三项通过结果。使用 [修正版 Mac 校验脚本](https://github.com/chrenguo-stack/HomeAssistant/blob/0229ce69c5988fe690c0251a9853efb7bd92474d/tools/execution_packages/n3w/t1_ota_spare_readonly/r8_prepare_mac.py)。首次误报来自把备用机历史运行时镜像 ID 与下载包的构建镜像 ID 作等值比较。修正版按冻结构建记录核对下载包的构建 ID，并保留 ZIP 与包内归档的 SHA-256 校验。
+
+| 项目 | 工件 ID | Mac 回执 | 包内归档字节数 | 包内归档 SHA-256 |
+| --- | --- | --- | ---: | --- |
+| HA 前代 `2026.10.0-0c73235a` | 14716899788 | `factory_ha_archive_verified=true` | 2448553472 | `755ae190b0f9c7cc89b0b9d9b2153ea3a81c3cf5c9dd5bc71ab9471603861acb` |
+| Manager `fresh-741a1463e7de` | 14716899788 | `manager_archive_verified=true` | 62950400 | `259f6dacd92cfb96b178e0afd61a1c04d8fee52a217822e66bf43b6c9ed3196e` |
+| HA 目标 `2026.10.4-5881590f` | 13391983948 | `target_ha_archive_verified=true` | 835309535 | `eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973` |
+
+- 前代构建镜像 ID 为 `sha256:b0e1ee82adfb19fa1ff3049034535633b1c4f0df6606721c0e77383854b99879`，ARM64 manifest 摘要为 `sha256:0c73235a9140a9b02e4bf618d06d8c496b12ae70656ecddb0e02ad31ad122be4`，与 [冻结前代构建步骤](https://github.com/chrenguo-stack/HomeAssistant/blob/741a1463e7de065401749e47e59d30b295d5d6e8/.github/workflows/n3w-t1-fresh-install-exact-arm64-ci.yml#L54-L55) 一致。
+- Manager 构建镜像 ID 为 `sha256:7e7447f081cb2168720121a70137b30cd3ec502446be63ca0306a92c011400fb`。目标归档的配置摘要为 `sha256:59160fc724d82aa83186f577f46aa8c8abe40af4052502eb32b621943582a5f6`，归档 SHA-256 与冻结清单一致。这两项身份来自归档回读，备用 T1 的实际运行身份须在实机阶段另行核对。
+- 镜像准备完成。独立 `2026.10.0` 测试数据范围待确认。备用机当前 `2026.10.4` 环境的一致性备份、隔离恢复验证和后续实机阶段仍待执行。此回执只覆盖 Mac 本地文件，无 T1 停服、装载或写入授权。
