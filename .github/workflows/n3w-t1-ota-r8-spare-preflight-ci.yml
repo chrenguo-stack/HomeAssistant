@@ -26,30 +26,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install focused test dependency
+        run: python -m pip install pytest
       - name: Compile focused R8 sources
         run: |
-          python3 -m py_compile             tools/execution_packages/n3w/t1_ota_r8_spare_preflight/preflight.py             tools/execution_packages/n3w/t1_ota_r8_bound_usb_readonly/verify.py             tests/tools/test_n3w_t1_ota_r8_spare_preflight.py             tests/tools/test_n3w_t1_ota_r8_bound_usb_readonly.py
-      - name: Run focused dependency-free tests
+          python -m py_compile \
+            tools/execution_packages/n3w/t1_ota_r8_spare_preflight/preflight.py \
+            tools/execution_packages/n3w/t1_ota_r8_bound_usb_readonly/verify.py \
+            tests/tools/test_n3w_t1_ota_r8_spare_preflight.py \
+            tests/tools/test_n3w_t1_ota_r8_bound_usb_readonly.py
+      - name: Run focused R8 tests
+        env:
+          PYTHONPATH: tools
         run: |
-          python3 - <<'PY'
-          import importlib.util
-          from pathlib import Path
-
-          for path in (
-              Path("tests/tools/test_n3w_t1_ota_r8_spare_preflight.py"),
-              Path("tests/tools/test_n3w_t1_ota_r8_bound_usb_readonly.py"),
-          ):
-              spec = importlib.util.spec_from_file_location(path.stem, path)
-              if spec is None or spec.loader is None:
-                  raise SystemExit(f"cannot load {path}")
-              module = importlib.util.module_from_spec(spec)
-              spec.loader.exec_module(module)
-              tests = [
-                  getattr(module, name)
-                  for name in sorted(dir(module))
-                  if name.startswith("test_") and callable(getattr(module, name))
-              ]
-              for test in tests:
-                  test()
-              print(f"{path}: {len(tests)} tests PASS")
-          PY
+          python -m pytest -q \
+            tests/tools/test_n3w_t1_ota_r8_spare_preflight.py \
+            tests/tools/test_n3w_t1_ota_r8_bound_usb_readonly.py
