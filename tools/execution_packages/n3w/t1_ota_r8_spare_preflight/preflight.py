@@ -40,6 +40,25 @@ def read_package(directory):
     return package
 
 
+
+def recovery_material_documents(document):
+    prepared = document.get("prepared_image_materials")
+    if isinstance(prepared, dict) and set(prepared) == {"target", "predecessor"}:
+        return prepared["target"], prepared["predecessor"], "prepared_image_materials"
+    installed = document.get("install_recovery_materials")
+    if (
+        isinstance(installed, dict)
+        and isinstance(installed.get("target"), dict)
+        and isinstance(installed.get("predecessor"), dict)
+    ):
+        return (
+            installed["target"],
+            installed["predecessor"],
+            "install_recovery_materials_legacy",
+        )
+    raise ValueError("recovery_material_records_unavailable")
+
+
 def run_operator():
     parser = argparse.ArgumentParser()
     parser.add_argument("--ssh", required=True)
@@ -176,16 +195,21 @@ def run_spare():
 def observe_spare(report):
     from n3w_t1_core_updater_common import UpdaterError
     from n3w_t1_core_updater_ha_ipc import IPC_SOCKET_UNIT, ha_image_version
-    from n3w_t1_core_updater_ha_backup import backup_record_from_document
+    from n3w_t1_core_updater_ha_backup import (
+        ProtectedHaDataBackup, backup_record_from_document,
+    )
     from n3w_t1_core_updater_ha_mounted_media import (
         _command_json, _device_number, _mount_device, _open_transaction_directory,
         _verify_archive, bound_usb_device,
     )
+    from n3w_t1_core_updater_ha_recovery import (
+        ImageRecoveryRecord, validate_image_recovery_record,
+    )
     from n3w_t1_core_updater_ha_recovery_startup import (
-        RECOVERY_ARCHIVE, RECOVERY_STARTUP_UNIT, RECOVERY_TIMER, LocalHaPredecessorRuntime,
+        RECOVERY_ARCHIVE, RECOVERY_STARTUP_UNIT, RECOVERY_TIMER,
     )
     from n3w_t1_core_updater_ha_usb_media import validate_filesystem_uuid
-    from n3w_t1_core_updater_ha_usb_state import HaUsbStateStore, prepared_image_materials
+    from n3w_t1_core_updater_ha_usb_state import HaUsbStateStore
     from n3w_t1_core_updater_host import EXPECTED_LISTENERS, LocalHost
     from n3w_t1_core_updater_v2_common import TERMINAL_TX_V2, UpdaterV2Error, canonical
     from n3w_t1_core_updater_v2_state import V2StateStore
@@ -373,29 +397,70 @@ def observe_spare(report):
         if not isinstance(target, str) or not Path(target).is_absolute():
             raise ValueError("rollback_material_mount_target_invalid")
         mountpoint = Path(target)
-        prepared_target, predecessor = prepared_image_materials(current)
+        target_document, predecessor_document, record_source = recovery_material_documents(current)
+        try:
+            prepared_target = validate_image_recovery_record(
+                ImageRecoveryRecord(**target_document),
+                expected_kind="target",
+                expected_image_ref=current["target_image_ref"],
+                expected_archive_sha256=current["target_archive_sha256"],
+            )
+            predecessor = validate_image_recovery_record(
+                ImageRecoveryRecord(**predecessor_document),
+                expected_kind="predecessor",
+                expected_image_ref=current["current_image_ref"],
+            )
+        except TypeError as error:
+            raise ValueError("recovery_material_record_invalid") from error
+        if prepared_target.archive_size_bytes != current["target_archive_size"]:
+            raise ValueError("recovery_target_size_drift")
+        portable = current.get("current_image_identity", {}).get("portable_identity_sha256")
+        if portable is not None and portable != predecessor.portable_identity_sha256:
+            raise ValueError("recovery_predecessor_portable_identity_drift")
         if predecessor.image_ref != EXPECTED_CURRENT_IMAGE:
             return {
                 "status": "PREDECESSOR_RECORD_NOT_CURRENT_2026_10_4",
+                "record_source": record_source,
                 "predecessor": predecessor.public(),
             }
-        with _open_transaction_directory(
-            mountpoint, store.root, current, allow_read_only=True
-        ) as (_, directory):
-            _verify_archive(directory, "predecessor.tar", predecessor)
         materials = current.get("install_recovery_materials")
         if not isinstance(materials, dict) or "backup" not in materials:
             return {
                 "status": "CURRENT_IMAGE_ARCHIVE_VERIFIED_DATA_BACKUP_UNAVAILABLE",
+                "record_source": record_source,
                 "predecessor": predecessor.public(),
             }
         backup = backup_record_from_document(materials["backup"])
-        recovery_host = LocalHaPredecessorRuntime()
-        verified_backup = recovery_host.mounted_recovery_provider(
-            store, current, require_original=True
-        ).verify_backup(backup)
+        with _open_transaction_directory(
+            mountpoint, store.root, current, allow_read_only=True
+        ) as (_, directory):
+            _verify_archive(directory, "predecessor.tar", predecessor)
+            backup_directory = os.open(
+                "ha-backup", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                dir_fd=directory,
+            )
+            try:
+                metadata = os.fstat(backup_directory)
+                if (
+                    metadata.st_dev != os.fstat(directory).st_dev
+                    or metadata.st_uid != os.geteuid()
+                    or stat.S_IMODE(metadata.st_mode) != 0o700
+                ):
+                    raise ValueError("recovery_backup_directory_invalid")
+                verified_backup = ProtectedHaDataBackup(
+                    work_root=store.root
+                ).verify(
+                    backup_directory,
+                    current["transaction_id_sha256"],
+                    backup,
+                )
+            finally:
+                os.close(backup_directory)
+        if store.read() != current:
+            raise ValueError("recovery_material_transaction_changed")
         return {
             "status": "CURRENT_2026_10_4_ROLLBACK_MATERIALS_VERIFIED",
+            "record_source": record_source,
             "predecessor": predecessor.public(),
             "backup": {
                 "archive_sha256": verified_backup.archive_sha256,
