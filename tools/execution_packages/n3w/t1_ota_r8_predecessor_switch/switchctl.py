@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 PACKAGE_DIR = Path(__file__).resolve().parent
-REPO_ROOT = PACKAGE_DIR.parents[4]
+REPO_ROOT = PACKAGE_DIR.parents[3]
 TOOLS_ROOT = REPO_ROOT / "tools"
 if str(PACKAGE_DIR) not in sys.path:
     sys.path.insert(0, str(PACKAGE_DIR))
