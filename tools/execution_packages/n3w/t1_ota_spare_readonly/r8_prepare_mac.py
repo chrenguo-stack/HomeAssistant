@@ -145,8 +145,10 @@ def main():
     actions.add_argument("--ssh", metavar="VERIFIED_SPARE_T1_ALIAS")
     actions.add_argument("--verify-images", type=Path, metavar="MAC_DOWNLOAD_DIRECTORY")
     args = parser.parse_args()
+    if args.ssh is not None and not args.ssh.strip():
+        parser.error("--ssh requires a non-empty spare T1 target")
     try:
-        if args.ssh:
+        if args.ssh is not None:
             observe(args.ssh)
         else:
             verify_images(args.verify_images)
