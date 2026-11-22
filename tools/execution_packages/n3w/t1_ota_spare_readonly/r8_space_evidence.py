@@ -34,6 +34,10 @@ INPUTS = {
     "target_ha": ("13391983948.zip", "homeassistant-arm64.tar.gz", ORIGINAL["homeassistant"][0],
                   835309535, "eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973"),
 }
+ARCHIVE_IMAGES = {
+    "fresh-bf38e388497b": "sha256:e88a22b29b93b0db0d3b4f592cb0fd773169d1dc0f043219f14d5247ed859dff",
+    "fresh-7807271e4c48": "sha256:7e3f09ed47010a18de215faa426113b7faba4e220b41bb9dcafd8ee1d4acf20b",
+}
 
 
 def sha(value):
@@ -123,7 +127,40 @@ def reclaim_inventory(docker, root):
             "docker_space_summary": summary, "other_same_filesystem_usage_bytes": usage}
 
 
-def observe(inventory=False):
+def archive_review():
+    config = Path("/etc/n3wfc4")
+    state_root = Path("/var/lib/n3w-t1-core-updater")
+    sources = [("startup_config", config / name) for name in
+               ("docker-compose.yml", "docker-compose.env", "broker-activation.env")]
+    sources.extend(("transaction_state", path) for path in state_root.glob("*.json"))
+    sources.extend(("transaction_history", path) for path in (state_root / "history").glob("*.json"))
+    matches = {tag: set() for tag in ARCHIVE_IMAGES}
+    skipped = set()
+    for scope, path in sources:
+        if not path.is_file() or path.is_symlink() or path.stat().st_size > 2 * 1024 * 1024:
+            skipped.add(scope)
+            continue
+        data = path.read_bytes()
+        for tag, image_id in ARCHIVE_IMAGES.items():
+            if tag.encode() in data or image_id.encode() in data:
+                matches[tag].add(scope)
+    entries = {}
+    for folder in ("/var/tmp", "/opt", "/root", "/var/lib"):
+        rows = []
+        for line in read("nice", "-n", "10", "du", "-a", "-x", "-B1", "--max-depth=1", "--null",
+                         "--", folder).split("\0"):
+            if not line:
+                continue
+            blocks, path = line.split("\t", 1)
+            size = int(blocks)
+            if path != folder and size >= 16 * 1024 * 1024:
+                rows.append({"path": path, "allocated_bytes": size})
+        entries[folder] = sorted(rows, key=lambda row: row["allocated_bytes"], reverse=True)[:10]
+    return {"large_entries": entries, "old_manager_reference_scopes":
+            {tag: sorted(scopes) for tag, scopes in matches.items()}, "skipped_reference_scopes": sorted(skipped)}
+
+
+def observe(mode="space"):
     require(sys.platform == "linux" and os.geteuid() == 0 and os.uname().machine in {"aarch64", "arm64"},
             "unexpected_spare_environment")
     os.environ["LC_ALL"] = "C"
@@ -156,7 +193,10 @@ def observe(inventory=False):
         disk = os.statvfs(path)
         state[name] = {"same_filesystem_as_docker": path.stat().st_dev == root.stat().st_dev,
                        "available_bytes": disk.f_bavail * disk.f_frsize}
-    if inventory:
+    if mode == "archive":
+        print(json.dumps({"storage": state, "archive_review": archive_review()}, sort_keys=True))
+        return
+    if mode == "inventory":
         print(json.dumps({"storage": state, "inventory": reclaim_inventory(docker, root)}, sort_keys=True))
         return
     print(json.dumps({"storage": state, "docker_storage_driver": driver, "usb": usb_evidence(),
@@ -192,20 +232,24 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--ssh", required=True)
     parser.add_argument("--assets", type=Path, default=Path.home() / "Downloads" / "n3w-r8-artifacts")
-    parser.add_argument("--inventory", action="store_true")
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--inventory", action="store_true")
+    modes.add_argument("--archive-review", action="store_true")
     args = parser.parse_args()
-    if not args.inventory:
+    mode = "inventory" if args.inventory else "archive" if args.archive_review else "space"
+    if mode == "space":
         for filename in {spec[0] for spec in INPUTS.values()}:
             require((args.assets / filename).is_file(), f"local_artifact_missing:{filename}")
     ssh = ("ssh", "-o", "StrictHostKeyChecking=yes", "-o", "ForwardAgent=no", "-o",
            "ClearAllForwardings=yes", "-o", "ConnectTimeout=10", "-T", "--", args.ssh,
            "/usr/bin/python3 -I -B -")
-    print("正在只读盘点备用 T1 的镜像和缓存。" if args.inventory else
+    print("正在只读盘点备用 T1 的镜像和文件。" if mode != "space" else
           "正在读取备用 T1 容量和镜像标签。", flush=True)
-    source = f"REMOTE_INVENTORY = {args.inventory!r}\n".encode() + Path(__file__).read_bytes()
+    source = f"REMOTE_MODE = {mode!r}\n".encode() + Path(__file__).read_bytes()
     snapshot = json.loads(subprocess.run(ssh, input=source, stdout=subprocess.PIPE, check=True).stdout)
-    if args.inventory:
-        print("R8_T1_STORAGE_INVENTORY=" + json.dumps(snapshot, sort_keys=True))
+    if mode != "space":
+        label = {"inventory": "R8_T1_STORAGE_INVENTORY", "archive": "R8_T1_ARCHIVE_REVIEW"}[mode]
+        print(label + "=" + json.dumps(snapshot, sort_keys=True))
         return
     print("R8_T1_STORAGE=" + json.dumps(snapshot, sort_keys=True), flush=True)
     zipped = subprocess.check_output(("gh", "api", f"repos/{REPO}/actions/artifacts/14717720726/zip"), timeout=120)
@@ -227,7 +271,7 @@ def main():
 
 if __name__ == "__main__":
     try:
-        observe(REMOTE_INVENTORY) if "REMOTE_INVENTORY" in globals() else main()
+        observe(REMOTE_MODE) if "REMOTE_MODE" in globals() else main()
     except (ValueError, KeyError, OSError, RuntimeError, subprocess.SubprocessError) as error:
         detail = str(error) if isinstance(error, ValueError) else type(error).__name__
         print(f"R8 space evidence stopped: {detail}", file=sys.stderr)
