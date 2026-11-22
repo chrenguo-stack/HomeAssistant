@@ -80,6 +80,10 @@ class FakeBackend:
             archive_size_bytes=123,
             manifest_sha256="b" * 64,
             staged_data_sha256="c" * 64,
+            filesystem_id=100,
+            original_data_inode=200,
+            staged_data_inode=300,
+            preserved_path="/var/lib/.n3w-r8-preserved-test",
         )
 
     def exchange_data_root(self, grant, txid, backup):
