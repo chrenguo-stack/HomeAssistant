@@ -212,3 +212,72 @@ The compatibility path remains fail-closed. It must verify the historical recove
 
 ATTEMPT03_REQUIRED=true
 LIVE_WRITE_AUTHORIZATION=NONE
+
+
+## Isolated bound-USB verification Attempt 03
+
+ATTEMPT=03
+RESULT=PASS
+T1_MUTATION=false
+SERVICE_MUTATION=false
+DOCKER_MUTATION=false
+USB_WRITE=false
+USB_FORMAT=false
+HOST_NAMESPACE_USB_MOUNT_BEFORE=false
+HOST_NAMESPACE_USB_MOUNT_AFTER=false
+HOST_USB_MOUNT_STATE=UNCHANGED_UNMOUNTED
+ISOLATED_NAMESPACE_USB_MOUNT=true
+ISOLATED_MOUNT_OPTIONS=ro,nosuid,nodev,noexec,relatime,norecovery
+EXT4_JOURNAL_REPLAY=false
+
+Fresh runtime observations:
+- current Home Assistant version: `2026.10.4`;
+- runtime image: `local/n3w-homeassistant:2026.10.4-5881590f`;
+- runtime baseline: `RUNNING_BASELINE_PASS`;
+- Home Assistant restart count: `0`;
+- Home Assistant and Manager MQTT authenticated: `true`;
+- HTTP status: `401` as expected;
+- transactions stable: `true`;
+- exact 2026.10.0 image resident on T1: `false`.
+
+Fresh storage observations:
+- pre-release internal available bytes: `4754415616`;
+- capacity decision point: `AFTER_RELEASE_BEFORE_NEXT_IMPORT`;
+- capacity decision: `DEFER_UNTIL_POST_RELEASE_MEASUREMENT`;
+- USB total bytes: `31332343808`;
+- USB available bytes: `28132188160`;
+- USB filesystem: ext4;
+- USB read-only observation: `true`.
+
+Fresh recovery-material verification:
+- status: `CURRENT_2026_10_4_ROLLBACK_MATERIALS_VERIFIED`;
+- record source: `p3_terminal_identity_fields`;
+- media layout: `p3_n3w_update_layout`;
+- predecessor image ref: `local/n3w-homeassistant:2026.10.4-5881590f`;
+- predecessor archive size: `743051918`;
+- predecessor archive SHA-256: `31108a725e6b6530c68834218d9e41579055d7fe2718b3f42902b71237dc8e5f`;
+- predecessor portable identity SHA-256: `efcf67bd4ff40cd902b43fc531aa9dce58d115ececc8ebd4e324a15e0f4952f3`;
+- predecessor record verified/fsynced: `true/true`;
+- protected backup archive size: `2090112`;
+- protected backup archive SHA-256: `b6f7ad3803c1ae954d2d946562b5ae1db8725786e4c457db8a1deff7b10623e2`;
+- protected backup manifest SHA-256: `1cf39dad34b36b8901c24151cc7d4b3ec6fa09b25264f6812c3a9e51569409ac`;
+- backup verified/fsynced: `true/true`;
+- consistent pre-upgrade point: `true`;
+- storage integrity verified: `true`;
+- confidentiality protected: `true`;
+- authenticity protected: `true`.
+
+The historical target record was also recovered and validated:
+- target image ref: `local/n3w-homeassistant:2026.10.4-u13b-acceptance-v1`;
+- target archive size: `835299595`;
+- target archive SHA-256: `be30c4778bf537258d9e3825524c79532f20e8eb7a82136f560110d8f44b418d`;
+- target portable identity SHA-256: `2077dd39fb38a5264b34c824978643c985b32913893dabd75328d4b86ac187d8`.
+
+Attempt 03 closed both prior diagnostic compatibility stops. The currently bound USB therefore contains a freshly reverified, authenticated and transaction-bound rollback point for the current 2026.10.4 runtime.
+
+This PASS does not prove the existence of a 2026.10.0-compatible HA data baseline. It only proves safe rollback to the current 2026.10.4 state.
+
+ATTEMPT03_STATUS=PASS
+CURRENT_2026_10_4_ROLLBACK_POINT=VERIFIED
+PREDECESSOR_2026_10_0_DATA_BASELINE=UNRESOLVED
+LIVE_WRITE_AUTHORIZATION=NONE
