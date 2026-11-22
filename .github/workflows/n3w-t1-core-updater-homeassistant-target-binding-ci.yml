@@ -8,6 +8,7 @@ on:
       - "infra/n3w-t1/releases/1.0.0/release.json"
       - "infra/n3w-t1/upgrades/homeassistant-2026.10.4.json"
       - "infra/n3w-t1/upgrades/homeassistant-2026.10.0-r8-predecessor-preparation.json"
+      - "infra/n3w-t1/upgrades/homeassistant-2026.10.0-r8-predecessor-preparation-compatibility-review.json"
       - "infra/n3w-t1/upgrades/homeassistant-2026.10.4-storage-policy.json"
       - "infra/n3w-t1/upgrades/homeassistant-2026.10.4-compatibility-review.json"
       - "tools/n3w_t1_core_updater_v2.py"
