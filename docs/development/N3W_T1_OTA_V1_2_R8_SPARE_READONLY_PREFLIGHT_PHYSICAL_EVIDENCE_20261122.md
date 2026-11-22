@@ -83,12 +83,15 @@ The 4,754,677,760-byte free-space observation is pre-release evidence only. It m
 2. Exact 2026.10.0 is not resident on the T1 and must be imported from the already verified Mac cache when a separately authorized predecessor switch is eventually executed.
 3. The bound USB is physically present and exact-transaction-bound but currently unmounted.
 4. Current rollback materials cannot yet be claimed as freshly verified because this gate deliberately did not mount the USB.
-5. Historical P3 evidence records a protected Home Assistant backup created while the predecessor 2026.10.0 runtime was quiesced:
-   - backup archive SHA-256 b6f7ad3803c1ae954d2d946562b5ae1db8725786e4c457db8a1deff7b10623e2
-   - backup manifest SHA-256 1cf39dad34b36b8901c24151cc7d4b3ec6fa09b25264f6812c3a9e51569409ac
+5. Historical P3 U6/U7 evidence is a 2026.10.4-predecessor recovery point, not a 2026.10.0 data baseline. The archived values are:
+   - predecessor image ref local/n3w-homeassistant:2026.10.4-5881590f
+   - predecessor archive size 743051918 bytes
    - predecessor archive SHA-256 31108a725e6b6530c68834218d9e41579055d7fe2718b3f42902b71237dc8e5f
-   These are historical authority only until their bytes are freshly found and reverified on the currently bound USB.
-6. A safe 2026.10.0 predecessor switch must not run 2026.10.0 directly against data already migrated/written by 2026.10.4. It requires a freshly verified 2026.10.0-compatible protected backup or another independently validated predecessor data baseline.
+   - protected backup archive SHA-256 b6f7ad3803c1ae954d2d946562b5ae1db8725786e4c457db8a1deff7b10623e2
+   - protected backup manifest SHA-256 1cf39dad34b36b8901c24151cc7d4b3ec6fa09b25264f6812c3a9e51569409ac
+   These historical materials are useful for restoring the current 2026.10.4 state, but they must not be reused as the 2026.10.0 predecessor data baseline.
+6. A safe 2026.10.0 predecessor switch must not run 2026.10.0 directly against data already migrated/written by 2026.10.4. It requires either a freshly verified historical 2026.10.0-compatible backup or a separately constructed and validated isolated 2026.10.0 test baseline.
+7. The next media check should therefore do two independent things: reverify the current 2026.10.4 rollback point from the bound USB, and search only-read historical USB material for a genuine 2026.10.0-compatible backup without treating absence as permission to downgrade current data.
 
 ## Authorization boundary
 
