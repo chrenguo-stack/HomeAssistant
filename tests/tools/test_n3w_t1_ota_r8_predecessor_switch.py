@@ -478,3 +478,13 @@ def test_backup_evidence_names_manifest_hash_not_tree_hash():
     source = (PACKAGE / "executor.py").read_text() + (PACKAGE / "remote_live.py").read_text()
     assert "staged_manifest_sha256" in source
     assert "staged_data_sha256" not in source
+
+
+def test_switchctl_repository_root_is_exact_repo_root():
+    source = PACKAGE / "switchctl.py"
+    spec = importlib.util.spec_from_file_location("r8_switchctl_root_check", source)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert module.REPO_ROOT == Path(__file__).resolve().parents[2]
+    assert module.TOOLS_ROOT == module.REPO_ROOT / "tools"
