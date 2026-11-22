@@ -136,19 +136,15 @@ def systemctl(action, unit=None):
     need(result.returncode == 0, f"systemctl_{action}_failed")
 
 
-def apps_quiesced(host, project):
+def apps_quiesced(host):
     for service in APP_SERVICES:
-        output = host._run((
-            "docker", "ps", "-q", "--filter", f"label=com.docker.compose.project={project}",
-            "--filter", f"label=com.docker.compose.service={service}",
-        ), timeout=15).stdout
-        need(not output.strip(), f"{service}_still_running")
+        need(host._running_count(service) == 0, f"{service}_still_running")
 
 
 def run():
     from n3w_t1_core_updater_ha_usb_state import HaUsbStateStore
     from n3w_t1_core_updater_host import EXPECTED_EXECSTART, EXPECTED_EXECSTOP
-    from n3w_t1_core_updater_host import EXPECTED_LISTENERS, PROJECT, LocalHost
+    from n3w_t1_core_updater_host import EXPECTED_LISTENERS, LocalHost
     from n3w_t1_core_updater_v2_common import canonical
     from n3w_t1_core_updater_v2_state import V2StateStore
 
@@ -175,15 +171,31 @@ def run():
                           "Requires", "ExecStart", "ExecStop")
 
     def app_quiescence(props):
-        inactive = (props["ActiveState"], props["SubState"]) == ("inactive", "dead")
-        stopped_with_130 = (
-            props["ActiveState"], props["SubState"], props["Result"], props["ExecMainStatus"],
-        ) == ("failed", "failed", "exit-code", "130")
-        if not ((inactive or stopped_with_130) and props["MainPID"] == "0"
-                and props["ControlPID"] == "0" and props["NRestarts"] == "0"):
+        # Match LocalHost.stop_services(): a stopped owner can be inactive or
+        # failed. The previous main process exit code does not prove that
+        # either application container is stopped.
+        terminal = (props["ActiveState"], props["SubState"]) in {
+            ("inactive", "dead"), ("failed", "failed"),
+        }
+        if not (terminal and props["MainPID"] == "0" and props["ControlPID"] == "0"
+                and props["NRestarts"] == "0"):
             raise AppUnitStateError("application_stop_not_verified", props)
-        apps_quiesced(host, PROJECT)
+        apps_quiesced(host)
         return {name: props[name] for name in APP_STATE_FIELDS}
+
+    def container_stop_state(runtime):
+        result = host._run(("docker", "inspect", "--format", "{{json .State}}",
+                            runtime["container_id"]), timeout=20)
+        state = json.loads(result.stdout)
+        return {
+            "status": state["Status"],
+            "running": state["Running"],
+            "restarting": state["Restarting"],
+            "pid": state["Pid"],
+            "exit_code": state["ExitCode"],
+            "oom_killed": state["OOMKilled"],
+            "runtime_error_present": bool(state["Error"]),
+        }
 
     def legacy_props():
         return unit_props(LEGACY, "LoadState", "ActiveState", "UnitFileState",
@@ -302,10 +314,10 @@ def run():
         if new_start_attempted:
             systemctl("stop", APP)
             try:
-                apps_quiesced(host, PROJECT)
+                apps_quiesced(host)
             except ValueError:
                 host._run((*host._compose_argv(), "stop", "homeassistant", "manager"), timeout=120)
-                apps_quiesced(host, PROJECT)
+                apps_quiesced(host)
         if not os.path.lexists(drop):
             checked_file(backup, DROPIN_HASH)
             os.link(backup, drop, follow_symlinks=False)
@@ -370,6 +382,14 @@ def run():
             progress("STOP_APPLICATION")
             systemctl("stop", APP)
             report["application_stop_state"] = app_quiescence(app_props())
+            stopped = {name: container_stop_state(before[name]) for name in APP_SERVICES}
+            report["application_container_stop_states"] = stopped
+            for name, state in stopped.items():
+                need(state["status"] == "exited" and state["running"] is False
+                     and state["restarting"] is False and state["pid"] == 0,
+                     f"{name}_container_stop_not_verified")
+                need(state["oom_killed"] is False and not state["runtime_error_present"],
+                     f"{name}_container_abnormal_stop")
             need(host._runtime("broker") == before["broker"], "broker_identity_changed")
             need(transaction_snapshot() == prepare_hash, "legacy_prepare_state_changed")
             progress("SWITCH_SUPERVISION")
