@@ -75,7 +75,7 @@ def test_recovery_material_documents_prefers_prepared_records():
         "predecessor": {"kind": "predecessor-old"},
         "backup": {},
     }
-    target, predecessor, source = module.recovery_material_documents(
+    target, predecessor, backup, source, layout = module.recovery_material_documents(
         {
             "prepared_image_materials": prepared,
             "install_recovery_materials": installed,
@@ -83,7 +83,9 @@ def test_recovery_material_documents_prefers_prepared_records():
     )
     assert target == prepared["target"]
     assert predecessor == prepared["predecessor"]
+    assert backup == {}
     assert source == "prepared_image_materials"
+    assert layout == "transaction_directory_v2"
 
 
 def test_recovery_material_documents_accepts_legacy_install_records():
@@ -93,15 +95,68 @@ def test_recovery_material_documents_accepts_legacy_install_records():
         "predecessor": {"kind": "predecessor"},
         "backup": {},
     }
-    target, predecessor, source = module.recovery_material_documents(
+    target, predecessor, backup, source, layout = module.recovery_material_documents(
         {"install_recovery_materials": installed}
     )
     assert target == installed["target"]
     assert predecessor == installed["predecessor"]
+    assert backup == installed["backup"]
     assert source == "install_recovery_materials_legacy"
+    assert layout == "transaction_directory_v2"
 
 
 def test_recovery_material_documents_fails_closed_without_records():
     module = load_module()
     with pytest.raises(ValueError, match="recovery_material_records_unavailable"):
         module.recovery_material_documents({})
+
+
+def test_recovery_material_documents_accepts_original_p3_fields():
+    module = load_module()
+    document = {
+        "target_artifact_identity": {"kind": "target"},
+        "predecessor_recovery_identity": {"kind": "predecessor"},
+        "ha_data_backup_identity": {"archive_sha256": "a" * 64},
+    }
+    target, predecessor, backup, source, layout = module.recovery_material_documents(document)
+    assert target == document["target_artifact_identity"]
+    assert predecessor == document["predecessor_recovery_identity"]
+    assert backup == document["ha_data_backup_identity"]
+    assert source == "p3_terminal_identity_fields"
+    assert layout == "p3_n3w_update_layout"
+
+
+def test_p3_recovery_content_manifest_matches_original_canonical_contract():
+    module = load_module()
+    document = {
+        "transaction_id_sha256": "1" * 64,
+        "target_manifest_identity": {"release_identity": "release-a"},
+        "target_artifact_identity": {"kind": "target", "archive_sha256": "2" * 64},
+        "predecessor_recovery_identity": {"kind": "predecessor", "archive_sha256": "3" * 64},
+        "ha_data_backup_identity": {"archive_sha256": "4" * 64},
+    }
+    authority = {
+        "transaction_id_sha256": document["transaction_id_sha256"],
+        "release_identity": "release-a",
+        "target_artifact_identity": document["target_artifact_identity"],
+        "predecessor_recovery_identity": document["predecessor_recovery_identity"],
+        "ha_data_backup_identity": document["ha_data_backup_identity"],
+    }
+    expected = hashlib.sha256(
+        json.dumps(authority, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    assert module.p3_recovery_content_manifest(document) == expected
+
+
+def test_p3_recovery_content_manifest_fails_closed_when_authority_incomplete():
+    module = load_module()
+    with pytest.raises(ValueError, match="p3_recovery_content_authority_incomplete"):
+        module.p3_recovery_content_manifest(
+            {
+                "transaction_id_sha256": "1" * 64,
+                "target_manifest_identity": {},
+                "target_artifact_identity": {},
+                "predecessor_recovery_identity": {},
+                "ha_data_backup_identity": {},
+            }
+        )
