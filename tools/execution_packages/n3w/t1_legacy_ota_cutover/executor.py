@@ -58,6 +58,18 @@ def need(condition, error):
         raise ValueError(error)
 
 
+APP_STATE_FIELDS = (
+    "LoadState", "ActiveState", "SubState", "UnitFileState", "NeedDaemonReload",
+    "Result", "MainPID", "ControlPID", "ExecMainStatus", "NRestarts",
+)
+
+
+class AppUnitStateError(ValueError):
+    def __init__(self, code, props):
+        super().__init__(code)
+        self.state = {name: props[name] for name in APP_STATE_FIELDS}
+
+
 class SystemdPropertiesMissing(ValueError):
     def __init__(self, unit, properties):
         super().__init__("systemd_properties_missing")
@@ -73,6 +85,8 @@ def error_code(error):
 def error_details(error):
     if isinstance(error, SystemdPropertiesMissing):
         return {"systemd_unit": error.unit, "missing_properties": error.properties}
+    if isinstance(error, AppUnitStateError):
+        return {"application_unit_state": error.state}
     return {}
 
 
@@ -157,9 +171,19 @@ def run():
         return digest(prepare_path.read_bytes()) if prepare_path.exists() else None
 
     def app_props():
-        return unit_props(APP, "LoadState", "ActiveState", "UnitFileState",
-                          "FragmentPath", "DropInPaths", "NeedDaemonReload",
+        return unit_props(APP, *APP_STATE_FIELDS, "FragmentPath", "DropInPaths",
                           "Requires", "ExecStart", "ExecStop")
+
+    def app_quiescence(props):
+        inactive = (props["ActiveState"], props["SubState"]) == ("inactive", "dead")
+        stopped_with_130 = (
+            props["ActiveState"], props["SubState"], props["Result"], props["ExecMainStatus"],
+        ) == ("failed", "failed", "exit-code", "130")
+        if not ((inactive or stopped_with_130) and props["MainPID"] == "0"
+                and props["ControlPID"] == "0" and props["NRestarts"] == "0"):
+            raise AppUnitStateError("application_stop_not_verified", props)
+        apps_quiesced(host, PROJECT)
+        return {name: props[name] for name in APP_STATE_FIELDS}
 
     def legacy_props():
         return unit_props(LEGACY, "LoadState", "ActiveState", "UnitFileState",
@@ -168,11 +192,13 @@ def run():
                           "MainPID", "ExecStart", "RefuseManualStop",
                           optional=("ExecStop", "ExecStopPost"))
 
-    def supervision(legacy, active):
+    def supervision(legacy, *, quiesced=False):
         props = app_props()
-        need(props["LoadState"] == "loaded" and props["ActiveState"] == active
-             and props["UnitFileState"] == "enabled"
-             and props["NeedDaemonReload"] == "no", "application_unit_state_mismatch")
+        if not (props["LoadState"] == "loaded" and props["UnitFileState"] == "enabled"
+                and props["NeedDaemonReload"] == "no"):
+            raise AppUnitStateError("application_unit_configuration_state_mismatch", props)
+        if not quiesced and props["ActiveState"] != "active":
+            raise AppUnitStateError("application_unit_not_active", props)
         checked_file(Path(props["FragmentPath"]), APP_HASH)
         need((LEGACY in props["Requires"].split()) == legacy, "legacy_dependency_mismatch")
         if legacy:
@@ -192,7 +218,7 @@ def run():
                 argv = argv.replace(arg, f"{arg} -f {OVERLAY}", 1)
             loaded = re.findall(r"argv\[\]=(.*?)\s+;", props[field])
             need(loaded == [argv], "loaded_application_command_mismatch")
-        return drop
+        return app_quiescence(props) if quiesced else drop
 
     def legacy_daemon(active, enabled, expected_pid=None):
         props = legacy_props()
@@ -289,20 +315,22 @@ def run():
         legacy_daemon("active", "enabled", legacy_pid)
         if app_props()["ActiveState"] != "active":
             systemctl("start", APP)
-        supervision(True, "active")
+        supervision(True)
 
     progress("PRECHECK")
     need(store._existing_root(), "transaction_root_missing")
     with store.lock():
         prepare_hash = transaction_snapshot()
-        drop = supervision(True, "active")
+        drop = supervision(True)
         legacy_pid = legacy_daemon("active", "enabled")
         checked_file(OVERLAY, OVERLAY_HASH)
         parent = drop.parent.lstat()
         need(stat.S_ISDIR(parent.st_mode) and parent.st_uid == 0 and not parent.st_mode & 0o022
              and drop.resolve() == drop, "legacy_dropin_directory_invalid")
         backup = drop.with_name(".95-n3w-ha-ota.conf.r7-backup")
-        need(not os.path.lexists(backup), "legacy_dropin_backup_already_exists")
+        backup_reused = os.path.lexists(backup)
+        if backup_reused:
+            checked_file(backup, DROPIN_HASH)
         host._activation_env()
         host._system_health_v2()
         eligibility = json.loads(host._run((
@@ -331,29 +359,31 @@ def run():
                  "base_application_mount_mismatch")
         wait_healthy(True, before, expected_mounts, prepare_hash)
 
-        report = {"backup_path": str(backup), "homeassistant_version": "2026.10.4"}
+        report = {"backup_path": str(backup), "backup_reused": backup_reused,
+                  "homeassistant_version": "2026.10.4"}
         new_start_attempted = False
-        os.link(drop, backup, follow_symlinks=False)
-        checked_file(backup, DROPIN_HASH)
-        sync_parent(backup)
+        if not backup_reused:
+            os.link(drop, backup, follow_symlinks=False)
+            checked_file(backup, DROPIN_HASH)
+            sync_parent(backup)
         try:
             progress("STOP_APPLICATION")
             systemctl("stop", APP)
-            apps_quiesced(host, PROJECT)
+            report["application_stop_state"] = app_quiescence(app_props())
             need(host._runtime("broker") == before["broker"], "broker_identity_changed")
             need(transaction_snapshot() == prepare_hash, "legacy_prepare_state_changed")
             progress("SWITCH_SUPERVISION")
             checked_file(drop, DROPIN_HASH).unlink()
             sync_parent(drop)
             systemctl("daemon-reload")
-            supervision(False, "inactive")
+            report["application_stop_state_after_reload"] = supervision(False, quiesced=True)
             legacy_daemon("active", "enabled", legacy_pid)
             progress("START_STANDARD_APPLICATION")
             new_start_attempted = True
             systemctl("start", APP)
             progress("VERIFY_STANDARD_APPLICATION")
             report.update(wait_healthy(False, before, expected_mounts, prepare_hash))
-            supervision(False, "active")
+            supervision(False)
             legacy_daemon("active", "enabled", legacy_pid)
         except (Exception, KeyboardInterrupt) as error:
             report.update(error_code=error_code(error), **error_details(error))
@@ -385,7 +415,7 @@ def run():
             need(not legacy_props()["RequiredBy"], "legacy_daemon_still_required")
             systemctl("stop", LEGACY)
             legacy_daemon("inactive", "disabled")
-            supervision(False, "active")
+            supervision(False)
             need(host._runtime("broker") == before["broker"], "broker_identity_changed")
             need(transaction_snapshot() == prepare_hash, "legacy_prepare_state_changed")
         except (Exception, KeyboardInterrupt) as error:
