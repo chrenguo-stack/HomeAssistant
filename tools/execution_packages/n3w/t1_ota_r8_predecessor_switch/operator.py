@@ -394,7 +394,7 @@ def stage_execute_bundle(
     target: str,
     remote_dir: str,
     recovery_pyz: Path,
-    grant_path: Path,
+    grant_path: Path | None,
 ) -> None:
     env = transport.managed_environment()
     run(
@@ -407,13 +407,14 @@ def stage_execute_bundle(
         env=env,
         timeout=30,
     )
-    sources = (
+    sources = [
         (PACKAGE_DIR / "contract.py", "contract.py"),
         (PACKAGE_DIR / "executor.py", "executor.py"),
         (PACKAGE_DIR / "remote_live.py", "remote_live.py"),
         (recovery_pyz, "ha-recovery.pyz"),
-        (grant_path, "grant.json"),
-    )
+    ]
+    if grant_path is not None:
+        sources.append((grant_path, "grant.json"))
     for source, remote_name in sources:
         run(
             [
@@ -437,7 +438,7 @@ def stage_execute_bundle(
                     "executor.py",
                     "remote_live.py",
                     "ha-recovery.pyz",
-                    "grant.json",
+                    *(("grant.json",) if grant_path is not None else ()),
                 )
             ),
         ],
@@ -544,11 +545,98 @@ def execute_live(
         transport.close_epoch()
 
 
+def recover_live(
+    *,
+    target: str,
+    known_hosts: Path,
+    expected_host_key_sha256: str,
+    recovery_pyz: Path,
+    source_head: str,
+) -> dict[str, Any]:
+    transport = ssh_epoch(
+        target=target,
+        known_hosts=known_hosts,
+        expected_host_key_sha256=expected_host_key_sha256,
+    )
+    remote_dir = "/tmp/n3w-r8-predecessor-recover-" + source_head[:16]
+    env = None
+    report: dict[str, Any] | None = None
+    try:
+        env = transport.managed_environment()
+        stage_execute_bundle(
+            transport=transport,
+            target=target,
+            remote_dir=remote_dir,
+            recovery_pyz=recovery_pyz,
+            grant_path=None,
+        )
+        command = (
+            "/usr/bin/unshare --mount --propagation private --fork "
+            "/usr/bin/python3 -I -B "
+            + remote_dir
+            + "/remote_live.py --mode recover --recovery-pyz "
+            + remote_dir
+            + "/ha-recovery.pyz --source-head "
+            + source_head
+        )
+        result = run(
+            [
+                "ssh",
+                "-o",
+                "StrictHostKeyChecking=yes",
+                "-o",
+                "ForwardAgent=no",
+                "-o",
+                "ClearAllForwardings=yes",
+                "-o",
+                "RequestTTY=no",
+                "--",
+                target,
+                command,
+            ],
+            timeout=3600,
+            check=False,
+            env=env,
+        )
+        stdout = result.stdout.decode()
+        stderr = result.stderr.decode()
+        if stderr:
+            print(stderr, file=sys.stderr, end="")
+        rows = [
+            json.loads(line)
+            for line in stdout.splitlines()
+            if line.strip().startswith("{")
+        ]
+        if len(rows) != 1 or not isinstance(rows[0], dict):
+            raise OperatorError("recovery_remote_report_invalid")
+        report = rows[0]
+        if result.returncode not in {0, 3}:
+            raise OperatorError("recovery_remote_exit_invalid")
+        return report
+    finally:
+        if env is not None and (
+            report is None
+            or report.get("status") != "PREDECESSOR_SWITCH_RECOVERY_REQUIRED"
+        ):
+            run(
+                [
+                    "ssh",
+                    "--",
+                    target,
+                    "rm -rf -- " + remote_dir,
+                ],
+                env=env,
+                timeout=60,
+                check=False,
+            )
+        transport.close_epoch()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--mode",
-        choices=("source-check", "preflight", "status", "execute"),
+        choices=("source-check", "preflight", "status", "recover", "execute"),
         required=True,
     )
     parser.add_argument("--expected-source-head", required=True)
@@ -563,12 +651,17 @@ def main() -> int:
     args = parser.parse_args()
 
     source = validate_source(args.expected_source_head)
-    cache = validate_cache(args.cache)
+    cache = (
+        validate_cache(args.cache)
+        if args.mode in {"source-check", "preflight", "execute"}
+        else None
+    )
     report: dict[str, Any] = {
         "source": source,
-        "predecessor_cache": cache,
         "live_write_authorization": "NONE" if args.grant is None else "PRESENT_UNCLAIMED",
     }
+    if cache is not None:
+        report["predecessor_cache"] = cache
     if args.mode == "source-check":
         report["status"] = "R8_PREDECESSOR_SWITCH_SOURCE_CHECK_PASS"
         print(json.dumps(report, sort_keys=True))
@@ -597,8 +690,26 @@ def main() -> int:
             print(json.dumps(report, sort_keys=True))
             return 0
 
+        if args.mode == "recover":
+            report["remote"] = recover_live(
+                target=args.target,
+                known_hosts=args.known_hosts,
+                expected_host_key_sha256=args.expected_host_key_sha256,
+                recovery_pyz=recovery,
+                source_head=args.expected_source_head,
+            )
+            report["status"] = report["remote"]["status"]
+            print(json.dumps(report, sort_keys=True))
+            return (
+                0
+                if report["status"] != "PREDECESSOR_SWITCH_RECOVERY_REQUIRED"
+                else 3
+            )
+
         if args.grant is None:
             parser.error("--grant is required for execute")
+        if cache is None:
+            raise OperatorError("execute_cache_authority_missing")
         grant = load_grant(
             args.grant,
             source_head=args.expected_source_head,
