@@ -1,3 +1,9 @@
+### 2026-11-22 T1 OTA V1.2 R7 · Clean Reference 的初始化记录与运行基线
+
+- **现象**：备用 T1 的内存候选 `741a1463e7de` 报 `firstboot_complete_missing`。只读复核确认出厂清单绑定 `24382caae4a1`，R2A 启动记录与 R2B 重启验收记录均匹配，运行身份标记的方式与 Clean Reference 一致，旧设备初始化事务及完成记录均缺失。历史依据见 [Clean Reference R3 现场状态](N3W_CURRENT_STATE.md#2026-11-02--r3-pairing-readiness-bridge-source-repair-committed-ci_pending)。
+- **根因**：旧 `verify` 只接受显式设备初始化完成记录。Clean Reference 走独立启动和重启验收路径。当前 OTA 运行基线还要求旧初始化单元有效，因此一次失败会提前截断 R7 的运行观测。
+- **防回归**：R7 仍执行原始运行基线检查，仅在本机 Clean Reference 记录匹配且阻断原因单独指向旧初始化单元时，用只读调用继续采集当前运行状态。补充采集明确标为诊断，原始阻断仍保留。R7 实机复验和 OTA 产品准入处理待完成。
+
 ### 2026-11-05 KF-142 — P5 host-side ad-hoc SSH reuse causes repeated authentication and pre-claim staging STOP
 
 | ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |

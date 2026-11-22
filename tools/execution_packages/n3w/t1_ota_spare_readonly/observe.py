@@ -14,6 +14,8 @@ from pathlib import Path
 SOURCE_HEAD = "84da7cd68e2f65fb011c32db1c3683b76a48112b"
 MANIFEST_SHA256 = "9cfad52a76670474cb328d3d22c0a7d4985f38f3e79fbe68e82a6b6550c8fa48"
 PACKAGE_SHA256 = "f39629268ffeab9906f9de8cb60362d604d5b9150ef4c13571926b00921e6b84"
+CLEAN_REFERENCE_SOURCE = "24382caae4a1f5d459297f86e8d18f10a848ca64"
+PROVISION_UNIT = "n3wfc4-provision-resume.service"
 
 
 def digest(payload):
@@ -76,6 +78,80 @@ def space(path):
     }
 
 
+def read_reference_record(path, mode):
+    if path.resolve(strict=True) != path:
+        raise ValueError("clean_reference_record_path_invalid")
+    info = path.stat()
+    if (not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) != mode
+            or info.st_uid != 0 or info.st_nlink != 1 or info.st_size > 1024 * 1024):
+        raise ValueError("clean_reference_record_metadata_invalid")
+    report = json.loads(path.read_bytes())
+    if not isinstance(report, dict):
+        raise ValueError("clean_reference_record_json_invalid")
+    return report
+
+
+def has_clean_reference_records(state_root=Path("/var/lib"), release_path=Path(
+    "/opt/HomeAssistant/infra/n3w-t1/production/fresh-release.json"
+)):
+    legacy = state_root / "n3w-t1-provisioning"
+    if legacy.is_symlink() or any((legacy / name).exists() or (legacy / name).is_symlink()
+                                 for name in ("transaction.json", "FIRSTBOOT_COMPLETE.json")):
+        return False
+    try:
+        release = read_reference_record(release_path, 0o644)
+        identity = read_reference_record(state_root / "greenhouse-manager/identity/INITIALIZED.json", 0o600)
+        if (release.get("schema") != "gh.n3w-t1-fresh-release/1"
+                or release.get("release_id") != CLEAN_REFERENCE_SOURCE
+                or release.get("source_head") != CLEAN_REFERENCE_SOURCE
+                or release.get("explicit_provisioning_required") is not True
+                or identity.get("schema") != "gh.h0h1.system-initialization/1"):
+            return False
+        marker_digest = identity.pop("manifest_sha256", None)
+        if marker_digest != digest(json.dumps(
+            identity, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")):
+            return False
+        for phase, stage, control, flag in (
+            ("r2a", "RUNTIME_STARTED", "abeb6c31147bcf249361dcec7e9536eaed6106a6", "runtime_started"),
+            ("r2b", "REBOOT_ACCEPTED", "e15c64ac8f0f5f482a6c8538072031734002a559", "reboot_acceptance_passed"),
+        ):
+            record = read_reference_record(
+                state_root / f"n3w-t1-clean-reference-{phase}/transaction.json", 0o600
+            )
+            if (record.get("schema") != f"gh.n3w-t1-clean-reference-{phase}-transaction/1"
+                    or record.get("product_source_head") != CLEAN_REFERENCE_SOURCE
+                    or record.get("control_plane_head") != control or record.get("stage") != stage
+                    or record.get("authorization_claimed") is not True
+                    or record.get("authorization_consumed") is not True
+                    or record.get("authorization_replay_allowed") is not False
+                    or record.get(flag) is not True):
+                return False
+    except (OSError, RuntimeError, ValueError):
+        return False
+    return True
+
+
+def observe_running_snapshot(host, clean_reference, admission, updater_error):
+    try:
+        snapshot = host._observe_running_base_v2()
+    except updater_error as error:
+        reason = str(error)
+        admission.update(status="BLOCKED", reason=reason.partition(":")[0])
+        if not clean_reference or reason not in {
+            f"relevant_failed_units:{PROVISION_UNIT}", f"unit_health_invalid:{PROVISION_UNIT}",
+        }:
+            raise
+        services = host._running_project_services_v2()
+        return {
+            "compose_render": host.render_compose(),
+            "runtime": {name: host._runtime(name) for name in services},
+            "listeners": host._listener_snapshot(),
+        }
+    admission.update(status="RUNNING_BASELINE_PASS")
+    return snapshot
+
+
 def run_spare():
     report = {"source_head": SOURCE_HEAD, "architecture": platform.machine()}
     if os.geteuid() != 0 or sys.platform != "linux" or report["architecture"] not in {"aarch64", "arm64"} or sys.version_info < (3, 11):
@@ -112,6 +188,8 @@ def observe_spare(report):
     host = LocalHost()
     errors = {}
     storage_paths = {"root": Path("/")}
+    clean_reference = has_clean_reference_records()
+    admission = {"status": "NOT_OBSERVED"}
 
     def observe(name, action):
         try:
@@ -133,7 +211,7 @@ def observe_spare(report):
         }
 
     def runtime():
-        snapshot = host._observe_running_base_v2()
+        snapshot = observe_running_snapshot(host, clean_reference, admission, UpdaterError)
         compose = snapshot["compose_render"]
         bindings, modes = host._image_binding_authority_v2(compose)
         fields = ("image_ref", "image_id", "platform", "restart_count", "runtime_contract_sha256")
@@ -154,6 +232,7 @@ def observe_spare(report):
             if len(mounts) == 1 and Path(mounts[0]["source"]).is_absolute():
                 storage_paths[name] = Path(mounts[0]["source"])
         return {
+            "diagnostic_only": admission["status"] == "BLOCKED",
             "services": observed, "binding_modes": modes,
             "references_match_compose": all(observed[name]["image_ref"] == ref for name, ref in bindings.items()),
             "listeners_match": snapshot["listeners"] == EXPECTED_LISTENERS,
@@ -190,6 +269,8 @@ def observe_spare(report):
         }
 
     before = observe("transactions_before", transactions)
+    report["clean_reference_records_match"] = clean_reference
+    report["ota_running_baseline"] = admission
     report["runtime"] = observe("runtime", runtime)
     report["http_status"] = observe("ha_http", lambda: host._homeassistant_http_status(allow_unavailable=True))
     report["mqtt_authenticated"] = {
