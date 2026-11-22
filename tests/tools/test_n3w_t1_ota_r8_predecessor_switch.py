@@ -350,3 +350,94 @@ def test_live_grant_is_not_committed_in_package():
     )
     assert '"schema": contract.GRANT_SCHEMA' not in source
     assert "LIVE_WRITE_AUTHORIZATION=true" not in source
+
+
+def test_recovery_state_binds_exact_restore_authority():
+    backend = FakeBackend()
+    result = executor.execute_switch(backend, valid_grant())
+    assert result.status == "PREDECESSOR_SWITCH_PASS"
+    state = backend.states[-1]
+    validated = contract.validate_recovery_state(
+        state,
+        expected_source_head="1" * 40,
+    )
+    assert validated["rollback_archive_sha256"] == contract.CURRENT_ROLLBACK_ARCHIVE_SHA256
+    assert validated["usb_device"] == contract.BOUND_USB_DEVICE
+    assert validated["predecessor_archive_sha256"] == contract.PREDECESSOR_ARCHIVE_SHA256
+    assert validated["predecessor_import_worst_case_bytes"] == 2_500_000_000
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("rollback_archive_sha256", "0" * 64),
+        ("usb_device", "/dev/sdz1"),
+        ("predecessor_archive_size", 1),
+        ("predecessor_import_worst_case_bytes", 0),
+    ],
+)
+def test_recovery_state_rejects_authority_drift(field, value):
+    backend = FakeBackend()
+    executor.execute_switch(backend, valid_grant())
+    state = dict(backend.states[-1])
+    state[field] = value
+    with pytest.raises(
+        contract.ContractError,
+        match="switch_recovery_state_authority_invalid",
+    ):
+        contract.validate_recovery_state(
+            state,
+            expected_source_head="1" * 40,
+        )
+
+
+def test_recovery_state_requires_backup_after_backup_phase():
+    backend = FakeBackend()
+    executor.execute_switch(backend, valid_grant())
+    state = dict(backend.states[-1])
+    state["backup"] = None
+    with pytest.raises(
+        contract.ContractError,
+        match="switch_recovery_backup_missing",
+    ):
+        contract.validate_recovery_state(
+            state,
+            expected_source_head="1" * 40,
+        )
+
+
+def test_remote_recovery_is_journal_driven_and_exact_only():
+    source = (PACKAGE / "remote_live.py").read_text()
+    assert "def recover_to_current" in source
+    assert "contract.validate_recovery_state" in source
+    assert "remove_predecessor_if_exact" in source
+    assert "restore_original_data_from_evidence" in source
+    assert "restore_current_image_if_needed" in source
+    assert "PREDECESSOR_SWITCH_RECOVERED_TO_CURRENT" in source
+    assert "PREDECESSOR_SWITCH_RECOVERY_REQUIRED" in source
+    assert "docker system prune" not in source
+    assert "docker image prune" not in source
+
+
+def test_recovery_does_not_require_new_grant_or_predecessor_cache_stream():
+    source = (PACKAGE / "operator.py").read_text()
+    recover = source.split("def recover_live", 1)[1].split("def main", 1)[0]
+    assert "grant.json" not in recover
+    assert "cache_path" not in recover
+    assert "input_file" not in recover
+    assert "--mode recover" in recover
+
+
+def test_status_and_recover_do_not_require_mac_predecessor_cache():
+    source = (PACKAGE / "operator.py").read_text()
+    assert 'if args.mode in {"source-check", "preflight", "execute"}' in source
+
+
+def test_midstream_load_ambiguity_is_not_hidden_by_global_cleanup():
+    source = (PACKAGE / "remote_live.py").read_text()
+    assert "docker_load_failed" in source
+    assert "predecessor_cleanup_identity_drift" in source
+    assert "current_image_restore_failed" in source
+    assert "RECOVERY_REQUIRED" in source
+    assert "docker system prune" not in source
+    assert "docker image prune" not in source
