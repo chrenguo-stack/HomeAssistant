@@ -1,3 +1,11 @@
+## 备用 T1 的 OTA V1.2 验收进度
+
+### 2026-11-22 — 备用 T1 的 OTA V1.2 R7 运行基线与 R8 停点
+
+- 实机已取得 `R7_LEGACY_CUTOVER_PASS`、`RUNNING_BASELINE_PASS` 和 `EXIT_CODE=0`。初始化服务按 Clean Reference 状态执行 `NOOP`。旧 OTA 守护进程已停用，标准应用、HA HTTP 和 Manager／HA MQTT 复核通过。Broker 实例、应用数据挂载及历史 OTA 事务记录通过核对。 [实机回执](https://github.com/chrenguo-stack/HomeAssistant/blob/851d0fb958fb1858171b862ef5a068151abc4591/docs/status/n3w-t1-r7-legacy-ota-cutover-precheck.md)
+- 末次实机 HA 为 `local/n3w-homeassistant:2026.10.4-5881590f`。V1.2 恢复包尚未部署，U 盘资格尚未验证。R8 沿用 `2026.10.0 → 2026.10.4`，缺少匹配的前代运行和数据基线。新会话由只读核对及备份、恢复方案开始，实机写入需相应授权。
+- 该记录适用于备用 T1 的实机验收。产品候选 [PR #815](https://github.com/chrenguo-stack/HomeAssistant/pull/815) 的核对提交为 `741a1463e7de065401749e47e59d30b295d5d6e8`。见 [R8 新会话交接](N3W_T1_OTA_V1_2_R7_BASELINE_PASS_TO_R8_NEW_CHAT_HANDOFF_V1.0_20261122.md) 和 [停机判定防回归](https://github.com/chrenguo-stack/HomeAssistant/blob/0b206e46ab427d22161e8565e56d4f3fda384710/docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md)。
+
 ## Current T1 Core Stack authority
 
 ### OTA product architecture — V1.2, 2026-11-20
