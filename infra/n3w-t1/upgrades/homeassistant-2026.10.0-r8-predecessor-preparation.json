@@ -1,0 +1,25 @@
+{
+  "schema": "gh.n3w-t1-core-updater-target/2",
+  "component": "homeassistant",
+  "mutation_profile": "IMAGE_ONLY_V1",
+  "target_image_ref": "local/n3w-homeassistant:2026.10.0-0c73235a",
+  "target_platform": "linux/arm64",
+  "target_archive_sha256": "e52d12779f7562d3f37a265d622fbaf31e758deba5998e40cafb5a33a118b663",
+  "artifact_identity": {
+    "artifact_id": 13070404405,
+    "artifact_digest_sha256": "99eae7602eb2f8318bb7c0fff29d71fa61471071902b854a90666d4beb931b93",
+    "artifact_name": "n3w-t1-fresh-exact-arm64-24382caae4a1f5d459297f86e8d18f10a848ca64"
+  },
+  "expected_predecessor_image_ref": "local/n3w-homeassistant:2026.10.4-5881590f",
+  "rollback_compatible": true,
+  "compatibility_evidence": {
+    "schema": "gh.n3w-t1-core-updater-compatibility/1",
+    "mutation_profile": "IMAGE_ONLY_V1",
+    "peer_contracts_compatible": true,
+    "persistent_schema_compatible": true,
+    "review_evidence_sha256": "8b02e9bb0143fc4fc7900c4c0e4c52b27f92725cd41f1f03b82ba67ffb9e0267",
+    "predecessor_source_head": "fb7cfc857003ace3d368521d76ca2320ba399736",
+    "target_source_head": "5b32e1ae82104a42f9e4e6907fe44d9172e87615"
+  },
+  "a1_classification_sha256": "e664ced300ea2bb743b116550b7a3e22237e7f556f54400a060eef30671d30e7"
+}
