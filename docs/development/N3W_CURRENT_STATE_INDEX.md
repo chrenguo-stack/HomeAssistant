@@ -25,19 +25,21 @@
 - No T1 access, USB formatting, Docker mutation, service restart, live apply, credential mutation or board access occurs.
 - Next gate remains `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R5_REAL_T1_READONLY_PREFLIGHT_20261106_01`, requiring separate explicit authorization.
 
-## 2026-11-23 — R8 predecessor preparation PRE_U1 live closure
+## 2026-11-23 — R8 predecessor preparation U1 PREPARE_REQUESTED live closure
 
 - PR #824 remains open/draft; executable source is `ea68af045fdde8c32e66d688bc7a136a80b30122`, with 16/16 workflows SUCCESS.
-- Exact recovery artifact ID `14782528541` is installed on the spare T1; updater PYZ SHA256 is `ffc402f72fe56309b0f108c870230d8288dba740859232b9bc749abc354492b1`.
-- Activation preflight passed with the actual live Manager `local/greenhouse-manager:fresh-44e7d7472714`; self-test capability is absent and the accepted monitoring mode is `natural_only`.
-- Live Home Assistant remains exact 2026.10.4; exact 2026.10.0 is not loaded. The previous HA USB transaction remains terminal `ROLLED_BACK/U13B_ROLLED_BACK`.
-- Exact 2026.10.0 target archive: 2,448,553,472 bytes, SHA256 `e52d12779f7562d3f37a265d622fbaf31e758deba5998e40cafb5a33a118b663`.
-- Current exact 2026.10.4 `docker image save` stream: 2,447,090,176 bytes, SHA256 `6502b8cdbf706d746e32311fdaa39ffc5ca703d76f766806bbb21d3c71278d1f`.
-- Existing USB is ext4 with the bound filesystem UUID recorded in the progress authority; at the final read-only measurement it was present but not mounted, so preparation state is `ORIGINAL_MOUNT_REQUIRED`. No USB format is required or authorized.
-- No new HA transaction, USB transaction write, service stop, target load, predecessor release, reboot or format occurred before handoff.
-- Progress authority: [R8 PRE_U1 PASS to U1 preparation alignment](N3W_T1_OTA_V1_2_R8_PRE_U1_PASS_TO_U1_PREPARE_REQUESTED_PROGRESS_ALIGNMENT_20261123.md).
-- New-chat handoff: [R8 PRE_U1 PASS to U1 PREPARE_REQUESTED](N3W_T1_OTA_V1_2_R8_PRE_U1_PASS_TO_U1_PREPARE_REQUESTED_NEW_CHAT_HANDOFF_V1.0_20261123.md).
-- Next gate: run the already-prepared bounded command that mounts the existing USB without formatting, materializes exact 2026.10.0, creates a fresh normal HA transaction, and stops at `U1_PREPARE_REQUESTED`; the next conversation starts by reviewing its terminal output.
+- Exact recovery artifact ID `14782528541` remains installed; updater PYZ SHA256 is `ffc402f72fe56309b0f108c870230d8288dba740859232b9bc749abc354492b1`.
+- Live Home Assistant remains exact `local/n3w-homeassistant:2026.10.4-5881590f`; Manager remains `local/greenhouse-manager:fresh-44e7d7472714`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- The previous HA USB transaction remains terminal `ROLLED_BACK/U13B_ROLLED_BACK`.
+- The existing ext4 USB is mounted at the controlled preparation mountpoint without formatting; measured available bytes at this stop are `28132188160`.
+- Exact 2026.10.0 target archive is 2,448,553,472 bytes with SHA256 `e52d12779f7562d3f37a265d622fbaf31e758deba5998e40cafb5a33a118b663`.
+- Exact current 2026.10.4 predecessor export measurement remains 2,447,090,176 bytes with SHA256 `6502b8cdbf706d746e32311fdaa39ffc5ca703d76f766806bbb21d3c71278d1f`.
+- The updater-owned exact target spool and approved candidate are materialized with release identity `homeassistant-r8-predecessor-2026.10.0`.
+- A fresh normal HA transaction now exists at exact `U1_PREPARE_REQUESTED`.
+- At U1, services are unchanged, exact 2026.10.0 is not loaded, the new USB transaction directory has not been created, and install authorization is neither claimed nor consumed.
+- Live evidence: PR #824 issue comment `7090376245`.
+- Progress authority: [R8 PRE_U1 to U1 preparation alignment](N3W_T1_OTA_V1_2_R8_PRE_U1_PASS_TO_U1_PREPARE_REQUESTED_PROGRESS_ALIGNMENT_20261123.md).
+- Next gate: issue an exact prepare authority bound to this fresh transaction and current launch binding, then run the existing U1→U4 preparation path and stop at `U4_READY_TO_INSTALL` before INSTALL/U5.
 
 ## 2026-11-06 — Home Assistant mandatory-USB OTA R4 host integration CLOSED_PASS
 
