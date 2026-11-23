@@ -635,7 +635,10 @@ def test_homeassistant_ota_installed_version_is_bound_to_same_env_as_image():
 
     with pytest.raises(UpdaterV2Error, match="homeassistant_ota_version_env_drift"):
         rewrite_component_env(
-            bound.replace(b"2026.10.0", b"2026.9.0"),
+            bound.replace(
+                b"GH_N3W_T1_OTA_INSTALLED_VERSION=2026.10.0",
+                b"GH_N3W_T1_OTA_INSTALLED_VERSION=2026.9.0",
+            ),
             "homeassistant",
             OLD["homeassistant"],
             NEW["homeassistant"],
