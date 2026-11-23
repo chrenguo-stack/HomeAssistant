@@ -117,6 +117,32 @@ def test_exact_package_installs_and_executes_self_contained_recovery(package, tm
     assert manager.changes[2:] == [("daemon-reload",)]
 
 
+def test_live_candidate_renderer_injects_predecessor_version(monkeypatch):
+    calls = []
+
+    def run(argv, **kwargs):
+        calls.append((argv, kwargs))
+        return SimpleNamespace(returncode=0, stdout=b"{}")
+
+    monkeypatch.setattr(deploy.subprocess, "run", run)
+
+    assert deploy._render_candidate_compose(Path("/tmp/active.yml")) == {}
+    assert calls[-1][1]["env"] == {"PATH": os.defpath}
+
+    assert deploy._render_candidate_compose(
+        Path("/tmp/candidate.yml"), predecessor_version="2026.10.4",
+    ) == {}
+    assert calls[-1][1]["env"] == {
+        "PATH": os.defpath,
+        "GH_N3W_T1_OTA_INSTALLED_VERSION": "2026.10.4",
+    }
+
+    with pytest.raises(UpdaterError, match="predecessor_version_invalid"):
+        deploy._render_candidate_compose(
+            Path("/tmp/candidate.yml"), predecessor_version="not-a-version",
+        )
+
+
 def test_candidate_compose_renders_only_ota_and_ha_monitoring_bindings(package, tmp_path):
     if shutil.which("docker") is None:
         pytest.skip("Docker Compose CLI unavailable")
@@ -259,7 +285,10 @@ def test_activation_preflight_is_read_only(package, tmp_path, monkeypatch, fault
         require_candidate_manager_monitoring=require_candidate_manager_monitoring,
     )
 
-    def render(candidate):
+    render_versions = []
+
+    def render(candidate, *, predecessor_version=None):
+        render_versions.append((candidate.name, predecessor_version))
         return copy.deepcopy(active if candidate.name == "docker-compose.yml" else proposed)
 
     errors = {
@@ -283,6 +312,8 @@ def test_activation_preflight_is_read_only(package, tmp_path, monkeypatch, fault
             "current_image_ref": observed["image_ref"], "current_image_identity": {"runtime_image_id": observed["image_id"]},
         }]
     assert manager.changes == changes
+    if fault not in {"socket", "transaction", "active_config"}:
+        assert ("ha-ota-candidate.compose.yml", "2026.10.0") in render_versions
     assert not (root / deploy.COMPOSE.relative_to("/")).exists()
 
 
