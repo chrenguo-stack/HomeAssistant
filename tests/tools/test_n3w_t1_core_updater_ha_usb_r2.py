@@ -255,6 +255,50 @@ def test_u4_baseline_failure_can_finish_without_fabricating_rollback(tmp_path):
     }
 
 
+def test_safe_u4_baseline_failure_retirement_allows_checker_repair(tmp_path):
+    failed, *_ = prepare_to_u4(tmp_path)
+    failed = {
+        **failed,
+        "failure_code": "ha_usb_predecessor_acceptance_baseline_unavailable",
+    }
+    store = HaUsbStateStore(tmp_path / "retire-u4")
+    store.write(failed)
+
+    class Runtime:
+        def capture_start_binding(self, document):
+            assert document["phase"] == U4
+            return {
+                "launch_sha256": "b" * 64,
+                "images": {
+                    "homeassistant": {
+                        "reference": document["current_image_ref"],
+                        "runtime_id": document["current_image_identity"].get(
+                            "runtime_image_id", "sha256:" + "1" * 64
+                        ),
+                    },
+                },
+            }
+
+        def _release_image(self, reference):
+            assert reference == failed["target_image_ref"]
+            return None
+
+    result = recovery_startup.retire_pre_cutover_failure(store, Runtime())
+    assert result == {
+        "status": "PRE_CUTOVER_FAILURE_RETIRED",
+        "transaction_status": "ROLLED_BACK",
+        "transaction_phase": U4,
+        "failure_code": "ha_usb_predecessor_acceptance_baseline_unavailable",
+        "install_authority_present": False,
+        "authorization_claimed": False,
+        "authorization_consumed": False,
+    }
+    terminal = store.read()
+    assert terminal["status"] == "ROLLED_BACK"
+    assert terminal["phase"] == U4
+    V2StateStore(store.root).prepare_new()
+
+
 def test_first_stop_requires_successfully_persisted_restart_binding(tmp_path, monkeypatch):
     predecessor, store, runtime = first_stop_fixture(tmp_path)
 
