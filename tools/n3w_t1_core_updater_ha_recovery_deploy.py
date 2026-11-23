@@ -35,7 +35,7 @@ from n3w_t1_core_updater_ha_recovery_startup import (
 from n3w_t1_core_updater_signed_release import (
     VerifiedHaRelease, check_signed_release, open_signed_archive, verify_signed_release,
 )
-from n3w_t1_core_updater_v2_common import SHA256, TERMINAL_TX_V2, canonical
+from n3w_t1_core_updater_v2_common import COMPONENTS, IMAGE_BINDINGS, IMAGE_PREFIXES, SHA256, TERMINAL_TX_V2, canonical
 from n3w_t1_core_updater_v2_state import STATE_ROOT_V2, V2StateStore
 from n3w_t1_portable_image_identity import parse_verified_load_archive
 
@@ -266,12 +266,23 @@ def _systemctl(*args: str, check: bool = True) -> str:
     ).stdout.strip()
 
 
-def _render_candidate_compose(path: Path, *, predecessor_version: str | None = None) -> dict:
+def _render_candidate_compose(
+    path: Path, *, predecessor_version: str | None = None,
+    image_bindings: dict[str, str] | None = None,
+) -> dict:
     environment = {"PATH": os.defpath}
     if predecessor_version is not None:
         if re.fullmatch(r"[0-9]{4}\.[0-9]{1,2}\.[0-9]{1,3}", predecessor_version) is None:
             raise UpdaterError("ha_recovery_candidate_predecessor_version_invalid")
         environment["GH_N3W_T1_OTA_INSTALLED_VERSION"] = predecessor_version
+    if image_bindings is not None:
+        if set(image_bindings) != set(COMPONENTS):
+            raise UpdaterError("ha_recovery_candidate_image_bindings_invalid")
+        for component in COMPONENTS:
+            reference = image_bindings.get(component)
+            if not isinstance(reference, str) or not reference.startswith(IMAGE_PREFIXES[component]):
+                raise UpdaterError("ha_recovery_candidate_image_bindings_invalid")
+            environment[IMAGE_BINDINGS[component]] = reference
     result = subprocess.run(
         ("/usr/bin/docker", "compose", "--project-name", PROJECT,
          "--project-directory", str(COMPOSE.parent), "--env-file", str(COMPOSE_ENV),
@@ -279,8 +290,17 @@ def _render_candidate_compose(path: Path, *, predecessor_version: str | None = N
         cwd=COMPOSE.parent, env=environment, capture_output=True, timeout=120,
     )
     if result.returncode != 0:
+        stderr = result.stderr.decode(errors="replace")
+        missing = re.search(r"required variable ([A-Z][A-Z0-9_]*) is missing a value", stderr)
+        if missing is not None:
+            raise UpdaterError(
+                f"ha_recovery_candidate_compose_required_variable_missing:{missing.group(1)}"
+            )
         raise UpdaterError("ha_recovery_candidate_compose_render_failed")
-    document = json.loads(result.stdout)
+    try:
+        document = json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        raise UpdaterError("ha_recovery_candidate_compose_render_invalid") from error
     if not isinstance(document, dict):
         raise UpdaterError("ha_recovery_candidate_compose_render_invalid")
     return document
@@ -385,7 +405,19 @@ def check_candidate_activation(
         if runtime.image_binding_modes_v2().get("homeassistant") != "dynamic":
             raise UpdaterError("ha_recovery_candidate_predecessor_binding_not_dynamic")
         candidate = root / DESTINATIONS[CANDIDATE_COMPOSE]
-        _verify_candidate_delta(active, render(candidate, predecessor_version=version), version)
+        candidate_images = {
+            name: binding["images"][name]["reference"]
+            for name in COMPONENTS
+        }
+        _verify_candidate_delta(
+            active,
+            render(
+                candidate,
+                predecessor_version=version,
+                image_bindings=candidate_images,
+            ),
+            version,
+        )
         config = payload[MONITORING_CONFIG]
         if not config.endswith(MONITORING_CONFIGURATION):
             raise UpdaterError("ha_recovery_candidate_ha_config_template_drift")
