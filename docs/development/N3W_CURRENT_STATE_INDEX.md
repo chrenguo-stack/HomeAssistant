@@ -13,9 +13,9 @@
 - Source alignment: [V1.3 dynamic USB capacity source alignment](N3W_T1_OTA_V1_3_DYNAMIC_USB_CAPACITY_SOURCE_ALIGNMENT_20261123.md).
 - Current continuation handoff: [V1.3 source closure → R8 reacceptance handoff](N3W_T1_OTA_V1_3_SOURCE_CLOSURE_TO_R8_REACCEPTANCE_NEW_CHAT_HANDOFF_V1.0_20261123.md), created at `344d1e8134bd420a9215fa313c00d63bb71ce234`.
 - Independent review removed the dead V1.1/R1 whole-transaction static-capacity production API and added a regression guard against its return.
-- Live spare T1 now runs the exact V1.3 updater (`ha-recovery.pyz` SHA256 `c480ec5e...`) after bounded takeover authorization `N3W_T1_V1_3_UPDATER_TAKEOVER_20261123_01`; application runtime remained healthy with zero restarts.
+- Live spare T1 now runs the exact legacy-U3 compatibility updater from source/test head `9093bf6ca13b27b850ee28d4508135c385b4b6ce` (`ha-recovery.pyz` SHA256 `9cf539cb...`, artifact `14793024413`) after the bounded takeover plus compatibility-patch authorizations; application runtime remained healthy with zero restarts.
 - Fresh forensic evidence corrected the earlier stale U1 handoff: the existing transaction is ACTIVE at `U3_TARGET_DOWNLOADING_VERIFYING`, with exact durable target/predecessor archives already present on the bound USB and no partial files.
-- The old schema-v1 prepare authority has been retired and preserved as private T1 evidence; no V1.3 schema-v2 prepare authority has been issued yet. The next live gate is a separately authorized schema-v2 prepare-authority/resume of the existing U3 toward U4.
+- The old schema-v1 prepare authority has been retired and preserved as private T1 evidence; no V1.3 schema-v2 prepare authority has been issued yet. Source review confirms the existing exact USB target archive can serve as the read-only schema-v2 `target_source` without becoming updater-owned or being retired; the next live gate is a separately authorized schema-v2 prepare-authority issuance and existing-U3 resume to U4.
 
 ### 2026-11-06 — PR #788 clean successor: mandatory-USB HA OTA R4 source converged
 
