@@ -306,7 +306,13 @@ class HaUsbIpcExecutor:
                 "error_code": None,
             }
         if document.get("pre_cutover_predecessor_restored") is True:
-            return {"phase": "ROLLED_BACK", "progress_percent": None, "error_code": None}
+            failure = document.get("failure_code")
+            code = (
+                failure
+                if isinstance(failure, str) and _PUBLIC_CODE_RE.fullmatch(failure) is not None
+                else None
+            )
+            return {"phase": "ROLLED_BACK", "progress_percent": None, "error_code": code}
         if document["recovery_required"] and (
             "ha_data_restore" in document
             or "predecessor_release_intent" in document
@@ -336,6 +342,7 @@ class HaUsbIpcExecutor:
             raise UpdaterV2Error("ha_ota_ipc_phase_invalid")
         failure = document.get("failure_code")
         public_failures = {
+            U3: ("ha_usb_target_space_insufficient", "ha_usb_predecessor_space_insufficient"),
             U4: ("ha_usb_install_revalidation_failed", "ha_usb_predecessor_acceptance_baseline_unavailable"),
             U13B: ("ha_usb_target_acceptance_proven_failure", "ha_usb_target_acceptance_evidence_unavailable"),
         }
