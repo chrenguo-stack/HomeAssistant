@@ -7,10 +7,12 @@
 - Product USB minimum is 16GB or larger. Runtime does not trust a marketing label or require an exact 16,000,000,000 raw-byte value; the existing 14 GiB measured-usable filesystem floor is the machine-verifiable media eligibility gate and is not a per-transaction capacity guarantee.
 - Variable payloads use per-operation dynamic admission: exact target size, measured current predecessor export size, and measured quiesced protected-data backup size each recheck current USB free space immediately before the corresponding write.
 - Generic fixed USB reserve as a substitute for future payloads is rejected.
-- V1.3 executable code head is `05bed5e3b82370fd4dd699fe98e464613bc284a0`; exact source/test head is `7484748c44b51da2de6a057f2ca29e9b9734309c`.
-- At the final permitted poll for that head: 12 workflows SUCCESS, 0 FAILURE, 7 RUNNING and 2 path-gated SKIPPED. Exact updater/package closure remains pending.
+- V1.3 executable code head after independent cleanup is `5b45e893181d09deed1f47d588bb1099964e0667`; exact source/test head is `51bd2ce8baab2ca0cff4d227765de4583e0f5121`.
+- Final CI for that head: 19 workflows SUCCESS, 0 FAILURE, 0 CANCELLED, 0 RUNNING and 2 expected path-gated SKIPPED. Manager A-to-B source passed 253 tests; HA target-binding source passed 301 tests with one skip; greenhouse-manager passed Ruff plus 1541 tests with one skip and an additional 8-test slice.
+- Exact recovery-updater install artifact: run `45110450673`, artifact `14789063554`, zip SHA256 `f7f4c9e874df799e320d823abe89355a4af117de5a686d6fe96398ddf6a964e1`, install-manifest SHA256 `d0f98dcaa2bdd2747e33b973bf01af622b1fdab1f0d99143a8ee76b3e387d3fc`.
 - Source alignment: [V1.3 dynamic USB capacity source alignment](N3W_T1_OTA_V1_3_DYNAMIC_USB_CAPACITY_SOURCE_ALIGNMENT_20261123.md).
-- Live T1 still runs the pre-V1.3 updater; source alignment is not live deployment.
+- Independent review removed the dead V1.1/R1 whole-transaction static-capacity production API and added a regression guard against its return.
+- Live T1 still runs the pre-V1.3 updater; source alignment is not live deployment. The old live authorization was bound to source `044ba31d...`, so a fresh source/artifact-bound authorization is required before V1.3 deployment.
 
 ### 2026-11-06 — PR #788 clean successor: mandatory-USB HA OTA R4 source converged
 
@@ -36,7 +38,8 @@
 - Existing ext4 USB remains the bound preparation media; it is not reformatted.
 - The previously proposed static-reserve U1→U4 command is retired and must not run.
 - The live T1 updater is not V1.3. No V1.3 updater deployment occurred during design/source/test work.
-- Next gate: finish exact V1.3 CI/package closure, bind the exact recovery-updater artifact, then separately deploy/rebind the updater without advancing the HA transaction. Only afterward may the same U1 resume through dynamic-capacity preparation to U4.
+- Exact V1.3 CI/package closure is complete. Next gate is a fresh read-only live rebind, followed by a new explicit authorization bound to source `51bd2ce8...` and recovery artifact `14789063554`; only then may the updater be deployed without advancing the HA transaction.
+- The existing U1 is retained as V1.3 compatibility/takeover evidence. R5-R7 are not fully rerun; only affected targeted checks are required. Final R8 acceptance requires a separate fresh V1.3 product-path 10.0 -> 10.4 transaction.
 - Live U1 evidence: PR #824 comment `7090376245`.
 - V1.3 source alignment: [dynamic USB capacity source alignment](N3W_T1_OTA_V1_3_DYNAMIC_USB_CAPACITY_SOURCE_ALIGNMENT_20261123.md).
 
