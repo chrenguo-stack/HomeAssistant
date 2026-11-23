@@ -119,13 +119,15 @@ LIVE_BROKER=local/n3w-mosquitto:2.1.2-3184566d
 LIVE_RUNTIME_HEALTH=PASS
 LIVE_RUNTIME_RESTART_COUNT=0
 
-V1_3_SOURCE_HEAD=51bd2ce8baab2ca0cff4d227765de4583e0f5121
-V1_3_RECOVERY_ARTIFACT_ID=14789063554
-INSTALLED_UPDATER_PYZ_SHA256=c480ec5efd36e4326d7c1b5157ac7470fd3d7fc94be0717cc4d95a691aae675f
+V1_3_SOURCE_HEAD=9093bf6ca13b27b850ee28d4508135c385b4b6ce
+V1_3_RECOVERY_ARTIFACT_ID=14793024413
+INSTALLED_UPDATER_PYZ_SHA256=9cf539cb7c7facd15a9729a2472601e5fce4f9c9b27750007e8924f73a8211b2
 LIVE_UPDATER_ALIGNED_TO_V1_3=true
 UPDATER_TAKEOVER_AUTHORIZATION=N3W_T1_V1_3_UPDATER_TAKEOVER_20261123_01
 UPDATER_TAKEOVER_RESULT=PASS
 UPDATER_TAKEOVER_ATTEMPT=02
+LEGACY_U3_COMPAT_PATCH_AUTHORIZATION=N3W_T1_V1_3_LEGACY_U3_COMPAT_PATCH_20261123_01
+LEGACY_U3_COMPAT_PATCH_RESULT=PASS
 
 HA_TRANSACTION_STATUS=ACTIVE
 HA_TRANSACTION_PHASE=U3_TARGET_DOWNLOADING_VERIFYING
@@ -178,6 +180,8 @@ NEXT_LIVE_STOP_POINT=U4_READY_TO_INSTALL
 
 Fresh live forensic evidence corrected the earlier handoff/current-state assumption that the transaction was still at U1. File timestamps prove the ea68 updater had already advanced the transaction to U3 and completed exact durable USB target/predecessor archives before the V1.3 source head and handoff were created. The stale U1 statement was therefore a documentation-state error, not a new post-handoff live mutation.
 
+After the bounded takeover, the legacy-U3 compatibility repair at exact source/test head `9093bf6c...` completed 19 applicable SUCCESS workflows with two expected path-gated skips. Its exact recovery artifact is `14793024413`; live `ha-recovery.pyz` now matches SHA256 `9cf539cb...`. The compatibility patch changed only `ha-recovery.pyz`; ten non-pyz installed payloads remained exact, the transaction remained byte-identical at U3, and runtime remained healthy with zero container restarts.
+
 The exact U3 USB materials were independently re-read: target and predecessor archives match their expected SHA256 and sizes, both partial files are absent, and the updater-owned internal target spool has already been retired. This establishes the narrow ea68 interruption window after durable USB preparation/candidate retirement and before U4 transaction persistence.
 
 Attempt 01 of the V1.3 updater takeover stopped before live mutation because the operator script used the wrong guard path. The path error was local and unambiguous; no source or product design change was required. Attempt 02 completed under authorization `N3W_T1_V1_3_UPDATER_TAKEOVER_20261123_01`: updater control-plane units were quiesced, the old schema-v1 prepare authority was retired while preserving private evidence, only `ha-recovery.pyz` changed from the exact ea68 payload to the exact V1.3 payload, all ten non-pyz installed payloads were verified unchanged, and the socket/timer were rearmed. The HA transaction remained byte-identical at U3 and the application runtime remained healthy with zero container restarts.
@@ -194,7 +198,10 @@ Evidence:
 - Attempt 01 STOP: `7092556210`;
 - Attempt 01 path correction: `7092565058`;
 - Attempt 02 pre-execution artifact recheck: `7092584572`;
-- Attempt 02 PASS: `7092777187`.
+- Attempt 02 PASS: `7092777187`;
+- legacy-U3 compatibility source/CI closure: `7092948780`;
+- compatibility live-patch authorization: `7092961208`;
+- compatibility live-patch PASS: `7093009644`.
 
 V1.3 source alignment:
 `docs/development/N3W_T1_OTA_V1_3_DYNAMIC_USB_CAPACITY_SOURCE_ALIGNMENT_20261123.md`.
