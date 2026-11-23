@@ -429,11 +429,12 @@ def check_candidate_activation(
 def activate_candidate_runtime(
     package: Path, expected: str, *, root: Path = Path("/"),
     runtime: LocalHaPredecessorRuntime | None = None,
+    systemctl=_systemctl,
     render=_render_candidate_compose,
 ) -> dict[str, object]:
     """Activate the exact monitoring/OTA runtime before a business HA transaction exists."""
     preflight = check_candidate_activation(
-        package, expected, root=root, runtime=runtime, render=render,
+        package, expected, root=root, runtime=runtime, systemctl=systemctl, render=render,
     )
     source_head, payload = _verified_package(package, expected)
     runtime = LocalHaPredecessorRuntime() if runtime is None else runtime
@@ -467,7 +468,8 @@ def activate_candidate_runtime(
             candidate_path.write_bytes(candidate_payload)
             candidate_path.chmod(0o600)
             staged = render(candidate_path, predecessor_version=version)
-            _verify_candidate_delta(active, staged, version)
+            expected_runtime = copy.deepcopy(staged)
+            _verify_candidate_delta(active, copy.deepcopy(staged), version)
 
         stopped = False
         candidate_written = False
@@ -485,7 +487,7 @@ def activate_candidate_runtime(
             )
 
             after = render(active_path)
-            if after != staged:
+            if after != expected_runtime:
                 raise UpdaterError("ha_recovery_candidate_active_compose_runtime_drift")
             after_binding = runtime.capture_start_binding({
                 "current_image_ref": observed["image_ref"],
