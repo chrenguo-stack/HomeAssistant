@@ -42,12 +42,12 @@ from n3w_t1_core_updater_ha_mounted_media import (
 )
 from n3w_t1_core_updater_ha_usb import (
     HaDataRestoreProvider, HaPredecessorRecovery, HaPredecessorRelease, destructive_cutover_allowed,
-    ha_data_rollback_required, record_existing_media_bound, record_target_ready, resume_host_recovery,
-    start_target_preparation,
+    ha_data_rollback_required, record_existing_media_bound, record_pre_cutover_failure_terminal,
+    record_target_ready, resume_host_recovery, start_target_preparation,
 )
 from n3w_t1_core_updater_ha_usb_media import USB_FILESYSTEM, validate_filesystem_uuid
 from n3w_t1_core_updater_ha_usb_state import (
-    TARGET_BINDING, TARGET_WRITES_POSSIBLE, U1, U2, U3, U5, U6, U9, U10, HaUsbStateStore,
+    TARGET_BINDING, TARGET_WRITES_POSSIBLE, U1, U2, U3, U4, U5, U6, U9, U10, HaUsbStateStore,
     record_usb_capacity_event,
 )
 from n3w_t1_core_updater_host import DEFAULT_SERVICES_READINESS_TIMEOUT_SECONDS, LocalHost
@@ -1376,6 +1376,66 @@ def _dispatch_pending_candidate(store: HaUsbStateStore, runtime: LocalHaPredeces
     return "NO_PENDING_RECOVERY"
 
 
+def retire_pre_cutover_failure(
+    store: HaUsbStateStore,
+    runtime: LocalHaPredecessorRuntime,
+) -> dict[str, object]:
+    """Close a proven no-mutation U4 failure so checker/runtime repair can proceed."""
+    authority_path = store.root / INSTALL_AUTHORITY_FILE
+    with store.lock():
+        document = store.read()
+        if document is None:
+            raise UpdaterV2Error("ha_usb_pre_cutover_failure_transaction_missing")
+        if (
+            document["phase"] != U4
+            or document.get("failure_code") not in {
+                "ha_usb_predecessor_acceptance_baseline_unavailable",
+                "ha_usb_install_revalidation_failed",
+            }
+            or document["recovery_required"]
+            or document["authorization_claimed"]
+            or document["authorization_consumed"]
+            or document.get("authorization_id_sha256") is not None
+            or "predecessor_start" in document
+        ):
+            raise UpdaterV2Error("ha_usb_pre_cutover_failure_retirement_not_admitted")
+        if document["status"] not in {"ACTIVE", "ROLLED_BACK"}:
+            raise UpdaterV2Error("ha_usb_pre_cutover_failure_retirement_not_admitted")
+
+        binding = runtime.capture_start_binding(document)
+        _require_signed_predecessor(document, binding)
+        if runtime._release_image(document["target_image_ref"]) is not None:
+            raise UpdaterV2Error("ha_usb_pre_cutover_failure_target_image_present")
+
+        if authority_path.exists():
+            grant = _read_authority_file(authority_path, "ha_usb_install_authority_invalid")
+            _validate_install_authority(grant, document)
+            if grant.get("launch_sha256") != binding["launch_sha256"]:
+                raise UpdaterV2Error("ha_usb_install_authority_invalid")
+
+        if document["status"] == "ACTIVE":
+            document = record_pre_cutover_failure_terminal(document)
+            store.write(document)
+
+        if authority_path.exists():
+            authority_path.unlink()
+            parent = os.open(store.root, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(parent)
+            finally:
+                os.close(parent)
+
+        return {
+            "status": "PRE_CUTOVER_FAILURE_RETIRED",
+            "transaction_status": document["status"],
+            "transaction_phase": document["phase"],
+            "failure_code": document["failure_code"],
+            "install_authority_present": authority_path.exists(),
+            "authorization_claimed": document["authorization_claimed"],
+            "authorization_consumed": document["authorization_consumed"],
+        }
+
+
 def maintenance_submit_approved_release(
     store: HaUsbStateStore,
     runtime: LocalHaPredecessorRuntime,
@@ -1463,6 +1523,7 @@ def cli(argv: Sequence[str] | None = None) -> int:
     action.add_argument("--serve-ipc", action="store_true")
     action.add_argument("--issue-prepare-authority", type=Path, metavar="PRIVATE_REQUEST")
     action.add_argument("--issue-install-authority", type=Path, metavar="PRIVATE_REQUEST")
+    action.add_argument("--retire-precutover-failure", action="store_true")
     action.add_argument(
         "--maintenance-submit-approved-release",
         choices=("PREPARE", "INSTALL"),
@@ -1470,6 +1531,19 @@ def cli(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--release-identity")
     args = parser.parse_args(argv)
+    if args.retire_precutover_failure:
+        if os.geteuid() != 0:
+            parser.error("pre-cutover failure retirement requires root")
+        try:
+            status = retire_pre_cutover_failure(HaUsbStateStore(), LocalHaPredecessorRuntime())
+        except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as error:
+            response = {"status": "PRE_CUTOVER_FAILURE_NOT_RETIRED"}
+            if isinstance(error, UpdaterV2Error):
+                response["reason"] = str(error)
+            print(json.dumps(response, sort_keys=True))
+            return 1
+        print(json.dumps(status, sort_keys=True))
+        return 0
     if args.maintenance_submit_approved_release is not None:
         if os.geteuid() != 0:
             parser.error("maintenance release submission requires root")
