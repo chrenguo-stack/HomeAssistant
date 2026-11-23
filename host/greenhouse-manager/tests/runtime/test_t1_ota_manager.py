@@ -84,15 +84,20 @@ class Provider:
 
 
 class Runtime:
-    def __init__(self, phase: str = "DISCOVERED", progress: int | None = None) -> None:
+    def __init__(
+        self, phase: str = "DISCOVERED", progress: int | None = None,
+        error_code: str | None = None,
+    ) -> None:
         self.phase = phase
         self.progress = progress
+        self.error_code = error_code
         self.installed_version: str | None = None
 
     def get_homeassistant_ota_runtime_state(self) -> OtaRuntimeSnapshot:
         return OtaRuntimeSnapshot(
             phase=self.phase,
             progress_percent=self.progress,
+            error_code=self.error_code,
             installed_version=self.installed_version,
         )
 
@@ -271,6 +276,19 @@ def test_status_is_read_only_and_requires_exact_release_binding() -> None:
     with pytest.raises(OtaControlError, match="ota_intent_release_mismatch"):
         ota.handle_control(payload("PREPARE", "homeassistant-2026.10.5"))
     assert sink.intents == []
+
+
+def test_usb_capacity_block_allows_fresh_prepare_intent() -> None:
+    ota, runtime, sink = manager(phase="TARGET_DOWNLOADING_VERIFYING")
+    runtime.error_code = "ha_usb_predecessor_space_insufficient"
+
+    status = ota.project().status
+    assert status.in_progress is False
+    assert status.error_code_or_null == "ha_usb_predecessor_space_insufficient"
+
+    prepared = ota.handle_control(payload("PREPARE"))
+    assert prepared.action == "PREPARE"
+    assert [item.action for item in sink.intents] == ["PREPARE"]
 
 
 def test_predecessor_recovery_blocks_new_ota_intents() -> None:
