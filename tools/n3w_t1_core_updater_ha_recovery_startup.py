@@ -449,13 +449,12 @@ class LocalHaPredecessorRuntime(LocalHost):
                 if expected is not None and expected != sha256_bytes(canonical(identity.to_dict())):
                     raise UpdaterV2Error("ha_usb_preparation_predecessor_archive_drift")
 
-            predecessor_size = self._measure_predecessor_archive(old["reference"])
             target, predecessor = prepare_mounted_archives(
                 mountpoint, store.root, document,
                 target_source=lambda: self._open_target_source(Path(grant["target_source"]), document["target_archive_size"]),
                 predecessor_source=lambda: self._export_predecessor(old["reference"]),
+                measure_predecessor_size=lambda: self._measure_predecessor_archive(old["reference"]),
                 verify_predecessor=verify_predecessor,
-                predecessor_size_bytes=predecessor_size,
             )
             if _read_prepare_authority(store, document) != grant or self.capture_start_binding(document) != binding:
                 raise UpdaterV2Error("ha_usb_prepare_authority_drift")
