@@ -37,7 +37,7 @@ from n3w_t1_core_updater_ha_monitoring_evidence import (
     LocalHaMonitoringEvidence, READ_HA_RECEIPTS, REQUEST_MANAGER_SELF_TEST,
 )
 from n3w_t1_core_updater_ha_mounted_media import (
-    HaInstallSpaceBudget, HaMountedBackupProvider, HaMountedInstallMaterialVerifier, bound_usb_device,
+    HaMountedBackupProvider, HaMountedInstallMaterialVerifier, bound_usb_device,
     measure_preparation_capacity, prepare_mounted_archives,
 )
 from n3w_t1_core_updater_ha_usb import (
@@ -71,10 +71,7 @@ IMAGE_LOAD_TIMEOUT_SECONDS = 1800
 PREPARE_AUTHORITY_FILE = "ha-prepare-authority.json"
 PREPARE_AUTHORITY_SCHEMA = "gh.n3w-t1-ha-prepare-authority/2"
 INSTALL_AUTHORITY_FILE = "ha-install-authority.json"
-INSTALL_AUTHORITY_SCHEMA = "gh.n3w-t1-ha-install-authority/2"
-INSTALL_BUDGET_FIELDS = {
-    "internal_install_bytes", "internal_recovery_overhead_bytes",
-}
+INSTALL_AUTHORITY_SCHEMA = "gh.n3w-t1-ha-install-authority/3"
 
 
 def requested_install_binding_sha256(document: dict[str, Any]) -> str:
@@ -183,12 +180,10 @@ def _read_install_authority(store: HaUsbStateStore, document: dict[str, Any]) ->
 def _validate_install_authority(grant: dict[str, Any], document: dict[str, Any]) -> dict[str, Any]:
     reason = "ha_usb_install_authority_invalid"
     if (
-        set(grant) != {"schema", "binding_sha256", "authorization_id", "launch_sha256", "expires_at_unix", "space"}
+        set(grant) != {"schema", "binding_sha256", "authorization_id", "launch_sha256", "expires_at_unix"}
         or grant["schema"] != INSTALL_AUTHORITY_SCHEMA
         or grant["binding_sha256"] != requested_install_binding_sha256(document)
         or not isinstance(grant["authorization_id"], str) or not AUTHORIZATION_ID.fullmatch(grant["authorization_id"])
-        or not isinstance(grant["space"], dict) or grant["space"].keys() != INSTALL_BUDGET_FIELDS
-        or any(type(value) is not int or value <= 0 for value in grant["space"].values())
     ):
         raise UpdaterV2Error(reason)
     return grant
@@ -386,7 +381,7 @@ class LocalHaPredecessorRuntime(LocalHost):
                         raise UpdaterV2Error("ha_usb_prepare_authority_target_digest_mismatch")
                 destination = store.root / PREPARE_AUTHORITY_FILE
             elif kind == "install":
-                fields = {"binding_sha256", "authorization_id", "space"}
+                fields = {"binding_sha256", "authorization_id"}
                 if (
                     document["phase"] not in {U5, U6} or document.get("usb_binding_mode") != "existing_filesystem"
                     or request.keys() != request_fields | fields
@@ -555,7 +550,7 @@ class LocalHaPredecessorRuntime(LocalHost):
 
         materials = HaMountedInstallMaterialVerifier(
             mountpoint=media.mountpoint, internal_storage=store.root, image_storage=image_storage,
-            ha_data_root=self.ha_data_root, budget=lambda _: HaInstallSpaceBudget(**grant["space"]),
+            ha_data_root=self.ha_data_root,
             verify_prestate=lambda current: self._verify_install_prestate(current, grant["launch_sha256"]),
         )
         result = HaPredecessorRecovery(store, self, self).install_requested(materials, media, authorize)
