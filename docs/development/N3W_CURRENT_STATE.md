@@ -9,8 +9,8 @@ V1.3 supersedes V1.2 for future work. V1.2 remains historical design evidence.
 CURRENT_T1_CORE_STACK_OTA_ARCHITECTURE=docs/development/N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.3_20261123.md
 ARCHITECTURE_VERSION=V1.3
 ARCHITECTURE_STATUS=PRODUCT_ARCHITECTURE_AUTHORITY
-USB_PHYSICAL_MEDIA_MIN_BYTES=16000000000
-USB_FILESYSTEM_SANITY_FLOOR_BYTES=15032385536
+USB_PRODUCT_MIN_CAPACITY_GB=16
+USB_MEASURED_USABLE_CAPACITY_MIN_BYTES=15032385536
 CAPACITY_ADMISSION=PER_OPERATION_DYNAMIC_MEASUREMENT
 STATIC_GENERIC_USB_RESERVE=REJECTED
 
@@ -27,7 +27,7 @@ NEXT_ONE_GATE=COMPLETE_V1_3_EXACT_CI_AND_BIND_RECOVERY_UPDATER_ARTIFACT
 AUTO_EXECUTE_NEXT_GATE=false
 ```
 
-V1.3 freezes two separate capacity questions. A USB device must first satisfy the 16GB product media minimum and existing filesystem/identity checks. Each variable-size operation then re-measures the actual payload requirement and the current USB free space immediately before that write. Target, predecessor export and protected-data backup are independently admitted. A fixed generic reserve cannot stand in for future variable payloads.
+V1.3 freezes two separate capacity questions. The product requires a 16GB-or-larger USB; runtime verifies the 16GB-class media using the existing 14 GiB measured-usable filesystem floor plus filesystem/identity checks. Each variable-size operation then re-measures the actual payload requirement and the current USB free space immediately before that write. Target, predecessor export and protected-data backup are independently admitted. A fixed generic reserve cannot stand in for future variable payloads.
 
 Repository source implements this policy. At the final permitted CI poll, 15 workflows were SUCCESS and none had failed; Manager A-to-B and Home Assistant target-binding exact-package workflows were still running. Manager A-to-B's source step was already SUCCESS with 250 tests, including the dedicated V1.3 dynamic-capacity suite. No terminal success is claimed yet for the two unfinished workflows.
 
