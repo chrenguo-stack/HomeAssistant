@@ -178,8 +178,8 @@ R8V13-01 V1.3 exact CI/package closure
 → R8V13-14 R8 V1.3 最终验收结论
 
 INITIAL_TASK=R8V13-01
-CURRENT_TASK=R8V13-06
-NEXT_TASK=R8V13-07
+CURRENT_TASK=R8V13-07
+NEXT_TASK=R8V13-08
 ```
 
 > 事务 A 和事务 B 是两个独立、fresh 的产品事务。任何 terminal transaction 都不得被复活以替代后续 fresh transaction。
@@ -264,10 +264,10 @@ GOAL=创建新的普通 HA U0-U13 predecessor-preparation transaction，并只�
 PRECONDITIONS=R8V13-05 PASS；当前 HA exact 10.4 healthy；candidate monitoring 已激活；exact 10.0 target authority 可用
 ACTIONS=post-activation readonly proof；candidate materialization；fresh U1；fresh prepare authority；U2；U3；U4
 EXIT_CRITERIA=新的 ACTIVE U4_READY_TO_INSTALL；target/predecessor exact verified+fsynced；无 install authority；10.0 image 未加载；10.4 runtime 保持健康
-EVIDENCE=KF-148；N3W_T1_V1_3_FRESH_HA_PREPARE_RESUME_20261123_02.sh；fresh U4 receipt
+EVIDENCE=KF-148 through KF-151；N3W_T1_V1_3_FRESH_HA_PREPARE_RESUME_20261123_05.sh；transaction 463c8065eea5ada915074194058ee45880ddab2c94d06715c82f09fb84481969；fresh U4 receipt
 NEXT_TASK=R8V13-07
 STOP_BOUNDARY=STOP_BEFORE_INSTALL；本任务不授权 INSTALL/cutover
-STATUS=IN_PROGRESS
+STATUS=PASS
 ```
 
 ### R8V13-07 — 事务 A INSTALL/cutover：U5 → U13A 或自动 U13B
@@ -411,8 +411,8 @@ STAGE_EXIT_CRITERIA=
 ```text
 MASTER_TASK_DOCUMENT=docs/development/templates/STAGE_EXECUTION_PLAN_TEMPLATE.md
 ACTIVE_STAGE_ID=N3W_T1_CORE_STACK_OTA_V1_3_R8_PHYSICAL_ACCEPTANCE
-CURRENT_TASK_ID=R8V13-06
-NEXT_TASK_ID=R8V13-07
+CURRENT_TASK_ID=R8V13-07
+NEXT_TASK_ID=R8V13-08
 TASK_CHAIN_STATUS=ALIGNED
 TASK_CHAIN_MUTATION_ALLOWED=false
 ```
