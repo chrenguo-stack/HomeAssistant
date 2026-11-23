@@ -1,13 +1,16 @@
 ## Current T1 Core Stack authority index
 
-### 2026-11-20 — T1 Core Stack OTA V1.2 architecture authority
+### 2026-11-23 — T1 Core Stack OTA V1.3 architecture authority
 
-- Product architecture: [T1 Core Stack OTA V1.2](N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.2_20261119.md). Implementation and live alignment are pending.
-- Exact design source: [fixed architecture document](https://github.com/chrenguo-stack/HomeAssistant/blob/480afb109de59477b11f6d1cdf794f656eb39805/docs/development/N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.2_20261119.md),
-  blob `82479d9723aace8555df0f24550c738b1074c977`.
-- Transition evidence: [fixed handoff](https://github.com/chrenguo-stack/HomeAssistant/blob/b63f391ae6e087a648be17d3fac7dcaafcf6442c/docs/development/N3W_T1_CORE_STACK_OTA_V1_2_ARCHITECTURE_AUTHORITY_TO_MAIN_MERGE_NEW_CHAT_HANDOFF_V1.0_20261120.md).
-- PRs #807, #809, #810 and #811 are open drafts. Their classification belongs to
-  `N3W_T1_OTA_V1_2_PRE_ALIGNMENT_REPOSITORY_CONVERGENCE`, which starts separately.
+- Product architecture: [T1 Core Stack OTA V1.3](N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.3_20261123.md), blob `2040a5d6b9568d0646a661db23633efe60229fcc`.
+- V1.3 supersedes V1.2 for future implementation and acceptance; V1.2 remains historical evidence.
+- USB physical-media minimum is 16,000,000,000 bytes. The existing 14 GiB filesystem measured-usable floor remains a secondary sanity gate, not a per-transaction capacity guarantee.
+- Variable payloads use per-operation dynamic admission: exact target size, measured current predecessor export size, and measured quiesced protected-data backup size each recheck current USB free space immediately before the corresponding write.
+- Generic fixed USB reserve as a substitute for future payloads is rejected.
+- V1.3 executable code head is `af1f47aedf4a957b11101f36202cffe4831a1bf6`; source/test/CI wiring head is `1380b7c8b09d05d62b91194c24275ac9558b4ad6`.
+- Manager A-to-B source validation passed 250 tests including the dedicated V1.3 suite. At the final permitted poll, 15 workflows were SUCCESS, 0 FAILURE and 2 exact-package workflows remained running.
+- Source alignment: [V1.3 dynamic USB capacity source alignment](N3W_T1_OTA_V1_3_DYNAMIC_USB_CAPACITY_SOURCE_ALIGNMENT_20261123.md).
+- Live T1 still runs the pre-V1.3 updater; source alignment is not live deployment.
 
 ### 2026-11-06 — PR #788 clean successor: mandatory-USB HA OTA R4 source converged
 
@@ -25,21 +28,17 @@
 - No T1 access, USB formatting, Docker mutation, service restart, live apply, credential mutation or board access occurs.
 - Next gate remains `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R5_REAL_T1_READONLY_PREFLIGHT_20261106_01`, requiring separate explicit authorization.
 
-## 2026-11-23 — R8 predecessor preparation U1 PREPARE_REQUESTED live closure
+## 2026-11-23 — R8 predecessor preparation held at U1 for V1.3
 
-- PR #824 remains open/draft; executable source is `ea68af045fdde8c32e66d688bc7a136a80b30122`, with 16/16 workflows SUCCESS.
-- Exact recovery artifact ID `14782528541` remains installed; updater PYZ SHA256 is `ffc402f72fe56309b0f108c870230d8288dba740859232b9bc749abc354492b1`.
-- Live Home Assistant remains exact `local/n3w-homeassistant:2026.10.4-5881590f`; Manager remains `local/greenhouse-manager:fresh-44e7d7472714`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
-- The previous HA USB transaction remains terminal `ROLLED_BACK/U13B_ROLLED_BACK`.
-- The existing ext4 USB is mounted at the controlled preparation mountpoint without formatting; measured available bytes at this stop are `28132188160`.
-- Exact 2026.10.0 target archive is 2,448,553,472 bytes with SHA256 `e52d12779f7562d3f37a265d622fbaf31e758deba5998e40cafb5a33a118b663`.
-- Exact current 2026.10.4 predecessor export measurement remains 2,447,090,176 bytes with SHA256 `6502b8cdbf706d746e32311fdaa39ffc5ca703d76f766806bbb21d3c71278d1f`.
-- The updater-owned exact target spool and approved candidate are materialized with release identity `homeassistant-r8-predecessor-2026.10.0`.
-- A fresh normal HA transaction now exists at exact `U1_PREPARE_REQUESTED`.
-- At U1, services are unchanged, exact 2026.10.0 is not loaded, the new USB transaction directory has not been created, and install authorization is neither claimed nor consumed.
-- Live evidence: PR #824 issue comment `7090376245`.
-- Progress authority: [R8 PRE_U1 to U1 preparation alignment](N3W_T1_OTA_V1_2_R8_PRE_U1_PASS_TO_U1_PREPARE_REQUESTED_PROGRESS_ALIGNMENT_20261123.md).
-- Next gate: issue an exact prepare authority bound to this fresh transaction and current launch binding, then run the existing U1→U4 preparation path and stop at `U4_READY_TO_INSTALL` before INSTALL/U5.
+- The fresh HA transaction remains exact `U1_PREPARE_REQUESTED`; it is valid and must not be recreated.
+- Live Home Assistant remains exact `local/n3w-homeassistant:2026.10.4-5881590f`; Manager and Broker remain unchanged and healthy.
+- Exact 2026.10.0 candidate remains materialized internally; the target image is not loaded and no new USB transaction directory has been created.
+- Existing ext4 USB remains the bound preparation media; it is not reformatted.
+- The previously proposed static-reserve U1→U4 command is retired and must not run.
+- The live T1 updater is not V1.3. No V1.3 updater deployment occurred during design/source/test work.
+- Next gate: finish exact V1.3 CI/package closure, bind the exact recovery-updater artifact, then separately deploy/rebind the updater without advancing the HA transaction. Only afterward may the same U1 resume through dynamic-capacity preparation to U4.
+- Live U1 evidence: PR #824 comment `7090376245`.
+- V1.3 source alignment: [dynamic USB capacity source alignment](N3W_T1_OTA_V1_3_DYNAMIC_USB_CAPACITY_SOURCE_ALIGNMENT_20261123.md).
 
 ## 2026-11-06 — Home Assistant mandatory-USB OTA R4 host integration CLOSED_PASS
 
