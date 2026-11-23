@@ -344,6 +344,24 @@ Admission requires Generic V2 `status` to show Manager `COMMITTED`, the consumed
 
 Only after this read-only closure passes may candidate activation run. Phase-D postchecks preserve the observed Manager runtime Id across activation and require the real Manager→Broker→HA monitoring self-test PASS. Fresh HA PREPARE remains outside this executor.
 
+## 6D. KF-147 Phase-D-only resume executor
+
+The first Phase-D resume correctly closed Phase C but invoked the package-aware candidate commands from the installed runtime pyz. Source review confirmed that `bundle_main()` passes the executing pyz parent to `_verified_package()`, which requires the exact recovery artifact file set. Therefore candidate activation must execute from the preserved staged recovery package.
+
+```text
+PHASE_D_RESUME_EXECUTOR=N3W_T1_V1_3_KF144_PHASE_D_RESUME_20261123_04.sh
+PHASE_D_RESUME_EXECUTOR_SHA256=f4096c9a59fe182a50523b29021000221ff19d975b81f3ad600e3102de96f744
+EMBEDDED_REMOTE_PYTHON_COMPILE=PASS
+PARENT_AUTHORIZATION=N3W_T1_V1_3_KF144_LIVE_REPAIR_20261123_01
+PHASE_B_REPLAY=false
+PHASE_C_REPLAY=false
+PHASE_C_READONLY_RECLOSURE=true
+PHASE_D_PACKAGE_ENTRYPOINT=/tmp/n3w-kf144-live-repair-20261123-01/ha/ha-recovery.pyz
+STOP_BEFORE_FRESH_HA_PREPARE=true
+```
+
+The executor first re-proves the committed Manager transaction, healthy target-bound runtime, exact Manager portable identity, unchanged HA/Broker peers, terminal HA U4 transaction, armed recovery control plane, exact staged recovery manifest/file set, and untouched candidate prestate. Only then does it run `check-candidate-activation` and `activate-candidate-runtime` from the exact staged recovery package.
+
 ## 7. Archive status
 
 ```text
