@@ -17,6 +17,9 @@ PACKAGE_CONFIG_DIGEST=sha256:9547078268e5f2550b46583abbd87d9f0a6bbaa727a0af2c193
 EXECUTOR_FALSE_STOP=runtime_drift
 PHASE_C_REPLAY=false
 PHASE_D_EXECUTED=false
+PHASE_D_RESUME_EXECUTOR=N3W_T1_V1_3_KF144_PHASE_D_RESUME_20261123_03.sh
+PHASE_D_RESUME_EXECUTOR_SHA256=cbf957102739ead0a8b98a1a21b4cd8561a42207dd6e5a41482a8af5da0129d2
+PHASE_D_RESUME_SCOPE=PHASE_C_READONLY_CLOSURE_THEN_PHASE_D_ONLY
 ```
 
 The private resume executor imposed a stronger postcondition than the product contract by requiring Docker host-local image Id to equal the archive config digest. Product source and regression tests explicitly permit a different host-local Id when portable image identity matches exact config semantics and rootfs diff IDs. Generic V2 apply had already returned PASS/COMMITTED before the extra executor oracle stopped. Do not replay Manager apply. Fresh read-only closure must prove the committed transaction, TARGET_BOUND_RUNNING/HEALTHY runtime, exact target tag/peers, and exact-tar portable identity verification; if exact, continue only Phase D under the existing authorization.
