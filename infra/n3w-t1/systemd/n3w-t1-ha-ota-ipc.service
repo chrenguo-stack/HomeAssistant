@@ -1,0 +1,10 @@
+[Unit]
+Description=N3-W Home Assistant OTA host request service
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/python3 -I /opt/n3w-t1-core-updater/ha-recovery.pyz --serve-ipc
+NoNewPrivileges=yes
+Restart=on-failure

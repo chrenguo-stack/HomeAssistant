@@ -48,6 +48,8 @@ class N3wSimplifiedIsolatedMqttService(ManagerMqttService):
             n3w_product_pairing_enabled=False,
         )
         source_settings = replace(source_settings, pairing_intake_enabled=False)
+        # The outer selector already validated OTA and supplied its runtime bridge.
+        source_settings = replace(source_settings, n3w_t1_ota_enabled=False)
         if ota_manager is None:
             super().__init__(source_settings)
         else:

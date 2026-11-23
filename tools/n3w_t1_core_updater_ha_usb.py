@@ -1,9 +1,20 @@
 from __future__ import annotations
 
-from typing import Any
+import time
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from dataclasses import dataclass
+from typing import Any, BinaryIO, Protocol
 
+from n3w_t1_core_updater_ha_acceptance import (
+    HA_ACCEPTANCE_ATTEMPTS, HA_ACCEPTANCE_CHECKS, HA_ACCEPTANCE_RULE,
+    HaAcceptanceBaseline, HaAcceptanceEvidence, HaAcceptanceObserver, expected_target_images,
+    monitoring_self_test_qualified, valid_evidence_set,
+)
 from n3w_t1_core_updater_ha_backup import (
+    HaDataBackupProvider,
     HaDataBackupRecord,
+    backup_record_from_document,
     validate_backup_record,
 )
 from n3w_t1_core_updater_ha_recovery import (
@@ -16,9 +27,15 @@ from n3w_t1_core_updater_ha_usb_media import (
     FormatAuthorization,
     UsbCapacityReport,
     require_same_filesystem_uuid,
+    validate_filesystem_uuid,
 )
 from n3w_t1_core_updater_ha_usb_state import (
+    HA_DATA_RESTORE_PHASES,
+    HA_USB_TERMINAL_STATUSES,
     PHASE_INDEX,
+    PRE_CUTOVER_RECOVERY_PHASES,
+    TARGET_BINDING,
+    TARGET_WRITES_POSSIBLE,
     U0,
     U1,
     U2,
@@ -34,14 +51,764 @@ from n3w_t1_core_updater_ha_usb_state import (
     U12,
     U13A,
     U13B,
+    HaUsbStateStore,
     transition,
     validate_transaction_document,
 )
 from n3w_t1_core_updater_v2_common import (
     AUTHORIZATION_ID,
+    SHA256,
     UpdaterV2Error,
     sha256_bytes,
 )
+from n3w_t1_portable_image_identity import PortableImageIdentity
+
+
+class HaPublishedRollbackRuntime(Protocol):
+    def quiesce_for_data_restore(self, document: dict[str, Any]) -> None:
+        ...
+
+    def resume_published_predecessor(self, document: dict[str, Any]) -> None:
+        ...
+
+    def ensure_rollback_predecessor(
+        self, document: dict[str, Any], original_media: Callable[[], HaDataRestoreProvider],
+        record_load_intent: Callable[[PortableImageIdentity], None],
+    ) -> None:
+        ...
+
+    def verify_published_predecessor_health(self, document: dict[str, Any]) -> None:
+        ...
+
+
+class HaPredecessorRuntime(HaPublishedRollbackRuntime, Protocol):
+    def acceptance_observer(self) -> HaAcceptanceObserver:
+        ...
+
+    def require_rollback_boot_guard(self) -> None:
+        ...
+
+    def capture_start_binding(self, transaction: dict[str, Any]) -> dict[str, Any]:
+        """Verify the running predecessor and bind its fixed local start configuration."""
+        ...
+
+    def quiesce_for_backup(self) -> None:
+        """Stop application writers and verify they are quiescent."""
+        ...
+
+    def start_predecessor_if_needed(self, binding: dict[str, Any]) -> None:
+        """Check the binding against the host, then start only missing services."""
+        ...
+
+    def rollback_writers_quiesced(self) -> bool:
+        ...
+
+    def capture_predecessor_release(self, document: dict[str, Any]) -> HaPredecessorRelease:
+        ...
+
+    def release_exact_predecessor(self, document: dict[str, Any]) -> None:
+        ...
+
+    def observe_predecessor_released(self, document: dict[str, Any]) -> bool:
+        ...
+
+    def verify_resident_predecessor_health(self, document: dict[str, Any]) -> None:
+        ...
+
+    def verify_untouched_release_launch(self, document: dict[str, Any]) -> None:
+        ...
+
+    def restore_untouched_launch_binding(self, document: dict[str, Any]) -> None:
+        ...
+
+    def load_cutover_target(
+        self, document: dict[str, Any], media: HaDataRestoreProvider,
+        record_load_intent: Callable[[PortableImageIdentity], None],
+    ) -> str:
+        ...
+
+    def bind_cutover_target(self, document: dict[str, Any]) -> None:
+        ...
+
+    def start_cutover_target(self) -> None:
+        ...
+
+    def verify_cutover_target_started(self, document: dict[str, Any]) -> None:
+        ...
+
+    def target_acceptance_runtime(self, document: dict[str, Any]) -> str:
+        """Bind the approved running composition and its current runtime incarnation."""
+        ...
+
+
+class HaPredecessorHealth(Protocol):
+    def verify_predecessor_health(self, document: dict[str, Any]) -> None:
+        """Verify the old combination and its affected functions have recovered."""
+        ...
+
+
+class HaDataRestoreProvider(Protocol):
+    def restore_preupgrade_data(self) -> None:
+        ...
+
+    def load_predecessor_image(
+        self, load: Callable[[BinaryIO, PortableImageIdentity], None],
+    ) -> PortableImageIdentity:
+        ...
+
+    def load_target_image(
+        self, load: Callable[[BinaryIO, PortableImageIdentity], None],
+    ) -> PortableImageIdentity:
+        ...
+
+
+@dataclass(frozen=True, slots=True)
+class HaPredecessorRelease:
+    container_id: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class HaInternalSpace:
+    available_bytes: int
+    install_required_bytes: int
+    recovery_required_bytes: int
+
+
+@dataclass(frozen=True, slots=True)
+class HaInstallMaterials:
+    filesystem_uuid: str
+    target: ImageRecoveryRecord
+    predecessor: ImageRecoveryRecord
+    capacity: UsbCapacityReport
+    production_prestate_exact: bool
+    internal_space: HaInternalSpace | None = None
+
+
+class HaInstallMaterialVerifier(Protocol):
+    def verify_install_materials(self, transaction: dict[str, Any]) -> HaInstallMaterials:
+        """Reopen the original storage and revalidate the local recovery materials."""
+        ...
+
+
+class HaInstallMedia(HaDataBackupProvider, HaDataRestoreProvider, Protocol):
+    pass
+
+
+class HaPredecessorRecovery:
+    """Own the locked HA install path and the handoff to predecessor recovery."""
+
+    def __init__(
+        self,
+        store: HaUsbStateStore,
+        runtime: HaPredecessorRuntime,
+        health: HaPredecessorHealth,
+    ):
+        self.store = store
+        self.runtime = runtime
+        self.health = health
+        self._install_transaction_id: str | None = None
+        self._acceptance_observer: HaAcceptanceObserver | None = None
+
+    def install_requested(
+        self, materials: HaInstallMaterialVerifier, media: HaInstallMedia,
+        authorize: Callable[[dict[str, Any]], str],
+    ) -> dict[str, Any]:
+        """Execute one pre-admitted request with the original recovery provider."""
+        with self.install_recovery_point(materials, media, authorize=authorize) as current:
+            authorization_id = authorize(current)
+            self.release_predecessor_image(materials, media, authorization_id, authorize=authorize)
+            self.load_target_after_release(media)
+            self.activate_target_after_import(media)
+            return self.accept_and_commit_target(media)
+
+    @contextmanager
+    def install_recovery_point(
+        self,
+        materials: HaInstallMaterialVerifier,
+        backups: HaDataBackupProvider,
+        *,
+        acceptance: HaAcceptanceObserver | None = None,
+        authorize: Callable[[dict[str, Any]], str] | None = None,
+    ) -> Iterator[dict[str, Any]]:
+        """Consume a persisted install request and hold ownership through handoff."""
+        with self.store.lock():
+            current = self.store.read()
+            if (
+                current is None
+                or current["status"] != "ACTIVE"
+                or current["phase"] not in {U5, U6}
+                or "predecessor_start" in current
+                or current["recovery_required"]
+            ):
+                raise UpdaterV2Error("ha_usb_install_worker_not_admitted")
+
+            if authorize is not None:
+                authorize(current)
+            try:
+                before = materials.verify_install_materials(current)
+                _validate_install_materials(current, before)
+                if current["phase"] == U5:
+                    current = start_predecessor_recovery(current)
+                try:
+                    if acceptance is None:
+                        acceptance = self.runtime.acceptance_observer()
+                    baseline = acceptance.capture_baseline(validate_transaction_document(current))
+                except Exception as error:
+                    raise UpdaterV2Error("ha_usb_predecessor_acceptance_baseline_unavailable") from error
+                checks = baseline.checks if isinstance(baseline, HaAcceptanceBaseline) else baseline
+                if not valid_evidence_set(checks):
+                    raise UpdaterV2Error("ha_usb_predecessor_acceptance_baseline_unavailable")
+                acceptance_state = {"rule": HA_ACCEPTANCE_RULE, "baseline": checks, "attempts": 0}
+                if isinstance(baseline, HaAcceptanceBaseline):
+                    acceptance_state["data_sample"] = baseline.data_sample
+                    if baseline.monitoring_method is not None:
+                        acceptance_state["monitoring_method"] = baseline.monitoring_method
+                    if baseline.monitoring_fallback_sha256 is not None:
+                        acceptance_state["monitoring_fallback_sha256"] = baseline.monitoring_fallback_sha256
+                current = {
+                    **current, "target_acceptance": acceptance_state,
+                }
+                self.store.write(current)
+            except UpdaterV2Error as error:
+                code = "ha_usb_predecessor_acceptance_baseline_unavailable"
+                self.store.write(transition(
+                    current, U4, updates={
+                        "failure_code": code if str(error) == code else "ha_usb_install_revalidation_failed",
+                    },
+                ))
+                raise
+
+            with self._quiesced_for_backup(before.predecessor, authorize=authorize) as stopped:
+                backup = backups.create_consistent_backup(
+                    transaction_id_sha256=stopped["transaction_id_sha256"],
+                )
+                verified_backup = backups.verify_backup(backup)
+                if verified_backup != backup:
+                    raise UpdaterV2Error("ha_usb_install_backup_identity_drift")
+                after = materials.verify_install_materials(stopped)
+                _validate_install_materials(stopped, after)
+                if (after.target, after.predecessor) != (before.target, before.predecessor):
+                    raise UpdaterV2Error("ha_usb_install_recovery_material_identity_drift")
+                ready = record_recovery_admission(
+                    stopped,
+                    target=after.target,
+                    predecessor=after.predecessor,
+                    backup=verified_backup,
+                    observed_usb_filesystem_uuid=after.filesystem_uuid,
+                    capacity_report=after.capacity,
+                    production_prestate_exact=after.production_prestate_exact,
+                )
+                self.store.write(ready)
+                self._install_transaction_id = ready["transaction_id_sha256"]
+                self._acceptance_observer = acceptance
+                try:
+                    yield ready
+                finally:
+                    self._install_transaction_id = None
+                    self._acceptance_observer = None
+                latest = self.store.read()
+                if latest is None or _can_resume_pre_cutover(latest):
+                    raise UpdaterV2Error("ha_usb_install_cutover_not_consumed")
+
+    def admit_predecessor_release(
+        self, materials: HaInstallMaterialVerifier, backups: HaDataBackupProvider, authorization_id: str,
+        *, release_intent: HaPredecessorRelease | None = None,
+        authorize: Callable[[dict[str, Any]], str] | None = None,
+    ) -> dict[str, Any]:
+        """Claim release while install_recovery_point still owns the transaction lock.
+
+        A resumed worker must reconcile the actual image state; this snapshot is
+        not a fresh observation after interruption.
+        """
+        current = self.store.read()
+        if (
+            current is None or current["phase"] != U8 or not _can_resume_pre_cutover(current)
+            or current["transaction_id_sha256"] != self._install_transaction_id
+            or current["recovery_required"] or current.get("usb_binding_mode") != "existing_filesystem"
+        ):
+            raise UpdaterV2Error("ha_usb_predecessor_release_revalidation_not_admitted")
+        if not self.runtime.rollback_writers_quiesced():
+            raise UpdaterV2Error("ha_usb_predecessor_release_writers_active")
+        backup = backup_record_from_document(current["install_recovery_materials"]["backup"])
+        if backups.verify_backup(backup) != backup:
+            raise UpdaterV2Error("ha_usb_install_backup_identity_drift")
+        proof = materials.verify_install_materials(current)
+        _validate_install_materials(current, proof)
+        frozen = current["install_recovery_materials"]
+        if (proof.target.public(), proof.predecessor.public()) != (frozen["target"], frozen["predecessor"]):
+            raise UpdaterV2Error("ha_usb_install_recovery_material_identity_drift")
+        if self.store.read() != current or not self.runtime.rollback_writers_quiesced():
+            raise UpdaterV2Error("ha_usb_predecessor_release_revalidation_changed")
+        if authorize is not None and authorize(current) != authorization_id:
+            raise UpdaterV2Error("ha_usb_install_authority_changed")
+        claimed = claim_live_authorization(
+            current, authorization_id, internal_space=proof.internal_space, release_intent=release_intent,
+        )
+        self.store.write(claimed)
+        return claimed
+
+    def release_predecessor_image(
+        self, materials: HaInstallMaterialVerifier, backups: HaDataBackupProvider, authorization_id: str,
+        *, authorize: Callable[[dict[str, Any]], str] | None = None,
+    ) -> dict[str, Any]:
+        """Release the bound image once, inside the locked install recovery point."""
+        ready = self.store.read()
+        if ready is None or ready["phase"] != U8 or ready["transaction_id_sha256"] != self._install_transaction_id:
+            raise UpdaterV2Error("ha_usb_predecessor_release_revalidation_not_admitted")
+        intent = self.runtime.capture_predecessor_release(ready)
+        claimed = self.admit_predecessor_release(
+            materials, backups, authorization_id, release_intent=intent, authorize=authorize,
+        )
+        try:
+            self.runtime.release_exact_predecessor(claimed)
+            if not self.runtime.observe_predecessor_released(claimed):
+                raise UpdaterV2Error("ha_usb_predecessor_release_not_observed")
+            released = record_predecessor_capacity_released(claimed, image_release_observed=True)
+            self.store.write(released)
+            return released
+        except Exception as error:
+            try:
+                _reconcile_predecessor_release(self.store, self.runtime)
+            except Exception as recovery_error:
+                raise error from recovery_error
+            raise
+
+    def load_target_after_release(self, media: HaDataRestoreProvider) -> dict[str, Any]:
+        """Import the authorized target, still under the locked install recovery point."""
+        current = self.store.read()
+        if (
+            current is None or current["phase"] != U10 or not destructive_cutover_allowed(current)
+            or current["transaction_id_sha256"] != self._install_transaction_id
+            or current.get("predecessor_release_observed") is not True or "target_load_identity" in current
+        ):
+            raise UpdaterV2Error("ha_usb_target_image_load_not_admitted")
+
+        def record_load_intent(identity: PortableImageIdentity) -> None:
+            nonlocal current
+            current = _record_image_load(self.store, current, "target_load_identity", identity)
+
+        try:
+            loaded_id = self.runtime.load_cutover_target(current, media, record_load_intent)
+            imported = {**current, "target_loaded_image_id": loaded_id}
+            self.store.write(imported)
+            return imported
+        except Exception as error:
+            try:
+                _reconcile_predecessor_release(self.store, self.runtime, lambda _: media)
+            except Exception as recovery_error:
+                raise error from recovery_error
+            raise
+
+    def activate_target_after_import(self, media: HaDataRestoreProvider) -> dict[str, Any]:
+        """Bind and start the exact target once under the active install lock."""
+        current = self.store.read()
+        if (
+            current is None or current["phase"] != U10 or not destructive_cutover_allowed(current)
+            or current["transaction_id_sha256"] != self._install_transaction_id
+            or "target_loaded_image_id" not in current or "target_activation" in current
+        ):
+            raise UpdaterV2Error("ha_usb_target_activation_not_admitted")
+        try:
+            current = {**current, "target_activation": TARGET_BINDING}
+            self.store.write(current)
+            self.runtime.bind_cutover_target(current)
+            current = {**current, "target_activation": TARGET_WRITES_POSSIBLE}
+            self.store.write(current)
+            with self.store.allow_target_start(current["transaction_id_sha256"]):
+                self.runtime.start_cutover_target()
+            self.runtime.verify_cutover_target_started(current)
+            started = record_target_started(current)
+            self.store.write(started)
+            return started
+        except Exception as error:
+            original_media = lambda _: media
+            try:
+                if not _resume_ha_data_rollback(self.store, self.runtime, original_media, original_media):
+                    _reconcile_predecessor_release(self.store, self.runtime, original_media)
+            except Exception as recovery_error:
+                raise error from recovery_error
+            raise
+
+    @contextmanager
+    def quiesced_for_backup(
+        self, predecessor: ImageRecoveryRecord
+    ) -> Iterator[dict[str, Any]]:
+        """Keep the shared execution lock held while the caller backs up data."""
+        with self.store.lock():
+            with self._quiesced_for_backup(predecessor) as current:
+                yield current
+
+    def accept_and_commit_target(self, media: HaDataRestoreProvider) -> dict[str, Any]:
+        current = self.store.read()
+        observer = self._acceptance_observer
+        if (
+            current is None or observer is None or current["phase"] != U11
+            or current["transaction_id_sha256"] != self._install_transaction_id
+            or "target_acceptance" not in current or not destructive_cutover_allowed(current)
+        ):
+            raise UpdaterV2Error("ha_usb_target_acceptance_not_admitted")
+        failure = "ha_usb_target_acceptance_evidence_unavailable"
+        state = current["target_acceptance"]
+        for attempt in range(state["attempts"] + 1, HA_ACCEPTANCE_ATTEMPTS + 1):
+            state = {**state, "attempts": attempt}
+            current = {**current, "target_acceptance": state}
+            self.store.write(current)
+            fingerprint = _target_runtime(self.runtime, current)
+            if fingerprint is not None:
+                observations = {}
+                for check in HA_ACCEPTANCE_CHECKS:
+                    evidence = _observe_target(observer, current, check, fallback=False)
+                    if evidence.verdict == "EVIDENCE_UNAVAILABLE":
+                        evidence = _observe_target(observer, current, check, fallback=True)
+                    if evidence.verdict == "PROVEN_FAIL":
+                        break
+                    if evidence.verdict == "PASS":
+                        observations[check] = evidence.sha256
+                if fingerprint == _target_runtime(self.runtime, current):
+                    if evidence.verdict == "PROVEN_FAIL":
+                        failure = "ha_usb_target_acceptance_proven_failure"
+                        break
+                    if valid_evidence_set(observations):
+                        accepted = record_target_accepted(current, receipt={
+                            "runtime_sha256": fingerprint,
+                            "images": expected_target_images(current),
+                            "observations": observations,
+                        })
+                        self.store.write(accepted)
+                        committed = record_commit(accepted)
+                        self.store.write(committed)
+                        return committed
+            if attempt < HA_ACCEPTANCE_ATTEMPTS:
+                time.sleep(2)
+
+        self.store.write({**current, "failure_code": failure, "recovery_required": True})
+        original_media = lambda _: media
+        _resume_ha_data_rollback(self.store, self.runtime, original_media, original_media)
+        return self.store.read()
+
+    @contextmanager
+    def _quiesced_for_backup(
+        self, predecessor: ImageRecoveryRecord,
+        *, authorize: Callable[[dict[str, Any]], str] | None = None,
+    ) -> Iterator[dict[str, Any]]:
+        current = self.store.read()
+        if (
+            current is None
+            or current["phase"] != U6
+            or current["status"] != "ACTIVE"
+            or "predecessor_start" in current
+            or current["recovery_required"]
+        ):
+            raise UpdaterV2Error("ha_usb_first_stop_not_admitted")
+        validate_image_recovery_record(
+            predecessor,
+            expected_kind="predecessor",
+            expected_image_ref=current["current_image_ref"],
+        )
+        source_identity = current["current_image_identity"].get(
+            "portable_identity_sha256"
+        )
+        if (
+            source_identity is not None
+            and predecessor.portable_identity_sha256 != source_identity
+        ):
+            raise UpdaterV2Error("ha_usb_predecessor_archive_identity_drift")
+
+        binding = self.runtime.capture_start_binding(current)
+        current = validate_transaction_document(
+            {
+                **current,
+                "predecessor_start": binding,
+                "updated_at_unix": max(current["updated_at_unix"], int(time.time())),
+            }
+        )
+        if authorize is not None:
+            authorize(current)
+        self.store.write(current)
+        try:
+            self.runtime.quiesce_for_backup()
+            result = record_predecessor_recovery_and_ha_quiesced(
+                current,
+                predecessor=predecessor,
+                ha_quiesced=True,
+            )
+            self.store.write(result)
+            yield result
+        except Exception:
+            latest = self.store.read()
+            if latest is not None and _can_resume_pre_cutover(latest):
+                self._restore(latest)
+            raise
+
+    def recover(self) -> bool:
+        """Re-enter after an interruption, independently of USB and IPC."""
+        with self.store.lock():
+            current = self.store.read()
+            if current is None or not _can_resume_pre_cutover(current):
+                return False
+            self._restore(current)
+            return True
+
+    def _restore(self, current: dict[str, Any]) -> None:
+        current = _start_pre_cutover_predecessor(self.store, self.runtime, current)
+        self.health.verify_predecessor_health(current)
+        _finish_pre_cutover_recovery(self.store, current)
+
+
+
+def _target_runtime(runtime: HaPredecessorRuntime, document: dict[str, Any]) -> str | None:
+    try:
+        digest = runtime.target_acceptance_runtime(document)
+    except Exception:
+        return None
+    return digest if isinstance(digest, str) and SHA256.fullmatch(digest) else None
+
+
+def _observe_target(
+    observer: HaAcceptanceObserver, document: dict[str, Any], check: str, *, fallback: bool,
+) -> HaAcceptanceEvidence:
+    try:
+        validated = validate_transaction_document(document)
+        if (
+            fallback and check == "monitoring_path"
+            and monitoring_self_test_qualified(validated["target_acceptance"])
+        ):
+            evidence = observer.run_monitoring_self_test()
+        else:
+            evidence = observer.observe(validated, check, fallback=fallback)
+        if isinstance(evidence, HaAcceptanceEvidence):
+            if evidence.verdict == "PROVEN_FAIL":
+                return evidence
+            if evidence.verdict == "PASS" and isinstance(evidence.sha256, str) and SHA256.fullmatch(evidence.sha256):
+                return evidence
+    except Exception:
+        pass
+    return HaAcceptanceEvidence("EVIDENCE_UNAVAILABLE")
+
+
+def _can_resume_pre_cutover(document: dict[str, Any]) -> bool:
+    return (
+        document["phase"] in PRE_CUTOVER_RECOVERY_PHASES
+        and document["status"] not in HA_USB_TERMINAL_STATUSES
+        and "predecessor_start" in document
+    )
+
+
+def _validate_install_materials(document: dict[str, Any], proof: HaInstallMaterials) -> None:
+    require_same_filesystem_uuid(document["usb_filesystem_uuid"], proof.filesystem_uuid)
+    validate_image_recovery_record(
+        proof.target,
+        expected_kind="target",
+        expected_image_ref=document["target_image_ref"],
+        expected_archive_sha256=document["target_archive_sha256"],
+    )
+    validate_image_recovery_record(
+        proof.predecessor,
+        expected_kind="predecessor",
+        expected_image_ref=document["current_image_ref"],
+    )
+    if proof.target.archive_size_bytes != document["target_archive_size"]:
+        raise UpdaterV2Error("ha_usb_install_target_size_drift")
+    if (
+        proof.capacity.capacity_pass is not True
+        or proof.capacity.measured_usable_bytes != document["usb_measured_usable_bytes"]
+        or proof.production_prestate_exact is not True
+    ):
+        raise UpdaterV2Error("ha_usb_install_materials_unavailable")
+
+
+def resume_pre_cutover_services(
+    store: HaUsbStateStore, runtime: HaPredecessorRuntime
+) -> bool:
+    """Boot recovery starts the previous services before health verification."""
+    with store.lock():
+        current = store.read()
+        if current is None or not _can_resume_pre_cutover(current):
+            return False
+        _start_pre_cutover_predecessor(store, runtime, current)
+        return True
+
+
+def resume_interrupted_predecessor_release(
+    store: HaUsbStateStore, runtime: HaPredecessorRuntime,
+    original_media: Callable[[dict[str, Any]], HaDataRestoreProvider] | None = None,
+) -> str | None:
+    """Reconcile an interrupted release without replaying destructive actions."""
+    with store.lock():
+        return _reconcile_predecessor_release(store, runtime, original_media)
+
+
+def _record_image_load(
+    store: HaUsbStateStore, current: dict[str, Any], key: str, identity: PortableImageIdentity,
+) -> dict[str, Any]:
+    value = identity.to_dict()
+    if key in current:
+        if current[key] != value:
+            raise UpdaterV2Error("ha_usb_image_load_intent_drift")
+        return current
+    updated = {**current, key: value}
+    store.write(updated)
+    return updated
+
+
+def _reconcile_predecessor_release(
+    store: HaUsbStateStore, runtime: HaPredecessorRuntime,
+    original_media: Callable[[dict[str, Any]], HaDataRestoreProvider] | None = None,
+) -> str | None:
+    current = store.read()
+    if (
+        current is None or current["phase"] not in {U9, U10}
+        or "predecessor_release_intent" not in current or "ha_data_restore" in current
+        or current.get("target_activation") == TARGET_WRITES_POSSIBLE
+    ):
+        return None
+    if current["status"] != "ACTIVE":
+        raise UpdaterV2Error("ha_usb_predecessor_release_status_unresolved")
+    released = (
+        runtime.observe_predecessor_released(current)
+        if current["phase"] == U9 or original_media is None
+        else True
+    )
+    if released and current["phase"] == U9:
+        current = record_predecessor_capacity_released(current, image_release_observed=True)
+    if not current["recovery_required"]:
+        current = {**current, "recovery_required": True}
+        store.write(current)
+    if released and original_media is None:
+        return "PREDECESSOR_RELEASED_RECOVERY_PENDING"
+
+    runtime.verify_untouched_release_launch(current)
+    if original_media is not None:
+        def record_reload_intent(identity: PortableImageIdentity) -> None:
+            nonlocal current
+            current = _record_image_load(store, current, "predecessor_reload_identity", identity)
+
+        runtime.ensure_rollback_predecessor(current, lambda: original_media(current), record_reload_intent)
+    if current.get("target_activation") == TARGET_BINDING:
+        runtime.restore_untouched_launch_binding(current)
+    runtime.start_predecessor_if_needed(current["predecessor_start"])
+    runtime.verify_resident_predecessor_health(current)
+    store.write(transition(current, U13B))
+    return "ROLLED_BACK"
+
+
+def resume_ha_data_rollback(
+    store: HaUsbStateStore,
+    runtime: HaPublishedRollbackRuntime,
+    restore_provider: Callable[[dict[str, Any]], HaDataRestoreProvider],
+    image_provider: Callable[[dict[str, Any]], HaDataRestoreProvider],
+) -> bool:
+    """Resume data rollback when target writes were possible or a restore began."""
+    with store.lock():
+        return _resume_ha_data_rollback(store, runtime, restore_provider, image_provider)
+
+
+def ha_data_rollback_required(document: dict[str, Any]) -> bool:
+    return document["phase"] in HA_DATA_RESTORE_PHASES and (
+        "ha_data_restore" in document
+        or document.get("target_activation") == TARGET_WRITES_POSSIBLE
+        or (document["phase"] in {U11, U12} and "predecessor_release_intent" in document)
+    )
+
+
+def resume_host_recovery(
+    store: HaUsbStateStore,
+    runtime: HaPredecessorRuntime,
+    restore_provider: Callable[[dict[str, Any]], HaDataRestoreProvider],
+    image_provider: Callable[[dict[str, Any]], HaDataRestoreProvider],
+    *, pending_only: bool = False, health: HaPredecessorHealth | None = None,
+) -> str:
+    """Select the recovery route under the same lock used for its actions."""
+    with store.lock():
+        current = store.read()
+        if pending_only and (current is None or current["status"] != "ACTIVE"):
+            return "NO_PENDING_RECOVERY"
+        if current and current["phase"] == U12 and destructive_cutover_allowed(current):
+            receipt = current.get("target_acceptance", {}).get("receipt")
+            if receipt is not None and _target_runtime(runtime, current) == receipt["runtime_sha256"]:
+                store.write(record_commit(current))
+                return "COMMITTED"
+        if current and ha_data_rollback_required(current):
+            runtime.require_rollback_boot_guard()
+            _resume_ha_data_rollback(store, runtime, restore_provider, image_provider)
+            return "ROLLED_BACK"
+        if current and current["phase"] in {U9, U10} and "predecessor_release_intent" in current:
+            runtime.require_rollback_boot_guard()
+            return _reconcile_predecessor_release(store, runtime, image_provider) or "NO_PENDING_IMAGE_RELEASE"
+        if current and _can_resume_pre_cutover(current):
+            current = _start_pre_cutover_predecessor(store, runtime, current)
+            if pending_only and health is not None:
+                health.verify_predecessor_health(current)
+                _finish_pre_cutover_recovery(store, current)
+                return "ROLLED_BACK"
+            return "RECOVERING"
+        return "NO_PENDING_RECOVERY" if pending_only else "NO_PRE_CUTOVER_RECOVERY"
+
+
+def _resume_ha_data_rollback(
+    store: HaUsbStateStore,
+    runtime: HaPublishedRollbackRuntime,
+    restore_provider: Callable[[dict[str, Any]], HaDataRestoreProvider],
+    image_provider: Callable[[dict[str, Any]], HaDataRestoreProvider],
+) -> bool:
+    current = store.read()
+    if current is None or not ha_data_rollback_required(current):
+        return False
+    if current["status"] != "ACTIVE":
+        raise UpdaterV2Error("ha_usb_data_restore_status_unresolved")
+    if not current["recovery_required"]:
+        current = {**current, "recovery_required": True}
+        store.write(current)
+    if current.get("ha_data_restore", {}).get("step") != "PUBLISHED":
+        runtime.quiesce_for_data_restore(current)
+        restore_provider(current).restore_preupgrade_data()
+        published = store.read()
+        if (
+            published is None or published["transaction_id_sha256"] != current["transaction_id_sha256"]
+            or published.get("ha_data_restore", {}).get("step") != "PUBLISHED"
+        ):
+            raise UpdaterV2Error("ha_usb_data_restore_publication_not_recorded")
+        current = published
+
+    def record_load_intent(identity: PortableImageIdentity) -> None:
+        nonlocal current
+        value = identity.to_dict()
+        journal = current["ha_data_restore"]
+        existing = journal.get("predecessor_load_identity")
+        if existing is not None:
+            if existing != value:
+                raise UpdaterV2Error("ha_usb_rollback_predecessor_load_intent_drift")
+            return
+        current = {**current, "ha_data_restore": {**journal, "predecessor_load_identity": value}}
+        store.write(current)
+
+    runtime.ensure_rollback_predecessor(current, lambda: image_provider(current), record_load_intent)
+    runtime.resume_published_predecessor(current)
+    runtime.verify_published_predecessor_health(current)
+    store.write(transition(current, U13B))
+    return True
+
+
+def _finish_pre_cutover_recovery(store: HaUsbStateStore, document: dict[str, Any]) -> None:
+    store.write({
+        **document, "status": "ROLLED_BACK", "recovery_required": False,
+        "pre_cutover_predecessor_restored": True,
+        "failure_code": "ha_usb_pre_cutover_interrupted",
+        "updated_at_unix": max(document["updated_at_unix"], int(time.time())),
+    })
+
+
+def _start_pre_cutover_predecessor(
+    store: HaUsbStateStore,
+    runtime: HaPredecessorRuntime,
+    current: dict[str, Any],
+) -> dict[str, Any]:
+    """Resume services under the caller's lock and leave verification pending."""
+    if not current["recovery_required"]:
+        current = {**current, "recovery_required": True}
+        store.write(current)
+    runtime.start_predecessor_if_needed(current["predecessor_start"])
+    return current
 
 
 
@@ -89,6 +856,28 @@ def record_media_bound(
     )
 
 
+def record_existing_media_bound(
+    document: dict[str, Any], *, filesystem_uuid: str, capacity_report: UsbCapacityReport
+) -> dict[str, Any]:
+    """Bind a qualified existing filesystem without requesting an erase."""
+    current = validate_transaction_document(document)
+    if current["phase"] != U1:
+        raise UpdaterV2Error("ha_usb_media_bind_phase_invalid")
+    if capacity_report.capacity_pass is not True:
+        raise UpdaterV2Error("ha_usb_capacity_not_verified")
+    filesystem_uuid = validate_filesystem_uuid(filesystem_uuid)
+    return transition(current, U2, updates={
+        "usb_binding_mode": "existing_filesystem",
+        "usb_device_identity_public_fingerprint": sha256_bytes(
+            (filesystem_uuid + ":" + current["transaction_id_sha256"]).encode()
+        ),
+        "usb_filesystem_uuid": filesystem_uuid,
+        "usb_measured_usable_bytes": capacity_report.measured_usable_bytes,
+        "usb_mount_authority": f"filesystem_uuid:{filesystem_uuid}",
+        "usb_capacity_verified": True,
+    })
+
+
 def start_target_preparation(document: dict[str, Any]) -> dict[str, Any]:
     current = validate_transaction_document(document)
     if current["phase"] != U2:
@@ -100,6 +889,7 @@ def record_target_ready(
     document: dict[str, Any],
     *,
     target: ImageRecoveryRecord,
+    predecessor: ImageRecoveryRecord | None = None,
 ) -> dict[str, Any]:
     current = validate_transaction_document(document)
     if current["phase"] != U3:
@@ -110,11 +900,14 @@ def record_target_ready(
         expected_image_ref=current["target_image_ref"],
         expected_archive_sha256=current["target_archive_sha256"],
     )
-    return transition(
-        current,
-        U4,
-        updates={"target_artifact_verified": True},
-    )
+    updates: dict[str, Any] = {"target_artifact_verified": True}
+    if current.get("usb_binding_mode") == "existing_filesystem":
+        if predecessor is None:
+            raise UpdaterV2Error("ha_usb_prepared_predecessor_missing")
+        updates["prepared_image_materials"] = {
+            "target": target.public(), "predecessor": predecessor.public(),
+        }
+    return transition(current, U4, updates=updates)
 
 
 def start_predecessor_recovery(document: dict[str, Any]) -> dict[str, Any]:
@@ -149,10 +942,15 @@ def record_predecessor_recovery_and_ha_quiesced(
 
 def record_predecessor_capacity_released(
     document: dict[str, Any],
+    *, image_release_observed: bool = False,
 ) -> dict[str, Any]:
     current = validate_transaction_document(document)
     if current["phase"] != U9 or not destructive_cutover_allowed(current):
         raise UpdaterV2Error("ha_usb_predecessor_release_not_allowed")
+    if "predecessor_release_intent" in current:
+        if image_release_observed is not True:
+            raise UpdaterV2Error("ha_usb_predecessor_release_not_observed")
+        return transition(current, U10, updates={"predecessor_release_observed": True})
     return transition(current, U10)
 
 
@@ -163,11 +961,16 @@ def record_target_started(document: dict[str, Any]) -> dict[str, Any]:
     return transition(current, U11)
 
 
-def record_target_accepted(document: dict[str, Any]) -> dict[str, Any]:
+def record_target_accepted(
+    document: dict[str, Any], *, receipt: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     current = validate_transaction_document(document)
     if current["phase"] != U11 or not destructive_cutover_allowed(current):
         raise UpdaterV2Error("ha_usb_target_accept_not_allowed")
-    return transition(current, U12)
+    updates = None
+    if receipt is not None:
+        updates = {"target_acceptance": {**current.get("target_acceptance", {}), "receipt": receipt}}
+    return transition(current, U12, updates=updates)
 
 
 def record_commit(document: dict[str, Any]) -> dict[str, Any]:
@@ -205,8 +1008,14 @@ def classify_power_loss_reentry(
     observed_usb_filesystem_uuid: str | None,
 ) -> str:
     current = validate_transaction_document(document)
-    if current["phase"] in {U13A, U13B}:
+    if current["status"] in HA_USB_TERMINAL_STATUSES:
         return "TERMINAL"
+
+    if (
+        current["phase"] in PRE_CUTOVER_RECOVERY_PHASES
+        and "predecessor_start" in current
+    ):
+        return "RESTORE_PREDECESSOR_BEFORE_CUTOVER"
 
     if PHASE_INDEX[current["phase"]] < PHASE_INDEX[U9]:
         return "PRE_U9_PREDECESSOR_AUTHORITY"
@@ -219,7 +1028,7 @@ def classify_power_loss_reentry(
         current["usb_filesystem_uuid"],
         observed_usb_filesystem_uuid,
     )
-    if current["phase"] == U12:
+    if current["phase"] == U12 and not ha_data_rollback_required(current):
         return "FORWARD_COMMIT_ELIGIBLE"
     return "ROLLBACK_REQUIRED"
 
@@ -228,7 +1037,7 @@ def request_install(document: dict[str, Any]) -> dict[str, Any]:
     current = validate_transaction_document(document)
     if current["phase"] != U4:
         raise UpdaterV2Error("ha_usb_not_ready_to_install")
-    result = transition(current, U5)
+    result = transition(current, U5, updates={"failure_code": None})
     if (
         result["authorization_claimed"] is not False
         or result["authorization_consumed"] is not False
@@ -281,21 +1090,25 @@ def record_recovery_admission(
     if current["target_artifact_verified"] is not True:
         raise UpdaterV2Error("ha_usb_target_not_verified")
 
-    return transition(
-        current,
-        U8,
-        updates={
-            "predecessor_recovery_verified": True,
-            "ha_data_backup_verified": True,
-            "production_prestate_verified": True,
-            "usb_capacity_verified": True,
-        },
-    )
+    updates: dict[str, Any] = {
+        "predecessor_recovery_verified": True,
+        "ha_data_backup_verified": True,
+        "production_prestate_verified": True,
+        "usb_capacity_verified": True,
+    }
+    if "predecessor_start" in current:
+        updates["install_recovery_materials"] = {
+            "target": target.public(), "predecessor": predecessor.public(),
+            "backup": backup.public(),
+        }
+    return transition(current, U8, updates=updates)
 
 
 def claim_live_authorization(
     document: dict[str, Any],
     authorization_id: str,
+    *, internal_space: HaInternalSpace | None = None,
+    release_intent: HaPredecessorRelease | None = None,
 ) -> dict[str, Any]:
     current = validate_transaction_document(document)
     if current["phase"] != U8:
@@ -312,6 +1125,21 @@ def claim_live_authorization(
     ):
         raise UpdaterV2Error("ha_usb_live_authorization_id_invalid")
 
+    release_admission = {}
+    if current.get("usb_binding_mode") == "existing_filesystem":
+        if internal_space is None:
+            raise UpdaterV2Error("ha_usb_predecessor_release_admission_missing")
+        if internal_space.available_bytes < internal_space.install_required_bytes + internal_space.recovery_required_bytes:
+            raise UpdaterV2Error("ha_usb_predecessor_release_recovery_reserve_insufficient")
+        release_admission["predecessor_release_admission"] = {
+            "internal_available_bytes": internal_space.available_bytes,
+            "install_required_bytes": internal_space.install_required_bytes,
+            "recovery_required_bytes": internal_space.recovery_required_bytes,
+        }
+        if release_intent is not None:
+            if "target_acceptance" not in current:
+                raise UpdaterV2Error("ha_usb_predecessor_acceptance_baseline_unavailable")
+            release_admission["predecessor_release_intent"] = {"container_id": release_intent.container_id}
     return transition(
         current,
         U9,
@@ -321,15 +1149,20 @@ def claim_live_authorization(
             ),
             "authorization_claimed": True,
             "authorization_consumed": True,
+            **release_admission,
         },
     )
 
 
 def destructive_cutover_allowed(document: dict[str, Any]) -> bool:
+    """Check persisted phase prerequisites, separate from current runtime evidence."""
     current = validate_transaction_document(document)
     return (
         current["status"] == "ACTIVE"
         and current["phase"] in {U9, U10, U11, U12}
+        and (current["phase"] != U9 or current.get("usb_binding_mode") != "existing_filesystem"
+             or "predecessor_release_admission" in current)
+        and current["recovery_required"] is False
         and current["authorization_claimed"] is True
         and current["authorization_consumed"] is True
         and current["target_artifact_verified"] is True

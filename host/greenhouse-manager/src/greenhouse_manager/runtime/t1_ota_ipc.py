@@ -15,6 +15,8 @@ from .t1_ota_manager import (
 
 REQUEST_SCHEMA = "gh.n3w-t1-ha-ota-ipc-request/1"
 RESPONSE_SCHEMA = "gh.n3w-t1-ha-ota-ipc-response/1"
+VERSIONED_STATUS_SCHEMA = "gh.n3w-t1-ha-ota-ipc-response/2"
+VERSIONED_STATUS_OPERATION = "status_with_version"
 MAX_FRAME_BYTES = 8192
 MAX_MANIFEST_BYTES = 65536
 DEFAULT_TIMEOUT_S = 2.0
@@ -157,9 +159,13 @@ class UnixSocketOtaBridge:
             "progress_percent",
             "error_code",
         }
-        if not isinstance(response, dict) or set(response) != expected:
+        if not isinstance(response, dict) or type(response.get("accepted")) is not bool:
             raise OtaControlError("ota_ipc_response_invalid")
-        if response["schema"] != RESPONSE_SCHEMA or type(response["accepted"]) is not bool:
+        versioned = document["operation"] == VERSIONED_STATUS_OPERATION and response["accepted"]
+        schema = VERSIONED_STATUS_SCHEMA if versioned else RESPONSE_SCHEMA
+        if versioned:
+            expected.add("installed_version")
+        if set(response) != expected or response["schema"] != schema:
             raise OtaControlError("ota_ipc_response_invalid")
         code = response["code"]
         if not isinstance(code, str) or _CODE_RE.fullmatch(code) is None:
@@ -168,6 +174,7 @@ class UnixSocketOtaBridge:
             phase=response["phase"],
             progress_percent=response["progress_percent"],
             error_code=response["error_code"],
+            installed_version=response.get("installed_version"),
         ).validate()
         if response["accepted"] is not True:
             raise OtaControlError(code)
@@ -188,9 +195,9 @@ class UnixSocketOtaBridge:
         )
 
     def get_homeassistant_ota_runtime_state(self) -> OtaRuntimeSnapshot:
-        return self._request(
-            {
-                "schema": REQUEST_SCHEMA,
-                "operation": "status",
-            }
-        )
+        try:
+            return self._request({"schema": REQUEST_SCHEMA, "operation": VERSIONED_STATUS_OPERATION})
+        except OtaControlError as error:
+            if error.code != "ha_ota_ipc_operation_invalid":
+                raise
+        return self._request({"schema": REQUEST_SCHEMA, "operation": "status"})

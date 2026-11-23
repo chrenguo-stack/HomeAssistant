@@ -1,0 +1,9 @@
+{
+  "domain": "n3w_ota_monitoring",
+  "name": "N3-W OTA Monitoring Receipt",
+  "version": "1.0.0",
+  "dependencies": ["mqtt", "n3w_mqtt_bootstrap"],
+  "documentation": "https://github.com/chrenguo-stack/HomeAssistant",
+  "codeowners": [],
+  "iot_class": "local_push"
+}

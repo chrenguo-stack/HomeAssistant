@@ -9,7 +9,7 @@ import subprocess
 import tarfile
 from dataclasses import asdict, dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any, Callable, Iterable, Sequence
+from typing import Any, BinaryIO, Callable, Iterable, Sequence
 
 SCHEMA = "gh.n3w-t1-portable-image-identity/1"
 VERDICT_SCHEMA = "gh.n3w-t1-portable-image-verdict/1"
@@ -166,14 +166,17 @@ def _safe_name(name: str) -> str:
 
 
 class SafeTar:
-    def __init__(self, path: Path):
-        self.path = path
+    def __init__(self, source: Path | BinaryIO):
+        self.source = source
         self.tar: tarfile.TarFile | None = None
         self.members: dict[str, tarfile.TarInfo] = {}
 
     def __enter__(self) -> "SafeTar":
         try:
-            self.tar = tarfile.open(self.path, mode="r:*")
+            if isinstance(self.source, Path):
+                self.tar = tarfile.open(self.source, mode="r:*")
+            else:
+                self.tar = tarfile.open(fileobj=self.source, mode="r:*")
         except (tarfile.TarError, OSError) as error:
             raise PortableImageIdentityError("archive_open_failed") from error
         member_count = 0
@@ -231,7 +234,7 @@ class SafeTar:
             raise PortableImageIdentityError("archive_member_size_mismatch")
         return digest.hexdigest(), size
 
-    def diff_id(self, name: str, media_type: str) -> str:
+    def diff_id_and_size(self, name: str, media_type: str) -> tuple[str, int]:
         member = self._member(name)
         assert self.tar is not None
         source = self.tar.extractfile(member)
@@ -263,7 +266,7 @@ class SafeTar:
             finally:
                 if stream is not source:
                     source.close()
-        return "sha256:" + digest.hexdigest()
+        return "sha256:" + digest.hexdigest(), size
 
 
 def _digest_blob_path(digest: str) -> str:
@@ -407,6 +410,7 @@ def _parse_docker_save(
     archive_sha256: str,
     archive_size_bytes: int,
     expected_tag: str | None,
+    unpacked_sizes: list[int] | None = None,
 ) -> PortableImageIdentity:
     manifest = strict_json(archive.read("manifest.json"), name="docker_manifest")
     if not isinstance(manifest, list) or not manifest:
@@ -443,9 +447,11 @@ def _parse_docker_save(
     if len(rootfs) != len(layers):
         raise PortableImageIdentityError("docker_layer_count_mismatch")
     for layer_path, expected_diff_id in zip(layers, rootfs):
-        actual, _ = archive.hash_and_size(layer_path)
+        actual, size = archive.hash_and_size(layer_path)
         if f"sha256:{actual}" != expected_diff_id:
             raise PortableImageIdentityError("docker_layer_diff_id_mismatch")
+        if unpacked_sizes is not None:
+            unpacked_sizes.append(size)
     return _identity(
         representation="docker-save",
         archive_sha256=archive_sha256,
@@ -465,6 +471,7 @@ def _parse_oci(
     platform_os: str,
     platform_architecture: str,
     platform_variant: str | None,
+    unpacked_sizes: list[int] | None = None,
 ) -> PortableImageIdentity:
     layout = strict_json(archive.read("oci-layout"), name="oci_layout")
     if layout != {"imageLayoutVersion": "1.0.0"}:
@@ -563,8 +570,11 @@ def _parse_oci(
         media_type = layer.get("mediaType") if isinstance(layer, dict) else None
         if not isinstance(media_type, str):
             raise PortableImageIdentityError("oci_layer_media_type_invalid")
-        if archive.diff_id(layer_path, media_type) != expected_diff_id:
+        observed_diff_id, size = archive.diff_id_and_size(layer_path, media_type)
+        if observed_diff_id != expected_diff_id:
             raise PortableImageIdentityError("oci_layer_diff_id_mismatch")
+        if unpacked_sizes is not None:
+            unpacked_sizes.append(size)
     return _identity(
         representation="oci-layout",
         archive_sha256=archive_sha256,
@@ -608,7 +618,61 @@ def parse_image_archive(
             raise PortableImageIdentityError("archive_expected_size_invalid")
         if size != expected_archive_size_bytes:
             raise PortableImageIdentityError("archive_size_mismatch")
-    with SafeTar(path) as archive:
+    return _parse_archive(path, digest, size, expected_tag, platform_os, platform_architecture, platform_variant)
+
+
+def _require_single_load_tag(archive: SafeTar, expected_tag: str) -> None:
+    manifest = strict_json(archive.read("manifest.json"), name="docker_manifest")
+    if (
+        not isinstance(manifest, list) or len(manifest) != 1
+        or not isinstance(manifest[0], dict) or manifest[0].get("RepoTags") != [expected_tag]
+    ):
+        raise PortableImageIdentityError("image_load_requires_exact_single_tag")
+    repository, tag = expected_tag.rsplit(":", 1)
+    if "repositories" in archive.members:
+        repositories = strict_json(archive.read("repositories"), name="docker_repositories")
+        if (
+            not isinstance(repositories, dict) or set(repositories) != {repository}
+            or not isinstance(repositories[repository], dict) or set(repositories[repository]) != {tag}
+        ):
+            raise PortableImageIdentityError("image_load_repository_drift")
+    if "index.json" in archive.members:
+        index = strict_json(archive.read("index.json"), name="oci_index")
+        descriptors = index.get("manifests") if isinstance(index, dict) else None
+        if not isinstance(descriptors, list) or len(descriptors) != 1 or not isinstance(descriptors[0], dict):
+            raise PortableImageIdentityError("image_load_requires_single_manifest")
+        annotations = descriptors[0].get("annotations", {})
+        named = (expected_tag, f"docker.io/{expected_tag}")
+        if (
+            not isinstance(annotations, dict)
+            or annotations.get("io.containerd.image.name", expected_tag) not in named
+            or annotations.get("org.opencontainers.image.ref.name", tag) not in (tag, *named)
+        ):
+            raise PortableImageIdentityError("image_load_oci_reference_drift")
+
+
+def parse_verified_load_archive(
+    source: BinaryIO, *, archive_sha256: str, archive_size_bytes: int, expected_tag: str,
+    unpacked_sizes: list[int] | None = None,
+) -> PortableImageIdentity:
+    """Verify an authenticated, seekable Docker input against the single-image load contract."""
+    if not 0 < archive_size_bytes <= MAX_ARCHIVE_BYTES:
+        raise PortableImageIdentityError("archive_size_limit_exceeded")
+    return _parse_archive(
+        source, archive_sha256, archive_size_bytes, expected_tag, "linux", "arm64", None,
+        single_load_tag=True, unpacked_sizes=unpacked_sizes,
+    )
+
+
+def _parse_archive(
+    source: Path | BinaryIO, digest: str, size: int, expected_tag: str | None,
+    platform_os: str, platform_architecture: str, platform_variant: str | None,
+    *, single_load_tag: bool = False, unpacked_sizes: list[int] | None = None,
+) -> PortableImageIdentity:
+    with SafeTar(source) as archive:
+        if single_load_tag:
+            assert expected_tag is not None
+            _require_single_load_tag(archive, expected_tag)
         if "oci-layout" in archive.members or "index.json" in archive.members:
             if "oci-layout" not in archive.members or "index.json" not in archive.members:
                 raise UnsupportedImageArchive("partial_oci_layout")
@@ -619,14 +683,19 @@ def parse_image_archive(
                 platform_os=platform_os,
                 platform_architecture=platform_architecture,
                 platform_variant=platform_variant,
+                unpacked_sizes=unpacked_sizes,
             )
         if "manifest.json" in archive.members:
-            return _parse_docker_save(
+            identity = _parse_docker_save(
                 archive,
                 archive_sha256=digest,
                 archive_size_bytes=size,
                 expected_tag=expected_tag,
+                unpacked_sizes=unpacked_sizes,
             )
+            if single_load_tag and (identity.os, identity.architecture) != (platform_os, platform_architecture):
+                raise PortableImageIdentityError("image_load_platform_drift")
+            return identity
     raise UnsupportedImageArchive("archive_layout_unsupported")
 
 

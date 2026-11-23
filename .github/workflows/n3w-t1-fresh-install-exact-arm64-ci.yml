@@ -174,13 +174,20 @@ jobs:
           PY
 
       - name: Validate exact ARM64 Home Assistant MQTT bootstrap runtime
+        env:
+          PYTHONPATH: tools
         run: |
           set -euo pipefail
           docker tag local/n3w-homeassistant:2026.10.0-0c73235a "$HA_SOURCE_IMAGE"
           docker tag local/n3w-mosquitto:2.1.2-3184566d eclipse-mosquitto:2.1.2-alpine
+          export N3W_OTA_TEST_MANAGER_IMAGE="$MANAGER_TAG"
+          export N3W_OTA_TEST_RECOVERY_PACKAGE="$RUNNER_TEMP/r6-ha-recovery"
+          python tools/n3w_t1_core_updater_ha_recovery_deploy.py --source-head "$SOURCE_HEAD" --destination "$N3W_OTA_TEST_RECOVERY_PACKAGE"
           python -m pip install "pytest>=8,<9"
           python -m pytest -q tests/tools/test_n3w_ha_mqtt_bootstrap_isolated_runtime.py
           printf 'HA_EXACT_ARM64_CONFIG_FLOW_RUNTIME=PASS\n'
+          printf 'HA_EXACT_ARM64_MANAGER_MONITORING_ROUND_TRIP=PASS\n'
+          printf 'HA_EXACT_ARM64_NATURAL_MONITORING=PASS\n'
 
       - name: Build exact three-image binding manifest
         run: |
