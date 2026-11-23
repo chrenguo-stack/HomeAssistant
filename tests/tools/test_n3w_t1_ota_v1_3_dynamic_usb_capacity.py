@@ -14,7 +14,7 @@ sys.path.insert(0, str(REPO / "tools"))
 
 import n3w_t1_core_updater_ha_mounted_media as mounted_media
 import n3w_t1_core_updater_ha_recovery_startup as startup
-from n3w_t1_core_updater_ha_usb_state import U7
+from n3w_t1_core_updater_ha_usb_state import U7, new_transaction, record_usb_capacity_event
 from n3w_t1_core_updater_ha_usb_media import (
     USB_PRODUCT_MIN_CAPACITY_GB,
     USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
@@ -29,7 +29,8 @@ def test_v13_architecture_freezes_16gb_media_and_dynamic_per_operation_capacity(
         REPO
         / "docs/development/N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.3_20261123.md"
     ).read_text(encoding="utf-8")
-    assert "16,000,000,000 bytes" in text
+    assert "16GB 是产品最低介质规格" in text
+    assert "运行时不信任营销标称容量" in text
     assert "每个实际写入动作" in text
     assert "前代镜像先测量，再备份" in text
     assert "受保护数据备份单独动态准入" in text
@@ -109,6 +110,7 @@ def test_predecessor_write_is_rejected_before_source_read_when_current_free_spac
         "fstatvfs",
         lambda _fd: SimpleNamespace(f_frsize=1, f_bavail=3),
     )
+    admissions = []
     try:
         with pytest.raises(UpdaterV2Error, match="ha_usb_predecessor_space_insufficient"):
             mounted_media._prepare_archive(
@@ -117,11 +119,59 @@ def test_predecessor_write_is_rejected_before_source_read_when_current_free_spac
                 "local/n3w-homeassistant:test",
                 source,
                 expected_size=4,
+                capacity_admit=lambda *args: admissions.append(args),
             )
     finally:
         os.close(fd)
 
     assert source_opened is False
+    assert admissions == [("predecessor_archive", 5, 3, False)]
+
+
+def test_capacity_events_persist_failed_retry_and_completed_write() -> None:
+    tx = new_transaction(
+        current_image_ref="local/n3w-homeassistant:2026.10.0-test",
+        current_image_identity={"test": "predecessor"},
+        target_manifest_identity={"release_identity": "homeassistant-test"},
+        target_image_ref="local/n3w-homeassistant:2026.10.4-test",
+        target_archive_sha256="a" * 64,
+        target_archive_size=100,
+    )
+    tx = record_usb_capacity_event(
+        tx,
+        operation="target_archive",
+        required_bytes=120,
+        available_bytes_before=100,
+        capacity_pass=False,
+    )
+    assert tx["usb_capacity_events"][-1]["capacity_pass"] is False
+
+    tx = record_usb_capacity_event(
+        tx,
+        operation="target_archive",
+        required_bytes=120,
+        available_bytes_before=200,
+        capacity_pass=True,
+    )
+    tx = record_usb_capacity_event(
+        tx,
+        operation="target_archive",
+        required_bytes=120,
+        available_bytes_before=200,
+        capacity_pass=True,
+        actual_written_bytes=100,
+        available_bytes_after=90,
+    )
+    assert len(tx["usb_capacity_events"]) == 2
+    completed = tx["usb_capacity_events"][-1]
+    assert completed == {
+        "operation": "target_archive",
+        "required_bytes": 120,
+        "available_bytes_before": 200,
+        "capacity_pass": True,
+        "actual_written_bytes": 100,
+        "available_bytes_after": 90,
+    }
 
 
 def test_quiesced_ha_backup_checks_current_usb_free_space_before_real_backup_write(
@@ -137,17 +187,22 @@ def test_quiesced_ha_backup_checks_current_usb_free_space_before_real_backup_wri
 
     class Store:
         root = internal
+        document = {
+            "transaction_id_sha256": txid,
+            "usb_binding_mode": "existing_filesystem",
+            "predecessor_start": {"launch_sha256": "d" * 64},
+            "phase": U7,
+            "status": "ACTIVE",
+            "recovery_required": False,
+        }
 
-        @staticmethod
-        def read():
-            return {
-                "transaction_id_sha256": txid,
-                "usb_binding_mode": "existing_filesystem",
-                "predecessor_start": {"launch_sha256": "d" * 64},
-                "phase": U7,
-                "status": "ACTIVE",
-                "recovery_required": False,
-            }
+        @classmethod
+        def read(cls):
+            return cls.document
+
+        @classmethod
+        def write(cls, document):
+            cls.document = document
 
     class Backup:
         work_root = work
@@ -171,6 +226,11 @@ def test_quiesced_ha_backup_checks_current_usb_free_space_before_real_backup_wri
             os.close(fd)
 
     monkeypatch.setattr(mounted_media, "_open_transaction_directory", transaction_directory)
+
+    def fake_record(document, **event):
+        return {**document, "usb_capacity_events": [event]}
+
+    monkeypatch.setattr(mounted_media, "record_usb_capacity_event", fake_record)
     monkeypatch.setattr(
         mounted_media.os,
         "fstatvfs",
@@ -188,3 +248,7 @@ def test_quiesced_ha_backup_checks_current_usb_free_space_before_real_backup_wri
     with pytest.raises(UpdaterV2Error, match="ha_data_backup_usb_space_insufficient"):
         provider.create_consistent_backup(transaction_id_sha256=txid)
     assert Backup.create_called is False
+    event = Store.document["usb_capacity_events"][-1]
+    assert event["operation"] == "protected_data_backup"
+    assert event["capacity_pass"] is False
+    assert event["actual_written_bytes"] is None
