@@ -14,22 +14,32 @@ USB_MEASURED_USABLE_CAPACITY_MIN_BYTES=15032385536
 CAPACITY_ADMISSION=PER_OPERATION_DYNAMIC_MEASUREMENT
 STATIC_GENERIC_USB_RESERVE=REJECTED
 
-V1_3_EXECUTABLE_CODE_HEAD=05bed5e3b82370fd4dd699fe98e464613bc284a0
-V1_3_SOURCE_TEST_CI_HEAD=7484748c44b51da2de6a057f2ca29e9b9734309c
-SOURCE_IMPLEMENTATION_STATUS=COMPLETE_CI_PARTIAL
-V1_3_CI_SUCCESS_COUNT_AT_STOP=12
-V1_3_CI_FAILURE_COUNT_AT_STOP=0
-V1_3_CI_IN_PROGRESS_COUNT_AT_STOP=7
+V1_3_EXECUTABLE_CODE_HEAD=5b45e893181d09deed1f47d588bb1099964e0667
+V1_3_SOURCE_TEST_CI_HEAD=51bd2ce8baab2ca0cff4d227765de4583e0f5121
+SOURCE_IMPLEMENTATION_STATUS=COMPLETE_CI_CLOSED
+V1_3_CI_SUCCESS_COUNT=19
+V1_3_CI_FAILURE_COUNT=0
+V1_3_CI_CANCELLED_COUNT=0
+V1_3_CI_IN_PROGRESS_COUNT=0
 V1_3_CI_EXPECTED_SKIPPED_COUNT=2
 
+V1_3_RECOVERY_UPDATER_RUN_ID=45110450673
+V1_3_RECOVERY_UPDATER_ARTIFACT_ID=14789063554
+V1_3_RECOVERY_UPDATER_ARTIFACT_ZIP_SHA256=f7f4c9e874df799e320d823abe89355a4af117de5a686d6fe96398ddf6a964e1
+V1_3_RECOVERY_INSTALL_MANIFEST_SHA256=d0f98dcaa2bdd2747e33b973bf01af622b1fdab1f0d99143a8ee76b3e387d3fc
+
 LIVE_RUNTIME_ALIGNED_TO_V1_3=false
-NEXT_ONE_GATE=COMPLETE_V1_3_EXACT_CI_AND_BIND_RECOVERY_UPDATER_ARTIFACT
+PRIOR_LIVE_AUTH_SOURCE_HEAD=044ba31ddeefe7ad7c3e5ed5aedbb409acfd3801
+CURRENT_V1_3_SOURCE_HEAD=51bd2ce8baab2ca0cff4d227765de4583e0f5121
+LIVE_AUTHORIZATION_REBIND_REQUIRED=true
+OLD_LIVE_AUTHORIZATION_REUSE=false
+NEXT_ONE_GATE=READONLY_REBIND_THEN_FRESH_V1_3_UPDATER_DEPLOYMENT_AUTHORIZATION
 AUTO_EXECUTE_NEXT_GATE=false
 ```
 
 V1.3 freezes two separate capacity questions. The product requires a 16GB-or-larger USB; runtime verifies the 16GB-class media using the existing 14 GiB measured-usable filesystem floor plus filesystem/identity checks. Each variable-size operation then re-measures the actual payload requirement and the current USB free space immediately before that write. Target, predecessor export and protected-data backup are independently admitted. A fixed generic reserve cannot stand in for future variable payloads.
 
-Repository source implements this policy, including durable per-operation capacity evidence, stable no-write waiting while space remains insufficient, fresh PREPARE replacement only for pre-stop U3 capacity blocks, stale-authority binding protection, and a Chinese Home Assistant status message. At the final permitted CI poll for exact source/test head `7484748c...`, 12 workflows were SUCCESS, 0 failed, 7 were still running and 2 path-gated workflows were skipped. No terminal success is claimed for the unfinished exact-package/updater chains.
+Repository source implements this policy, including durable per-operation capacity evidence, stable no-write waiting while space remains insufficient, fresh PREPARE replacement only for pre-stop U3 capacity blocks, stale-authority binding protection and a Chinese Home Assistant status message. Independent review removed the dead static whole-transaction capacity API and added a regression guard against its return. Exact source/test head `51bd2ce8...` completed 19 SUCCESS workflows, 0 FAILURE, 0 CANCELLED and 2 expected path-gated SKIPPED. Manager A-to-B source passed 253 tests; HA target-binding source passed 301 tests with one skip; greenhouse-manager passed Ruff plus 1541 tests with one skip and an additional 8-test slice.
 
 Source alignment:
 `docs/development/N3W_T1_OTA_V1_3_DYNAMIC_USB_CAPACITY_SOURCE_ALIGNMENT_20261123.md`.
@@ -128,7 +138,21 @@ SERVICES_UNCHANGED=PASS
 
 PREVIOUS_STATIC_RESERVE_U1_TO_U4_COMMAND=RETIRED_DO_NOT_RUN
 U1_TO_U4_ALLOWED=false
-NEXT_ONE_GATE=V1_3_EXACT_CI_ARTIFACT_CLOSURE_THEN_SEPARATE_UPDATER_DEPLOYMENT
+PRIOR_AUTHORIZATION_COMMENT=7087966758
+PRIOR_AUTHORIZATION_SOURCE_HEAD=044ba31ddeefe7ad7c3e5ed5aedbb409acfd3801
+V1_3_SOURCE_HEAD=51bd2ce8baab2ca0cff4d227765de4583e0f5121
+AUTHORIZATION_SOURCE_DRIFT=true
+FRESH_V1_3_DEPLOYMENT_AUTHORIZATION_REQUIRED=true
+
+R5_FULL_RERUN=false
+R6_FULL_RERUN=false
+R7_FULL_RERUN=false
+R5_R7_TARGETED_REGRESSION=true
+CURRENT_U1_ROLE=V1_3_COMPATIBILITY_TAKEOVER_EVIDENCE
+R8_V1_3_REACCEPTANCE_REQUIRED=true
+FINAL_R8_REQUIRES_FRESH_V1_3_TRANSACTION=true
+
+NEXT_ONE_GATE=READONLY_REBIND_AND_FRESH_V1_3_UPDATER_AUTHORIZATION
 NEXT_LIVE_STOP_POINT=U1_PREPARE_REQUESTED
 ```
 
@@ -136,7 +160,7 @@ The fresh U1 transaction remains valid and must not be recreated. It was created
 
 The live spare T1 still runs the earlier updater artifact. Therefore the old static-reserve U1→U4 operator command is retired. V1.3 source/CI work does not itself authorize or perform a T1 updater deployment.
 
-After exact V1.3 CI/package closure, the next live work is to verify the exact V1.3 recovery-updater artifact, separately deploy only that updater under the applicable live boundary, read-only rebind the existing U1, then resume the same transaction through the V1.3 dynamic target/predecessor capacity gates to U4. Stop remains before INSTALL/U5.
+Exact V1.3 CI/package closure is complete. The next live work starts with a fresh read-only rebind because the prior live authorization was source-bound to `044ba31d...` while the V1.3 updater is source-bound to `51bd2ce8...`. A new explicit authorization/rebind is required before deploying artifact `14789063554`. The existing U1 remains valid and should be used as compatibility/takeover evidence through U4. R5-R7 are not fully rerun; only V1.3-affected targeted regression/read-only checks remain. Final R8 acceptance must later use a separate fresh V1.3 product-path 10.0 -> 10.4 transaction.
 
 Live U1 evidence: PR #824 comment `7090376245`.
 Design-gap review: PR #824 comments `7090474174` and `7090562285`.
