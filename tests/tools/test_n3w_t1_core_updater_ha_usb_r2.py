@@ -101,6 +101,7 @@ from n3w_t1_core_updater_ha_usb_state import (
     new_transaction,
 )
 from n3w_t1_core_updater_v2_common import UpdaterV2Error, canonical, sha256_bytes
+from n3w_t1_core_updater_v2_state import V2StateStore
 from n3w_t1_portable_image_identity import parse_image_archive
 
 
