@@ -314,9 +314,13 @@ def prepared_image_materials(
     if not isinstance(materials, dict) or set(materials) != {"target", "predecessor"}:
         raise UpdaterV2Error("ha_usb_prepared_image_materials_invalid")
     target, predecessor = _validated_image_materials(document, materials)
-    if document["current_image_identity"].get(
+    source_identity = document["current_image_identity"].get(
         "portable_identity_sha256"
-    ) != predecessor.portable_identity_sha256:
+    )
+    if (
+        source_identity is not None
+        and source_identity != predecessor.portable_identity_sha256
+    ):
         raise UpdaterV2Error("ha_usb_predecessor_archive_identity_drift")
     return target, predecessor
 
