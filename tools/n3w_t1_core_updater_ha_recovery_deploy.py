@@ -36,7 +36,9 @@ from n3w_t1_core_updater_signed_release import (
     VerifiedHaRelease, check_signed_release, open_signed_archive, verify_signed_release,
 )
 from n3w_t1_core_updater_host import HOMEASSISTANT_SERVICES_READINESS_TIMEOUT_SECONDS
-from n3w_t1_core_updater_v2_common import SHA256, TERMINAL_TX_V2, canonical
+from n3w_t1_core_updater_v2_common import (
+    SHA256, TERMINAL_TX_V2, canonical, converge_homeassistant_ota_version_env,
+)
 from n3w_t1_core_updater_v2_state import STATE_ROOT_V2, V2StateStore
 from n3w_t1_portable_image_identity import parse_verified_load_archive
 
@@ -439,6 +441,7 @@ def activate_candidate_runtime(
     runtime = LocalHaPredecessorRuntime() if runtime is None else runtime
     store = V2StateStore(root / STATE_ROOT_V2.relative_to("/"))
     active_path = root / COMPOSE.relative_to("/")
+    env_path = root / COMPOSE_ENV.relative_to("/")
 
     with store.lock():
         _require_idle(store)
@@ -458,8 +461,14 @@ def activate_candidate_runtime(
         })
         if active_path.is_symlink() or not active_path.is_file():
             raise UpdaterError("ha_recovery_candidate_active_compose_invalid")
+        if env_path.is_symlink() or not env_path.is_file():
+            raise UpdaterError("ha_recovery_candidate_active_env_invalid")
         original = active_path.read_bytes()
+        original_env = env_path.read_bytes()
         candidate_payload = _candidate_compose(original)
+        candidate_env = converge_homeassistant_ota_version_env(
+            original_env, observed["image_ref"],
+        )
 
         active = render(active_path)
         with tempfile.TemporaryDirectory(prefix="n3w-ha-activation-live-") as raw:
@@ -470,17 +479,27 @@ def activate_candidate_runtime(
             expected_runtime = copy.deepcopy(staged)
             _verify_candidate_delta(active, copy.deepcopy(staged), version)
 
-        stopped = False
+        env_written = False
         candidate_written = False
         try:
-            runtime.stop_services()
-            stopped = True
+            # The ordinary compose ignores the extra version key, so publish it first.
+            # If power is lost after this write, the old runtime remains bootable.
+            runtime._replace_product_file(
+                env_path,
+                candidate_env,
+                verify_error="ha_recovery_candidate_active_env_replace_failed",
+            )
+            env_written = candidate_env != original_env
+            # Publish the already-preflighted compose while the old containers are still serving.
+            # If power is lost now, systemd has both inputs required to boot the candidate runtime.
             runtime._replace_product_file(
                 active_path,
                 candidate_payload,
                 verify_error="ha_recovery_candidate_active_compose_replace_failed",
             )
-            candidate_written = True
+            candidate_written = candidate_payload != original
+
+            runtime.stop_services()
             runtime.start_services(
                 readiness_timeout=HOMEASSISTANT_SERVICES_READINESS_TIMEOUT_SECONDS,
             )
@@ -500,14 +519,24 @@ def activate_candidate_runtime(
             if proof.verdict != "PASS" or proof.sha256 is None or SHA256.fullmatch(proof.sha256) is None:
                 raise UpdaterError("ha_recovery_candidate_monitoring_self_test_failed")
         except Exception as error:
-            if candidate_written:
-                try:
-                    runtime.stop_services()
+            try:
+                if candidate_written:
+                    try:
+                        runtime.stop_services()
+                    except Exception:
+                        pass
                     runtime._replace_product_file(
                         active_path,
                         original,
                         verify_error="ha_recovery_candidate_original_compose_restore_failed",
                     )
+                if env_written:
+                    runtime._replace_product_file(
+                        env_path,
+                        original_env,
+                        verify_error="ha_recovery_candidate_original_env_restore_failed",
+                    )
+                if candidate_written:
                     runtime.start_services(
                         readiness_timeout=HOMEASSISTANT_SERVICES_READINESS_TIMEOUT_SECONDS,
                     )
@@ -517,15 +546,8 @@ def activate_candidate_runtime(
                     })
                     if restored != before_binding:
                         raise UpdaterError("ha_recovery_candidate_original_runtime_restore_drift")
-                except Exception as restore_error:
-                    raise UpdaterError("ha_recovery_candidate_activation_rollback_failed") from restore_error
-            elif stopped:
-                try:
-                    runtime.start_services(
-                        readiness_timeout=HOMEASSISTANT_SERVICES_READINESS_TIMEOUT_SECONDS,
-                    )
-                except Exception as restore_error:
-                    raise UpdaterError("ha_recovery_candidate_activation_rollback_failed") from restore_error
+            except Exception as restore_error:
+                raise UpdaterError("ha_recovery_candidate_activation_rollback_failed") from restore_error
             raise error
 
     return {
@@ -534,6 +556,7 @@ def activate_candidate_runtime(
         "status": "CANDIDATE_RUNTIME_ACTIVATED",
         "monitoring_self_test_sha256": proof.sha256,
         "runtime_images_unchanged": True,
+        "installed_version_env_bound": True,
         "broker_mutation": False,
     }
 
