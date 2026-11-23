@@ -234,7 +234,11 @@ def record_usb_capacity_event(
         ):
             raise UpdaterV2Error("ha_usb_capacity_event_completion_without_admission")
         events[-1] = event
-    result = {**current, "usb_capacity_events": events}
+    result = {
+        **current,
+        "usb_capacity_events": events,
+        "updated_at_unix": max(current["updated_at_unix"], int(time.time())),
+    }
     _validate_usb_capacity_events(result)
     return result
 
