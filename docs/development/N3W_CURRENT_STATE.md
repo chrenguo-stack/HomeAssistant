@@ -15,6 +15,10 @@ MANAGER_SUCCESSOR_EXECUTED=false
 CANDIDATE_MONITORING_ACTIVATED=false
 FRESH_HA_PREPARE_EXECUTED=false
 REMOTE_STAGING_PRESERVED=true
+RESUME_EXECUTOR=N3W_T1_V1_3_KF144_LIVE_REPAIR_RESUME_20261123_02.sh
+RESUME_EXECUTOR_SHA256=04f0384fd4468e364906d2e0d2f79f9542eaeb4ffbc1aca879329c052566a93a
+RESUME_SCOPE=B_THROUGH_D
+PHASE_A_REPLAY=false
 ```
 
 The executor stopped the recovery timer for the atomic pyz patch and incorrectly left it inactive while invoking `--retire-precutover-failure`. The source retirement path first verifies the installed recovery control plane through `capture_start_binding() → require_recovery_install()`, which requires the retry timer to be active. This is an executor-ordering false failure, not a new product-state failure. The STOP handler re-armed the timer/socket before returning. Resume must first prove the exact post-Phase-A state, then retry retirement with the control plane armed; do not replay Phase A.
