@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import inspect
 import sys
 from pathlib import Path
 
@@ -22,6 +21,7 @@ from n3w_t1_core_updater_ha_usb import (
 )
 from n3w_t1_core_updater_ha_usb_media import (
     FORMAT_CONFIRMATION,
+    USB_MEDIA_MIN_CAPACITY_BYTES,
     USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
     RemovableDeviceCandidate,
     UsbCapacityInputs,
@@ -71,6 +71,7 @@ def candidate(**overrides) -> RemovableDeviceCandidate:
         "is_root_device": False,
         "backs_production_mount": False,
         "display_identity_matches": True,
+        "capacity_bytes": USB_MEDIA_MIN_CAPACITY_BYTES,
     }
     values.update(overrides)
     return RemovableDeviceCandidate(**values)
@@ -292,10 +293,12 @@ def test_bound_uuid_mismatch_fails_closed():
         )
 
 
-def test_marketed_capacity_is_not_an_admission_input():
-    parameters = inspect.signature(assess_capacity).parameters
-    assert "marketed_capacity_bytes" not in parameters
-    assert "marketed_size" not in parameters
+def test_16gb_physical_media_minimum_is_a_hard_gate():
+    undersized = candidate(capacity_bytes=USB_MEDIA_MIN_CAPACITY_BYTES - 1)
+    assert "below_minimum_capacity" in classify_candidate(undersized)
+    with pytest.raises(UpdaterV2Error, match="usb_no_eligible_device"):
+        select_single_eligible_device([undersized])
+    assert not classify_candidate(candidate(capacity_bytes=USB_MEDIA_MIN_CAPACITY_BYTES))
 
 
 def test_production_mount_device_is_never_eligible():
