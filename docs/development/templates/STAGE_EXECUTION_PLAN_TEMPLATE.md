@@ -402,7 +402,7 @@ STAGE_EXIT_CRITERIA=
 
 | Revision | Commit | Change | Reason | Current State synchronized |
 |---|---|---|---|---|
-| 1.0 | PENDING_ARCHIVE_COMMIT | 建立 R8/V1.3 master task chain；把原单一 “fresh R8 transaction” 明确拆为事务 A 基线准备与事务 B 正式 R8 | 当前 live HA 已是 10.4，而正式 R8 起点必须是健康 exact 10.0；两个目的不能共用同一 transaction 语义 | pending |
+| 1.0 | b7f9b90b4f2aed5d76f07a699c4416cd70c05603 | 建立 R8/V1.3 master task chain；把原单一 “fresh R8 transaction” 明确拆为事务 A 基线准备与事务 B 正式 R8 | 当前 live HA 已是 10.4，而正式 R8 起点必须是健康 exact 10.0；两个目的不能共用同一 transaction 语义 | yes |
 
 ## G. Current State / Handoff 绑定
 
