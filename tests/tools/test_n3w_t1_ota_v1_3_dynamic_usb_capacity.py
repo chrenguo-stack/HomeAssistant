@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import json
 import os
 import sys
 from contextlib import contextmanager
@@ -257,7 +258,12 @@ def test_prepare_capacity_block_waits_without_repeating_write_until_space_recove
     assert Runtime.prepare_calls == 0
     assert Store.document["failure_code"] == "ha_usb_target_space_insufficient"
 
-    (tmp_path / startup.PREPARE_AUTHORITY_FILE).write_text("present", encoding="utf-8")
+    authority = tmp_path / startup.PREPARE_AUTHORITY_FILE
+    authority.write_text(
+        json.dumps({"transaction_id_sha256": "f" * 64}),
+        encoding="utf-8",
+    )
+    authority.chmod(0o600)
     monkeypatch.setattr(
         startup,
         "measure_preparation_capacity",
@@ -271,9 +277,17 @@ def test_prepare_capacity_block_waits_without_repeating_write_until_space_recove
         ),
     )
 
+    assert startup._dispatch_pending_candidate(Store(), Runtime()) == "PREPARE_WAITING_FOR_AUTHORITY"
+    assert Runtime.prepare_calls == 0
+    assert Store.document["failure_code"] is None
+
+    authority.write_text(
+        json.dumps({"transaction_id_sha256": Store.document["transaction_id_sha256"]}),
+        encoding="utf-8",
+    )
+    authority.chmod(0o600)
     assert startup._dispatch_pending_candidate(Store(), Runtime()) == "READY_TO_INSTALL"
     assert Runtime.prepare_calls == 1
-    assert Store.document["failure_code"] is None
 
 
 def test_only_capacity_blocked_pre_stop_transaction_can_be_replaced(tmp_path: Path) -> None:
