@@ -14,13 +14,13 @@ USB_MEASURED_USABLE_CAPACITY_MIN_BYTES=15032385536
 CAPACITY_ADMISSION=PER_OPERATION_DYNAMIC_MEASUREMENT
 STATIC_GENERIC_USB_RESERVE=REJECTED
 
-V1_3_EXECUTABLE_CODE_HEAD=af1f47aedf4a957b11101f36202cffe4831a1bf6
-V1_3_SOURCE_TEST_CI_HEAD=1380b7c8b09d05d62b91194c24275ac9558b4ad6
+V1_3_EXECUTABLE_CODE_HEAD=05bed5e3b82370fd4dd699fe98e464613bc284a0
+V1_3_SOURCE_TEST_CI_HEAD=7484748c44b51da2de6a057f2ca29e9b9734309c
 SOURCE_IMPLEMENTATION_STATUS=COMPLETE_CI_PARTIAL
-V1_3_MANAGER_SOURCE_TEST=250_PASSED
-V1_3_CI_SUCCESS_COUNT_AT_STOP=15
+V1_3_CI_SUCCESS_COUNT_AT_STOP=12
 V1_3_CI_FAILURE_COUNT_AT_STOP=0
-V1_3_CI_IN_PROGRESS_COUNT_AT_STOP=2
+V1_3_CI_IN_PROGRESS_COUNT_AT_STOP=7
+V1_3_CI_EXPECTED_SKIPPED_COUNT=2
 
 LIVE_RUNTIME_ALIGNED_TO_V1_3=false
 NEXT_ONE_GATE=COMPLETE_V1_3_EXACT_CI_AND_BIND_RECOVERY_UPDATER_ARTIFACT
@@ -29,7 +29,7 @@ AUTO_EXECUTE_NEXT_GATE=false
 
 V1.3 freezes two separate capacity questions. The product requires a 16GB-or-larger USB; runtime verifies the 16GB-class media using the existing 14 GiB measured-usable filesystem floor plus filesystem/identity checks. Each variable-size operation then re-measures the actual payload requirement and the current USB free space immediately before that write. Target, predecessor export and protected-data backup are independently admitted. A fixed generic reserve cannot stand in for future variable payloads.
 
-Repository source implements this policy. At the final permitted CI poll, 15 workflows were SUCCESS and none had failed; Manager A-to-B and Home Assistant target-binding exact-package workflows were still running. Manager A-to-B's source step was already SUCCESS with 250 tests, including the dedicated V1.3 dynamic-capacity suite. No terminal success is claimed yet for the two unfinished workflows.
+Repository source implements this policy, including durable per-operation capacity evidence, stable no-write waiting while space remains insufficient, fresh PREPARE replacement only for pre-stop U3 capacity blocks, stale-authority binding protection, and a Chinese Home Assistant status message. At the final permitted CI poll for exact source/test head `7484748c...`, 12 workflows were SUCCESS, 0 failed, 7 were still running and 2 path-gated workflows were skipped. No terminal success is claimed for the unfinished exact-package/updater chains.
 
 Source alignment:
 `docs/development/N3W_T1_OTA_V1_3_DYNAMIC_USB_CAPACITY_SOURCE_ALIGNMENT_20261123.md`.
