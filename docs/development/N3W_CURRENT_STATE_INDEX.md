@@ -11,6 +11,7 @@
 - Final CI for that head: 19 workflows SUCCESS, 0 FAILURE, 0 CANCELLED, 0 RUNNING and 2 expected path-gated SKIPPED. Manager A-to-B source passed 253 tests; HA target-binding source passed 301 tests with one skip; greenhouse-manager passed Ruff plus 1541 tests with one skip and an additional 8-test slice.
 - Exact recovery-updater install artifact: run `45110450673`, artifact `14789063554`, zip SHA256 `f7f4c9e874df799e320d823abe89355a4af117de5a686d6fe96398ddf6a964e1`, install-manifest SHA256 `d0f98dcaa2bdd2747e33b973bf01af622b1fdab1f0d99143a8ee76b3e387d3fc`.
 - Source alignment: [V1.3 dynamic USB capacity source alignment](N3W_T1_OTA_V1_3_DYNAMIC_USB_CAPACITY_SOURCE_ALIGNMENT_20261123.md).
+- Current continuation handoff: [V1.3 source closure → R8 reacceptance handoff](N3W_T1_OTA_V1_3_SOURCE_CLOSURE_TO_R8_REACCEPTANCE_NEW_CHAT_HANDOFF_V1.0_20261123.md), created at `344d1e8134bd420a9215fa313c00d63bb71ce234`.
 - Independent review removed the dead V1.1/R1 whole-transaction static-capacity production API and added a regression guard against its return.
 - Live T1 still runs the pre-V1.3 updater; source alignment is not live deployment. The old live authorization was bound to source `044ba31d...`, so a fresh source/artifact-bound authorization is required before V1.3 deployment.
 
