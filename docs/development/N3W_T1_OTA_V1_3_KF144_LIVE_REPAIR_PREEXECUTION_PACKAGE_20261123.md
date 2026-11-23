@@ -362,6 +362,65 @@ STOP_BEFORE_FRESH_HA_PREPARE=true
 
 The executor first re-proves the committed Manager transaction, healthy target-bound runtime, exact Manager portable identity, unchanged HA/Broker peers, terminal HA U4 transaction, armed recovery control plane, exact staged recovery manifest/file set, and untouched candidate prestate. Only then does it run `check-candidate-activation` and `activate-candidate-runtime` from the exact staged recovery package.
 
+## 6E. Live closure — Phase A through D PASS
+
+The approved live-repair gate completed successfully after the bounded KF-145/KF-146/KF-147 executor repairs.
+
+```text
+AUTHORIZATION_GATE=N3W_T1_V1_3_KF144_LIVE_REPAIR_20261123_01
+FINAL_RESUME_GATE=N3W_T1_V1_3_KF144_PHASE_D_RESUME_20261123_04
+
+PHASE_A_UPDATER_PATCH=PASS
+LIVE_HA_RECOVERY_PYZ_SHA256=eee49d52ae4ea7f9ecb20a27d1fc467e66708d4fc7df28493acf7bb7f8a049cf
+
+PHASE_B_U4_RETIREMENT=PASS
+HA_TRANSACTION_STATUS=ROLLED_BACK
+HA_TRANSACTION_PHASE=U4_READY_TO_INSTALL
+HA_TRANSACTION_SHA256_AFTER_RETIREMENT=0ea710421e8067b7f8a6c26827b561f220876ed45b97650c6b94e338533698cf
+INSTALL_AUTHORITY_PRESENT=false
+
+PHASE_C_MANAGER_PLAN=PASS
+PHASE_C_MANAGER_APPLY=PASS
+MANAGER_TRANSACTION_STATUS=COMMITTED
+MANAGER_TRANSACTION_PHASE=COMMITTED
+MANAGER_TRANSACTION_SHA256=32e0dd5e19d9d49576bb135e74ec1cb85cb8f6eca2265acaeab32b5d0c82f784
+MANAGER_RUNTIME_CLASS=TARGET_BOUND_RUNNING
+MANAGER_HEALTH_STATE=HEALTHY
+MANAGER_PORTABLE_IDENTITY=VERIFIED
+MANAGER_RUNTIME_IMAGE_ID=sha256:c4bcb441de0554ebb20e3feb2b98a65cc435750539a2c951eb7be710ff191221
+MANAGER_ARCHIVE_CONFIG_DIGEST=sha256:9547078268e5f2550b46583abbd87d9f0a6bbaa727a0af2c19379ca906954867
+
+PHASE_D_CANDIDATE_PREFLIGHT=PASS
+CANDIDATE_PREDECESSOR_VERSION=2026.10.4
+MANAGER_MONITORING_SELF_TEST_AVAILABLE=true
+MONITORING_MODE=natural_with_self_test_fallback
+
+PHASE_D_CANDIDATE_MONITORING=PASS
+MONITORING_SELF_TEST_SHA256=5a0ea7132529ca096cc18363765cb96a40352036e0902df343b86675d02be3c1
+INSTALLED_VERSION=2026.10.4
+
+LIVE_HOMEASSISTANT=local/n3w-homeassistant:2026.10.4-5881590f
+LIVE_HOMEASSISTANT_IMAGE_ID=sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365
+LIVE_MANAGER=local/greenhouse-manager:fresh-1cae18039eee
+LIVE_MANAGER_IMAGE_ID=sha256:c4bcb441de0554ebb20e3feb2b98a65cc435750539a2c951eb7be710ff191221
+LIVE_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+LIVE_BROKER_IMAGE_ID=sha256:df265f1e2b2e3dc35d5eb194e698c598e01c5ebca370da307b34332f9bf0a563
+
+AUTHORIZED_GATE_FINAL=PASS
+FRESH_HA_PREPARE_EXECUTED=false
+HA_INSTALL_OR_CUTOVER_EXECUTED=false
+BROKER_OTA_EXECUTED=false
+REBOOT_EXECUTED=false
+REMOTE_STAGING_CLEANUP=PASS
+STOP_BEFORE_FRESH_HA_PREPARE=true
+```
+
+The live closure proves the repaired monitoring path end to end: the Manager successor is healthy and committed; candidate runtime activation preserved the frozen HA/Broker images; the installed HA version is bound as 2026.10.4; and the formal Manager→Broker→HA monitoring self-test completed with a durable proof hash.
+
+The prior U4 failure transaction is terminal and must not be reused. The next HA upgrade attempt must be a fresh transaction with fresh prepare authority. The earlier expired prepare authority, install authority and release pin remain non-replayable historical evidence.
+
+No Phase-E authority was granted by the A-through-D gate.
+
 ## 7. Archive status
 
 ```text
@@ -374,5 +433,6 @@ IMPORTANT_ENVIRONMENT_FACTS_ARCHIVED=true
 UNARCHIVED_CRITICAL_RESULT_COUNT=0
 TEAM_SHARED_WORKSPACE=GITHUB
 TEAM_SHARE_COMPLETENESS=PASS
-NEXT_SAFE_ENTRY_POINT=EXPLICIT_LIVE_AUTHORIZATION_FOR_KF144_REPAIR
+KF144_LIVE_REPAIR_CLOSED=true
+NEXT_SAFE_ENTRY_POINT=EXPLICIT_AUTHORIZATION_FOR_FRESH_HA_PREPARE
 ```
