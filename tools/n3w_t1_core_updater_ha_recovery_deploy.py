@@ -269,7 +269,7 @@ def _systemctl(*args: str, check: bool = True) -> str:
 def _render_candidate_compose(path: Path, *, predecessor_version: str | None = None) -> dict:
     environment = {"PATH": os.defpath}
     if predecessor_version is not None:
-        if re.fullmatch(r"[0-9]{4}\\.[0-9]{1,2}\\.[0-9]{1,3}", predecessor_version) is None:
+        if re.fullmatch(r"[0-9]{4}\.[0-9]{1,2}\.[0-9]{1,3}", predecessor_version) is None:
             raise UpdaterError("ha_recovery_candidate_predecessor_version_invalid")
         environment["GH_N3W_T1_OTA_INSTALLED_VERSION"] = predecessor_version
     result = subprocess.run(
