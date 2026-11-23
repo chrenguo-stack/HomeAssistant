@@ -1,5 +1,42 @@
 ## Current T1 Core Stack authority
 
+### 2026-11-23 — KF-149 Resume 02 active Compose path false STOP; fresh PREPARE still unstarted
+
+```text
+STATE=KF149_EXECUTOR_ACTIVE_COMPOSE_PATH_REPAIR_READY_FRESH_PREPARE_PENDING
+MASTER_TASK_DOCUMENT=docs/development/templates/STAGE_EXECUTION_PLAN_TEMPLATE.md
+MASTER_TASK_DOCUMENT_SHA=a7fa552e9c069e0c2857d657135a3c4eabe69206
+ACTIVE_STAGE_ID=N3W_T1_CORE_STACK_OTA_V1_3_R8_PHYSICAL_ACCEPTANCE
+CURRENT_TASK_ID=R8V13-06
+NEXT_TASK_ID=R8V13-07
+TASK_CHAIN_STATUS=ALIGNED
+
+CURRENT_LIVE_AUTHORIZATION=N3W_T1_V1_3_FRESH_HA_PREPARE_10_4_TO_10_0_20261123_01
+LIVE_AUTHORIZATION_STATUS=APPROVED_FRESH_PREPARE_ONLY
+FAILED_EXECUTOR=N3W_T1_V1_3_FRESH_HA_PREPARE_RESUME_20261123_02.sh
+FAILED_EXECUTOR_STAGE=POST_ACTIVATION_READONLY_PREFLIGHT
+FAILURE=active_candidate_compose_not_exact
+OBSERVED_ACTIVE_SHA256=null
+ROOT_CAUSE=EXECUTOR_USED_SOURCE_TEMPLATE_PATH_INSTEAD_OF_PRODUCT_ACTIVE_COMPOSE_PATH
+PRODUCT_ACTIVE_COMPOSE_PATH=/etc/n3wfc4/docker-compose.yml
+
+FRESH_CANDIDATE_MATERIALIZED=false
+FRESH_U1_TRANSACTION_CREATED=false
+FRESH_PREPARE_AUTHORITY_ISSUED=false
+FRESH_USB_TRANSACTION_WRITES=false
+TARGET_10_0_DOCKER_LOAD=false
+INSTALL_INTENT=false
+HA_INSTALL_OR_CUTOVER=false
+BROKER_OTA=false
+REBOOT=false
+
+REMOTE_STAGING_PRESERVED=/tmp/n3w-fresh-ha-prepare-20261123-01
+REPLAY_FAILED_EXECUTOR=false
+NEXT_ACTION=REPAIR_POST_ACTIVATION_ORACLE_THEN_CONTINUE_R8V13_06
+```
+
+Exact source review proves `COMPOSE` is `/etc/n3wfc4/docker-compose.yml`; Resume 02 incorrectly checked the source-template path under `/opt/HomeAssistant/infra/...`. The STOP occurred before any fresh candidate materialization or HA transaction mutation. The next executor must keep the same PREPARE-only authorization, validate the active candidate against the product Compose path, and avoid unproven private-oracle hashes for the already-COMMITTED Manager transaction.
+
 ### 2026-11-23 — KF-148 fresh PREPARE false STOP before mutation; repaired post-activation preflight pending
 
 ```text
