@@ -1,3 +1,48 @@
+## 2026-11-23 — T1 OTA V1.2 R8 predecessor preparation PRE_U1 live closure
+
+```text
+STATE=R8_PREDECESSOR_PREPARATION_PRE_U1_PASS
+PR=824
+PR_STATE=OPEN_DRAFT
+EXECUTABLE_SOURCE_HEAD=ea68af045fdde8c32e66d688bc7a136a80b30122
+EXECUTABLE_HEAD_CI=16/16_SUCCESS
+EXACT_RECOVERY_ARTIFACT_ID=14782528541
+INSTALLED_UPDATER_PYZ_SHA256=ffc402f72fe56309b0f108c870230d8288dba740859232b9bc749abc354492b1
+
+LIVE_HOMEASSISTANT=local/n3w-homeassistant:2026.10.4-5881590f
+LIVE_MANAGER=local/greenhouse-manager:fresh-44e7d7472714
+LIVE_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+CANDIDATE_ACTIVATION_PREFLIGHT=PASS
+MONITORING_MODE=natural_only
+PREVIOUS_HA_USB_TX=ROLLED_BACK/U13B_ROLLED_BACK
+NEW_HA_TRANSACTION=false
+TARGET_2026_10_0_PRESENT=false
+
+TARGET_2026_10_0_ARCHIVE_SIZE_BYTES=2448553472
+TARGET_2026_10_0_ARCHIVE_SHA256=e52d12779f7562d3f37a265d622fbaf31e758deba5998e40cafb5a33a118b663
+PREDECESSOR_2026_10_4_SAVE_SIZE_BYTES=2447090176
+PREDECESSOR_2026_10_4_SAVE_SHA256=6502b8cdbf706d746e32311fdaa39ffc5ca703d76f766806bbb21d3c71278d1f
+
+USB_FILESYSTEM=ext4
+USB_FILESYSTEM_UUID=b72ac2fc-79a0-4fb8-888e-f35b0114f959
+USB_MOUNT_PRESENT=false
+USB_PREPARATION_STATE=ORIGINAL_MOUNT_REQUIRED
+USB_FORMAT_REQUIRED=false
+
+NEXT_ONE_GATE=RUN_ALREADY_PREPARED_U1_PREPARE_REQUESTED_COMMAND_AND_REVIEW_OUTPUT
+NEXT_STOP_POINT=U1_PREPARE_REQUESTED
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+The R8 implementation continues to reuse the existing Home Assistant U0-U13 durable transaction/recovery engine. The exact ea68 updater is installed on the spare T1 and activation preflight passed without changing Manager, Home Assistant, Compose/env or the terminal old HA USB transaction. The running legacy Manager does not provide the optional OTA monitoring self-test, so the accepted path is natural telemetry only; probe failures and missing qualifying natural evidence remain fail-closed.
+
+The exact 2026.10.0 target and current 2026.10.4 predecessor export size were reverified. The existing ext4 USB is identified but was not mounted during the final read-only measurement. No new transaction, USB transaction write, HA/Manager stop, 10.0 load, 10.4 release, format or reboot occurred.
+
+Current progress authority:
+`docs/development/N3W_T1_OTA_V1_2_R8_PRE_U1_PASS_TO_U1_PREPARE_REQUESTED_PROGRESS_ALIGNMENT_20261123.md`.
+
+The operator intentionally stopped before running the already-prepared command that mounts the existing USB without formatting, materializes exact 2026.10.0, creates a fresh normal HA transaction and stops at U1. The next conversation begins by reviewing that command's terminal output.
+
 ## Current T1 Core Stack authority
 
 ### OTA product architecture — V1.2, 2026-11-20
