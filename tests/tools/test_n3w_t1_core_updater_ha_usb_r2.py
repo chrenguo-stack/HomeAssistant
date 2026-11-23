@@ -1153,7 +1153,6 @@ def _exercise_target_import(tmp_path, monkeypatch, capsys, fault, *, single_imag
             "authorization_id": AUTHORIZATION_ID,
             "launch_sha256": binding["launch_sha256"],
             "expires_at_unix": 0x7FFFFFFF,
-            "space": dict.fromkeys(recovery_startup.INSTALL_BUDGET_FIELDS, 1024),
         }
         for wrong in (
             {"binding_sha256": "0" * 64}, {"expires_at_unix": 1}, {"launch_sha256": "0" * 64},
@@ -1167,7 +1166,7 @@ def _exercise_target_import(tmp_path, monkeypatch, capsys, fault, *, single_imag
                 assert submit("INSTALL")["accepted"] is True
         grant_path.unlink()
         request = {
-            **{key: grant[key] for key in ("binding_sha256", "authorization_id", "expires_at_unix", "space")},
+            **{key: grant[key] for key in ("binding_sha256", "authorization_id", "expires_at_unix")},
             "transaction_id_sha256": requested["transaction_id_sha256"],
         }
         with pytest.raises(UpdaterV2Error, match="ha_usb_install_authority_invalid"):
@@ -1903,7 +1902,6 @@ def test_verify_existing_usb_media_from_bound_archives(tmp_path, monkeypatch, fa
         internal_storage=tmp_path,
         image_storage=tmp_path,
         ha_data_root=ha.root,
-        budget=lambda _: mounted_media.HaInstallSpaceBudget(1024, 2048),
         verify_prestate=lambda _: True,
     )
     errors = {
