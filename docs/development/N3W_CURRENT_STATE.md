@@ -1,5 +1,27 @@
 ## Current T1 Core Stack authority
 
+### 2026-11-23 — KF-147 candidate activation package entrypoint false STOP; Phase D not mutated
+
+```text
+STATE=KF147_EXECUTOR_ENTRYPOINT_REPAIR_READY_PHASE_D_PENDING
+PARENT_AUTHORIZATION=N3W_T1_V1_3_KF144_LIVE_REPAIR_20261123_01
+PHASE_C_READONLY_CLOSURE=PASS
+MANAGER_TRANSACTION_STATUS=COMMITTED
+MANAGER_RUNTIME_CLASS=TARGET_BOUND_RUNNING
+MANAGER_HEALTH_STATE=HEALTHY
+MANAGER_PORTABLE_IDENTITY=VERIFIED
+PHASE_D_CANDIDATE_PREFLIGHT=FAILED_BEFORE_MUTATION
+PHASE_D_FAILURE=ha_recovery_install_file_set_invalid
+PHASE_D_MUTATION=false
+ROOT_CAUSE=INSTALLED_PYZ_USED_AS_PACKAGE_ENTRYPOINT
+CORRECT_PHASE_D_ENTRYPOINT=/tmp/n3w-kf144-live-repair-20261123-01/ha/ha-recovery.pyz
+PHASE_B_REPLAY=false
+PHASE_C_REPLAY=false
+REMOTE_STAGING_PRESERVED=true
+```
+
+Candidate activation is a package-aware action. Its CLI resolves the package root from the executing pyz parent and `_verified_package()` requires the exact recovery artifact file set plus `manifest.json`. The installed runtime directory is not a package directory, so invoking `check-candidate-activation` from `/opt/n3w-t1-core-updater/ha-recovery.pyz` is invalid by design. The preserved exact artifact directory is the correct entry point. Resume must re-prove Phase C closure and untouched candidate prestate, then execute Phase D only from the staged exact artifact.
+
 ### 2026-11-23 — KF-146 Manager post-apply image-ID oracle false STOP; Phase C committed, Phase D pending
 
 ```text
