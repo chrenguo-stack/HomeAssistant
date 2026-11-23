@@ -21,7 +21,7 @@ Exact source heads, CI status, live transaction phase and one-shot authorization
 
 Pre-stop target/predecessor space blocks are stable waiting states: timer wakes may re-measure free bytes but may not repeat the write while the gate still fails. A user who must change to a larger USB can issue a fresh PREPARE; only that pre-stop capacity-blocked U3 may be replaced, and its prior transaction/USB contents remain archived. Post-stop protected-data capacity failure restores the predecessor before presenting the failure.
 
-Current repository implementation is on PR #824; live T1 is not yet aligned to V1.3. Read [current state](N3W_CURRENT_STATE.md) and [V1.3 source alignment](N3W_T1_OTA_V1_3_DYNAMIC_USB_CAPACITY_SOURCE_ALIGNMENT_20261123.md) before any R8 live continuation. The existing fresh U1 is valid and held; do not rerun PREPARE or use the retired static-reserve U1→U4 command.
+Current repository implementation is on PR #824. Live transaction phase, deployed updater revision, one-shot authority state, exact artifact binding, and next live gate are volatile; do not freeze them in this working-context file. Before any R8 live continuation, read [current state](N3W_CURRENT_STATE.md), [current state index](N3W_CURRENT_STATE_INDEX.md), and the current V1.3 handoff. Historical statements that the live transaction was still U1 are superseded; never rerun PREPARE, reactivate a retired prepare authority, or use the retired static-reserve U1→U4 command based on an older handoff.
 
 ## Stable updater authority — PR #788 mandatory-USB HA OTA R4 clean successor, 2026-11-06
 
