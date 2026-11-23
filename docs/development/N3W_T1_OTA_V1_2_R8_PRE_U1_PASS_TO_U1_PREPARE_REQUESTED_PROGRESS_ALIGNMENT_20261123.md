@@ -197,3 +197,58 @@ TEAM_SHARED_WORKSPACE=GITHUB
 IMPORTANT_CHAT_ONLY_ARTIFACT_COUNT=0
 TEAM_SHARE_COMPLETENESS=PASS
 ```
+
+
+## Live U1 PREPARE_REQUESTED closure
+
+The bounded operator resume completed successfully after the prior interrupted shell left only the controlled USB mount behind.
+
+```text
+PR=824
+EXECUTABLE_SOURCE_HEAD=ea68af045fdde8c32e66d688bc7a136a80b30122
+
+PREVIOUS_HA_USB_TX=ROLLED_BACK/U13B_ROLLED_BACK
+USB_SOURCE_CONTRACT=PASS
+USB_MOUNT_PRESENT=true
+USB_CONTROLLED_MOUNT=/mnt/n3w-ha-r8-predecessor
+USB_AVAILABLE_BYTES=28132188160
+USB_FORMAT_REQUIRED=false
+
+LOCAL_TARGET_EXACT=PASS
+LOCAL_APPROVED_ENVELOPE_EXACT=PASS
+INTERNAL_TARGET_SPOOL_EXACT=PASS
+REMOTE_APPROVED_ENVELOPE_EXACT=PASS
+CANDIDATE_MATERIALIZED=PASS
+RELEASE_IDENTITY=homeassistant-r8-predecessor-2026.10.0
+
+NEW_HA_TRANSACTION=true
+NEW_HA_TRANSACTION_PHASE=U1_PREPARE_REQUESTED
+U1_TRANSACTION_EXACT=PASS
+SERVICES_UNCHANGED=PASS
+TARGET_2026_10_0_LOADED=false
+USB_TRANSACTION_DIRECTORY_CREATED=false
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+
+STOP_POINT=U1_PREPARE_REQUESTED
+LOCAL_RESULT=PASS
+```
+
+The application runtime remained unchanged and healthy on:
+- Home Assistant `local/n3w-homeassistant:2026.10.4-5881590f`;
+- Manager `local/greenhouse-manager:fresh-44e7d7472714`;
+- Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+
+At this stop the updater-owned exact target spool, release pin and approved manifest are materialized, but exact 2026.10.0 is still not loaded into Docker. The new USB transaction directory has not yet been created. Install authorization remains unclaimed and unconsumed.
+
+The next bounded gate is source-backed prepare-authority issuance for this exact fresh transaction, followed by the existing resume path through U2/U3 to U4 `READY_TO_INSTALL`. The authority must bind:
+- the fresh transaction's actual `transaction_id_sha256`;
+- the actual existing USB filesystem UUID;
+- the updater-owned exact target spool;
+- measured predecessor maximum bytes `2447090176`;
+- an explicit USB reserve;
+- the current launch binding captured by the updater.
+
+U1→U4 is the first step allowed to create/write `N3W-OTA/<transaction>/` on the existing USB. It must stop at U4 before INSTALL/U5. USB format, reboot/power-cycle, Broker mutation, PR merge, production release and unrelated T1 mutation remain forbidden.
+
+Public live evidence: PR #824 issue comment `7090376245`.
