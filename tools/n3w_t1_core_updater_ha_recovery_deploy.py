@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import BinaryIO
 
 from n3w_t1_core_updater_common import COMPOSE, COMPOSE_ENV, PROJECT, SERVICES_UNIT, UpdaterError, sha256_bytes
+from n3w_t1_core_updater_ha_acceptance import monitoring_self_test_qualified
 from n3w_t1_core_updater_ha_ipc import (
     APPROVED_MANIFEST, IPC_SERVICE_UNIT, IPC_SOCKET, IPC_SOCKET_UNIT, MANAGER_PEER_UID, RELEASE_PIN, RELEASE_PIN_SCHEMA,
     SIGNED_INDEX_STATE, HostOtaAdmission, candidate_admission, ha_image_version, read_local_release_input,
@@ -35,6 +36,7 @@ from n3w_t1_core_updater_ha_recovery_startup import (
 from n3w_t1_core_updater_signed_release import (
     VerifiedHaRelease, check_signed_release, open_signed_archive, verify_signed_release,
 )
+from n3w_t1_core_updater_host import HOMEASSISTANT_SERVICES_READINESS_TIMEOUT_SECONDS
 from n3w_t1_core_updater_v2_common import SHA256, TERMINAL_TX_V2, canonical
 from n3w_t1_core_updater_v2_state import STATE_ROOT_V2, V2StateStore
 from n3w_t1_portable_image_identity import parse_verified_load_archive
@@ -413,12 +415,125 @@ def check_candidate_activation(
         if not _validate_path(root, active_config, config.removesuffix(MONITORING_CONFIGURATION)):
             raise UpdaterError("ha_recovery_candidate_active_ha_config_missing")
         manager_self_test = runtime.candidate_manager_monitoring_self_test_available()
+        if manager_self_test is not True:
+            raise UpdaterError("ha_recovery_candidate_manager_monitoring_self_test_required")
     return {
         "source_head": source_head,
         "status": "CANDIDATE_ACTIVATION_PREFLIGHT_PASS",
         "predecessor_version": version,
-        "manager_monitoring_self_test_available": manager_self_test,
-        "monitoring_mode": "natural_with_self_test_fallback" if manager_self_test else "natural_only",
+        "manager_monitoring_self_test_available": True,
+        "monitoring_mode": "natural_with_self_test_fallback",
+    }
+
+
+def activate_candidate_runtime(
+    package: Path, expected: str, *, root: Path = Path("/"),
+    runtime: LocalHaPredecessorRuntime | None = None,
+    render=_render_candidate_compose,
+) -> dict[str, object]:
+    """Activate the exact monitoring/OTA runtime before a business HA transaction exists."""
+    preflight = check_candidate_activation(
+        package, expected, root=root, runtime=runtime, render=render,
+    )
+    source_head, payload = _verified_package(package, expected)
+    runtime = LocalHaPredecessorRuntime() if runtime is None else runtime
+    store = V2StateStore(root / STATE_ROOT_V2.relative_to("/"))
+    active_path = root / COMPOSE.relative_to("/")
+
+    with store.lock():
+        _require_idle(store)
+        for name, destination in DESTINATIONS.items():
+            if not _validate_path(root, root / destination, payload[name]):
+                raise UpdaterError("ha_recovery_candidate_install_incomplete")
+        if runtime.candidate_manager_monitoring_self_test_available() is not True:
+            raise UpdaterError("ha_recovery_candidate_manager_monitoring_self_test_required")
+
+        observed = runtime._runtime("homeassistant")
+        version = ha_image_version(observed["image_ref"])
+        if version is None:
+            raise UpdaterError("ha_recovery_candidate_predecessor_version_unknown")
+        before_binding = runtime.capture_start_binding({
+            "current_image_ref": observed["image_ref"],
+            "current_image_identity": {"runtime_image_id": observed["image_id"]},
+        })
+        if active_path.is_symlink() or not active_path.is_file():
+            raise UpdaterError("ha_recovery_candidate_active_compose_invalid")
+        original = active_path.read_bytes()
+        candidate_payload = _candidate_compose(original)
+
+        active = render(active_path)
+        with tempfile.TemporaryDirectory(prefix="n3w-ha-activation-live-") as raw:
+            candidate_path = Path(raw) / CANDIDATE_COMPOSE
+            candidate_path.write_bytes(candidate_payload)
+            candidate_path.chmod(0o600)
+            staged = render(candidate_path, predecessor_version=version)
+            _verify_candidate_delta(active, staged, version)
+
+        stopped = False
+        candidate_written = False
+        try:
+            runtime.stop_services()
+            stopped = True
+            runtime._replace_product_file(
+                active_path,
+                candidate_payload,
+                verify_error="ha_recovery_candidate_active_compose_replace_failed",
+            )
+            candidate_written = True
+            runtime.start_services(
+                readiness_timeout=HOMEASSISTANT_SERVICES_READINESS_TIMEOUT_SECONDS,
+            )
+
+            after = render(active_path)
+            if after != staged:
+                raise UpdaterError("ha_recovery_candidate_active_compose_runtime_drift")
+            after_binding = runtime.capture_start_binding({
+                "current_image_ref": observed["image_ref"],
+                "current_image_identity": {"runtime_image_id": observed["image_id"]},
+            })
+            if after_binding["images"] != before_binding["images"]:
+                raise UpdaterError("ha_recovery_candidate_runtime_image_drift")
+            if runtime.candidate_manager_monitoring_self_test_available() is not True:
+                raise UpdaterError("ha_recovery_candidate_manager_monitoring_self_test_unavailable")
+            proof = runtime.acceptance_observer().run_monitoring_self_test()
+            if not monitoring_self_test_qualified(proof):
+                raise UpdaterError("ha_recovery_candidate_monitoring_self_test_failed")
+        except Exception as error:
+            if candidate_written:
+                try:
+                    runtime.stop_services()
+                    runtime._replace_product_file(
+                        active_path,
+                        original,
+                        verify_error="ha_recovery_candidate_original_compose_restore_failed",
+                    )
+                    runtime.start_services(
+                        readiness_timeout=HOMEASSISTANT_SERVICES_READINESS_TIMEOUT_SECONDS,
+                    )
+                    restored = runtime.capture_start_binding({
+                        "current_image_ref": observed["image_ref"],
+                        "current_image_identity": {"runtime_image_id": observed["image_id"]},
+                    })
+                    if restored != before_binding:
+                        raise UpdaterError("ha_recovery_candidate_original_runtime_restore_drift")
+                except Exception as restore_error:
+                    raise UpdaterError("ha_recovery_candidate_activation_rollback_failed") from restore_error
+            elif stopped:
+                try:
+                    runtime.start_services(
+                        readiness_timeout=HOMEASSISTANT_SERVICES_READINESS_TIMEOUT_SECONDS,
+                    )
+                except Exception as restore_error:
+                    raise UpdaterError("ha_recovery_candidate_activation_rollback_failed") from restore_error
+            raise error
+
+    return {
+        **preflight,
+        "source_head": source_head,
+        "status": "CANDIDATE_RUNTIME_ACTIVATED",
+        "monitoring_self_test_sha256": proof,
+        "runtime_images_unchanged": True,
+        "broker_mutation": False,
     }
 
 
@@ -662,8 +777,8 @@ def install(package: Path, expected: str, *, root: Path = Path("/"), systemctl=_
 def bundle_main() -> int:
     action = sys.argv[1:2]
     if action not in (
-        ["install"], ["check-candidate-activation"], ["materialize-candidate"], ["check-signed-release"],
-        ["materialize-signed-candidate"],
+        ["install"], ["check-candidate-activation"], ["activate-candidate-runtime"],
+        ["materialize-candidate"], ["check-signed-release"], ["materialize-signed-candidate"],
     ):
         return recovery_cli()
     parser = argparse.ArgumentParser(prog=f"ha-recovery.pyz {action[0]}")
@@ -688,7 +803,11 @@ def bundle_main() -> int:
             args.approved_manifest, args.approved_manifest_sha256, args.target_archive, args.expires_at_unix,
         )
     else:
-        operation = install if action == ["install"] else check_candidate_activation
+        operation = {
+            "install": install,
+            "check-candidate-activation": check_candidate_activation,
+            "activate-candidate-runtime": activate_candidate_runtime,
+        }[action[0]]
         result = operation(Path(sys.argv[0]).resolve().parent, args.manifest_sha256)
     print(json.dumps(result, sort_keys=True))
     return 0
