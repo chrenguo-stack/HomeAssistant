@@ -273,7 +273,7 @@ def test_candidate_compose_renders_only_ota_and_ha_monitoring_bindings(package, 
 
 @pytest.mark.parametrize("fault", [
     None, "empty_bind", "socket", "version", "mount", "create_path", "broker", "transaction",
-    "monitoring_mount", "system_id", "active_config", "manager_monitoring",
+    "monitoring_mount", "system_id", "active_config", "manager_probe", "legacy_manager",
 ])
 def test_activation_preflight_is_read_only(package, tmp_path, monkeypatch, fault):
     staged, digest, head = package
@@ -351,16 +351,17 @@ def test_activation_preflight_is_read_only(package, tmp_path, monkeypatch, fault
 
     manager_checks = []
 
-    def require_candidate_manager_monitoring():
+    def candidate_manager_monitoring_self_test_available():
         manager_checks.append(True)
-        if fault == "manager_monitoring":
-            raise UpdaterError("ha_recovery_candidate_manager_monitoring_unavailable")
+        if fault == "manager_probe":
+            raise UpdaterError("ha_recovery_candidate_manager_monitoring_probe_failed")
+        return fault != "legacy_manager"
 
     runtime = SimpleNamespace(
         _runtime=lambda name: observed,
         capture_start_binding=capture_binding,
         image_binding_modes_v2=lambda: {"homeassistant": "dynamic"},
-        require_candidate_manager_monitoring=require_candidate_manager_monitoring,
+        candidate_manager_monitoring_self_test_available=candidate_manager_monitoring_self_test_available,
     )
 
     render_calls = []
@@ -374,7 +375,7 @@ def test_activation_preflight_is_read_only(package, tmp_path, monkeypatch, fault
         "mount": "manager_mount_drift", "create_path": "manager_mount_drift",
         "broker": "unexpected_compose_change", "transaction": "transaction_active",
         "monitoring_mount": "ha_monitoring_mount_drift", "system_id": "ha_environment_drift",
-        "active_config": "install_existing_file_drift", "manager_monitoring": "manager_monitoring_unavailable",
+        "active_config": "install_existing_file_drift", "manager_probe": "manager_monitoring_probe_failed",
     }
     changes = manager.changes[:]
     if fault in errors:
@@ -383,15 +384,32 @@ def test_activation_preflight_is_read_only(package, tmp_path, monkeypatch, fault
                 staged, digest, root=root, runtime=runtime, systemctl=unit_status, render=render,
             )
     else:
-        assert deploy.check_candidate_activation(
+        result = deploy.check_candidate_activation(
             staged, digest, root=root, runtime=runtime, systemctl=unit_status, render=render,
-        ) == {"source_head": head, "status": "CANDIDATE_ACTIVATION_PREFLIGHT_PASS", "predecessor_version": "2026.10.0"}
+        )
+        expected_self_test = fault != "legacy_manager"
+        assert result == {
+            "source_head": head,
+            "status": "CANDIDATE_ACTIVATION_PREFLIGHT_PASS",
+            "predecessor_version": "2026.10.0",
+            "manager_monitoring_self_test_available": expected_self_test,
+            "monitoring_mode": (
+                "natural_with_self_test_fallback"
+                if expected_self_test
+                else "natural_only"
+            ),
+        }
         assert bound == [{
             "current_image_ref": observed["image_ref"], "current_image_identity": {"runtime_image_id": observed["image_id"]},
         }]
     assert manager.changes == changes
     if fault not in {"socket", "transaction", "active_config"}:
         assert ("ha-ota-candidate.compose.yml", "2026.10.0") in render_calls
+    if fault not in {
+        "socket", "transaction", "active_config", "version", "mount", "create_path",
+        "broker", "monitoring_mount", "system_id",
+    }:
+        assert manager_checks == [True]
     assert active_path.read_bytes() == active_payload
 
 
