@@ -1,5 +1,53 @@
 ## Current T1 Core Stack authority
 
+
+### 2026-11-23 — KF-144 source / CI / package CLOSED; live repair pending
+
+```text
+STATE=KF144_SOURCE_CI_PACKAGE_CLOSED_LIVE_REPAIR_PENDING
+PR=824
+EXECUTABLE_SOURCE_HEAD=1fbe674e25edb4c6fb1a3740042778adc55def68
+CI=22_OF_22_SUCCESS
+
+LIVE_HA_TRANSACTION_STATUS=ACTIVE
+LIVE_HA_TRANSACTION_PHASE=U4_READY_TO_INSTALL
+LIVE_HA_TRANSACTION_FILE_SHA256=a22a4260401ddb04318afba1b03495edb23a32c68196372987501b50154c2a66
+LIVE_FAILURE_CODE=ha_usb_predecessor_acceptance_baseline_unavailable
+LIVE_AUTHORIZATION_CLAIMED=false
+LIVE_AUTHORIZATION_CONSUMED=false
+LIVE_TARGET_IMAGE_LOADED=false
+LIVE_RUNTIME_HEALTH=PASS
+
+LIVE_MANAGER_BASELINE_SHA256=78404869cda4b6fe14226b514623880b76045cd9a58a149f063d61edf57dd199
+LIVE_MANAGER_SELF_TEST_CAPABILITY=false
+HA_MONITORING_RUNTIME_ACTIVE=false
+
+KF144_MANAGER_PACKAGE_ARTIFACT_ID=14819845760
+KF144_MANAGER_PACKAGE_ARTIFACT_DIGEST_SHA256=362c300922816730d4209d450b376769c19319a34d594d2c3a90ea2e31ab143a
+KF144_MANAGER_TARGET_IMAGE=local/greenhouse-manager:fresh-1cae18039eee
+KF144_MANAGER_TARGET_IMAGE_ID=sha256:9547078268e5f2550b46583abbd87d9f0a6bbaa727a0af2c19379ca906954867
+KF144_MANAGER_TAR_SHA256=bbce0ee5c399b2fbc315dcf34affb6391f54864144faba4f9efb983b160c8734
+KF144_GENERIC_V2_UPDATER_PYZ_SHA256=d43036f333872e2e25272b26552809c8d40cd822efc8f0d414e71878594bf2bc
+
+HA_RECOVERY_ARTIFACT_ID=14818806074
+HA_RECOVERY_ARTIFACT_DIGEST_SHA256=46bc0cc890b791de8219cabb12eb162136027c2ad7d6ef1c4fb4d3c21a2f009d
+HA_RECOVERY_INSTALL_MANIFEST_SHA256=ef8e040fabe2fa1619d1ee28fce1785a535ef85edd15f8f4d416ed780e08fe07
+
+KF_144_STATUS=SOURCE_CI_CLOSED_LIVE_REPAIR_PENDING
+BROKER_OTA_DEFERRED=true
+NEXT_LIVE_SEQUENCE=PATCH_RECOVERY_UPDATER_THEN_RETIRE_U4_THEN_MANAGER_SUCCESSOR_THEN_MONITORING_ACTIVATION
+AUTO_EXECUTE_LIVE_MUTATION=false
+```
+
+KF-144 root cause is now proven: the live 10.4 predecessor uses ordinary HA configuration with no `n3w_ota_monitoring` component, the live legacy Manager has no maintenance self-test publisher, and natural telemetry is stale. Source repair is closed at `1fbe674e25edb4c6fb1a3740042778adc55def68`: the false-ready `natural_only` path is removed, a bounded no-mutation U4 failure retirement path exists, candidate monitoring runtime activation/rollback is explicit, and Manager→Broker→HA self-test evidence is mandatory. All 22 workflows on the executable head are SUCCESS.
+
+Exact live Generic V2 baseline and the self-test-capable Manager successor are archived. The Manager-only successor package is artifact `14819845760`; the repaired HA recovery installation package is artifact `14818806074`. Neither package has been deployed to the spare T1.
+
+The spare T1 remains at the last verified healthy predecessor runtime with the failed HA transaction at ACTIVE U4. The last observed schema-v3 install authority and release pin are now expired and must not be replayed; fresh live rebind is required before any mutation. Broker OTA remains deferred.
+
+Closure: `docs/development/N3W_T1_OTA_V1_3_KF144_SOURCE_CI_PACKAGE_CLOSURE_20261123.md`.
+
+
 ### OTA product architecture — V1.3, 2026-11-23
 
 [T1 Core Stack OTA V1.3](N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.3_20261123.md) is the current product design authority for OTA implementation and acceptance.
