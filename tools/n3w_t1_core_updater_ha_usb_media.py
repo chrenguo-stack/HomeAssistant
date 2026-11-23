@@ -7,8 +7,9 @@ from typing import Iterable
 from n3w_t1_core_updater_v2_common import SHA256, UpdaterV2Error
 
 
-USB_MEDIA_MIN_CAPACITY_BYTES = 16_000_000_000
-# Secondary filesystem sanity floor for 16GB-class media after formatting.
+USB_PRODUCT_MIN_CAPACITY_GB = 16
+# Machine-verifiable eligibility floor for a 16GB-class filesystem.
+# The product requirement is a 16GB-or-larger USB; marketed capacity is not a trusted runtime field.
 # This is not a per-transaction free-space budget.
 USB_MEASURED_USABLE_CAPACITY_MIN_BYTES = 14 * 1024**3
 USB_FILESYSTEM = "ext4"
@@ -26,7 +27,6 @@ class RemovableDeviceCandidate:
     is_root_device: bool
     backs_production_mount: bool
     display_identity_matches: bool
-    capacity_bytes: int
 
 
 @dataclass(frozen=True)
@@ -112,12 +112,6 @@ def classify_candidate(candidate: RemovableDeviceCandidate) -> tuple[str, ...]:
         reasons.append("production_mount")
     if candidate.display_identity_matches is not True:
         reasons.append("display_identity_mismatch")
-    if (
-        not isinstance(candidate.capacity_bytes, int)
-        or isinstance(candidate.capacity_bytes, bool)
-        or candidate.capacity_bytes < USB_MEDIA_MIN_CAPACITY_BYTES
-    ):
-        reasons.append("below_minimum_capacity")
     return tuple(reasons)
 
 
