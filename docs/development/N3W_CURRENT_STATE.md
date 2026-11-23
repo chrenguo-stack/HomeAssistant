@@ -18,6 +18,12 @@ CORRECT_PHASE_D_ENTRYPOINT=/tmp/n3w-kf144-live-repair-20261123-01/ha/ha-recovery
 PHASE_B_REPLAY=false
 PHASE_C_REPLAY=false
 REMOTE_STAGING_PRESERVED=true
+PHASE_D_RESUME_EXECUTOR=N3W_T1_V1_3_KF144_PHASE_D_RESUME_20261123_04.sh
+PHASE_D_RESUME_EXECUTOR_SHA256=f4096c9a59fe182a50523b29021000221ff19d975b81f3ad600e3102de96f744
+PHASE_D_PACKAGE_ENTRYPOINT=/tmp/n3w-kf144-live-repair-20261123-01/ha/ha-recovery.pyz
+PHASE_B_REPLAY=false
+PHASE_C_REPLAY=false
+STOP_BEFORE_FRESH_HA_PREPARE=true
 ```
 
 Candidate activation is a package-aware action. Its CLI resolves the package root from the executing pyz parent and `_verified_package()` requires the exact recovery artifact file set plus `manifest.json`. The installed runtime directory is not a package directory, so invoking `check-candidate-activation` from `/opt/n3w-t1-core-updater/ha-recovery.pyz` is invalid by design. The preserved exact artifact directory is the correct entry point. Resume must re-prove Phase C closure and untouched candidate prestate, then execute Phase D only from the staged exact artifact.
