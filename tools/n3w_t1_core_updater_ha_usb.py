@@ -34,6 +34,7 @@ from n3w_t1_core_updater_ha_usb_state import (
     HA_USB_TERMINAL_STATUSES,
     PHASE_INDEX,
     PRE_CUTOVER_RECOVERY_PHASES,
+    PRE_CUTOVER_TERMINAL_FAILURES,
     TARGET_BINDING,
     TARGET_WRITES_POSSIBLE,
     U0,
@@ -1098,6 +1099,29 @@ def request_install(document: dict[str, Any]) -> dict[str, Any]:
     ):
         raise UpdaterV2Error("ha_usb_install_intent_consumed_authorization")
     return result
+
+
+def record_pre_cutover_failure_terminal(
+    document: dict[str, Any],
+) -> dict[str, Any]:
+    """Finish a no-mutation U4 failure without inventing cutover or rollback actions."""
+    current = validate_transaction_document(document)
+    if (
+        current["status"] != "ACTIVE"
+        or current["phase"] != U4
+        or current.get("failure_code") not in PRE_CUTOVER_TERMINAL_FAILURES
+        or current["recovery_required"] is not False
+        or current["authorization_claimed"] is not False
+        or current["authorization_consumed"] is not False
+        or current["authorization_id_sha256"] is not None
+        or "predecessor_start" in current
+    ):
+        raise UpdaterV2Error("ha_usb_pre_cutover_failure_terminal_not_admitted")
+    return validate_transaction_document({
+        **current,
+        "status": "ROLLED_BACK",
+        "updated_at_unix": max(current["updated_at_unix"], int(time.time())),
+    })
 
 
 def record_recovery_admission(
