@@ -46,7 +46,7 @@ Implemented changes:
 - `USB_PRODUCT_MIN_CAPACITY_GB=16` records the product requirement;
 - runtime uses the existing `USB_MEASURED_USABLE_CAPACITY_MIN_BYTES=14*1024**3` machine-verifiable filesystem gate rather than relying on marketing labels or an over-strict raw-byte comparison;
 - prepare-authority schema advanced to `gh.n3w-t1-ha-prepare-authority/2` and no longer accepts caller-supplied `max_predecessor_bytes` or `usb_reserve_bytes`;
-- install-authority schema advanced to `gh.n3w-t1-ha-install-authority/2`; caller-supplied static USB install/recovery budgets were removed;
+- install-authority schema advanced to `gh.n3w-t1-ha-install-authority/3`; caller-supplied internal install/recovery budget fields were removed; the updater now derives internal admission from authenticated target/predecessor unpacked sizes plus the measured HA restore workspace;
 - target writes re-read current USB free bytes immediately before the exact-size write;
 - predecessor exact archive size is measured from the real export stream after target preparation and immediately before the predecessor write;
 - protected-data backup gains same-pipeline count-only measurement and current-free-space admission before the actual removable-media write;
@@ -108,6 +108,59 @@ RECOVERY_UPDATER_ARTIFACT_SIZE_BYTES=101709
 The artifact is CI-produced and exact-source-bound. It has not been deployed to the spare T1.
 
 One non-blocking R8 robustness item remains: explicit near-full/ext4 ENOSPC fault injection should verify that any mid-stream space exhaustion stays pre-cutover or restores the predecessor, does not retry-storm, leaves partial files safely recoverable and produces useful user-facing classification.
+
+
+## U5 live internal-capacity follow-up
+
+The U5 read-only capacity probe on the spare T1 completed PASS against PR #824 head `554cecaea5d270d00710e53fd71efdd1fb7f7ecb` before the source repair. It did not create install authority, did not consume authorization, did not load the target image, and did not advance beyond `U5_INSTALL_REQUESTED_REVALIDATING`.
+
+Exact observed values:
+
+```text
+INSTALL_BINDING_SHA256=05c2760362b065cf1941459d0791cdf334a5dff020fb4e89aa33561643284482
+PREDECESSOR_LAUNCH_SHA256=2fafb347876cf18c9dd5f032396dcfd21ee58464614a98474b7c333da2f90817
+USB_FREE_BYTES=23236521984
+USB_MEASURED_USABLE_BYTES=29714812928
+INTERNAL_AVAILABLE_BYTES=4763279360
+TARGET_UNPACKED_BYTES=2448486400
+PREDECESSOR_UNPACKED_BYTES=2447053824
+RECOVERY_WORKSPACE_BYTES=17092608
+MIN_INTERNAL_REQUIRED_BYTES=2464146433
+MIN_INTERNAL_HEADROOM_BYTES=2299132927
+MIN_INTERNAL_CAPACITY_PASS=true
+PRODUCTION_PRESTATE_EXACT=true
+```
+
+The probe deliberately supplied `1` byte for each legacy caller budget only to expose the independently measured runtime quantities. Review then confirmed those two authority fields had no product-level provenance: the install-authority validator required only positive integers, while `HaMountedInstallMaterialVerifier` already authenticated and measured the target/predecessor unpacked sizes and measured the HA restore workspace itself.
+
+Source repair therefore removes the two caller-supplied fields rather than inventing values:
+
+```text
+REMOVED_FROM_INSTALL_AUTHORITY:
+  internal_install_bytes
+  internal_recovery_overhead_bytes
+
+INTERNAL_INSTALL_REQUIRED:
+  authenticated target unpacked bytes
+
+INTERNAL_RECOVERY_REQUIRED:
+  authenticated predecessor unpacked bytes
+  + measured HA restore workspace
+```
+
+The install authority schema advances from `gh.n3w-t1-ha-install-authority/2` to `/3`, so stale schema-v2 authorities cannot be reused. The focused regression rejects requests that attempt to reintroduce the removed `space` object.
+
+Source repair commits:
+
+```text
+ab17c6e86e4adefa2026d58e43bd8fbd9abaccc5
+86cec31678c36ce1ab2d3b4b0ecc99803fd553f8
+ef214e560bcb3cdf01eca7b8b4fb6fc508ffc06f
+be9e7edc10396986d9d18870d2db7329b83ff6c0
+```
+
+CI for the first repaired head was checked three times and had not yet produced a workflow run; polling stopped per project policy. The source repair remains unclaimed by live T1 until exact CI/package closure and a fresh bounded install-authority execution package are produced.
+
 
 ## Live R8 boundary
 
