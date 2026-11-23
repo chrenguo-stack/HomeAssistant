@@ -1325,6 +1325,40 @@ def _dispatch_pending_candidate(store: HaUsbStateStore, runtime: LocalHaPredeces
     document = store.read()
     if document is None or document["status"] != "ACTIVE" or document["recovery_required"]:
         return "NO_PENDING_RECOVERY"
+    capacity_failures = {
+        "ha_usb_target_space_insufficient": "target_archive",
+        "ha_usb_predecessor_space_insufficient": "predecessor_archive",
+    }
+    failure = document.get("failure_code")
+    if document["phase"] == U3 and failure in capacity_failures:
+        operation = capacity_failures[failure]
+        events = document.get("usb_capacity_events", [])
+        matching = [
+            event for event in events
+            if event["operation"] == operation and event["capacity_pass"] is False
+        ]
+        if not matching:
+            raise UpdaterV2Error("ha_usb_capacity_block_evidence_missing")
+        blocked = matching[-1]
+        mountpoint = runtime._original_mountpoint(document["usb_filesystem_uuid"])
+        report = measure_preparation_capacity(
+            mountpoint, store.root, document["usb_filesystem_uuid"], blocked["required_bytes"],
+        )
+        if report.capacity_pass is not True:
+            return "PREPARE_WAITING_FOR_USB_SPACE"
+        with store.lock():
+            latest = store.read()
+            if (
+                latest is None or latest["status"] != "ACTIVE" or latest["phase"] != U3
+                or latest.get("failure_code") != failure
+            ):
+                raise UpdaterV2Error("ha_usb_capacity_block_transaction_drift")
+            store.write({
+                **latest,
+                "failure_code": None,
+                "updated_at_unix": max(latest["updated_at_unix"], int(time.time())),
+            })
+        document = store.read()
     if document["phase"] in {U1, U2, U3} and (store.root / PREPARE_AUTHORITY_FILE).exists():
         return runtime.prepare_requested(store)
     if (
