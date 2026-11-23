@@ -1,5 +1,22 @@
 ## Current T1 Core Stack authority index
 
+
+### 2026-11-23 — KF-144 source / CI / package closure; live repair pending
+
+- PR #824 executable source head: `1fbe674e25edb4c6fb1a3740042778adc55def68`.
+- Exact-head CI: 22/22 workflows SUCCESS, 0 FAILURE, 0 RUNNING/PENDING.
+- KF-144 root cause: live HA predecessor did not activate `n3w_ota_monitoring`; legacy Manager lacked self-test; latest natural replay telemetry was stale, so predecessor acceptance baseline was structurally unreachable.
+- Last verified live transaction: ACTIVE `U4_READY_TO_INSTALL`, file SHA256 `a22a4260...`, failure `ha_usb_predecessor_acceptance_baseline_unavailable`; authorization unclaimed/unconsumed, target 10.0 unloaded, HA/Manager/Broker healthy.
+- Live Generic V2 baseline SHA256: `78404869cda4b6fe14226b514623880b76045cd9a58a149f063d61edf57dd199`.
+- Manager successor target: `local/greenhouse-manager:fresh-1cae18039eee`, image ID `sha256:9547078268e5...`, tar SHA256 `bbce0ee5c399...`.
+- KF-144 Manager-only package: run `45175810919`, artifact `14819845760`, artifact digest `sha256:362c300922816730d4209d450b376769c19319a34d594d2c3a90ea2e31ab143a`, Generic V2 updater pyz SHA256 `d43036f333872e2e25272b26552809c8d40cd822efc8f0d414e71878594bf2bc`.
+- Repaired HA recovery package: run `45175810759`, artifact `14818806074`, artifact digest `sha256:46bc0cc890b791de8219cabb12eb162136027c2ad7d6ef1c4fb4d3c21a2f009d`, install manifest SHA256 `ef8e040fabe2fa1619d1ee28fce1785a535ef85edd15f8f4d416ed780e08fe07`.
+- KF-144 status: `SOURCE_CI_CLOSED_LIVE_REPAIR_PENDING`; not yet GUARDED.
+- Next live order: fresh rebind → updater-only patch → retire proven no-mutation U4 failure → Generic V2 Manager successor → candidate monitoring activation/self-test → fresh HA PREPARE.
+- Broker OTA remains deferred.
+- Closure: [KF-144 source / CI / package closure](N3W_T1_OTA_V1_3_KF144_SOURCE_CI_PACKAGE_CLOSURE_20261123.md).
+
+
 ### 2026-11-23 — T1 Core Stack OTA V1.3 architecture authority
 
 - Product architecture: [T1 Core Stack OTA V1.3](N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.3_20261123.md), blob `4f2a2a269ca492f5787b25a869a5a38889ae6aaa`.
