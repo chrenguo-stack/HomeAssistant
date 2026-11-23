@@ -276,6 +276,103 @@ def test_candidate_compose_renders_only_ota_and_ha_monitoring_bindings(package, 
     assert render(base) == original
 
 
+def test_candidate_runtime_activation_is_transaction_idle_and_self_tested(package, tmp_path, monkeypatch):
+    staged, digest, head = package
+    root = tmp_path / "host"
+    root.mkdir()
+    deploy.install(staged, digest, root=root, systemctl=Systemd(root))
+
+    active_path = root / deploy.COMPOSE.relative_to("/")
+    active_path.parent.mkdir(parents=True, exist_ok=True)
+    original = (REPO / deploy.BASE_COMPOSE).read_bytes()
+    active_path.write_bytes(original)
+
+    ref = "local/n3w-homeassistant:2026.10.0-01234567"
+    active = {"services": {
+        "manager": {"environment": {"GH_SYSTEM_ID": "fixture"}, "volumes": [], "image": "manager"},
+        "broker": {"image": "broker"},
+        "homeassistant": {"image": ref, "volumes": [{
+            "type": "bind", "source": deploy.ACTIVE_HA_CONFIG,
+            "target": deploy.HA_CONFIG_TARGET, "read_only": True,
+        }]},
+    }}
+    proposed = copy.deepcopy(active)
+    proposed["services"]["manager"]["environment"].update(deploy._candidate_settings("2026.10.0"))
+    proposed["services"]["manager"]["volumes"] = [{
+        "type": "bind", "source": str(IPC_SOCKET.parent), "target": str(IPC_SOCKET.parent),
+        "read_only": True, "bind": {"create_host_path": False},
+    }]
+    ha = proposed["services"]["homeassistant"]
+    ha["environment"] = {"GH_SYSTEM_ID": "fixture"}
+    ha["volumes"][0]["source"] = f"/{deploy.DESTINATIONS[deploy.MONITORING_CONFIG]}"
+    ha["volumes"].append({
+        "type": "bind", "source": str(deploy.MONITORING_DESTINATION),
+        "target": deploy.MONITORING_TARGET, "read_only": True,
+        "bind": {"create_host_path": False},
+    })
+
+    monkeypatch.setattr(deploy, "check_candidate_activation", lambda *a, **k: {
+        "source_head": head,
+        "status": "CANDIDATE_ACTIVATION_PREFLIGHT_PASS",
+        "predecessor_version": "2026.10.0",
+        "manager_monitoring_self_test_available": True,
+        "monitoring_mode": "natural_with_self_test_fallback",
+    })
+
+    actions = []
+    binding = {"images": {
+        "manager": {"reference": "manager"},
+        "broker": {"reference": "broker"},
+        "homeassistant": {"reference": ref},
+    }}
+
+    class Runtime:
+        def candidate_manager_monitoring_self_test_available(self):
+            return True
+
+        def _runtime(self, name):
+            assert name == "homeassistant"
+            return {"image_ref": ref, "image_id": "sha256:" + "c" * 64}
+
+        def capture_start_binding(self, document):
+            assert document["current_image_ref"] == ref
+            return copy.deepcopy(binding)
+
+        def stop_services(self):
+            actions.append("stop")
+
+        def start_services(self, *, readiness_timeout):
+            assert readiness_timeout == deploy.HOMEASSISTANT_SERVICES_READINESS_TIMEOUT_SECONDS
+            actions.append("start")
+
+        def _replace_product_file(self, path, payload, *, verify_error):
+            actions.append(("replace", sha256_bytes(payload)))
+            path.write_bytes(payload)
+            return sha256_bytes(payload)
+
+        def acceptance_observer(self):
+            return SimpleNamespace(
+                run_monitoring_self_test=lambda: SimpleNamespace(verdict="PASS", sha256="a" * 64)
+            )
+
+    def render(path, *, predecessor_version=None):
+        if "GH_N3W_T1_OTA_ENABLED" in path.read_text():
+            return copy.deepcopy(proposed)
+        return copy.deepcopy(active)
+
+    result = deploy.activate_candidate_runtime(
+        staged, digest, root=root, runtime=Runtime(),
+        systemctl=lambda *a, **k: "", render=render,
+    )
+    assert result["status"] == "CANDIDATE_RUNTIME_ACTIVATED"
+    assert result["source_head"] == head
+    assert result["monitoring_self_test_sha256"] == "a" * 64
+    assert result["runtime_images_unchanged"] is True
+    assert result["broker_mutation"] is False
+    assert actions[0] == "stop" and actions[-1] == "start"
+    assert "GH_N3W_T1_OTA_ENABLED" in active_path.read_text()
+
+
 @pytest.mark.parametrize("fault", [
     None, "empty_bind", "socket", "version", "mount", "create_path", "broker", "transaction",
     "monitoring_mount", "system_id", "active_config", "manager_probe", "legacy_manager",
