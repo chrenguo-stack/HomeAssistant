@@ -16,7 +16,8 @@ import n3w_t1_core_updater_ha_mounted_media as mounted_media
 import n3w_t1_core_updater_ha_recovery_startup as startup
 from n3w_t1_core_updater_ha_usb_state import U7
 from n3w_t1_core_updater_ha_usb_media import (
-    USB_MEDIA_MIN_CAPACITY_BYTES,
+    USB_PRODUCT_MIN_CAPACITY_GB,
+    USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
     RemovableDeviceCandidate,
     classify_candidate,
 )
@@ -35,8 +36,10 @@ def test_v13_architecture_freezes_16gb_media_and_dynamic_per_operation_capacity(
     assert "固定常量只能描述固定开销" in text
 
 
-def test_16gb_physical_media_minimum_is_not_a_transaction_reserve() -> None:
-    base = dict(
+def test_16gb_product_minimum_is_separate_from_transaction_free_space() -> None:
+    assert USB_PRODUCT_MIN_CAPACITY_GB == 16
+    assert USB_MEASURED_USABLE_CAPACITY_MIN_BYTES == 14 * 1024**3
+    candidate = RemovableDeviceCandidate(
         public_fingerprint="a" * 64,
         newly_inserted=True,
         removable=True,
@@ -46,18 +49,7 @@ def test_16gb_physical_media_minimum_is_not_a_transaction_reserve() -> None:
         backs_production_mount=False,
         display_identity_matches=True,
     )
-    assert classify_candidate(
-        RemovableDeviceCandidate(
-            **base,
-            capacity_bytes=USB_MEDIA_MIN_CAPACITY_BYTES,
-        )
-    ) == ()
-    assert "below_minimum_capacity" in classify_candidate(
-        RemovableDeviceCandidate(
-            **base,
-            capacity_bytes=USB_MEDIA_MIN_CAPACITY_BYTES - 1,
-        )
-    )
+    assert classify_candidate(candidate) == ()
 
 
 def test_prepare_authority_v2_does_not_accept_static_predecessor_or_reserve_budget() -> None:
