@@ -31,24 +31,26 @@ V1_3_RECOVERY_PYZ_SHA256=ae7c74a260f6023e19a0d63f2542f7c1bbc2693c032763270047771
 V1_3_RECOVERY_PYZ_SIZE_BYTES=479591
 
 LIVE_RUNTIME_ALIGNED_TO_V1_3=true
-LIVE_UPDATER_SOURCE_HEAD=9093bf6ca13b27b850ee28d4508135c385b4b6ce
-LIVE_UPDATER_PYZ_SHA256=9cf539cb7c7facd15a9729a2472601e5fce4f9c9b27750007e8924f73a8211b2
-LIVE_UPDATER_ALIGNED_TO_CURRENT_SOURCE=false
+LIVE_UPDATER_SOURCE_HEAD=c702dda43780892d477bc1a10141d98abc0d8229
+LIVE_UPDATER_PYZ_SHA256=ae7c74a260f6023e19a0d63f2542f7c1bbc2693c032763270047771e435d3e5c
+LIVE_UPDATER_ALIGNED_TO_CURRENT_SOURCE=true
 CURRENT_V1_3_SOURCE_HEAD=c702dda43780892d477bc1a10141d98abc0d8229
 
-NEXT_ONE_GATE=N3W_T1_V1_3_U4_IDENTITY_PATCH_20261123_01
-NEXT_GATE_SCOPE=UPDATER_ONLY_PYZ_PATCH
-NEXT_CHAT_EXECUTION_DIRECTED_BY_USER=true
-SCHEMA_V2_PREPARE_AUTHORITY_IN_NEXT_GATE=false
-U3_TO_U4_RESUME_IN_NEXT_GATE=false
-AUTO_EXECUTE_NEXT_GATE_AFTER_FRESH_REBIND=true
+LAST_COMPLETED_GATE=N3W_T1_V1_3_U4_IDENTITY_PATCH_20261123_01
+LAST_COMPLETED_GATE_RESULT=PASS
+NEXT_ONE_GATE=SCHEMA_V2_U3_TO_U4_LIVE_ACCEPTANCE
+NEXT_GATE_SCOPE=FRESH_REBIND_THEN_SEPARATELY_AUTHORIZED_U3_TO_U4
+NEXT_GATE_AUTHORIZATION_REQUIRED=true
+SCHEMA_V2_PREPARE_AUTHORITY_AUTHORIZED_NOW=false
+U3_TO_U4_RESUME_AUTHORIZED_NOW=false
+AUTO_EXECUTE_NEXT_GATE_AFTER_FRESH_REBIND=false
 ```
 
 V1.3 freezes two separate capacity questions. The product requires a 16GB-or-larger USB; runtime verifies the 16GB-class media using the existing 14 GiB measured-usable filesystem floor plus filesystem/identity checks. Each variable-size operation then re-measures the actual payload requirement and the current USB free space immediately before that write. Target, predecessor export and protected-data backup are independently admitted. A fixed generic reserve cannot stand in for future variable payloads.
 
 The current exact source/test closure includes two live-discovered U3/U4 compatibility repairs: adoption of already-verified pre-V1.3 U3 archives without fabricating historical capacity events, and production-shaped predecessor identity handling at U4. The latter is tracked as KF-143. Exact source/test head `c702dda4...` completed 19 applicable SUCCESS workflows, 0 FAILURE, 0 CANCELLED and 2 expected path-gated SKIPPED. Exact recovery updater artifact `14795440698` contains pyz SHA256 `ae7c74a2...`.
 
-The live spare T1 is intentionally one updater revision behind that current closure: it runs exact source `9093bf6c...` / pyz `9cf539cb...`, remains healthy at ACTIVE U3, and has no active prepare authority. The next bounded operation is updater-only patch `N3W_T1_V1_3_U4_IDENTITY_PATCH_20261123_01`; it must not issue schema-v2 authority or resume U3.
+The live spare T1 has completed updater-only patch `N3W_T1_V1_3_U4_IDENTITY_PATCH_20261123_01`: exact source/test head `c702dda4...` / pyz `ae7c74a2...` is installed, the same ACTIVE U3 transaction is unchanged, no prepare authority is active, target 10.0 remains unloaded, and HA/Manager/Broker remain healthy. The patch boundary is closed. Schema-v2 authority issuance and U3→U4 resume remain a separate, currently unauthorized live-acceptance boundary.
 
 Source alignment:
 `docs/development/N3W_T1_OTA_V1_3_DYNAMIC_USB_CAPACITY_SOURCE_ALIGNMENT_20261123.md`.
@@ -114,88 +116,60 @@ rejection of stale ancestry or source drift. Historical public-safe closure and 
 documents are archived byte-for-byte. No T1, USB, Docker, service, production runtime or board
 mutation occurs. R5 remains a separate real-T1 read-only authorization boundary.
 
-## 2026-11-23 — T1 OTA V1.3 live updater at 9093bf6c; U3 held; c702dda4 U4 identity patch ready
+## 2026-11-23 — T1 OTA V1.3 U4 identity updater patch PASS; ACTIVE U3 preserved
 
 ```text
-STATE=R8_PREDECESSOR_PREPARATION_U3_HELD_PENDING_U4_IDENTITY_PATCH
+STATE=R8_PREDECESSOR_PREPARATION_U3_HELD_AFTER_U4_IDENTITY_PATCH
 PR=824
 PR_STATE=OPEN_DRAFT
 REPOSITORY_MAIN=4fde1b7c5cc0aa224fa3574b8b4cc638edd93647
+
+PATCH_AUTHORIZATION_ID=N3W_T1_V1_3_U4_IDENTITY_PATCH_20261123_01
+PATCH_STATUS=PASS
+LOCAL_GATE_SCRIPT_SHA256=16ec035c51da4dbe2be3369ae7fcbd62aa438047ccd7c11ba2fa1400c7ae18c3
+PRIVATE_EXECUTOR_SHA256=017eba383c90ae1477efb2365505841891cd4981849e1f3756149bf21155856f
+LIVE_PREFLIGHT=PASS
+LIVE_PREFLIGHT_RECHECK=PASS
+REMOTE_STAGING_CLEANUP=PASS
 
 LIVE_HOMEASSISTANT=local/n3w-homeassistant:2026.10.4-5881590f
 LIVE_MANAGER=local/greenhouse-manager:fresh-44e7d7472714
 LIVE_BROKER=local/n3w-mosquitto:2.1.2-3184566d
 LIVE_RUNTIME_HEALTH=PASS
-LIVE_RUNTIME_RESTART_COUNT=0
 
-LIVE_UPDATER_SOURCE_HEAD=9093bf6ca13b27b850ee28d4508135c385b4b6ce
-LIVE_UPDATER_ARTIFACT_ID=14793024413
-LIVE_UPDATER_PYZ_SHA256=9cf539cb7c7facd15a9729a2472601e5fce4f9c9b27750007e8924f73a8211b2
-CURRENT_SOURCE_TEST_HEAD=c702dda43780892d477bc1a10141d98abc0d8229
-CURRENT_EXECUTABLE_SOURCE_HEAD=a758239642f7cd54296548ae8b07a0d8cdc5f479
-CURRENT_RECOVERY_ARTIFACT_ID=14795440698
-CURRENT_RECOVERY_PYZ_SHA256=ae7c74a260f6023e19a0d63f2542f7c1bbc2693c032763270047771e435d3e5c
-LIVE_UPDATER_ALIGNED_TO_CURRENT_SOURCE=false
+LIVE_UPDATER_SOURCE_HEAD=c702dda43780892d477bc1a10141d98abc0d8229
+LIVE_UPDATER_ARTIFACT_ID=14795440698
+LIVE_UPDATER_PYZ_SHA256=ae7c74a260f6023e19a0d63f2542f7c1bbc2693c032763270047771e435d3e5c
+LIVE_UPDATER_ALIGNED_TO_CURRENT_SOURCE=true
+NON_PYZ_VERIFIED_COUNT=10
 
 HA_TRANSACTION_STATUS=ACTIVE
 HA_TRANSACTION_PHASE=U3_TARGET_DOWNLOADING_VERIFYING
 HA_TRANSACTION_ID_SHA256=760dc8bdab1c9ceee2b0d3dfb2797111f24e69a9e7569efb6907bc64325d71fe
 HA_TRANSACTION_FILE_SHA256=9e663188098c6d4795115da42bd2acd4b31abb05aeb9f48ab8dfabac620988c7
-AUTHORIZATION_CLAIMED=false
-AUTHORIZATION_CONSUMED=false
-RECOVERY_REQUIRED=false
+ACTIVE_PREPARE_AUTHORITY=false
 TARGET_2026_10_0_LOADED=false
 
-USB_TARGET_TAR_EXACT=true
-USB_TARGET_TAR_SHA256=e52d12779f7562d3f37a265d622fbaf31e758deba5998e40cafb5a33a118b663
-USB_TARGET_TAR_SIZE_BYTES=2448553472
-USB_PREDECESSOR_TAR_EXACT=true
-USB_PREDECESSOR_TAR_SHA256=6502b8cdbf706d746e32311fdaa39ffc5ca703d76f766806bbb21d3c71278d1f
-USB_PREDECESSOR_TAR_SIZE_BYTES=2447090176
-USB_PARTIAL_FILES_ABSENT=true
-INTERNAL_TARGET_SPOOL_PRESENT=false
-
-OLD_SCHEMA_V1_PREPARE_AUTHORITY_ACTIVE=false
-OLD_SCHEMA_V1_PREPARE_AUTHORITY_RETIRED=true
-OLD_SCHEMA_V1_PREPARE_AUTHORITY_SHA256=e6c10889e30029cd0b7346d8301c74dcd7505737f34f97d62771cdc1414ac855
-FAILED_SCHEMA_V2_PREPARE_AUTHORITY_ACTIVE=false
-FAILED_SCHEMA_V2_PREPARE_AUTHORITY_RETIRED=true
-FAILED_SCHEMA_V2_PREPARE_AUTHORITY_SHA256=4fd417c97820a45c397dd4462d3ec86741ac6c7037fdac7302814a3916476edf
-
-UPDATER_TAKEOVER_RESULT=PASS
-LEGACY_U3_COMPAT_PATCH_RESULT=PASS
-SCHEMA_V2_U3_TO_U4_ATTEMPT_01=STOP_BEFORE_AUTHORITY_ISSUANCE
-SCHEMA_V2_U3_TO_U4_ATTEMPT_01_ROOT_CAUSE=RETRY_TIMER_QUIESCED_BEFORE_AUTHORITY_ISSUANCE
-SCHEMA_V2_U3_TO_U4_ATTEMPT_02=STOP_AFTER_AUTHORITY_ISSUANCE_BEFORE_U4
-SCHEMA_V2_U3_TO_U4_ATTEMPT_02_AUTHORITY_RETIRED=true
-SCHEMA_V2_U3_TO_U4_ATTEMPT_02_ROOT_CAUSE=PRODUCTION_PREDECESSOR_PORTABLE_IDENTITY_CONTRACT_MISMATCH
+UPDATER_SOCKET_REARMED=true
+UPDATER_TIMER_REARMED=true
+STOP_BEFORE_SCHEMA_V2_AUTHORITY=true
 
 KF_143_STATUS=OPEN
-KF_143_SOURCE_FIX=a758239642f7cd54296548ae8b07a0d8cdc5f479
-KF_143_TEST_HEAD=c702dda43780892d477bc1a10141d98abc0d8229
-KF_143_CI=19_SUCCESS_2_EXPECTED_SKIPPED
-KF_143_LIVE_ACCEPTANCE=false
+KF_143_SOURCE_TEST_PACKAGE_REPAIR=CLOSED
+KF_143_LIVE_PATCH_DEPLOYMENT=PASS
+KF_143_U3_TO_U4_LIVE_ACCEPTANCE=false
 
-NEXT_AUTHORIZATION_ID=N3W_T1_V1_3_U4_IDENTITY_PATCH_20261123_01
-NEXT_GATE=UPDATER_ONLY_PATCH_9093bf6c_TO_c702dda4
-NEXT_GATE_USER_DIRECTED=true
-NEXT_GATE_SCHEMA_V2_AUTHORITY=false
-NEXT_GATE_U3_RESUME=false
-NEXT_GATE_U5=false
-NEXT_GATE_USB_PAYLOAD_WRITE=false
-NEXT_GATE_TARGET_LOAD=false
-NEXT_STOP=ACTIVE_U3_WITH_c702dda4_UPDATER
+NEXT_BOUNDARY=SCHEMA_V2_U3_TO_U4_LIVE_ACCEPTANCE
+NEXT_BOUNDARY_AUTHORIZED=false
+AUTO_EXECUTE_NEXT_BOUNDARY=false
 ```
 
-Live takeover and legacy-U3 compatibility deployment succeeded without advancing the HA transaction. The old schema-v1 authority is retired. A first schema-v2 U3→U4 attempt stopped before authority issuance because the operator command had quiesced the recovery timer that the exact source requires active. Attempt 02 corrected that sequencing and successfully issued a schema-v2 authority, but `--resume-pending` returned `RECOVERY_STARTUP_NEEDS_REVIEW`; the transaction remained the same ACTIVE U3 and the newly issued v2 authority was atomically retired.
+The updater-only identity patch passed on the live spare T1. The exact c702dda4 recovery package was rebound before mutation, the old pyz matched `9cf539cb...`, and the transaction matched the expected ACTIVE `U3_TARGET_DOWNLOADING_VERIFYING` file SHA256 `9e663188...`. After the atomic pyz replacement, readback matched `ae7c74a2...`, all 10 non-pyz install payloads remained exact, the transaction did not advance or drift, no prepare authority was active, target 10.0 remained unloaded, HA/Manager/Broker remained healthy, and the updater socket/timer were rearmed.
 
-Independent source review then confirmed KF-143: production `candidate_admission()` creates `current_image_identity` with `runtime_image_id + platform`, while the U4 prepared-material validator previously required a nonexistent `portable_identity_sha256`. Source fix `a7582396...` retains exact mismatch fail-closed behavior when the field exists and accepts the freshly parsed/verified predecessor identity when production admission never supplied the optional field. Regression head `c702dda4...` covers production-shaped identity plus explicit mismatch rejection and is exact-CI/package closed.
+This closes only `N3W_T1_V1_3_U4_IDENTITY_PATCH_20261123_01`. KF-143 remains OPEN until a separately authorized schema-v2 U3→U4 live acceptance proves the repaired production-shaped predecessor identity contract. No schema-v2 authority was issued or consumed in this patch, and no U3→U4, U5/install, target load, USB payload mutation, reboot, Broker mutation, merge, or release was performed.
 
-The current recovery artifact for that repair is run `45124757720`, artifact `14795440698`, ZIP SHA256 `3bd2f94d...`, manifest SHA256 `6fdaa8a5...`, pyz SHA256 `ae7c74a2...` (479591 bytes). Artifact comparison proves only `ha-recovery.pyz` changes versus the currently live `9093bf6c...` package; ten non-pyz install payloads are byte-identical.
+Public-safe execution closure: `docs/development/N3W_T1_OTA_V1_3_U4_IDENTITY_PATCH_EXECUTION_CLOSURE_20261123.md`.
 
-The user directed the next conversation to execute `N3W_T1_V1_3_U4_IDENTITY_PATCH_20261123_01`. That gate is updater-only. It may fresh-rebind the current U3/runtime/authority state, stage and exact-verify artifact `14795440698`, quiesce only updater control-plane units, atomically replace `ha-recovery.pyz`, verify non-pyz parity and transaction non-drift, then rearm and read-only audit. It does not authorize schema-v2 prepare authority issuance, U3→U4 resume, U5, HA/Manager stop, target image load, USB payload mutation, reboot, Broker mutation, merge or release.
-
-Key public evidence: PR #824 comments `7093009644` (legacy patch PASS), `7093054823` (U3→U4 authorization), `7093088176` / `7093099117` (Attempt 01 STOP/root cause), `7093400041` (Attempt 02 STOP and v2 authority retirement), `7093431574` (KF-143 root cause/source repair), `7093590977` (c702 exact CI/package closure).
 
 ## Latest authority — 2026-11-06 mandatory-USB HA OTA R4 host integration CLOSED_PASS
 

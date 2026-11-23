@@ -8,12 +8,13 @@
 - Current executable repair head is `a758239642f7cd54296548ae8b07a0d8cdc5f479`; exact source/test head is `c702dda43780892d477bc1a10141d98abc0d8229`.
 - Exact CI for `c702dda4...`: 19 applicable SUCCESS, 0 FAILURE, 0 CANCELLED, 0 RUNNING and 2 expected path-gated SKIPPED.
 - Current exact recovery artifact: HA target-binding run `45124757720`, artifact `14795440698`, ZIP SHA256 `3bd2f94d2bd64fc35106f299fef08559d0a55c42852ce736d1e5a931cd09459e`, manifest SHA256 `6fdaa8a5c8b8c2a2f388bd536e276238edd0ae05f0a7ad23948409953ee16dd4`, pyz SHA256 `ae7c74a260f6023e19a0d63f2542f7c1bbc2693c032763270047771e435d3e5c`.
-- Live spare T1 remains intentionally on prior updater source `9093bf6ca13b27b850ee28d4508135c385b4b6ce` / pyz `9cf539cb...`; runtime is healthy and the HA transaction remains the same ACTIVE `U3_TARGET_DOWNLOADING_VERIFYING`.
-- Existing USB target/predecessor archives remain exact and complete; no partial files; target 10.0 remains unloaded.
-- Old schema-v1 prepare authority and failed Attempt-02 schema-v2 authority are retired; no active prepare authority exists at the handoff stop.
-- KF-143 records the production-shaped predecessor identity contract defect that blocked U4; source/test/package repair is closed but live U3→U4 acceptance remains OPEN.
-- Next authorized live gate: `N3W_T1_V1_3_U4_IDENTITY_PATCH_20261123_01`, updater-only `9093bf6c -> c702dda4`. It does not include schema-v2 authority issuance or U3 resume.
-- Current continuation handoff: [V1.3 U4 identity patch execution handoff](N3W_T1_OTA_V1_3_U4_IDENTITY_PATCH_EXECUTION_NEW_CHAT_HANDOFF_V1.0_20261123.md).
+- Live spare T1 updater-only patch `N3W_T1_V1_3_U4_IDENTITY_PATCH_20261123_01` is PASS: source/test head `c702dda43780892d477bc1a10141d98abc0d8229`, artifact `14795440698`, pyz SHA256 `ae7c74a260f6023e19a0d63f2542f7c1bbc2693c032763270047771e435d3e5c`.
+- The same HA transaction remains ACTIVE `U3_TARGET_DOWNLOADING_VERIFYING` with file SHA256 `9e663188098c6d4795115da42bd2acd4b31abb05aeb9f48ab8dfabac620988c7`; no active prepare authority exists and target 10.0 remains unloaded.
+- Patch post-audit proved 10 non-pyz install payloads unchanged, HA/Manager/Broker healthy, updater socket/timer rearmed, and remote staging cleanup PASS.
+- KF-143 source/test/package repair and live updater deployment are complete, but KF-143 remains OPEN until separately authorized schema-v2 U3→U4 live acceptance succeeds.
+- Current stop boundary is before schema-v2 authority issuance. U3→U4 is not authorized by the completed patch gate and must not auto-execute.
+- Execution closure: [V1.3 U4 identity patch execution closure](N3W_T1_OTA_V1_3_U4_IDENTITY_PATCH_EXECUTION_CLOSURE_20261123.md).
+- Historical execution handoff: [V1.3 U4 identity patch execution handoff](N3W_T1_OTA_V1_3_U4_IDENTITY_PATCH_EXECUTION_NEW_CHAT_HANDOFF_V1.0_20261123.md).
 - Historical handoff [V1.3 source closure → R8 reacceptance](N3W_T1_OTA_V1_3_SOURCE_CLOSURE_TO_R8_REACCEPTANCE_NEW_CHAT_HANDOFF_V1.0_20261123.md) is superseded for live-state continuation but retained as history.
 - Source alignment: [V1.3 dynamic USB capacity source alignment](N3W_T1_OTA_V1_3_DYNAMIC_USB_CAPACITY_SOURCE_ALIGNMENT_20261123.md).
 
