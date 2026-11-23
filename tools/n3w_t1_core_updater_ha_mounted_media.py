@@ -73,15 +73,6 @@ def _exchange_directories(first_parent: int, first: str, second_parent: int, sec
         raise OSError(ctypes.get_errno(), "HA data directory exchange failed")
 
 
-@dataclass(frozen=True, slots=True)
-class HaInstallSpaceBudget:
-    """Additional space still needed at the current step, excluding existing files."""
-
-    internal_install_bytes: int
-    # Recovery overhead is additional to the measured image layers and HA restore workspace.
-    internal_recovery_overhead_bytes: int
-
-
 def _command_json(*argv: str) -> dict[str, Any]:
     try:
         result = subprocess.run(argv, capture_output=True, check=True, timeout=10)
@@ -535,14 +526,12 @@ class HaMountedInstallMaterialVerifier:
         internal_storage: Path,
         image_storage: Path,
         ha_data_root: Path,
-        budget: Callable[[dict[str, Any]], HaInstallSpaceBudget],
         verify_prestate: Callable[[dict[str, Any]], bool],
     ) -> None:
         self.mountpoint = mountpoint
         self.internal_storage = internal_storage
         self.image_storage = image_storage
         self.ha_data_root = ha_data_root
-        self.budget = budget
         self.verify_prestate = verify_prestate
         self._verified_images: dict[ImageRecoveryRecord, int] = {}
 
@@ -564,20 +553,15 @@ class HaMountedInstallMaterialVerifier:
                     with _verified_archive(directory, name, record, for_load=True) as (fd, blocks):
                         _, unpacked[record] = _authenticate_image(fd, blocks, record)
             prestate = self.verify_prestate(document)
-            capacity, internal = self._capacity(mount, self.budget(document), unpacked[target], unpacked[predecessor])
+            capacity, internal = self._capacity(mount, unpacked[target], unpacked[predecessor])
         self._verified_images = unpacked
         return HaInstallMaterials(
             document["usb_filesystem_uuid"].lower(), target, predecessor, capacity, prestate, internal,
         )
 
     def _capacity(
-        self, fd: int, budget: HaInstallSpaceBudget, target_bytes: int, predecessor_bytes: int,
+        self, fd: int, target_bytes: int, predecessor_bytes: int,
     ) -> tuple[UsbCapacityReport, HaInternalSpace]:
-        values = (
-            budget.internal_install_bytes, budget.internal_recovery_overhead_bytes,
-        )
-        if any(type(value) is not int or value <= 0 for value in values):
-            raise UpdaterV2Error("ha_usb_install_space_budget_invalid")
         usb = os.fstatvfs(fd)
         try:
             device = self.internal_storage.stat().st_dev
@@ -591,8 +575,8 @@ class HaMountedInstallMaterialVerifier:
             raise UpdaterV2Error("ha_usb_install_space_unavailable") from error
         space = HaInternalSpace(
             available_bytes=internal.f_bavail * internal.f_frsize,
-            install_required_bytes=max(budget.internal_install_bytes, target_bytes),
-            recovery_required_bytes=predecessor_bytes + workspace + budget.internal_recovery_overhead_bytes,
+            install_required_bytes=target_bytes,
+            recovery_required_bytes=predecessor_bytes + workspace,
             recovery_workspace_bytes=workspace,
         )
         usable = (usb.f_blocks - usb.f_bfree + usb.f_bavail) * usb.f_frsize
