@@ -82,6 +82,8 @@ PHASES = (
     U13B,
 )
 PHASE_INDEX = {phase: index for index, phase in enumerate(PHASES)}
+USB_CAPACITY_OPERATIONS = frozenset({"target_archive", "predecessor_archive", "protected_data_backup"})
+
 _ALLOWED_TRANSITIONS = {
     U0: frozenset({U1}),
     U1: frozenset({U2}),
@@ -146,6 +148,95 @@ def _bool(value: Any, reason: str) -> bool:
 
 def _phase_at_or_after(phase: str, threshold: str) -> bool:
     return PHASE_INDEX[phase] >= PHASE_INDEX[threshold]
+
+
+def _nonnegative_int(value: Any, reason: str) -> int:
+    if (
+        not isinstance(value, int)
+        or isinstance(value, bool)
+        or value < 0
+    ):
+        raise UpdaterV2Error(reason)
+    return value
+
+
+def _validate_usb_capacity_events(document: dict[str, Any]) -> None:
+    events = document.get("usb_capacity_events", [])
+    reason = "ha_usb_capacity_event_invalid"
+    if not isinstance(events, list) or len(events) > 32:
+        raise UpdaterV2Error(reason)
+    for event in events:
+        if (
+            not isinstance(event, dict)
+            or set(event) != {
+                "operation", "required_bytes", "available_bytes_before", "capacity_pass",
+                "actual_written_bytes", "available_bytes_after",
+            }
+            or event["operation"] not in USB_CAPACITY_OPERATIONS
+        ):
+            raise UpdaterV2Error(reason)
+        required = _positive_int(event["required_bytes"], reason)
+        available = _nonnegative_int(event["available_bytes_before"], reason)
+        passed = _bool(event["capacity_pass"], reason)
+        if passed != (available >= required):
+            raise UpdaterV2Error(reason)
+        actual = event["actual_written_bytes"]
+        after = event["available_bytes_after"]
+        if (actual is None) != (after is None):
+            raise UpdaterV2Error(reason)
+        if actual is not None:
+            actual = _positive_int(actual, reason)
+            _nonnegative_int(after, reason)
+            if not passed or actual > required:
+                raise UpdaterV2Error(reason)
+
+
+def record_usb_capacity_event(
+    document: dict[str, Any],
+    *,
+    operation: str,
+    required_bytes: int,
+    available_bytes_before: int,
+    capacity_pass: bool,
+    actual_written_bytes: int | None = None,
+    available_bytes_after: int | None = None,
+) -> dict[str, Any]:
+    current = validate_transaction_document(document)
+    event = {
+        "operation": operation,
+        "required_bytes": required_bytes,
+        "available_bytes_before": available_bytes_before,
+        "capacity_pass": capacity_pass,
+        "actual_written_bytes": actual_written_bytes,
+        "available_bytes_after": available_bytes_after,
+    }
+    probe = {**current, "usb_capacity_events": [*current.get("usb_capacity_events", []), event]}
+    _validate_usb_capacity_events(probe)
+    events = list(current.get("usb_capacity_events", []))
+    if actual_written_bytes is None:
+        if (
+            events
+            and events[-1]["operation"] == operation
+            and events[-1]["capacity_pass"] is True
+            and events[-1]["actual_written_bytes"] is None
+        ):
+            events[-1] = event
+        else:
+            events.append(event)
+    else:
+        if not (
+            events
+            and events[-1]["operation"] == operation
+            and events[-1]["capacity_pass"] is True
+            and events[-1]["actual_written_bytes"] is None
+            and events[-1]["required_bytes"] == required_bytes
+            and events[-1]["available_bytes_before"] == available_bytes_before
+        ):
+            raise UpdaterV2Error("ha_usb_capacity_event_completion_without_admission")
+        events[-1] = event
+    result = {**current, "usb_capacity_events": events}
+    _validate_usb_capacity_events(result)
+    return result
 
 
 def _validate_predecessor_start(document: dict[str, Any]) -> None:
@@ -426,6 +517,8 @@ def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
         or recovery_required
     ):
         raise UpdaterV2Error("ha_usb_pre_cutover_restoration_invalid")
+    _validate_usb_capacity_events(document)
+
     failure_code = document.get("failure_code")
     if failure_code is not None and (
         not isinstance(failure_code, str)
