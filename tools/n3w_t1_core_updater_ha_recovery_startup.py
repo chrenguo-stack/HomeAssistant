@@ -463,7 +463,13 @@ class LocalHaPredecessorRuntime(LocalHost):
                     raise UpdaterV2Error("ha_usb_capacity_event_transaction_drift")
                 events = latest.get("usb_capacity_events", [])
                 matching = [event for event in events if event["operation"] == operation]
-                if matching and matching[-1]["actual_written_bytes"] is not None:
+                if not matching:
+                    # A fully verified final archive may predate V1.3 (for example an
+                    # in-place takeover of a pre-V1.3 U3). No V1.3 write happened in
+                    # this call, so do not fabricate historical pre-write capacity
+                    # evidence. New writes still require an admission event.
+                    return
+                if matching[-1]["actual_written_bytes"] is not None:
                     if matching[-1]["actual_written_bytes"] == actual:
                         return
                     raise UpdaterV2Error("ha_usb_capacity_event_completion_drift")
