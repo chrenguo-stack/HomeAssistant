@@ -35,11 +35,11 @@ If protected-data capacity is insufficient after first stop, the existing pre-cu
 
 Executable code head:
 
-`05bed5e3b82370fd4dd699fe98e464613bc284a0`
+`5b45e893181d09deed1f47d588bb1099964e0667`
 
 Exact source/test head:
 
-`7484748c44b51da2de6a057f2ca29e9b9734309c`
+`51bd2ce8baab2ca0cff4d227765de4583e0f5121`
 
 Implemented changes:
 
@@ -63,38 +63,51 @@ Implemented changes:
 - a blocked U3 does not replay writes on timer wake; it only rechecks current free space;
 - a larger replacement USB is supported through a fresh PREPARE only for a pre-stop capacity-blocked U3; all later active transactions remain non-replaceable;
 - stale prepare authority from the archived transaction is treated as `PREPARE_WAITING_FOR_AUTHORITY`, not as a false failure; only a fresh authority bound to the new transaction can resume writes.
+- independent review removed the dead V1.1/R1 static-capacity production API (`UsbCapacityInputs`, `assess_capacity`, predecessor/data worst-case fields and removable-media reserve) because it had no runtime callers and contradicted V1.3; R1/R2 fixtures now construct `UsbCapacityReport` directly and the V1.3 suite forbids those legacy symbols from returning.
 
 ## Test evidence
 
-Two local, unambiguous test-only/formatting regressions were found during implementation and repaired without changing the product design:
+Independent review after the long implementation chain found and repaired one real source-consistency issue: the old V1.1/R1 static whole-transaction capacity API remained as dead production code even though the V1.3 runtime path no longer called it. It was removed and guarded against regression.
 
-1. an existing R1 security test still required `inspect` after an earlier import cleanup;
-2. Manager Ruff rejected the first Chinese status-message formatting because of import-block/line-length style.
+Exact source/test head:
 
-Both were repaired before the current exact source/test head.
+`51bd2ce8baab2ca0cff4d227765de4583e0f5121`
 
-At exact source/test head `7484748c44b51da2de6a057f2ca29e9b9734309c`, active polling stopped after the project limit of three checks:
+Final workflow state for that head:
 
 ```text
-CI_SUCCESS=12
+CI_SUCCESS=19
 CI_FAILURE=0
-CI_IN_PROGRESS=7
+CI_CANCELLED=0
+CI_IN_PROGRESS=0
 CI_EXPECTED_SKIPPED=2
 ```
 
-Completed SUCCESS includes Public repository safety, T1 R8 spare preflight, N3W T1 Core Stack current authority, N3W fast source/closure, Broker ingress guard, Manager runtime secret ownership, roadmap/C-07 identity semantics, H0/H1 initialization, Dynamic Security, native board auth and related regression jobs.
+Key exact evidence:
 
-Still running when polling stopped:
+- Manager A-to-B source: `253 passed`, including `tests/tools/test_n3w_t1_ota_v1_3_dynamic_usb_capacity.py`;
+- Home Assistant target-binding source: `301 passed, 1 skipped`;
+- Home Assistant exact-binding job: `1 passed`;
+- greenhouse-manager: Ruff PASS, `1541 passed, 1 skipped`, plus `8 passed`;
+- T1 R8 spare preflight, current authority, Public repository safety, Broker ingress guard and the remaining applicable workflows all completed SUCCESS.
 
-- greenhouse-manager CI: https://github.com/chrenguo-stack/HomeAssistant/actions/runs/45108299964
-- M2 node auth board lab CI: https://github.com/chrenguo-stack/HomeAssistant/actions/runs/45108300013
-- C-07 node retirement CI: https://github.com/chrenguo-stack/HomeAssistant/actions/runs/45108299925
-- Manager A-to-B exact updater/package CI: https://github.com/chrenguo-stack/HomeAssistant/actions/runs/45108300035
-- Home Assistant target-binding exact updater/package CI: https://github.com/chrenguo-stack/HomeAssistant/actions/runs/45108300021
-- M0 vertical slice CI: https://github.com/chrenguo-stack/HomeAssistant/actions/runs/45108299766
-- M2 private Mosquitto CI: https://github.com/chrenguo-stack/HomeAssistant/actions/runs/45108299799
+The two cancelled jobs seen on an earlier intermediate head were superseded PR runs, not failures. Both workflows use PR-scoped `concurrency` with `cancel-in-progress: true`; the current exact head reran both same-name workflows to SUCCESS.
 
-No terminal-success claim is made for those seven runs. In particular, the exact V1.3 recovery-updater artifact is not yet accepted/bound for live deployment.
+Exact V1.3 recovery-updater install artifact produced by the successful HA target-binding workflow:
+
+```text
+RECOVERY_UPDATER_SOURCE_HEAD=51bd2ce8baab2ca0cff4d227765de4583e0f5121
+RECOVERY_UPDATER_RUN_ID=45110450673
+RECOVERY_UPDATER_ARTIFACT_ID=14789063554
+RECOVERY_UPDATER_ARTIFACT_NAME=n3w-t1-ha-recovery-install-51bd2ce8baab2ca0cff4d227765de4583e0f5121
+RECOVERY_UPDATER_ARTIFACT_ZIP_SHA256=f7f4c9e874df799e320d823abe89355a4af117de5a686d6fe96398ddf6a964e1
+RECOVERY_INSTALL_MANIFEST_SHA256=d0f98dcaa2bdd2747e33b973bf01af622b1fdab1f0d99143a8ee76b3e387d3fc
+RECOVERY_UPDATER_ARTIFACT_SIZE_BYTES=101709
+```
+
+The artifact is CI-produced and exact-source-bound. It has not been deployed to the spare T1.
+
+One non-blocking R8 robustness item remains: explicit near-full/ext4 ENOSPC fault injection should verify that any mid-stream space exhaustion stays pre-cutover or restores the predecessor, does not retry-storm, leaves partial files safely recoverable and produces useful user-facing classification.
 
 ## Live R8 boundary
 
@@ -112,13 +125,21 @@ The T1 still runs the previously installed updater artifact. No V1.3 updater has
 
 The previously proposed static-reserve U1→U4 operator command is retired and must not be executed.
 
-After exact V1.3 CI/package closure, the next live sequence is:
+Exact V1.3 CI/package closure is now complete and the recovery-updater artifact is identified above.
 
-1. identify and verify the exact V1.3 recovery-updater artifact;
-2. separately authorize/deploy that updater on the spare T1 without advancing the HA transaction;
-3. read-only rebind the existing fresh U1 transaction and existing candidate;
-4. issue the V1.3 prepare authority;
-5. resume the existing U1 through dynamic target/predecessor capacity admission to U4;
-6. stop at U4 before INSTALL/U5.
+The existing live authorization in PR #824 comment `7087966758` was source-bound to `044ba31ddeefe7ad7c3e5ed5aedbb409acfd3801`. The V1.3 artifact is bound to `51bd2ce8...`; therefore the old live authorization must not be reused for V1.3 deployment without a fresh explicit authorization/rebind.
 
-USB format, reboot/power-cycle, Broker mutation/OTA, PR merge and production release remain outside this source-alignment work.
+Next live sequence:
+
+1. fresh read-only rebind of spare T1 health, installed updater, existing U1, candidate spool and bound USB;
+2. obtain a new bounded authorization explicitly binding the V1.3 recovery-updater artifact/source;
+3. deploy/rebind only the exact V1.3 recovery updater without advancing the HA transaction;
+4. read-only verify the existing U1 is still exact and unchanged;
+5. use the existing U1 as compatibility/takeover evidence and continue through V1.3 dynamic target/predecessor preparation to U4; stop before INSTALL/U5;
+6. under the appropriate existing/newly rebound predecessor-preparation authority, complete the maintenance 10.4 -> 10.0 transaction only when all gates pass; failure remains U13B recovery to exact 10.4;
+7. R5-R7 are not fully rerun. Only V1.3-affected targeted regression/read-only checks are required;
+8. final R8 acceptance must be a separate fresh V1.3 product-path 10.0 -> 10.4 transaction, covering normal success, substantive-fault automatic rollback, critical-boundary power-loss resume, dynamic USB capacity cases and near-full/ENOSPC fault injection.
+
+The current old U1 is compatibility evidence, not the sole final V1.3 R8 acceptance transaction.
+
+USB format, reboot/power-cycle, Broker mutation/OTA, PR merge and production release remain outside this source-alignment work unless separately authorized.
