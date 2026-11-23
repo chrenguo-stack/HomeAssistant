@@ -324,6 +324,26 @@ Resume admission requires:
 
 Before invoking retirement, the resume executor imports the exact installed pyz and performs a read-only internal preflight of `capture_start_binding()`, signed-predecessor binding, target absence, install-authority validation, and launch-hash parity. It then invokes the public `--retire-precutover-failure` path with the recovery timer still armed.
 
+## 6D. KF-146 Phase-D resume executor
+
+Phase C is not replayed. The next bounded operator executor first proves the already-committed Manager successor through the product's own portable-image identity contract, then executes only Phase D:
+
+```text
+PHASE_D_RESUME_EXECUTOR=N3W_T1_V1_3_KF144_PHASE_D_RESUME_20261123_03.sh
+PHASE_D_RESUME_EXECUTOR_SHA256=cbf957102739ead0a8b98a1a21b4cd8561a42207dd6e5a41482a8af5da0129d2
+BASH_SYNTAX=PASS
+EMBEDDED_REMOTE_PYTHON_COMPILE=PASS
+PARENT_AUTHORIZATION=N3W_T1_V1_3_KF144_LIVE_REPAIR_20261123_01
+PHASE_C_REPLAY=false
+PHASE_C_READONLY_CLOSURE=true
+PHASE_D_EXECUTION=true
+STOP_BEFORE_FRESH_HA_PREPARE=true
+```
+
+Admission requires Generic V2 `status` to show Manager `COMMITTED`, the consumed authorization hash to match the approved Manager child authorization, `runtime-state` to show `TARGET_BOUND_RUNNING / HEALTHY`, peer HA/Broker identities unchanged, and the exact preserved Manager tar to pass `LocalHost.verify_image_archive()`. The observed Docker host-local Id must equal the Generic V2 transaction's `target_runtime_image_id` and the portable verifier result; it is intentionally **not** required to equal the package config digest `sha256:954707...`.
+
+Only after this read-only closure passes may candidate activation run. Phase-D postchecks preserve the observed Manager runtime Id across activation and require the real Manager→Broker→HA monitoring self-test PASS. Fresh HA PREPARE remains outside this executor.
+
 ## 7. Archive status
 
 ```text
