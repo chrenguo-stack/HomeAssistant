@@ -24,6 +24,10 @@ PHASE_D_CANDIDATE_RUNTIME_REMAINS_EXPECTED=true
 REMOTE_STAGING_PRESERVED=/tmp/n3w-fresh-ha-prepare-20261123-01
 REPLAY_FAILED_EXECUTOR=false
 NEXT_ACTION=POST_ACTIVATION_READONLY_PROOF_THEN_CONTINUE_FRESH_PREPARE_ONLY
+RESUME_EXECUTOR=N3W_T1_V1_3_FRESH_HA_PREPARE_RESUME_20261123_02.sh
+RESUME_EXECUTOR_SHA256=6626881959796e867f0a0ce38fe0020496fd0728caad5ae66e312268d83884e7
+RESUME_REPLAYS_FAILED_PREACTIVATION_CHECK=false
+RESUME_REACTIVATES_CANDIDATE_RUNTIME=false
 ```
 
 The failed executor called `check_candidate_activation()` after Phase D had already activated the candidate runtime. That function intentionally requires the ordinary pre-activation Compose template and therefore rejects the already-active `GH_N3W_T1_OTA_*` settings. The repair must verify the active candidate state directly (exact active candidate Compose/env/monitoring payload, frozen runtime images, Manager self-test capability and a fresh monitoring self-test) without re-running candidate activation.
