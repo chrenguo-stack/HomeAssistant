@@ -9,6 +9,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
 import n3w_t1_core_updater_ha_recovery as recovery_mod
+import n3w_t1_core_updater_ha_usb_media as usb_media_mod
 from n3w_t1_core_updater_ha_backup import (
     HaDataBackupRecord,
     validate_backup_record,
@@ -25,8 +26,7 @@ from n3w_t1_core_updater_ha_usb_media import (
     USB_PRODUCT_MIN_CAPACITY_GB,
     USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
     RemovableDeviceCandidate,
-    UsbCapacityInputs,
-    assess_capacity,
+    UsbCapacityReport,
     authorize_destructive_format,
     classify_candidate,
     require_same_filesystem_uuid,
@@ -175,15 +175,14 @@ def u7_transaction():
 
 
 def passing_capacity_report():
-    return assess_capacity(
-        USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
-        UsbCapacityInputs(
-            target_artifact_bytes=1 * 1024**3,
-            predecessor_recovery_worst_case_bytes=2 * 1024**3,
-            ha_data_backup_worst_case_bytes=3 * 1024**3,
-            transaction_metadata_and_working_bytes=1 * 1024**3,
-            removable_media_reserve_bytes=1 * 1024**3,
-        ),
+    floor = USB_MEASURED_USABLE_CAPACITY_MIN_BYTES
+    return UsbCapacityReport(
+        measured_usable_bytes=floor,
+        required_bytes=TARGET_SIZE,
+        measured_floor_bytes=floor,
+        measured_floor_pass=True,
+        transaction_formula_pass=True,
+        capacity_pass=True,
     )
 
 
@@ -234,55 +233,14 @@ def test_explicit_destructive_confirmation_is_required():
     assert authorization.filesystem == "ext4"
 
 
-def test_exact_14_gib_measured_boundary_passes():
-    inputs = UsbCapacityInputs(
-        target_artifact_bytes=1 * 1024**3,
-        predecessor_recovery_worst_case_bytes=2 * 1024**3,
-        ha_data_backup_worst_case_bytes=3 * 1024**3,
-        transaction_metadata_and_working_bytes=1 * 1024**3,
-        removable_media_reserve_bytes=1 * 1024**3,
-    )
-    report = assess_capacity(
-        USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
-        inputs,
-    )
-    assert report.measured_floor_pass is True
-    assert report.transaction_formula_pass is True
-    assert report.capacity_pass is True
+def test_14_gib_machine_floor_and_16gb_product_class_are_retained():
+    assert USB_PRODUCT_MIN_CAPACITY_GB == 16
+    assert USB_MEASURED_USABLE_CAPACITY_MIN_BYTES == 14 * 1024**3
 
 
-def test_one_byte_below_14_gib_fails_even_when_formula_fits():
-    inputs = UsbCapacityInputs(
-        target_artifact_bytes=1,
-        predecessor_recovery_worst_case_bytes=1,
-        ha_data_backup_worst_case_bytes=1,
-        transaction_metadata_and_working_bytes=0,
-        removable_media_reserve_bytes=0,
-    )
-    report = assess_capacity(
-        USB_MEASURED_USABLE_CAPACITY_MIN_BYTES - 1,
-        inputs,
-    )
-    assert report.measured_floor_pass is False
-    assert report.transaction_formula_pass is True
-    assert report.capacity_pass is False
-
-
-def test_full_transaction_formula_can_reject_media_above_floor():
-    inputs = UsbCapacityInputs(
-        target_artifact_bytes=5 * 1024**3,
-        predecessor_recovery_worst_case_bytes=5 * 1024**3,
-        ha_data_backup_worst_case_bytes=5 * 1024**3,
-        transaction_metadata_and_working_bytes=1,
-        removable_media_reserve_bytes=1,
-    )
-    report = assess_capacity(
-        USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
-        inputs,
-    )
-    assert report.measured_floor_pass is True
-    assert report.transaction_formula_pass is False
-    assert report.capacity_pass is False
+def test_legacy_static_transaction_capacity_formula_is_removed():
+    assert not hasattr(usb_media_mod, "UsbCapacityInputs")
+    assert not hasattr(usb_media_mod, "assess_capacity")
 
 
 def test_bound_uuid_mismatch_fails_closed():
