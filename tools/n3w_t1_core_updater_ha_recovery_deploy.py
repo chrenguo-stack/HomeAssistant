@@ -266,12 +266,17 @@ def _systemctl(*args: str, check: bool = True) -> str:
     ).stdout.strip()
 
 
-def _render_candidate_compose(path: Path) -> dict:
+def _render_candidate_compose(path: Path, *, predecessor_version: str | None = None) -> dict:
+    environment = {"PATH": os.defpath}
+    if predecessor_version is not None:
+        if re.fullmatch(r"[0-9]{4}\\.[0-9]{1,2}\\.[0-9]{1,3}", predecessor_version) is None:
+            raise UpdaterError("ha_recovery_candidate_predecessor_version_invalid")
+        environment["GH_N3W_T1_OTA_INSTALLED_VERSION"] = predecessor_version
     result = subprocess.run(
         ("/usr/bin/docker", "compose", "--project-name", PROJECT,
          "--project-directory", str(COMPOSE.parent), "--env-file", str(COMPOSE_ENV),
          "-f", str(path), "--profile", "application", "config", "--format", "json"),
-        cwd=COMPOSE.parent, env={"PATH": os.defpath}, capture_output=True, timeout=120,
+        cwd=COMPOSE.parent, env=environment, capture_output=True, timeout=120,
     )
     if result.returncode != 0:
         raise UpdaterError("ha_recovery_candidate_compose_render_failed")
@@ -380,7 +385,7 @@ def check_candidate_activation(
         if runtime.image_binding_modes_v2().get("homeassistant") != "dynamic":
             raise UpdaterError("ha_recovery_candidate_predecessor_binding_not_dynamic")
         candidate = root / DESTINATIONS[CANDIDATE_COMPOSE]
-        _verify_candidate_delta(active, render(candidate), version)
+        _verify_candidate_delta(active, render(candidate, predecessor_version=version), version)
         config = payload[MONITORING_CONFIG]
         if not config.endswith(MONITORING_CONFIGURATION):
             raise UpdaterError("ha_recovery_candidate_ha_config_template_drift")
