@@ -41,10 +41,10 @@ from n3w_t1_core_updater_v2_common import (
     COMPONENTS,
     IMAGE_BINDINGS,
     IMAGE_PREFIXES,
-    converge_homeassistant_compose,
-    converge_homeassistant_env,
-    restore_homeassistant_compose,
-    restore_homeassistant_env,
+    converge_legacy_component_compose,
+    converge_legacy_component_env,
+    restore_legacy_component_compose,
+    restore_legacy_component_env,
     rewrite_component_env,
 )
 
@@ -612,7 +612,7 @@ class LocalHost:
         mode = self.image_binding_modes_v2()[component]
         if mode == "dynamic":
             return
-        if component == "homeassistant" and mode == "legacy_static":
+        if component in {"homeassistant", "broker"} and mode == "legacy_static":
             return
         raise UpdaterError(
             f"{component}_runtime_template_convergence_required"
@@ -1084,10 +1084,13 @@ class LocalHost:
             raise UpdaterError(verify_error)
         return sha256_bytes(observed)
 
-    def _converge_homeassistant_binding(
+    def _converge_legacy_component_binding(
         self,
+        component: str,
         expected: str,
     ) -> str:
+        if component not in {"homeassistant", "broker"}:
+            raise UpdaterError("legacy_static_component_unsupported")
         if (
             COMPOSE.is_symlink()
             or not COMPOSE.is_file()
@@ -1098,18 +1101,20 @@ class LocalHost:
         original_compose = COMPOSE.read_bytes()
         original_env = COMPOSE_ENV.read_bytes()
         try:
-            updated_env = converge_homeassistant_env(
+            updated_env = converge_legacy_component_env(
                 original_env,
+                component,
                 expected,
                 expected,
             )
-            updated_compose = converge_homeassistant_compose(
+            updated_compose = converge_legacy_component_compose(
                 original_compose,
+                component,
                 expected,
             )
         except Exception as error:
             raise UpdaterError(
-                "homeassistant_binding_convergence_invalid"
+                f"{component}_binding_convergence_invalid"
             ) from error
         try:
             env_sha = self._replace_product_file(
@@ -1137,11 +1142,20 @@ class LocalHost:
                 )
             except Exception as restore_error:
                 raise UpdaterError(
-                    "homeassistant_binding_convergence_restore_failed"
+                    f"{component}_binding_convergence_restore_failed"
                 ) from restore_error
             raise UpdaterError(
-                "homeassistant_binding_convergence_failed"
+                f"{component}_binding_convergence_failed"
             ) from error
+
+    def _converge_homeassistant_binding(
+        self,
+        expected: str,
+    ) -> str:
+        return self._converge_legacy_component_binding(
+            "homeassistant",
+            expected,
+        )
 
     def rewrite_component_image(
         self,
@@ -1153,11 +1167,11 @@ class LocalHost:
             raise UpdaterError("component_invalid")
         mode = self.image_binding_modes_v2()[component]
         if mode == "legacy_static":
-            if component != "homeassistant":
+            if component not in {"homeassistant", "broker"}:
                 raise UpdaterError(
                     f"{component}_runtime_template_convergence_required"
                 )
-            self._converge_homeassistant_binding(expected)
+            self._converge_legacy_component_binding(component, expected)
             original = COMPOSE_ENV.read_bytes()
             try:
                 updated = rewrite_component_env(
@@ -1212,7 +1226,10 @@ class LocalHost:
                     predecessor,
                 )
             return
-        if predecessor_mode != "legacy_static" or component != "homeassistant":
+        if (
+            predecessor_mode != "legacy_static"
+            or component not in {"homeassistant", "broker"}
+        ):
             raise UpdaterError("predecessor_binding_mode_unsupported")
         if (
             COMPOSE.is_symlink()
@@ -1224,18 +1241,20 @@ class LocalHost:
         original_compose = COMPOSE.read_bytes()
         original_env = COMPOSE_ENV.read_bytes()
         try:
-            restored_compose = restore_homeassistant_compose(
+            restored_compose = restore_legacy_component_compose(
                 original_compose,
+                component,
                 predecessor,
             )
-            restored_env = restore_homeassistant_env(
+            restored_env = restore_legacy_component_env(
                 original_env,
+                component,
                 predecessor,
                 expected_current,
             )
         except Exception as error:
             raise UpdaterError(
-                "homeassistant_binding_restore_invalid"
+                f"{component}_binding_restore_invalid"
             ) from error
         try:
             self._replace_product_file(
@@ -1251,7 +1270,7 @@ class LocalHost:
             rendered = self.render_compose()
             services = rendered.get("services")
             service = (
-                services.get("homeassistant")
+                services.get(component)
                 if isinstance(services, dict)
                 else None
             )
@@ -1260,7 +1279,7 @@ class LocalHost:
                 or service.get("image") != predecessor
             ):
                 raise UpdaterError(
-                    "homeassistant_binding_restore_render_invalid"
+                    f"{component}_binding_restore_render_invalid"
                 )
         except Exception as error:
             try:
@@ -1276,9 +1295,11 @@ class LocalHost:
                 )
             except Exception as restore_error:
                 raise UpdaterError(
-                    "homeassistant_binding_restore_recovery_failed"
+                    f"{component}_binding_restore_recovery_failed"
                 ) from restore_error
-            raise UpdaterError("homeassistant_binding_restore_failed") from error
+            raise UpdaterError(
+                f"{component}_binding_restore_failed"
+            ) from error
 
     def stop_broker(self) -> None:
         self._run(("systemctl", "stop", BROKER_UNIT), timeout=120)
