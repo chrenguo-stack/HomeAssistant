@@ -1,3 +1,13 @@
+## Task-navigation framework
+
+- Governance authority: [STAGE_EXECUTION_PLAN_STANDARD.md](STAGE_EXECUTION_PLAN_STANDARD.md).
+- Blank plan source: [STAGE_EXECUTION_PLAN_TEMPLATE.md](templates/STAGE_EXECUTION_PLAN_TEMPLATE.md).
+- Current binding status: `ACTIVE_STAGE_EXECUTION_PLAN=UNBOUND`;
+  `TASK_CHAIN_STATUS=FRAMEWORK_READY_TASKS_PENDING`.
+- A future active stage plan will become the task-chain authority; this index and
+  `N3W_CURRENT_STATE.md` will only point to the current coordinate on that chain.
+- Existing technical authorities and `NEXT_ONE_GATE` records below are not changed by this scaffold.
+
 ## Current T1 Core Stack authority index
 
 ### 2026-11-20 — T1 Core Stack OTA V1.2 architecture authority
