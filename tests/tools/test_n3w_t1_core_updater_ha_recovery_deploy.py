@@ -117,12 +117,17 @@ def test_exact_package_installs_and_executes_self_contained_recovery(package, tm
     assert manager.changes[2:] == [("daemon-reload",)]
 
 
-def test_live_candidate_renderer_injects_predecessor_version(monkeypatch):
+def test_live_candidate_renderer_injects_verified_runtime_bindings(monkeypatch):
     calls = []
+    images = {
+        "manager": "local/greenhouse-manager:fixture",
+        "homeassistant": "local/n3w-homeassistant:2026.10.4-fixture",
+        "broker": "local/n3w-mosquitto:fixture",
+    }
 
     def run(argv, **kwargs):
         calls.append((argv, kwargs))
-        return SimpleNamespace(returncode=0, stdout=b"{}")
+        return SimpleNamespace(returncode=0, stdout=b"{}", stderr=b"")
 
     monkeypatch.setattr(deploy.subprocess, "run", run)
 
@@ -130,17 +135,99 @@ def test_live_candidate_renderer_injects_predecessor_version(monkeypatch):
     assert calls[-1][1]["env"] == {"PATH": os.defpath}
 
     assert deploy._render_candidate_compose(
-        Path("/tmp/candidate.yml"), predecessor_version="2026.10.4",
+        Path("/tmp/candidate.yml"),
+        predecessor_version="2026.10.4",
+        image_bindings=images,
     ) == {}
     assert calls[-1][1]["env"] == {
         "PATH": os.defpath,
         "GH_N3W_T1_OTA_INSTALLED_VERSION": "2026.10.4",
+        "GH_MANAGER_IMAGE": images["manager"],
+        "GH_HOMEASSISTANT_IMAGE": images["homeassistant"],
+        "GH_BROKER_IMAGE": images["broker"],
     }
 
     with pytest.raises(UpdaterError, match="predecessor_version_invalid"):
         deploy._render_candidate_compose(
             Path("/tmp/candidate.yml"), predecessor_version="not-a-version",
         )
+    with pytest.raises(UpdaterError, match="image_bindings_invalid"):
+        deploy._render_candidate_compose(
+            Path("/tmp/candidate.yml"),
+            predecessor_version="2026.10.4",
+            image_bindings={"manager": images["manager"]},
+        )
+
+
+def test_live_candidate_renderer_reports_missing_required_variable(monkeypatch):
+    def run(argv, **kwargs):
+        return SimpleNamespace(
+            returncode=1,
+            stdout=b"",
+            stderr=(
+                b"error while interpolating services.broker.image: required variable "
+                b"GH_BROKER_IMAGE is missing a value: GH_BROKER_IMAGE required"
+            ),
+        )
+
+    monkeypatch.setattr(deploy.subprocess, "run", run)
+    with pytest.raises(
+        UpdaterError,
+        match="compose_required_variable_missing:GH_BROKER_IMAGE",
+    ):
+        deploy._render_candidate_compose(Path("/tmp/candidate.yml"))
+
+
+def test_candidate_renderer_matches_production_hybrid_binding_contract(package, tmp_path, monkeypatch):
+    if shutil.which("docker") is None:
+        pytest.skip("Docker Compose CLI unavailable")
+
+    staged, _, _ = package
+    active = tmp_path / "docker-compose.yml"
+    env_file = tmp_path / "docker-compose.env"
+
+    manager = "local/greenhouse-manager:fixture"
+    homeassistant = "local/n3w-homeassistant:2026.10.4-fixture"
+    broker = "local/n3w-mosquitto:2.1.2-fixture"
+
+    active_text = (REPO / deploy.BASE_COMPOSE).read_text()
+    active_text = active_text.replace(
+        '    image: "${GH_BROKER_IMAGE:?GH_BROKER_IMAGE required}"',
+        f"    image: {broker}",
+        1,
+    )
+    assert 'GH_BROKER_IMAGE' not in active_text
+    active.write_text(active_text)
+
+    env_file.write_text(
+        "\n".join([
+            f"GH_MANAGER_IMAGE={manager}",
+            f"GH_HOMEASSISTANT_IMAGE={homeassistant}",
+            "GH_MQTT_CLIENT_ID=fixture-manager",
+            "GH_MQTT_USERNAME=fixture-manager",
+            "GH_N3W_PAIRING_MANAGER_ID=fixture-manager",
+            "GH_N3W_PROVISIONING_CLIENT_ID=fixture-provisioning",
+            "GH_N3W_PROVISIONING_USERNAME=fixture-provisioning",
+            "GH_SYSTEM_ID=fixture",
+            "",
+        ])
+    )
+    assert "GH_BROKER_IMAGE=" not in env_file.read_text()
+
+    monkeypatch.setattr(deploy, "COMPOSE", active)
+    monkeypatch.setattr(deploy, "COMPOSE_ENV", env_file)
+
+    before = deploy._render_candidate_compose(active)
+    candidate = deploy._render_candidate_compose(
+        staged / deploy.CANDIDATE_COMPOSE,
+        predecessor_version="2026.10.4",
+        image_bindings={
+            "manager": manager,
+            "homeassistant": homeassistant,
+            "broker": broker,
+        },
+    )
+    deploy._verify_candidate_delta(before, copy.deepcopy(candidate), "2026.10.4")
 
 
 def test_candidate_compose_renders_only_ota_and_ha_monitoring_bindings(package, tmp_path):
@@ -285,10 +372,10 @@ def test_activation_preflight_is_read_only(package, tmp_path, monkeypatch, fault
         require_candidate_manager_monitoring=require_candidate_manager_monitoring,
     )
 
-    render_versions = []
+    render_calls = []
 
-    def render(candidate, *, predecessor_version=None):
-        render_versions.append((candidate.name, predecessor_version))
+    def render(candidate, *, predecessor_version=None, image_bindings=None):
+        render_calls.append((candidate.name, predecessor_version, image_bindings))
         return copy.deepcopy(active if candidate.name == "docker-compose.yml" else proposed)
 
     errors = {
@@ -313,7 +400,15 @@ def test_activation_preflight_is_read_only(package, tmp_path, monkeypatch, fault
         }]
     assert manager.changes == changes
     if fault not in {"socket", "transaction", "active_config"}:
-        assert ("ha-ota-candidate.compose.yml", "2026.10.0") in render_versions
+        expected_images = {
+            name: config["image"]
+            for name, config in active["services"].items()
+        }
+        assert (
+            "ha-ota-candidate.compose.yml",
+            "2026.10.0",
+            expected_images,
+        ) in render_calls
     assert not (root / deploy.COMPOSE.relative_to("/")).exists()
 
 
