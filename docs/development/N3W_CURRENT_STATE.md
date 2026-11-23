@@ -79,10 +79,10 @@ rejection of stale ancestry or source drift. Historical public-safe closure and 
 documents are archived byte-for-byte. No T1, USB, Docker, service, production runtime or board
 mutation occurs. R5 remains a separate real-T1 read-only authorization boundary.
 
-## 2026-11-23 — T1 OTA V1.2 R8 predecessor preparation PRE_U1 live closure
+## 2026-11-23 — T1 OTA V1.2 R8 predecessor preparation U1 PREPARE_REQUESTED live closure
 
 ```text
-STATE=R8_PREDECESSOR_PREPARATION_PRE_U1_PASS
+STATE=R8_PREDECESSOR_PREPARATION_U1_PREPARE_REQUESTED_PASS
 PR=824
 PR_STATE=OPEN_DRAFT
 EXECUTABLE_SOURCE_HEAD=ea68af045fdde8c32e66d688bc7a136a80b30122
@@ -96,8 +96,11 @@ LIVE_BROKER=local/n3w-mosquitto:2.1.2-3184566d
 CANDIDATE_ACTIVATION_PREFLIGHT=PASS
 MONITORING_MODE=natural_only
 PREVIOUS_HA_USB_TX=ROLLED_BACK/U13B_ROLLED_BACK
-NEW_HA_TRANSACTION=false
-TARGET_2026_10_0_PRESENT=false
+
+NEW_HA_TRANSACTION=true
+NEW_HA_TRANSACTION_PHASE=U1_PREPARE_REQUESTED
+U1_TRANSACTION_EXACT=PASS
+RELEASE_IDENTITY=homeassistant-r8-predecessor-2026.10.0
 
 TARGET_2026_10_0_ARCHIVE_SIZE_BYTES=2448553472
 TARGET_2026_10_0_ARCHIVE_SHA256=e52d12779f7562d3f37a265d622fbaf31e758deba5998e40cafb5a33a118b663
@@ -106,26 +109,34 @@ PREDECESSOR_2026_10_4_SAVE_SHA256=6502b8cdbf706d746e32311fdaa39ffc5ca703d76f7668
 
 USB_FILESYSTEM=ext4
 USB_LOCATOR=PRIVATE_RUNTIME_EVIDENCE
-USB_MOUNT_PRESENT=false
-USB_PREPARATION_STATE=ORIGINAL_MOUNT_REQUIRED
+USB_MOUNT_PRESENT=true
+USB_CONTROLLED_MOUNT=/mnt/n3w-ha-r8-predecessor
+USB_AVAILABLE_BYTES=28132188160
 USB_FORMAT_REQUIRED=false
 
-NEXT_ONE_GATE=RUN_ALREADY_PREPARED_U1_PREPARE_REQUESTED_COMMAND_AND_REVIEW_OUTPUT
-NEXT_STOP_POINT=U1_PREPARE_REQUESTED
+INTERNAL_TARGET_SPOOL_EXACT=PASS
+CANDIDATE_MATERIALIZED=PASS
+TARGET_2026_10_0_LOADED=false
+USB_TRANSACTION_DIRECTORY_CREATED=false
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+SERVICES_UNCHANGED=PASS
+
+NEXT_ONE_GATE=ISSUE_EXACT_PREPARE_AUTHORITY_AND_RESUME_U1_TO_U4
+NEXT_STOP_POINT=U4_READY_TO_INSTALL
 AUTO_EXECUTE_NEXT_GATE=false
 ```
 
-The R8 implementation continues to reuse the existing Home Assistant U0-U13 durable transaction/recovery engine. The exact ea68 updater is installed on the spare T1 and activation preflight passed without changing Manager, Home Assistant, Compose/env or the terminal old HA USB transaction. The running legacy Manager does not provide the optional OTA monitoring self-test, so the accepted path is natural telemetry only; probe failures and missing qualifying natural evidence remain fail-closed.
+The R8 predecessor-preparation transaction now exists as a fresh normal Home Assistant U0-U13 transaction. The existing ext4 USB was mounted at the controlled preparation mountpoint without formatting and revalidated against the bound identity. Exact 2026.10.0 candidate bytes were published into the updater-owned spool, the R8 approved envelope was materialized, and privileged maintenance PREPARE created the exact U1 transaction.
 
-The exact 2026.10.0 target and current 2026.10.4 predecessor export size were reverified. The existing ext4 USB is identified but was not mounted during the final read-only measurement. No new transaction, USB transaction write, HA/Manager stop, 10.0 load, 10.4 release, format or reboot occurred.
+At the U1 stop, Home Assistant, Manager and Broker remain on the original accepted runtime images and services remain healthy. Exact 2026.10.0 is not loaded. The new `N3W-OTA/<transaction>/` directory does not yet exist, and install authorization remains unclaimed and unconsumed.
+
+The next gate is exact prepare-authority issuance bound to this fresh transaction and current launch state, followed by the existing U1→U4 preparation path. That path may create the transaction directory and persist exact target/current-predecessor recovery archives on the existing USB, then retire only the updater-owned internal target spool after both archives are verified and fsynced. It must stop at U4 `READY_TO_INSTALL` before INSTALL/U5.
 
 Current progress authority:
 `docs/development/N3W_T1_OTA_V1_2_R8_PRE_U1_PASS_TO_U1_PREPARE_REQUESTED_PROGRESS_ALIGNMENT_20261123.md`.
 
-Current new-chat handoff:
-`docs/development/N3W_T1_OTA_V1_2_R8_PRE_U1_PASS_TO_U1_PREPARE_REQUESTED_NEW_CHAT_HANDOFF_V1.0_20261123.md`.
-
-The operator intentionally stopped before running the already-prepared command that mounts the existing USB without formatting, materializes exact 2026.10.0, creates a fresh normal HA transaction and stops at U1. The next conversation begins by reviewing that command's terminal output.
+Live U1 evidence: PR #824 issue comment `7090376245`.
 
 ## Latest authority — 2026-11-06 mandatory-USB HA OTA R4 host integration CLOSED_PASS
 
