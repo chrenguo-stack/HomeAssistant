@@ -13,13 +13,13 @@ V1.3 supersedes V1.2 for future implementation and acceptance. V1.2 remains hist
 ## Frozen product rule
 
 ```text
-USB_PHYSICAL_MEDIA_MIN_BYTES=16000000000
-USB_FILESYSTEM_SANITY_FLOOR_BYTES=15032385536
+USB_PRODUCT_MIN_CAPACITY_GB=16
+USB_MEASURED_USABLE_CAPACITY_MIN_BYTES=15032385536
 STATIC_GENERIC_USB_RESERVE=REJECTED
 PER_OPERATION_DYNAMIC_CAPACITY=true
 ```
 
-The 16GB physical-media minimum is a product eligibility gate. It does not prove a particular OTA operation has sufficient remaining space.
+The product requires a 16GB-or-larger USB. Runtime does not trust a marketed capacity label or mechanically require 16,000,000,000 raw bytes; the machine-verifiable media gate remains at least 14 GiB measured usable filesystem capacity. This media gate does not prove a particular OTA operation has sufficient remaining space.
 
 Every variable-size write performs a fresh current-free-space check immediately before the write:
 
@@ -43,8 +43,8 @@ Source/test/CI wiring head:
 
 Implemented changes:
 
-- `USB_MEDIA_MIN_CAPACITY_BYTES=16_000_000_000`;
-- bound live USB parent-disk size is read with `lsblk --bytes` and fails closed below the product minimum;
+- `USB_PRODUCT_MIN_CAPACITY_GB=16` records the product requirement;
+- runtime uses the existing `USB_MEASURED_USABLE_CAPACITY_MIN_BYTES=14*1024**3` machine-verifiable filesystem gate rather than relying on marketing labels or an over-strict raw-byte comparison;
 - prepare-authority schema advanced to `gh.n3w-t1-ha-prepare-authority/2` and no longer accepts caller-supplied `max_predecessor_bytes` or `usb_reserve_bytes`;
 - install-authority schema advanced to `gh.n3w-t1-ha-install-authority/2`; caller-supplied static USB install/recovery budgets were removed;
 - target writes re-read current USB free bytes immediately before the exact-size write;
