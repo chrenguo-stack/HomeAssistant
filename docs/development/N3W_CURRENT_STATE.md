@@ -106,67 +106,96 @@ rejection of stale ancestry or source drift. Historical public-safe closure and 
 documents are archived byte-for-byte. No T1, USB, Docker, service, production runtime or board
 mutation occurs. R5 remains a separate real-T1 read-only authorization boundary.
 
-## 2026-11-23 — T1 OTA V1.3 R8 predecessor preparation held at U1
+## 2026-11-23 — T1 OTA V1.3 updater takeover PASS; predecessor preparation held at U3
 
 ```text
-STATE=R8_PREDECESSOR_PREPARATION_U1_HELD_FOR_V1_3_UPDATER
+STATE=R8_PREDECESSOR_PREPARATION_U3_HELD_ON_V1_3_UPDATER
 PR=824
 PR_STATE=OPEN_DRAFT
 
 LIVE_HOMEASSISTANT=local/n3w-homeassistant:2026.10.4-5881590f
 LIVE_MANAGER=local/greenhouse-manager:fresh-44e7d7472714
 LIVE_BROKER=local/n3w-mosquitto:2.1.2-3184566d
-INSTALLED_UPDATER_PYZ_SHA256=ffc402f72fe56309b0f108c870230d8288dba740859232b9bc749abc354492b1
-LIVE_UPDATER_ALIGNED_TO_V1_3=false
+LIVE_RUNTIME_HEALTH=PASS
+LIVE_RUNTIME_RESTART_COUNT=0
 
-NEW_HA_TRANSACTION=true
-NEW_HA_TRANSACTION_PHASE=U1_PREPARE_REQUESTED
-CURRENT_U1_VALID=true
-RECREATE_U1=false
-RELEASE_IDENTITY=homeassistant-r8-predecessor-2026.10.0
+V1_3_SOURCE_HEAD=51bd2ce8baab2ca0cff4d227765de4583e0f5121
+V1_3_RECOVERY_ARTIFACT_ID=14789063554
+INSTALLED_UPDATER_PYZ_SHA256=c480ec5efd36e4326d7c1b5157ac7470fd3d7fc94be0717cc4d95a691aae675f
+LIVE_UPDATER_ALIGNED_TO_V1_3=true
+UPDATER_TAKEOVER_AUTHORIZATION=N3W_T1_V1_3_UPDATER_TAKEOVER_20261123_01
+UPDATER_TAKEOVER_RESULT=PASS
+UPDATER_TAKEOVER_ATTEMPT=02
 
-TARGET_2026_10_0_ARCHIVE_SIZE_BYTES=2448553472
-TARGET_2026_10_0_ARCHIVE_SHA256=e52d12779f7562d3f37a265d622fbaf31e758deba5998e40cafb5a33a118b663
-USB_FILESYSTEM=ext4
-USB_AVAILABLE_BYTES_AT_U1=28132188160
-USB_FORMAT_REQUIRED=false
-
-INTERNAL_TARGET_SPOOL_EXACT=PASS
-CANDIDATE_MATERIALIZED=PASS
-TARGET_2026_10_0_LOADED=false
-USB_TRANSACTION_DIRECTORY_CREATED=false
+HA_TRANSACTION_STATUS=ACTIVE
+HA_TRANSACTION_PHASE=U3_TARGET_DOWNLOADING_VERIFYING
+HA_TRANSACTION_ID_SHA256=760dc8bdab1c9ceee2b0d3dfb2797111f24e69a9e7569efb6907bc64325d71fe
+HA_TRANSACTION_FILE_SHA256=9e663188098c6d4795115da42bd2acd4b31abb05aeb9f48ab8dfabac620988c7
+HA_TRANSACTION_MANUAL_ADVANCE=false
 AUTHORIZATION_CLAIMED=false
 AUTHORIZATION_CONSUMED=false
-SERVICES_UNCHANGED=PASS
+RECOVERY_REQUIRED=false
+
+RELEASE_IDENTITY=homeassistant-r8-predecessor-2026.10.0
+TARGET_2026_10_0_ARCHIVE_SIZE_BYTES=2448553472
+TARGET_2026_10_0_ARCHIVE_SHA256=e52d12779f7562d3f37a265d622fbaf31e758deba5998e40cafb5a33a118b663
+TARGET_2026_10_0_LOADED=false
+
+USB_FILESYSTEM=ext4
+USB_TARGET_TAR_EXACT=true
+USB_TARGET_TAR_SHA256=e52d12779f7562d3f37a265d622fbaf31e758deba5998e40cafb5a33a118b663
+USB_TARGET_TAR_SIZE_BYTES=2448553472
+USB_PREDECESSOR_TAR_EXACT=true
+USB_PREDECESSOR_TAR_SHA256=6502b8cdbf706d746e32311fdaa39ffc5ca703d76f766806bbb21d3c71278d1f
+USB_PREDECESSOR_TAR_SIZE_BYTES=2447090176
+USB_PARTIAL_FILES_ABSENT=true
+INTERNAL_TARGET_SPOOL_PRESENT=false
+NARROW_U3_U4_WINDOW_PROVEN=true
+
+OLD_PREPARE_AUTHORITY_SCHEMA=gh.n3w-t1-ha-prepare-authority/1
+OLD_PREPARE_AUTHORITY_ACTIVE=false
+OLD_PREPARE_AUTHORITY_RETIRED=true
+OLD_PREPARE_AUTHORITY_SHA256=e6c10889e30029cd0b7346d8301c74dcd7505737f34f97d62771cdc1414ac855
+V1_3_PREPARE_AUTHORITY_ISSUED=false
+
+UPDATER_IPC_SOCKET=ACTIVE_LISTENING
+UPDATER_RETRY_TIMER=ACTIVE_RUNNING
+USB_FORMAT_REQUIRED=false
 
 PREVIOUS_STATIC_RESERVE_U1_TO_U4_COMMAND=RETIRED_DO_NOT_RUN
-U1_TO_U4_ALLOWED=false
-PRIOR_AUTHORIZATION_COMMENT=7087966758
-PRIOR_AUTHORIZATION_SOURCE_HEAD=044ba31ddeefe7ad7c3e5ed5aedbb409acfd3801
-V1_3_SOURCE_HEAD=51bd2ce8baab2ca0cff4d227765de4583e0f5121
-AUTHORIZATION_SOURCE_DRIFT=true
-FRESH_V1_3_DEPLOYMENT_AUTHORIZATION_REQUIRED=true
-
+RECREATE_U1=false
+U5_ALLOWED=false
 R5_FULL_RERUN=false
 R6_FULL_RERUN=false
 R7_FULL_RERUN=false
 R5_R7_TARGETED_REGRESSION=true
-CURRENT_U1_ROLE=V1_3_COMPATIBILITY_TAKEOVER_EVIDENCE
 R8_V1_3_REACCEPTANCE_REQUIRED=true
 FINAL_R8_REQUIRES_FRESH_V1_3_TRANSACTION=true
 
-NEXT_ONE_GATE=READONLY_REBIND_AND_FRESH_V1_3_UPDATER_AUTHORIZATION
-NEXT_LIVE_STOP_POINT=U1_PREPARE_REQUESTED
+NEXT_ONE_GATE=FRESH_V1_3_SCHEMA_V2_PREPARE_AUTHORITY_FOR_EXISTING_U3
+NEXT_LIVE_STOP_POINT=U4_READY_TO_INSTALL
 ```
 
-The fresh U1 transaction remains valid and must not be recreated. It was created before the V1.3 correction and has not crossed into USB transaction writes, target loading, service stop or install authorization.
+Fresh live forensic evidence corrected the earlier handoff/current-state assumption that the transaction was still at U1. File timestamps prove the ea68 updater had already advanced the transaction to U3 and completed exact durable USB target/predecessor archives before the V1.3 source head and handoff were created. The stale U1 statement was therefore a documentation-state error, not a new post-handoff live mutation.
 
-The live spare T1 still runs the earlier updater artifact. Therefore the old static-reserve U1→U4 operator command is retired. V1.3 source/CI work does not itself authorize or perform a T1 updater deployment.
+The exact U3 USB materials were independently re-read: target and predecessor archives match their expected SHA256 and sizes, both partial files are absent, and the updater-owned internal target spool has already been retired. This establishes the narrow ea68 interruption window after durable USB preparation/candidate retirement and before U4 transaction persistence.
 
-Exact V1.3 CI/package closure is complete. The next live work starts with a fresh read-only rebind because the prior live authorization was source-bound to `044ba31d...` while the V1.3 updater is source-bound to `51bd2ce8...`. A new explicit authorization/rebind is required before deploying artifact `14789063554`. The existing U1 remains valid and should be used as compatibility/takeover evidence through U4. R5-R7 are not fully rerun; only V1.3-affected targeted regression/read-only checks remain. Final R8 acceptance must later use a separate fresh V1.3 product-path 10.0 -> 10.4 transaction.
+Attempt 01 of the V1.3 updater takeover stopped before live mutation because the operator script used the wrong guard path. The path error was local and unambiguous; no source or product design change was required. Attempt 02 completed under authorization `N3W_T1_V1_3_UPDATER_TAKEOVER_20261123_01`: updater control-plane units were quiesced, the old schema-v1 prepare authority was retired while preserving private evidence, only `ha-recovery.pyz` changed from the exact ea68 payload to the exact V1.3 payload, all ten non-pyz installed payloads were verified unchanged, and the socket/timer were rearmed. The HA transaction remained byte-identical at U3 and the application runtime remained healthy with zero container restarts.
 
-Live U1 evidence: PR #824 comment `7090376245`.
-Design-gap review: PR #824 comments `7090474174` and `7090562285`.
+The next live mutation is separate from the completed takeover authorization. A fresh V1.3 schema-v2 prepare authority must bind the existing U3 transaction and exact V1.3 updater before any U3→U4 resume. No INSTALL/U5, service stop, target load, image release, USB format, reboot/power-cycle, Broker mutation/OTA, merge or production release is authorized by the completed takeover.
+
+Evidence:
+- stale-state/read-only STOP: PR #824 comment `7091855572`;
+- U3 source forensic: `7091879955`;
+- exact U3 material closure: `7091982042`;
+- handoff/timestamp correction and takeover route: `7092012254`;
+- final pre-takeover read-only rebind: `7092086578`;
+- takeover authorization: `7092110291`;
+- Attempt 01 STOP: `7092556210`;
+- Attempt 01 path correction: `7092565058`;
+- Attempt 02 pre-execution artifact recheck: `7092584572`;
+- Attempt 02 PASS: `7092777187`.
+
 V1.3 source alignment:
 `docs/development/N3W_T1_OTA_V1_3_DYNAMIC_USB_CAPACITY_SOURCE_ALIGNMENT_20261123.md`.
 
