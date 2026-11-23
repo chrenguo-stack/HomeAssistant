@@ -36,12 +36,12 @@ LIVE_UPDATER_PYZ_SHA256=ae7c74a260f6023e19a0d63f2542f7c1bbc2693c032763270047771e
 LIVE_UPDATER_ALIGNED_TO_CURRENT_SOURCE=true
 CURRENT_V1_3_SOURCE_HEAD=c702dda43780892d477bc1a10141d98abc0d8229
 
-LAST_COMPLETED_GATE=N3W_T1_V1_3_SCHEMA_V2_PREPARE_U3_TO_U4_20261123_02
+LAST_COMPLETED_GATE=N3W_T1_V1_3_U4_TO_U5_PIN_REFRESH_INSTALL_INTENT_20261123_02
 LAST_COMPLETED_GATE_RESULT=PASS
-NEXT_ONE_GATE=N3W_T1_V1_3_U5_INSTALL_AUTHORIZATION
-NEXT_GATE_SCOPE=U4_TO_U5_INSTALL_REQUEST_AND_EXACT_INSTALL_AUTHORITY
+NEXT_ONE_GATE=N3W_T1_V1_3_U5_INSTALL_AUTHORITY_AND_FULL_TRANSACTION
+NEXT_GATE_SCOPE=EXACT_U5_BINDING_THEN_10_4_TO_10_0_INSTALL_TO_U13A_OR_AUTOMATIC_U13B
 NEXT_GATE_AUTHORIZATION_REQUIRED=true
-U5_INSTALL_AUTHORIZED_NOW=false
+INSTALL_AUTHORITY_ISSUED=false
 AUTO_EXECUTE_NEXT_GATE_AFTER_FRESH_REBIND=false
 ```
 
@@ -49,7 +49,7 @@ V1.3 freezes two separate capacity questions. The product requires a 16GB-or-lar
 
 The current exact source/test closure includes two live-discovered U3/U4 compatibility repairs: adoption of already-verified pre-V1.3 U3 archives without fabricating historical capacity events, and production-shaped predecessor identity handling at U4. The latter is tracked as KF-143. Exact source/test head `c702dda4...` completed 19 applicable SUCCESS workflows, 0 FAILURE, 0 CANCELLED and 2 expected path-gated SKIPPED. Exact recovery updater artifact `14795440698` contains pyz SHA256 `ae7c74a2...`.
 
-The live spare T1 has completed updater-only patch `N3W_T1_V1_3_U4_IDENTITY_PATCH_20261123_01` and the subsequent fresh schema-v2 U3→U4 live acceptance `N3W_T1_V1_3_SCHEMA_V2_PREPARE_U3_TO_U4_20261123_02`. The exact c702dda4 updater advanced the same transaction to ACTIVE `U4_READY_TO_INSTALL`; target/predecessor prepared materials are verified, target 10.0 remains unloaded, no install authority exists, and HA/Manager/Broker remain healthy. KF-143 is now live-proven and GUARDED. The next separate boundary is U5 install authorization.
+The live spare T1 has completed updater-only patch `N3W_T1_V1_3_U4_IDENTITY_PATCH_20261123_01`, schema-v2 U3→U4 live acceptance, and the bounded U4→U5 install-intent successor `N3W_T1_V1_3_U4_TO_U5_PIN_REFRESH_INSTALL_INTENT_20261123_02`. Attempt 01 stopped before mutation because the manually materialized release pin had expired; read-only diagnosis proved every other release/manifest/runtime/U4 binding exact. Attempt 02 refreshed only the same pin expiry, submitted INSTALL successfully, and advanced the same transaction to ACTIVE `U5_INSTALL_REQUESTED_REVALIDATING`. No install authority exists, transaction authorization remains unclaimed/unconsumed, target 10.0 remains unloaded, and HA/Manager/Broker remain healthy. The next separate boundary is the exact U5 install authority and full 10.4→10.0 transaction.
 
 Source alignment:
 `docs/development/N3W_T1_OTA_V1_3_DYNAMIC_USB_CAPACITY_SOURCE_ALIGNMENT_20261123.md`.
@@ -114,6 +114,51 @@ assertions: they preserve the current P4 authority where applicable and explicit
 rejection of stale ancestry or source drift. Historical public-safe closure and architecture
 documents are archived byte-for-byte. No T1, USB, Docker, service, production runtime or board
 mutation occurs. R5 remains a separate real-T1 read-only authorization boundary.
+
+## 2026-11-23 — U4→U5 install intent PASS after exact expired-pin successor
+
+```text
+ATTEMPT_01_AUTHORIZATION=N3W_T1_V1_3_U4_TO_U5_INSTALL_INTENT_20261123_01
+ATTEMPT_01_RESULT=STOP_PREMUTATION
+ATTEMPT_01_REASON=ha_ota_ipc_release_pin_invalid
+
+PIN_READONLY_DIAG=PASS
+PIN_SHA256=e5c0853ffbd7d280e6623fb0ec138cced6e46ed95a4d785537a3ec89afcfd42a
+PIN_EXPIRED=true
+PIN_KEYS_OK=true
+PIN_SCHEMA_OK=true
+PIN_MANIFEST_SHA_MATCH=true
+RELEASE_IDENTITY_MATCH=true
+PIN_PREDECESSOR_RUNTIME_MATCH=true
+
+SUCCESSOR_AUTHORIZATION=N3W_T1_V1_3_U4_TO_U5_PIN_REFRESH_INSTALL_INTENT_20261123_02
+SUCCESSOR_GATE=PASS
+RELEASE_PIN_REFRESH=PASS
+REFRESHED_PIN_SHA256=aa944a13cdcd0e02777c3b99b42e0c5460782929386e06b9d9de2f6efd8ea904
+REFRESHED_PIN_EXPIRES_AT_UNIX=1795429216
+
+INSTALL_INTENT_RETURN_CODE=0
+TRANSACTION_STATUS=ACTIVE
+TRANSACTION_PHASE=U5_INSTALL_REQUESTED_REVALIDATING
+TRANSACTION_ID_SHA256=760dc8bdab1c9ceee2b0d3dfb2797111f24e69a9e7569efb6907bc64325d71fe
+TRANSACTION_FILE_SHA256=a9cda0e38b4db74b284a1c327923c4d24bedc9a19ebce0605c686fee7129549e
+
+PREPARED_IMAGE_MATERIALS_UNCHANGED=true
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+INSTALL_AUTHORITY=false
+TARGET_IMAGE_LOADED=false
+HA_MANAGER_BROKER_HEALTH=PASS
+UPDATER_SOCKET_ARMED=true
+UPDATER_TIMER_ARMED=true
+STOP_BEFORE_INSTALL_AUTHORITY=true
+```
+
+Attempt 01 failed before any transaction mutation because the local/manual release pin had expired. The independent read-only diagnosis proved the pin schema, mode, owner, manifest digest, release identity and predecessor runtime identity all remained exact. This is recorded as a lab/maintenance-path credential-lifetime event rather than a product known failure; product-path R8 acceptance must still verify normal pin refresh/lifetime behavior.
+
+The successor gate atomically refreshed only `expires_at_unix` for the same pin, preserved all release bindings, then submitted exactly one INSTALL intent. The product transaction advanced only U4→U5. The HA transaction authorization remains unclaimed/unconsumed; no install authority has been issued; U6+ has not started.
+
+Public-safe closure: `docs/development/N3W_T1_OTA_V1_3_U4_TO_U5_INSTALL_INTENT_CLOSURE_20261123.md`.
 
 ## 2026-11-23 — schema-v2 U3→U4 live acceptance PASS; KF-143 GUARDED
 

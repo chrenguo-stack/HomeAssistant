@@ -13,7 +13,12 @@
 - U4 prepared materials are exact: target portable identity `bb482735...`, predecessor portable identity `959df8e3...`; target 10.0 remains unloaded and no install authority exists.
 - HA/Manager/Broker remained healthy, updater socket/timer remained armed, and remote staging cleanup PASS.
 - KF-143 live acceptance is PASS and the known failure is now GUARDED.
-- Current stop boundary is U4 before U5. The next separate gate is U5 install authorization.
+- U4→U5 Attempt 01 stopped before mutation because the manually materialized release pin was expired. Read-only diagnosis proved schema/mode/manifest/release/predecessor bindings exact.
+- Successor `N3W_T1_V1_3_U4_TO_U5_PIN_REFRESH_INSTALL_INTENT_20261123_02` refreshed only pin expiry and PASSed.
+- The same transaction is now ACTIVE `U5_INSTALL_REQUESTED_REVALIDATING` with file SHA256 `a9cda0e38b4db74b284a1c327923c4d24bedc9a19ebce0605c686fee7129549e`.
+- Transaction authorization remains unclaimed/unconsumed, install authority is absent, target 10.0 remains unloaded, HA/Manager/Broker are healthy, and updater socket/timer remain armed.
+- Current stop boundary is U5 before install-authority issuance. The next separate gate is the exact U5 install authority and full 10.4→10.0 transaction.
+- U4→U5 closure: [V1.3 U4→U5 install-intent closure](N3W_T1_OTA_V1_3_U4_TO_U5_INSTALL_INTENT_CLOSURE_20261123.md).
 - U3→U4 closure: [V1.3 schema-v2 U3→U4 live acceptance closure](N3W_T1_OTA_V1_3_SCHEMA_V2_U3_TO_U4_LIVE_ACCEPTANCE_CLOSURE_20261123.md).
 - Prior patch closure: [V1.3 U4 identity patch execution closure](N3W_T1_OTA_V1_3_U4_IDENTITY_PATCH_EXECUTION_CLOSURE_20261123.md).
 - Historical execution handoff: [V1.3 U4 identity patch execution handoff](N3W_T1_OTA_V1_3_U4_IDENTITY_PATCH_EXECUTION_NEW_CHAT_HANDOFF_V1.0_20261123.md).
