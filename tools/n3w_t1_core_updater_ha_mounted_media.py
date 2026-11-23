@@ -468,8 +468,8 @@ def prepare_mounted_archives(
     mountpoint: Path, internal_storage: Path, document: dict[str, Any],
     *, target_source: Callable[[], ContextManager[BinaryIO]],
     predecessor_source: Callable[[], ContextManager[BinaryIO]],
+    measure_predecessor_size: Callable[[], int],
     verify_predecessor: Callable[[PortableImageIdentity], None],
-    predecessor_size_bytes: int,
 ) -> tuple[ImageRecoveryRecord, ImageRecoveryRecord]:
     with _open_transaction_directory(mountpoint, internal_storage, document, create=True) as (_, directory):
         target = _prepare_archive(
@@ -477,6 +477,7 @@ def prepare_mounted_archives(
             expected_size=document["target_archive_size"],
             expected_sha256=document["target_archive_sha256"],
         )
+        predecessor_size_bytes = measure_predecessor_size()
         predecessor = _prepare_archive(
             directory, "predecessor", document["current_image_ref"], predecessor_source,
             expected_size=predecessor_size_bytes, validate=verify_predecessor,
