@@ -106,6 +106,7 @@ def backup_record_from_document(value: object) -> HaDataBackupRecord:
 BACKUP_SCHEMA = "gh.n3w-t1-ha-data-backup-protected/1"
 BACKUP_ARCHIVE_NAME = "homeassistant-preupgrade.tar.gz.enc"
 BACKUP_METADATA_NAME = "homeassistant-preupgrade.metadata.json"
+BACKUP_METADATA_MAX_BYTES = 16_384
 BACKUP_ENCRYPTION = "aes-256-ctr+pbkdf2-sha256"
 BACKUP_AUTHENTICATION = "hmac-sha256-etm"
 BACKUP_KEY_DERIVATION = "hmac-sha256-system-root-key-v1"
@@ -436,6 +437,59 @@ class ProtectedHaDataBackup:
             stream.close()
             raise UpdaterV2Error("ha_data_backup_file_identity_invalid")
         return stream
+
+    def measure_archive_size(self, transaction_id: str) -> int:
+        """Count the exact quiesced backup stream without writing it to removable media."""
+        self._validate_source_tree()
+        self._verify_sqlite(self.ha_data_root)
+        passphrase, _ = self._keys(transaction_id)
+        read_fd, write_fd = os.pipe()
+        processes: list[subprocess.Popen[bytes]] = []
+        try:
+            with os.fdopen(write_fd, "wb") as writer:
+                writer.write(passphrase + b"\n")
+            producer = subprocess.Popen(
+                [
+                    self.tar_binary,
+                    "--create", "--gzip", "--file=-", "--numeric-owner", "--one-file-system",
+                    "--directory", str(self.ha_data_root), ".",
+                ],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+            )
+            processes.append(producer)
+            assert producer.stdout is not None
+            try:
+                consumer = subprocess.Popen(
+                    self._openssl_argv(pass_fd=read_fd, decrypt=False),
+                    stdin=producer.stdout,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                    pass_fds=(read_fd,),
+                )
+                processes.append(consumer)
+            finally:
+                producer.stdout.close()
+            assert consumer.stdout is not None
+            total = 0
+            with consumer.stdout as output:
+                while block := output.read(ARCHIVE_BLOCK_BYTES):
+                    total += len(block)
+            if consumer.wait() != 0 or producer.wait() != 0 or total <= 0:
+                raise UpdaterV2Error("ha_data_backup_measurement_failed")
+            return total
+        except OSError as error:
+            raise UpdaterV2Error("ha_data_backup_measurement_failed") from error
+        finally:
+            try:
+                os.close(read_fd)
+            except OSError:
+                pass
+            for process in processes:
+                if process.poll() is None:
+                    process.kill()
+                process.wait()
 
     def create(self, directory: int, transaction_id: str) -> HaDataBackupRecord:
         """Seal the snapshot. The install controller reopens it before admission."""
