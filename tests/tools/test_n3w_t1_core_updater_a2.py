@@ -22,6 +22,7 @@ from n3w_t1_core_updater_v2_common import (
     UpdaterV2Error,
     converge_homeassistant_compose,
     converge_homeassistant_env,
+    converge_homeassistant_ota_version_env,
     parse_image_bindings,
     restore_homeassistant_compose,
     restore_homeassistant_env,
@@ -608,6 +609,34 @@ def test_homeassistant_binding_transition_rejects_ambiguous_env():
     ):
         converge_homeassistant_env(
             payload,
+            OLD["homeassistant"],
+            NEW["homeassistant"],
+        )
+
+
+def test_homeassistant_ota_installed_version_is_bound_to_same_env_as_image():
+    payload = (
+        f"GH_HOMEASSISTANT_IMAGE={OLD['homeassistant']}\n"
+    ).encode()
+    bound = converge_homeassistant_ota_version_env(
+        payload,
+        OLD["homeassistant"],
+    )
+    assert b"GH_N3W_T1_OTA_INSTALLED_VERSION=2026.10.0\n" in bound
+
+    updated = rewrite_component_env(
+        bound,
+        "homeassistant",
+        OLD["homeassistant"],
+        NEW["homeassistant"],
+    )
+    assert f"GH_HOMEASSISTANT_IMAGE={NEW['homeassistant']}\n".encode() in updated
+    assert b"GH_N3W_T1_OTA_INSTALLED_VERSION=2026.11.0\n" in updated
+
+    with pytest.raises(UpdaterV2Error, match="homeassistant_ota_version_env_drift"):
+        rewrite_component_env(
+            bound.replace(b"2026.10.0", b"2026.9.0"),
+            "homeassistant",
             OLD["homeassistant"],
             NEW["homeassistant"],
         )
