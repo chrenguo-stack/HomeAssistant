@@ -14,6 +14,7 @@ sys.path.insert(0, str(REPO / "tools"))
 
 import n3w_t1_core_updater_ha_mounted_media as mounted_media
 import n3w_t1_core_updater_ha_recovery_startup as startup
+from n3w_t1_core_updater_ha_usb_state import U7
 from n3w_t1_core_updater_ha_usb_media import (
     USB_MEDIA_MIN_CAPACITY_BYTES,
     RemovableDeviceCandidate,
@@ -151,7 +152,7 @@ def test_quiesced_ha_backup_checks_current_usb_free_space_before_real_backup_wri
                 "transaction_id_sha256": txid,
                 "usb_binding_mode": "existing_filesystem",
                 "predecessor_start": {"launch_sha256": "d" * 64},
-                "phase": "U7_RECOVERY_POINT",
+                "phase": U7,
                 "status": "ACTIVE",
                 "recovery_required": False,
             }
