@@ -44,6 +44,9 @@ Repository source implements this policy, including durable per-operation capaci
 Source alignment:
 `docs/development/N3W_T1_OTA_V1_3_DYNAMIC_USB_CAPACITY_SOURCE_ALIGNMENT_20261123.md`.
 
+Current continuation handoff:
+`docs/development/N3W_T1_OTA_V1_3_SOURCE_CLOSURE_TO_R8_REACCEPTANCE_NEW_CHAT_HANDOFF_V1.0_20261123.md` @ `344d1e8134bd420a9215fa313c00d63bb71ce234`.
+
 ### Latest authority — 2026-11-06 PR #788 clean successor: mandatory-USB HA OTA R4 source converged
 
 ```text
