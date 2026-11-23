@@ -282,6 +282,19 @@ PARENT_AUTHORIZATION_GATE=N3W_T1_V1_3_KF144_LIVE_REPAIR_20261123_01
 
 This child ID is only the machine-consumable identifier for the already approved Manager-successor action; it does not broaden the parent authorization.
 
+## 6B. Operator execution package binding
+
+```text
+OPERATOR_EXECUTOR_NAME=N3W_T1_V1_3_KF144_LIVE_REPAIR_20261123_01.sh
+OPERATOR_EXECUTOR_SHA256=f82a7f1ce2babf9c59e233c4fcc80021c3dc21cc58d6881c6f30d83734ba00cc
+OPERATOR_EXECUTOR_SYNTAX_CHECK=PASS
+REMOTE_EXECUTOR_PY_COMPILE=PASS
+EXECUTION_SCOPE=A_THROUGH_D_ONLY
+STOP_BEFORE_FRESH_HA_PREPARE=true
+```
+
+The operator copy contains a private T1 runtime locator and therefore is not committed to the public repository. The durable public execution contract is this pre-execution package plus the exact source/artifact bindings above. The operator script downloads exact GitHub artifacts by ID, independently verifies artifact/payload hashes, performs a fresh remote preflight, fails closed on any drift, and preserves remote staging on failure for forensic recovery.
+
 ## 7. Archive status
 
 ```text
