@@ -373,3 +373,297 @@ jobs:
           echo "T1_ACCESS=false"
           echo "T1_MUTATION=false"
           echo "BOARD_ACCESS=false"
+
+  kf144-manager-successor-package:
+    needs: source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    outputs:
+      package_artifact_id: ${{ steps.upload-kf144.outputs.artifact-id }}
+      package_artifact_digest: ${{ steps.upload-kf144.outputs.artifact-digest }}
+    env:
+      CONTROL_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      UPSTREAM_RUN_ID: "45173188918"
+      UPSTREAM_ARTIFACT_ID: "14818431290"
+      UPSTREAM_ARTIFACT_NAME: "n3w-t1-fresh-exact-arm64-1cae18039eeedb7f6dea2e3e352df26dd488a30e"
+      UPSTREAM_ARTIFACT_DIGEST: "sha256:06baebb16e78f2d919e87cf4fd8bfadae43a59b78970151262fc4ef2d6edc4d4"
+      TARGET_MANIFEST: "infra/n3w-t1/upgrades/manager-1cae18039eee-kf144.json"
+      BASELINE_MANIFEST: "infra/n3w-t1/clean-reference/kf144-manager-successor-baseline-20261123.json"
+      COMPATIBILITY_REVIEW: "infra/n3w-t1/upgrades/manager-1cae18039eee-kf144-compatibility.json"
+      PACKAGE_NAME: "n3w-t1-kf144-manager-successor"
+      EXPECTED_BASELINE_CANONICAL_SHA256: "78404869cda4b6fe14226b514623880b76045cd9a58a149f063d61edf57dd199"
+      EXPECTED_REVIEW_CANONICAL_SHA256: "5046d2e180db6a0c620cfc91a58577d80a9fac2199b7155ff20015ca61caae03"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CONTROL_HEAD }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify KF-144 upstream exact artifact identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$UPSTREAM_RUN_ID/artifacts?per_page=100" > "$RUNNER_TEMP/kf144-upstream-artifacts.json"
+          python - "$RUNNER_TEMP/kf144-upstream-artifacts.json" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          metadata = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          matches = [
+              item for item in metadata.get("artifacts", [])
+              if item.get("name") == os.environ["UPSTREAM_ARTIFACT_NAME"]
+          ]
+          assert len(matches) == 1
+          artifact = matches[0]
+          assert str(artifact["id"]) == os.environ["UPSTREAM_ARTIFACT_ID"]
+          assert artifact.get("expired") is False
+          assert artifact.get("digest") == os.environ["UPSTREAM_ARTIFACT_DIGEST"]
+          print("KF144_UPSTREAM_GITHUB_ARTIFACT_IDENTITY=PASS")
+          PY
+
+      - name: Download exact KF-144 upstream three-image artifact
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.UPSTREAM_RUN_ID }}
+          name: ${{ env.UPSTREAM_ARTIFACT_NAME }}
+          path: ${{ runner.temp }}/kf144-upstream
+
+      - name: Verify KF-144 target, live baseline, compatibility and produce Manager-only package
+        run: |
+          set -euo pipefail
+          python - "$RUNNER_TEMP/kf144-upstream" "$TARGET_MANIFEST" "$BASELINE_MANIFEST" "$COMPATIBILITY_REVIEW" "$RUNNER_TEMP/kf144-package" "$CONTROL_HEAD" <<'PY'
+          import hashlib
+          import json
+          import os
+          import shutil
+          import sys
+          import zipapp
+          from pathlib import Path
+
+          upstream = Path(sys.argv[1])
+          target_path = Path(sys.argv[2])
+          baseline_path = Path(sys.argv[3])
+          compatibility_path = Path(sys.argv[4])
+          package = Path(sys.argv[5])
+          control_head = sys.argv[6]
+
+          target = json.loads(target_path.read_text(encoding="utf-8"))
+          baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+          compatibility = json.loads(compatibility_path.read_text(encoding="utf-8"))
+          binding = json.loads((upstream / "binding.json").read_text(encoding="utf-8"))
+          manager_tar = upstream / "greenhouse-manager-arm64.tar"
+
+          def sha(path):
+              digest = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for block in iter(lambda: stream.read(1024 * 1024), b""):
+                      digest.update(block)
+              return digest.hexdigest()
+
+          def canonical_sha(value):
+              return hashlib.sha256(
+                  json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+              ).hexdigest()
+
+          assert target["schema"] == "gh.n3w-t1-core-updater-target/2"
+          assert target["component"] == "manager"
+          assert target["mutation_profile"] == "IMAGE_ONLY_V1"
+          assert target["target_platform"] == "linux/arm64"
+          assert target["rollback_compatible"] is True
+          assert target["expected_predecessor_image_ref"] == baseline["stack_images"]["manager"]
+
+          artifact = target["artifact_identity"]
+          assert str(artifact["artifact_id"]) == os.environ["UPSTREAM_ARTIFACT_ID"]
+          assert artifact["artifact_name"] == os.environ["UPSTREAM_ARTIFACT_NAME"]
+          assert "sha256:" + artifact["artifact_digest_sha256"] == os.environ["UPSTREAM_ARTIFACT_DIGEST"]
+
+          assert binding["schema"] == "gh.n3w.t1-fresh-exact-arm64-binding/1"
+          assert binding["source_head"] == target["compatibility_evidence"]["target_source_head"]
+          assert binding["manager"]["image"] == target["target_image_ref"]
+          assert binding["manager"]["tar_sha256"] == target["target_archive_sha256"]
+          assert binding["manager"]["tar_size_bytes"] == manager_tar.stat().st_size
+          assert binding["manager"]["platform"] == target["target_platform"]
+          assert sha(manager_tar) == target["target_archive_sha256"]
+          assert binding["secret_values_included"] is False
+          assert binding["production_service_start"] is False
+          assert binding["t1_access"] is False
+          assert binding["board_access"] is False
+
+          assert baseline["schema"] == "gh.n3w-t1-core-updater-baseline/1"
+          assert canonical_sha(baseline) == os.environ["EXPECTED_BASELINE_CANONICAL_SHA256"]
+
+          assert compatibility["canonicalization"].startswith("SHA256 of UTF-8 JSON payload")
+          assert canonical_sha(compatibility["payload"]) == compatibility["canonical_payload_sha256"]
+          assert compatibility["canonical_payload_sha256"] == os.environ["EXPECTED_REVIEW_CANONICAL_SHA256"]
+          review = compatibility["payload"]
+          assert review["component"] == "manager"
+          assert review["predecessor_source_head"] == target["compatibility_evidence"]["predecessor_source_head"]
+          assert review["target_source_head"] == target["compatibility_evidence"]["target_source_head"]
+          assert review["peer_contracts_compatible"] is True
+          assert review["persistent_schema_compatible"] is True
+          assert review["rollback_compatible"] is True
+          assert review["database_migration_required"] is False
+          assert review["config_migration_required"] is False
+          assert review["broker_change_required"] is False
+          assert review["homeassistant_change_required"] is False
+          assert review["target_manager_tar_sha256"] == target["target_archive_sha256"]
+          assert review["target_manager_image"] == target["target_image_ref"]
+          assert review["target_manager_image_id"] == binding["manager"]["image_id"]
+          assert review["live_predecessor_baseline_sha256"] == os.environ["EXPECTED_BASELINE_CANONICAL_SHA256"]
+          assert review["ha_monitoring_round_trip_ci"] == "PASS"
+          assert target["compatibility_evidence"]["review_evidence_sha256"] == compatibility["canonical_payload_sha256"]
+
+          package.mkdir(parents=True, exist_ok=False)
+          shutil.copy2(manager_tar, package / "greenhouse-manager-arm64.tar")
+          shutil.copy2(target_path, package / "manager-target-v2.json")
+          shutil.copy2(baseline_path, package / "upgrade-baseline-live.json")
+          shutil.copy2(compatibility_path, package / "compatibility-review.json")
+
+          updater_source = package.parent / "kf144-updater-source"
+          updater_source.mkdir(parents=True, exist_ok=False)
+          updater_modules = (
+              "n3w_t1_core_updater.py",
+              "n3w_t1_core_updater_common.py",
+              "n3w_t1_core_updater_core.py",
+              "n3w_t1_core_updater_host.py",
+              "n3w_t1_core_updater_state.py",
+              "n3w_t1_core_updater_v2.py",
+              "n3w_t1_core_updater_v2_common.py",
+              "n3w_t1_core_updater_v2_state.py",
+              "n3w_t1_core_updater_components.py",
+              "n3w_t1_core_updater_a1_policy.py",
+              "n3w_t1_portable_image_identity.py",
+          )
+          for name in updater_modules:
+              shutil.copy2(Path("tools") / name, updater_source / name)
+          (updater_source / "__main__.py").write_text(
+              "from n3w_t1_core_updater import main\n"
+              "raise SystemExit(main())\n",
+              encoding="utf-8",
+          )
+          updater_pyz = package / "t1-core-updater.pyz"
+          zipapp.create_archive(
+              updater_source,
+              updater_pyz,
+              interpreter="/usr/bin/env python3",
+          )
+
+          package_binding = {
+              "schema": "gh.n3w-t1-kf144-manager-successor-package/1",
+              "control_plane_head": control_head,
+              "target_source_head": binding["source_head"],
+              "target_image_ref": target["target_image_ref"],
+              "target_image_id": binding["manager"]["image_id"],
+              "target_tar_sha256": target["target_archive_sha256"],
+              "target_tar_size_bytes": manager_tar.stat().st_size,
+              "upstream_run_id": int(os.environ["UPSTREAM_RUN_ID"]),
+              "upstream_artifact_id": int(os.environ["UPSTREAM_ARTIFACT_ID"]),
+              "upstream_artifact_digest_sha256": target["artifact_identity"]["artifact_digest_sha256"],
+              "baseline_canonical_sha256": canonical_sha(baseline),
+              "compatibility_review_sha256": compatibility["canonical_payload_sha256"],
+              "updater_pyz_sha256": sha(updater_pyz),
+              "updater_pyz_size_bytes": updater_pyz.stat().st_size,
+              "manager_rebuilt": False,
+              "homeassistant_included": False,
+              "broker_included": False,
+              "secret_values_included": False,
+              "t1_access": False,
+              "t1_mutation": False,
+              "board_access": False,
+          }
+          (package / "package-binding.json").write_text(
+              json.dumps(package_binding, sort_keys=True, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(package_binding, sort_keys=True))
+          print("KF144_MANAGER_SUCCESSOR_PACKAGE_BUILD=PASS")
+          PY
+
+      - name: Upload KF-144 exact Manager successor package
+        id: upload-kf144
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PACKAGE_NAME }}
+          path: ${{ runner.temp }}/kf144-package/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Re-download and close KF-144 package binding
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE_ARTIFACT_ID: ${{ steps.upload-kf144.outputs.artifact-id }}
+          PACKAGE_ARTIFACT_DIGEST: ${{ steps.upload-kf144.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/kf144-manager-package.zip"
+          for attempt in 1 2; do
+            if gh api "/repos/$GITHUB_REPOSITORY/actions/artifacts/$PACKAGE_ARTIFACT_ID/zip" > "$archive"; then
+              printf '%s  %s\n' "$PACKAGE_ARTIFACT_DIGEST" "$archive" | sha256sum --check -
+              unzip -tq "$archive"
+              unzip -q "$archive" -d "$RUNNER_TEMP/kf144-redownload"
+              break
+            fi
+            test "$attempt" -eq 1
+            sleep 10
+          done
+          python - "$RUNNER_TEMP/kf144-redownload" "$PACKAGE_ARTIFACT_ID" "$PACKAGE_ARTIFACT_DIGEST" <<'PY'
+          import hashlib
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          artifact_id = sys.argv[2]
+          artifact_digest = sys.argv[3]
+          assert {p.name for p in root.iterdir()} == {
+              "greenhouse-manager-arm64.tar",
+              "manager-target-v2.json",
+              "upgrade-baseline-live.json",
+              "compatibility-review.json",
+              "package-binding.json",
+              "t1-core-updater.pyz",
+          }
+
+          def sha(path):
+              digest = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for block in iter(lambda: stream.read(1024 * 1024), b""):
+                      digest.update(block)
+              return digest.hexdigest()
+
+          target = json.loads((root / "manager-target-v2.json").read_text(encoding="utf-8"))
+          binding = json.loads((root / "package-binding.json").read_text(encoding="utf-8"))
+          assert binding["schema"] == "gh.n3w-t1-kf144-manager-successor-package/1"
+          assert binding["control_plane_head"] == os.environ["CONTROL_HEAD"]
+          assert binding["target_tar_sha256"] == target["target_archive_sha256"]
+          assert sha(root / "greenhouse-manager-arm64.tar") == target["target_archive_sha256"]
+          assert sha(root / "t1-core-updater.pyz") == binding["updater_pyz_sha256"]
+          assert (root / "t1-core-updater.pyz").stat().st_size == binding["updater_pyz_size_bytes"]
+          assert binding["secret_values_included"] is False
+          assert binding["t1_mutation"] is False
+          assert binding["homeassistant_included"] is False
+          assert binding["broker_included"] is False
+
+          print(f"KF144_MANAGER_PACKAGE_ARTIFACT_ID={artifact_id}")
+          print(f"KF144_MANAGER_PACKAGE_ARTIFACT_DIGEST={artifact_digest}")
+          print(f"KF144_MANAGER_TARGET_IMAGE={binding['target_image_ref']}")
+          print(f"KF144_MANAGER_TARGET_IMAGE_ID={binding['target_image_id']}")
+          print(f"KF144_MANAGER_TAR_SHA256={binding['target_tar_sha256']}")
+          print(f"KF144_UPDATER_PYZ_SHA256={binding['updater_pyz_sha256']}")
+          print("KF144_MANAGER_SUCCESSOR_PACKAGE_BINDING=PASS")
+          print("T1_MUTATION=false")
+          PY
+          python "$RUNNER_TEMP/kf144-redownload/t1-core-updater.pyz" --help >/dev/null
+          echo "KF144_GENERIC_V2_UPDATER_EXECUTION=PASS"
+
