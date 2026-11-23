@@ -14,11 +14,13 @@ sys.path.insert(0, str(REPO / "tools"))
 
 import n3w_t1_core_updater_ha_mounted_media as mounted_media
 import n3w_t1_core_updater_ha_recovery_startup as startup
+from n3w_t1_core_updater_ha_usb import request_prepare, record_existing_media_bound, start_target_preparation
 from n3w_t1_core_updater_ha_usb_state import U7, new_transaction, record_usb_capacity_event
 from n3w_t1_core_updater_ha_usb_media import (
     USB_PRODUCT_MIN_CAPACITY_GB,
     USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
     RemovableDeviceCandidate,
+    UsbCapacityReport,
     classify_candidate,
 )
 from n3w_t1_core_updater_v2_common import UpdaterV2Error
@@ -174,6 +176,106 @@ def test_capacity_events_persist_failed_retry_and_completed_write() -> None:
     }
 
 
+def test_prepare_capacity_block_waits_without_repeating_write_until_space_recovers(
+    tmp_path: Path, monkeypatch
+) -> None:
+    tx = new_transaction(
+        current_image_ref="local/n3w-homeassistant:2026.10.0-test",
+        current_image_identity={"test": "predecessor"},
+        target_manifest_identity={"release_identity": "homeassistant-test"},
+        target_image_ref="local/n3w-homeassistant:2026.10.4-test",
+        target_archive_sha256="a" * 64,
+        target_archive_size=100,
+    )
+    tx = request_prepare(tx)
+    report = UsbCapacityReport(
+        measured_usable_bytes=USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
+        required_bytes=100,
+        measured_floor_bytes=USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
+        measured_floor_pass=True,
+        transaction_formula_pass=True,
+        capacity_pass=True,
+    )
+    tx = record_existing_media_bound(
+        tx,
+        filesystem_uuid="12345678-1234-5678-1234-567812345678",
+        capacity_report=report,
+    )
+    tx = start_target_preparation(tx)
+    tx = record_usb_capacity_event(
+        tx,
+        operation="target_archive",
+        required_bytes=120,
+        available_bytes_before=100,
+        capacity_pass=False,
+    )
+    tx = {**tx, "failure_code": "ha_usb_target_space_insufficient"}
+
+    class Store:
+        root = tmp_path
+        document = tx
+
+        @classmethod
+        def read(cls):
+            return cls.document
+
+        @classmethod
+        def write(cls, document):
+            cls.document = document
+
+        @staticmethod
+        @contextmanager
+        def lock():
+            yield
+
+    class Runtime:
+        prepare_calls = 0
+
+        @staticmethod
+        def _original_mountpoint(_uuid):
+            return tmp_path
+
+        @classmethod
+        def prepare_requested(cls, _store):
+            cls.prepare_calls += 1
+            return "READY_TO_INSTALL"
+
+    monkeypatch.setattr(
+        startup,
+        "measure_preparation_capacity",
+        lambda *_args: UsbCapacityReport(
+            measured_usable_bytes=USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
+            required_bytes=120,
+            measured_floor_bytes=USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
+            measured_floor_pass=True,
+            transaction_formula_pass=False,
+            capacity_pass=False,
+        ),
+    )
+
+    assert startup._dispatch_pending_candidate(Store(), Runtime()) == "PREPARE_WAITING_FOR_USB_SPACE"
+    assert Runtime.prepare_calls == 0
+    assert Store.document["failure_code"] == "ha_usb_target_space_insufficient"
+
+    (tmp_path / startup.PREPARE_AUTHORITY_FILE).write_text("present", encoding="utf-8")
+    monkeypatch.setattr(
+        startup,
+        "measure_preparation_capacity",
+        lambda *_args: UsbCapacityReport(
+            measured_usable_bytes=USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
+            required_bytes=120,
+            measured_floor_bytes=USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
+            measured_floor_pass=True,
+            transaction_formula_pass=True,
+            capacity_pass=True,
+        ),
+    )
+
+    assert startup._dispatch_pending_candidate(Store(), Runtime()) == "READY_TO_INSTALL"
+    assert Runtime.prepare_calls == 1
+    assert Store.document["failure_code"] is None
+
+
 def test_quiesced_ha_backup_checks_current_usb_free_space_before_real_backup_write(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -228,6 +330,11 @@ def test_quiesced_ha_backup_checks_current_usb_free_space_before_real_backup_wri
     monkeypatch.setattr(mounted_media, "_open_transaction_directory", transaction_directory)
 
     def fake_record(document, **event):
+        event = {
+            **event,
+            "actual_written_bytes": event.get("actual_written_bytes"),
+            "available_bytes_after": event.get("available_bytes_after"),
+        }
         return {**document, "usb_capacity_events": [event]}
 
     monkeypatch.setattr(mounted_media, "record_usb_capacity_event", fake_record)
