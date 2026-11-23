@@ -472,7 +472,13 @@ def _prepare_archive(
     if not wrote:
         os.fsync(directory)
         if capacity_complete is not None:
-            capacity_complete(operation, record.archive_size_bytes, os.fstatvfs(directory).f_bavail * os.fstatvfs(directory).f_frsize)
+            free_after = os.fstatvfs(directory)
+            if free_after.f_frsize <= 0:
+                raise UpdaterV2Error("ha_usb_preparation_space_unavailable")
+            capacity_complete(
+                operation, record.archive_size_bytes,
+                free_after.f_bavail * free_after.f_frsize,
+            )
     return record
 
 
