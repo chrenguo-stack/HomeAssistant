@@ -15,6 +15,7 @@ sys.path.insert(0, str(REPO / "tools"))
 
 import n3w_t1_core_updater_ha_mounted_media as mounted_media
 import n3w_t1_core_updater_ha_recovery_startup as startup
+from n3w_t1_core_updater_ha_recovery import ImageRecoveryRecord
 from n3w_t1_core_updater_ha_usb import request_prepare, record_existing_media_bound, start_target_preparation
 from n3w_t1_core_updater_ha_usb_state import HaUsbStateStore, U7, new_transaction, record_usb_capacity_event
 from n3w_t1_core_updater_ha_usb_media import (
@@ -189,6 +190,98 @@ def test_capacity_events_persist_failed_retry_and_completed_write() -> None:
         "actual_written_bytes": 100,
         "available_bytes_after": 90,
     }
+
+
+def test_v13_takeover_reuses_verified_legacy_u3_archives_without_fabricating_capacity_events(
+    tmp_path: Path, monkeypatch
+) -> None:
+    predecessor_identity = "b" * 64
+    tx = new_transaction(
+        current_image_ref="local/n3w-homeassistant:2026.10.4-test",
+        current_image_identity={"portable_identity_sha256": predecessor_identity},
+        target_manifest_identity={"release_identity": "homeassistant-test"},
+        target_image_ref="local/n3w-homeassistant:2026.10.0-test",
+        target_archive_sha256="a" * 64,
+        target_archive_size=100,
+    )
+    tx = request_prepare(tx)
+    uuid = "12345678-1234-5678-1234-567812345678"
+    tx = record_existing_media_bound(
+        tx,
+        filesystem_uuid=uuid,
+        capacity_report=UsbCapacityReport(
+            measured_usable_bytes=USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
+            required_bytes=100,
+            measured_floor_bytes=USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
+            measured_floor_pass=True,
+            transaction_formula_pass=True,
+            capacity_pass=True,
+        ),
+    )
+    tx = start_target_preparation(tx)
+    assert tx.get("usb_capacity_events") in (None, [])
+
+    class Store:
+        root = tmp_path
+        document = tx
+
+        @classmethod
+        def read(cls):
+            return cls.document
+
+        @classmethod
+        def write(cls, document):
+            cls.document = document
+
+        @staticmethod
+        @contextmanager
+        def lock():
+            yield
+
+    grant = {
+        "schema": startup.PREPARE_AUTHORITY_SCHEMA,
+        "transaction_id_sha256": tx["transaction_id_sha256"],
+        "usb_filesystem_uuid": uuid,
+        "target_source": str(tmp_path / "already-retired-target-source.tar"),
+        "launch_sha256": "d" * 64,
+        "expires_at_unix": 0x7FFFFFFF,
+    }
+    binding = {
+        "launch_sha256": grant["launch_sha256"],
+        "images": {
+            "homeassistant": {
+                "reference": tx["current_image_ref"],
+                "runtime_id": "sha256:" + "e" * 64,
+            }
+        },
+    }
+    target = ImageRecoveryRecord(
+        "target", tx["target_image_ref"], tx["target_archive_sha256"],
+        tx["target_archive_size"], "c" * 64, "linux/arm64", True, True,
+    )
+    predecessor = ImageRecoveryRecord(
+        "predecessor", tx["current_image_ref"], "f" * 64, 200,
+        predecessor_identity, "linux/arm64", True, True,
+    )
+
+    runtime = object.__new__(startup.LocalHaPredecessorRuntime)
+    monkeypatch.setattr(startup, "_read_prepare_authority", lambda *_args: dict(grant))
+    monkeypatch.setattr(runtime, "capture_start_binding", lambda _document: binding)
+    monkeypatch.setattr(runtime, "_original_mountpoint", lambda _uuid: tmp_path)
+    monkeypatch.setattr(startup, "_retire_owned_candidate_archive", lambda *_args: False)
+
+    def reuse_existing(*_args, capacity_complete, **_kwargs):
+        capacity_complete("target_archive", target.archive_size_bytes, 10_000)
+        capacity_complete("predecessor_archive", predecessor.archive_size_bytes, 9_000)
+        return target, predecessor
+
+    monkeypatch.setattr(startup, "prepare_mounted_archives", reuse_existing)
+
+    assert runtime.prepare_requested(Store()) == "READY_TO_INSTALL"
+    assert Store.document["phase"] == "U4_READY_TO_INSTALL"
+    assert Store.document.get("usb_capacity_events", []) == []
+    assert Store.document["prepared_image_materials"]["target"]["archive_sha256"] == "a" * 64
+    assert Store.document["prepared_image_materials"]["predecessor"]["archive_sha256"] == "f" * 64
 
 
 def test_prepare_capacity_block_waits_without_repeating_write_until_space_recovers(
