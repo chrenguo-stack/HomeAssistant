@@ -48,6 +48,7 @@ from n3w_t1_core_updater_ha_usb import (
 from n3w_t1_core_updater_ha_usb_media import USB_FILESYSTEM, validate_filesystem_uuid
 from n3w_t1_core_updater_ha_usb_state import (
     TARGET_BINDING, TARGET_WRITES_POSSIBLE, U1, U2, U3, U5, U6, U9, U10, HaUsbStateStore,
+    record_usb_capacity_event,
 )
 from n3w_t1_core_updater_host import DEFAULT_SERVICES_READINESS_TIMEOUT_SECONDS, LocalHost
 from n3w_t1_core_updater_v2_common import AUTHORIZATION_ID, COMPONENTS, SHA256, UpdaterV2Error
@@ -438,6 +439,47 @@ class LocalHaPredecessorRuntime(LocalHost):
 
             old = binding["images"]["homeassistant"]
 
+            def capacity_admit(operation: str, required: int, available: int, passed: bool) -> None:
+                latest = store.read()
+                if (
+                    latest is None or latest["status"] != "ACTIVE" or latest["phase"] != U3
+                    or latest["transaction_id_sha256"] != document["transaction_id_sha256"]
+                ):
+                    raise UpdaterV2Error("ha_usb_capacity_event_transaction_drift")
+                store.write(record_usb_capacity_event(
+                    latest,
+                    operation=operation,
+                    required_bytes=required,
+                    available_bytes_before=available,
+                    capacity_pass=passed,
+                ))
+
+            def capacity_complete(operation: str, actual: int, available_after: int) -> None:
+                latest = store.read()
+                if (
+                    latest is None or latest["status"] != "ACTIVE" or latest["phase"] != U3
+                    or latest["transaction_id_sha256"] != document["transaction_id_sha256"]
+                ):
+                    raise UpdaterV2Error("ha_usb_capacity_event_transaction_drift")
+                events = latest.get("usb_capacity_events", [])
+                matching = [event for event in events if event["operation"] == operation]
+                if matching and matching[-1]["actual_written_bytes"] is not None:
+                    if matching[-1]["actual_written_bytes"] == actual:
+                        return
+                    raise UpdaterV2Error("ha_usb_capacity_event_completion_drift")
+                if not events or events[-1]["operation"] != operation:
+                    raise UpdaterV2Error("ha_usb_capacity_event_admission_missing")
+                admission = events[-1]
+                store.write(record_usb_capacity_event(
+                    latest,
+                    operation=operation,
+                    required_bytes=admission["required_bytes"],
+                    available_bytes_before=admission["available_bytes_before"],
+                    capacity_pass=True,
+                    actual_written_bytes=actual,
+                    available_bytes_after=available_after,
+                ))
+
             def verify_predecessor(identity: PortableImageIdentity) -> None:
                 observed = self._release_image(old["reference"])
                 if (
@@ -456,6 +498,8 @@ class LocalHaPredecessorRuntime(LocalHost):
                     predecessor_source=lambda: self._export_predecessor(old["reference"]),
                     measure_predecessor_size=lambda: self._measure_predecessor_archive(old["reference"]),
                     verify_predecessor=verify_predecessor,
+                    capacity_admit=capacity_admit,
+                    capacity_complete=capacity_complete,
                 )
             except UpdaterV2Error as error:
                 code = str(error)
@@ -464,10 +508,16 @@ class LocalHaPredecessorRuntime(LocalHost):
                     if latest is not None and latest["status"] == "ACTIVE" and latest["phase"] == U3:
                         store.write({**latest, "failure_code": code})
                 raise
-            if _read_prepare_authority(store, document) != grant or self.capture_start_binding(document) != binding:
+            latest = store.read()
+            if (
+                latest is None or latest["status"] != "ACTIVE" or latest["phase"] != U3
+                or latest["transaction_id_sha256"] != document["transaction_id_sha256"]
+                or _read_prepare_authority(store, latest) != grant
+                or self.capture_start_binding(latest) != binding
+            ):
                 raise UpdaterV2Error("ha_usb_prepare_authority_drift")
-            _retire_owned_candidate_archive(store, document, Path(grant["target_source"]))
-            store.write(record_target_ready(document, target=target, predecessor=predecessor))
+            _retire_owned_candidate_archive(store, latest, Path(grant["target_source"]))
+            store.write(record_target_ready(latest, target=target, predecessor=predecessor))
             return "READY_TO_INSTALL"
 
     def install_requested(self, store: HaUsbStateStore) -> str:
