@@ -19,7 +19,6 @@ from pathlib import Path
 from typing import BinaryIO
 
 from n3w_t1_core_updater_common import COMPOSE, COMPOSE_ENV, PROJECT, SERVICES_UNIT, UpdaterError, sha256_bytes
-from n3w_t1_core_updater_ha_acceptance import monitoring_self_test_qualified
 from n3w_t1_core_updater_ha_ipc import (
     APPROVED_MANIFEST, IPC_SERVICE_UNIT, IPC_SOCKET, IPC_SOCKET_UNIT, MANAGER_PEER_UID, RELEASE_PIN, RELEASE_PIN_SCHEMA,
     SIGNED_INDEX_STATE, HostOtaAdmission, candidate_admission, ha_image_version, read_local_release_input,
@@ -498,7 +497,7 @@ def activate_candidate_runtime(
             if runtime.candidate_manager_monitoring_self_test_available() is not True:
                 raise UpdaterError("ha_recovery_candidate_manager_monitoring_self_test_unavailable")
             proof = runtime.acceptance_observer().run_monitoring_self_test()
-            if not monitoring_self_test_qualified(proof):
+            if proof.verdict != "PASS" or proof.sha256 is None or SHA256.fullmatch(proof.sha256) is None:
                 raise UpdaterError("ha_recovery_candidate_monitoring_self_test_failed")
         except Exception as error:
             if candidate_written:
@@ -533,7 +532,7 @@ def activate_candidate_runtime(
         **preflight,
         "source_head": source_head,
         "status": "CANDIDATE_RUNTIME_ACTIVATED",
-        "monitoring_self_test_sha256": proof,
+        "monitoring_self_test_sha256": proof.sha256,
         "runtime_images_unchanged": True,
         "broker_mutation": False,
     }
