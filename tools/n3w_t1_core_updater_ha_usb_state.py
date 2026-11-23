@@ -83,6 +83,10 @@ PHASES = (
 )
 PHASE_INDEX = {phase: index for index, phase in enumerate(PHASES)}
 USB_CAPACITY_OPERATIONS = frozenset({"target_archive", "predecessor_archive", "protected_data_backup"})
+PREPARE_CAPACITY_FAILURES = frozenset({
+    "ha_usb_target_space_insufficient",
+    "ha_usb_predecessor_space_insufficient",
+})
 
 _ALLOWED_TRANSITIONS = {
     U0: frozenset({U1}),
@@ -241,6 +245,19 @@ def record_usb_capacity_event(
     }
     _validate_usb_capacity_events(result)
     return result
+
+
+def replaceable_capacity_blocked_preparation(document: dict[str, Any]) -> bool:
+    current = validate_transaction_document(document)
+    return (
+        current["status"] == "ACTIVE"
+        and current["phase"] == U3
+        and current.get("failure_code") in PREPARE_CAPACITY_FAILURES
+        and current["recovery_required"] is False
+        and current["authorization_claimed"] is False
+        and current["authorization_consumed"] is False
+        and "predecessor_start" not in current
+    )
 
 
 def _validate_predecessor_start(document: dict[str, Any]) -> None:
@@ -997,12 +1014,23 @@ class HaUsbStateStore:
             raise UpdaterV2Error("legacy_transaction_reconciliation_required")
 
         current = self.read()
-        if current is not None and current["status"] not in HA_USB_TERMINAL_STATUSES:
+        replaceable_block = (
+            current is not None
+            and replacement is not None
+            and replaceable_capacity_blocked_preparation(current)
+        )
+        if (
+            current is not None
+            and current["status"] not in HA_USB_TERMINAL_STATUSES
+            and not replaceable_block
+        ):
             raise UpdaterV2Error("ha_usb_transaction_active")
         if replacement is not None:
             replacement = validate_transaction_document(replacement)
             if replacement["phase"] not in {U0, U1}:
                 raise UpdaterV2Error("ha_usb_replacement_phase_invalid")
+            if replaceable_block and replacement["transaction_id_sha256"] == current["transaction_id_sha256"]:
+                raise UpdaterV2Error("ha_usb_replacement_transaction_reused")
         if current is not None:
             self._archive_current(current, retain_current=replacement is not None)
         if replacement is not None:
