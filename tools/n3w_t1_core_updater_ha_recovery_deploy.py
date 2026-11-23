@@ -412,8 +412,14 @@ def check_candidate_activation(
         active_config = root / ACTIVE_HA_CONFIG.removeprefix("/")
         if not _validate_path(root, active_config, config.removesuffix(MONITORING_CONFIGURATION)):
             raise UpdaterError("ha_recovery_candidate_active_ha_config_missing")
-        runtime.require_candidate_manager_monitoring()
-    return {"source_head": source_head, "status": "CANDIDATE_ACTIVATION_PREFLIGHT_PASS", "predecessor_version": version}
+        manager_self_test = runtime.candidate_manager_monitoring_self_test_available()
+    return {
+        "source_head": source_head,
+        "status": "CANDIDATE_ACTIVATION_PREFLIGHT_PASS",
+        "predecessor_version": version,
+        "manager_monitoring_self_test_available": manager_self_test,
+        "monitoring_mode": "natural_with_self_test_fallback" if manager_self_test else "natural_only",
+    }
 
 
 def _require_idle(store: V2StateStore) -> None:
