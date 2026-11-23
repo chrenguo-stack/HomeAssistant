@@ -247,25 +247,33 @@ class HaRecoveryMonitoringPending(UpdaterError):
 class LocalHaPredecessorRuntime(LocalHost):
     ha_data_root = DEFAULT_HA_DATA_ROOT
 
-    def require_candidate_manager_monitoring(self) -> None:
+    def candidate_manager_monitoring_self_test_available(self) -> bool:
         manager = self._runtime("manager")
         result = self._run((
             "docker", "exec", manager["container_id"], "python3", "-I", "-B", "-c",
             "from greenhouse_manager.runtime.mqtt_service import ManagerMqttService\n"
             "raise SystemExit(0 if callable(getattr(ManagerMqttService, "
-            "'_publish_ota_monitoring_self_test', None)) else 1)",
+            "'_publish_ota_monitoring_self_test', None)) else 42)",
         ), check=False, timeout=10)
-        if result.returncode != 0:
-            raise UpdaterError("ha_recovery_candidate_manager_monitoring_unavailable")
+        if result.returncode == 0:
+            return True
+        if result.returncode == 42:
+            return False
+        raise UpdaterError("ha_recovery_candidate_manager_monitoring_probe_failed")
 
     def acceptance_observer(self) -> LocalHaAcceptanceObserver:
         binding, origins = self._restart_binding()
         if not all(self._check_running_predecessor(binding, origins).values()):
             raise UpdaterError("ha_usb_predecessor_acceptance_runtime_unavailable")
         monitoring = self._monitoring_evidence(origins)
+        self_test = (
+            monitoring.run_self_test
+            if self.candidate_manager_monitoring_self_test_available()
+            else None
+        )
         return LocalHaAcceptanceObserver(
             monitoring, _protected_data_evidence(origins), monitoring_method=NATURAL_MONITORING_METHOD,
-            self_test=monitoring.run_self_test,
+            self_test=self_test,
         )
 
     def _monitoring_evidence(self, origins: dict[str, dict[str, str]]) -> LocalHaMonitoringEvidence:
