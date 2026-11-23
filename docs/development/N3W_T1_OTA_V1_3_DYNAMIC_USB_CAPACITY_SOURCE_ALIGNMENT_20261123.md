@@ -53,6 +53,11 @@ Implemented changes:
 - target/predecessor capacity failures are durable U3 failure codes;
 - post-stop protected-data capacity failure is preserved through automatic predecessor restoration;
 - status exposes the stable capacity cause rather than reducing it to a generic observation failure;
+- automatic retry does not repeat target/predecessor writes while current free space remains insufficient; it performs only a fresh free-space check and returns a stable waiting result;
+- pre-stop U3 capacity-blocked transactions are the only active HA transactions replaceable by a fresh PREPARE, enabling a larger USB without weakening later transaction ownership;
+- the old blocked transaction is archived and old USB transaction contents remain untouched;
+- Manager treats the two pre-stop capacity codes as retryable preparation state and republishes the PREPARE control;
+- Home Assistant OTA attributes publish a Chinese `status_message_or_null` explaining that USB free space is insufficient and how to retry;
 - V1.3 regression tests prevent reintroduction of generic static prepare reserves and prove no write begins when the corresponding current-space gate fails.
 
 ## Test evidence
