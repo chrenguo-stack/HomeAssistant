@@ -222,11 +222,57 @@ def test_runtime_wires_live_observer_from_bound_mounts(monkeypatch, tmp_path):
     monkeypatch.setattr(runtime, "_check_running_predecessor", lambda *_: dict.fromkeys(SERVICES, 1))
     environment = {"GH_SYSTEM_ID": SYSTEM, "GH_N3W_REPLAY_DB_PATH": f"{replay_root}/replay.sqlite3"}
     monkeypatch.setattr(runtime, "render_compose", lambda: {"services": {"manager": {"environment": environment}}})
+    monkeypatch.setattr(runtime, "candidate_manager_monitoring_self_test_available", lambda: False)
     observer = runtime.acceptance_observer()
     assert observer.monitoring_method == NATURAL_MONITORING_METHOD
+    assert observer.self_test is None
     assert observer.monitoring.system_id == SYSTEM
     assert observer.monitoring.replay_db == tmp_path / "replay.sqlite3"
     assert observer.protected_data.history == tmp_path / "home-assistant_v2.db"
+
+
+def test_runtime_adds_self_test_only_when_manager_supports_it(monkeypatch, tmp_path):
+    runtime = LocalHaPredecessorRuntime()
+    replay_root = "/var/lib/greenhouse-manager/n3w"
+    origins = {
+        "manager": {replay_root: str(tmp_path), "/var/lib/greenhouse-manager/manager": str(tmp_path)},
+        "homeassistant": {"/config": str(tmp_path)},
+    }
+    monkeypatch.setattr(runtime, "_restart_binding", lambda: ({}, origins))
+    monkeypatch.setattr(runtime, "_check_running_predecessor", lambda *_: dict.fromkeys(SERVICES, 1))
+    environment = {"GH_SYSTEM_ID": SYSTEM, "GH_N3W_REPLAY_DB_PATH": f"{replay_root}/replay.sqlite3"}
+    monkeypatch.setattr(runtime, "render_compose", lambda: {"services": {"manager": {"environment": environment}}})
+    monkeypatch.setattr(runtime, "candidate_manager_monitoring_self_test_available", lambda: True)
+    observer = runtime.acceptance_observer()
+    assert observer.monitoring_method == NATURAL_MONITORING_METHOD
+    assert observer.self_test == observer.monitoring.run_self_test
+
+
+@pytest.mark.parametrize(("returncode", "expected"), [(0, True), (42, False)])
+def test_manager_monitoring_self_test_capability_probe(monkeypatch, returncode, expected):
+    runtime = LocalHaPredecessorRuntime()
+    monkeypatch.setattr(runtime, "_runtime", lambda name: {"container_id": "manager"})
+    calls = []
+
+    def run(argv, **kwargs):
+        calls.append((argv, kwargs))
+        return SimpleNamespace(returncode=returncode)
+
+    monkeypatch.setattr(runtime, "_run", run)
+    assert runtime.candidate_manager_monitoring_self_test_available() is expected
+    assert calls and calls[0][1] == {"check": False, "timeout": 10}
+
+
+def test_manager_monitoring_self_test_probe_fails_closed(monkeypatch):
+    runtime = LocalHaPredecessorRuntime()
+    monkeypatch.setattr(runtime, "_runtime", lambda name: {"container_id": "manager"})
+    monkeypatch.setattr(
+        runtime,
+        "_run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=1),
+    )
+    with pytest.raises(UpdaterError, match="manager_monitoring_probe_failed"):
+        runtime.candidate_manager_monitoring_self_test_available()
 
 
 @pytest.mark.parametrize("fault", ["wrong_challenge", "stale_receipt", "instance_changed"])
@@ -287,6 +333,23 @@ def test_only_preverified_method_can_issue_target_self_test(monkeypatch, scenari
     assert offline_baseline.monitoring_method == SELF_TEST_MONITORING_METHOD
     assert offline_baseline.checks["monitoring_path"] == "3" * 64
     assert offline_baseline.monitoring_fallback_sha256 is None
+
+
+def test_natural_only_baseline_remains_fail_closed_without_fallback(scenario):
+    observer = LocalHaAcceptanceObserver(
+        scenario.observer,
+        SimpleNamespace(capture=lambda: {"history": None, "pairing": None}),
+        monitoring_method=NATURAL_MONITORING_METHOD,
+        self_test=None,
+    )
+    baseline = observer.capture_baseline({})
+    assert baseline.monitoring_method == NATURAL_MONITORING_METHOD
+    assert baseline.monitoring_fallback_sha256 is None
+    assert baseline.checks["monitoring_path"]
+
+    scenario.receipt["records"] = []
+    with pytest.raises(UpdaterV2Error, match="natural_monitoring_baseline_unavailable"):
+        observer.capture_baseline({})
 
 
 def test_fallback_with_no_proof_defers_install_even_with_natural_traffic(scenario):
