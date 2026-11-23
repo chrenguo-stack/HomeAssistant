@@ -306,7 +306,10 @@ class HaUsbIpcExecutor:
                 "progress_percent": None,
                 "error_code": None,
             }
-        if document.get("pre_cutover_predecessor_restored") is True:
+        if (
+            document.get("pre_cutover_predecessor_restored") is True
+            or (document.get("status") == "ROLLED_BACK" and document.get("phase") == U4)
+        ):
             failure = document.get("failure_code")
             code = (
                 failure
