@@ -1359,7 +1359,13 @@ def _dispatch_pending_candidate(store: HaUsbStateStore, runtime: LocalHaPredeces
                 "updated_at_unix": max(latest["updated_at_unix"], int(time.time())),
             })
         document = store.read()
-    if document["phase"] in {U1, U2, U3} and (store.root / PREPARE_AUTHORITY_FILE).exists():
+    prepare_authority = store.root / PREPARE_AUTHORITY_FILE
+    if document["phase"] in {U1, U2, U3} and prepare_authority.exists():
+        raw_authority = _read_authority_file(
+            prepare_authority, "ha_usb_prepare_authority_invalid"
+        )
+        if raw_authority.get("transaction_id_sha256") != document["transaction_id_sha256"]:
+            return "PREPARE_WAITING_FOR_AUTHORITY"
         return runtime.prepare_requested(store)
     if (
         document["phase"] in {U5, U6} and "predecessor_start" not in document
