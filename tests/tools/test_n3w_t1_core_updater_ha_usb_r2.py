@@ -73,7 +73,6 @@ from n3w_t1_core_updater_ha_usb import (
 )
 from n3w_t1_core_updater_ha_usb_media import (
     FORMAT_CONFIRMATION,
-    USB_MEDIA_MIN_CAPACITY_BYTES,
     USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
     FormatAuthorization,
     RemovableDeviceCandidate,
@@ -144,7 +143,6 @@ def candidate() -> RemovableDeviceCandidate:
         is_root_device=False,
         backs_production_mount=False,
         display_identity_matches=True,
-        capacity_bytes=USB_MEDIA_MIN_CAPACITY_BYTES,
     )
 
 
@@ -824,7 +822,7 @@ def _exercise_target_import(tmp_path, monkeypatch, capsys, fault, *, single_imag
     device = mounted_media._device_number(usb.root.stat().st_dev)
     mounts = [{"target": str(usb.root), "fstype": "ext4", "fsroot": "/", "options": "rw" if activation_fault else "ro",
                "maj:min": device, "uuid": USB_UUID}]
-    devices = [{"type": "disk", "tran": "usb", "maj:min": "8:0", "size": USB_MEDIA_MIN_CAPACITY_BYTES, "children": [
+    devices = [{"type": "disk", "tran": "usb", "maj:min": "8:0", "children": [
         {"type": "part", "uuid": USB_UUID, "maj:min": device},
     ]}]
     monkeypatch.setattr(mounted_media, "_protected_devices", lambda _: {"8:3"})
@@ -1425,7 +1423,7 @@ def test_boot_restores_a_released_predecessor_from_bound_media(tmp_path, monkeyp
     }]
     partition = {"type": "part", "uuid": OTHER_UUID, "maj:min": device,
                  "name": "/dev/n3w-fixture1", "fstype": "ext4"}
-    devices = [{"type": "disk", "tran": "usb", "maj:min": "8:0", "size": USB_MEDIA_MIN_CAPACITY_BYTES, "children": [
+    devices = [{"type": "disk", "tran": "usb", "maj:min": "8:0", "children": [
         partition,
     ]}]
     monkeypatch.setattr(mounted_media, "_protected_devices", lambda _: {"8:3"})
@@ -1873,7 +1871,7 @@ def test_verify_existing_usb_media_from_bound_archives(tmp_path, monkeypatch, fa
         children.append({**partition, "maj:min": "8:99"})
     if fault == "same_disk":
         children.append({"type": "part", "maj:min": protected_device})
-    devices = [{"type": "disk", "tran": "usb", "maj:min": "8:0", "size": USB_MEDIA_MIN_CAPACITY_BYTES, "children": children}]
+    devices = [{"type": "disk", "tran": "usb", "maj:min": "8:0", "children": children}]
     mounts = [{
         "target": str(media.root),
         "fstype": "ext4", "fsroot": "/", "options": "rw,nosuid",
