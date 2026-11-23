@@ -17,12 +17,7 @@ PROTECTED_DATA_SIZE_SOURCE=QUIESCED_SAME_PIPELINE_COUNT_ONLY_MEASUREMENT
 
 Every variable-size USB write must re-read current free space immediately before that operation. Fixed constants may cover only explicitly bounded metadata/filesystem overhead. If protected-data capacity becomes insufficient after first stop, predecessor service recovery has priority and the capacity cause remains durably observable.
 
-```text
-V1_3_EXECUTABLE_CODE_HEAD=05bed5e3b82370fd4dd699fe98e464613bc284a0
-V1_3_EXACT_SOURCE_TEST_HEAD=7484748c44b51da2de6a057f2ca29e9b9734309c
-V1_3_CI_AT_POLL_LIMIT=12_SUCCESS_0_FAILURE_7_RUNNING_2_SKIPPED
-LIVE_V1_3_UPDATER_DEPLOYED=false
-```
+Exact source heads, CI status, live transaction phase and one-shot authorization state are volatile and belong in [current state](N3W_CURRENT_STATE.md), not in this stable working-context file.
 
 Pre-stop target/predecessor space blocks are stable waiting states: timer wakes may re-measure free bytes but may not repeat the write while the gate still fails. A user who must change to a larger USB can issue a fresh PREPARE; only that pre-stop capacity-blocked U3 may be replaced, and its prior transaction/USB contents remain archived. Post-stop protected-data capacity failure restores the predecessor before presenting the failure.
 
