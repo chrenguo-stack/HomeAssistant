@@ -23,7 +23,6 @@ from n3w_t1_core_updater_ha_recovery import ImageRecoveryRecord
 from n3w_t1_core_updater_ha_usb import HaInstallMaterials, HaInternalSpace
 from n3w_t1_core_updater_ha_usb_media import (
     USB_FILESYSTEM,
-    USB_MEDIA_MIN_CAPACITY_BYTES,
     USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
     UsbCapacityReport,
     require_same_filesystem_uuid,
@@ -122,8 +121,7 @@ def bound_usb_device(expected_uuid: str, internal_storage: Path) -> dict[str, An
 
 def _bound_usb_device(expected_uuid: str, protected: set[str]) -> dict[str, Any] | None:
     devices = _command_json(
-        "lsblk", "--json", "--bytes", "--paths", "--output",
-        "NAME,TYPE,TRAN,MAJ:MIN,UUID,FSTYPE,SIZE",
+        "lsblk", "--json", "--paths", "--output", "NAME,TYPE,TRAN,MAJ:MIN,UUID,FSTYPE"
     ).get("blockdevices")
     if not isinstance(devices, list):
         raise UpdaterV2Error("ha_usb_device_inventory_invalid")
@@ -145,19 +143,6 @@ def _bound_usb_device(expected_uuid: str, protected: set[str]) -> dict[str, Any]
         or any(parent == disk and entry.get("maj:min") in protected for entry, _, parent in inventory)
     ):
         raise UpdaterV2Error("ha_usb_original_mount_device_mismatch")
-    parent = next(
-        (
-            entry for entry, _, _ in inventory
-            if entry.get("type") == "disk" and entry.get("maj:min") == disk
-        ),
-        None,
-    )
-    try:
-        capacity = int(parent["size"]) if isinstance(parent, dict) else 0
-    except (KeyError, TypeError, ValueError) as error:
-        raise UpdaterV2Error("ha_usb_media_capacity_unavailable") from error
-    if capacity < USB_MEDIA_MIN_CAPACITY_BYTES:
-        raise UpdaterV2Error("ha_usb_media_below_minimum_capacity")
     return row
 
 
