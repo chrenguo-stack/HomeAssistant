@@ -1,5 +1,17 @@
 ## Current T1 Core Stack authority index
 
+### 2026-11-23 — KF-144 live repair pre-execution ready
+
+- Fresh spare-T1 read-only preflight returned a raw `STOP_DRIFT` only because the helper required `ha-prepare-authority.json` to be absent.
+- The observed prepare authority SHA256 `113ee964...` is the exact archived U3→U4 authority and is expired; source retirement does not consult it. Reclassified as `SAFE_EQUIVALENT_PASS`, not product/runtime drift.
+- U4 transaction remains exact: ACTIVE `U4_READY_TO_INSTALL`, file SHA256 `a22a4260...`, failure `ha_usb_predecessor_acceptance_baseline_unavailable`, authorization unclaimed/unconsumed, target 10.0 absent.
+- HA/Manager/Broker images and restart counts are exact; USB ext4/N3W-UPDATE transaction binding is exact; live updater remains `0ec63d65...`.
+- Repaired HA artifact `14818806074`: ZIP digest `46bc0cc8...`, manifest `ef8e040f...`, new pyz `eee49d52...`.
+- Historical deployed artifact `14808549839` and repaired artifact `14818806074` have byte-identical ten non-pyz payloads; only `ha-recovery.pyz` differs.
+- Manager successor artifact remains `14819845760`.
+- Pre-execution authority: `docs/development/N3W_T1_OTA_V1_3_KF144_LIVE_REPAIR_PREEXECUTION_PACKAGE_20261123.md`.
+- Current stop: no new live authorization; stop before updater control-plane quiesce / pyz replacement.
+
 
 ### 2026-11-23 — KF-144 source / CI / package closure; live repair pending
 
