@@ -572,9 +572,11 @@ CI 在运行时可继续：
 
 普通切换对话在 GitHub 已对齐、没有未归档关键结果、没有待执行的一次性高风险授权、没有实机/生产恢复现场、没有关键状态歧义时，使用 [mini handoff 模板](../../development/templates/mini-handoff-template.md)。mini handoff 只提供当前停点、GitHub 续接入口、下一动作和 fresh rebind 要求，不复制完整项目历史。
 
-以下情况使用[正式模板 V1.4](../../development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md)：实机/生产写入或恢复、回滚/断电、复杂一次性授权、关键状态 UNKNOWN/UNPROVEN、多个 exact authority 必须冻结、重要故障/误判/源码修复尚未稳定收口、跨执行者完整接手，或用户明确要求正式交接。
+以下情况使用[正式模板 V1.5](../../development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md)：实机/生产写入或恢复、回滚/断电、复杂一次性授权、关键状态 UNKNOWN/UNPROVEN、多个 exact authority 必须冻结、重要故障/误判/源码修复尚未稳定收口、跨执行者完整接手，或用户明确要求正式交接。
 
 两种模板都不替代 GitHub current state、KF、closure 或授权记录，也不授予新权限。新会话按[最小读取集](../../development/N3W_PROJECT_WORKING_CONTEXT.md#12-minimum-new-chat-read-set)读取适用规则和相关章节，并对下一动作真正依赖的状态做 fresh rebind。
+
+跨多轮对话的长任务还必须遵守 [Stage Execution Plan 标准](../../development/STAGE_EXECUTION_PLAN_STANDARD.md)：活动阶段 master plan 定义完整任务链，Current State 只记录当前 Task ID，handoff 只恢复现场。若三者任务坐标不一致，先恢复对齐；不得通过 handoff 或 PR comment 静默改变任务链。
 
 ---
 
