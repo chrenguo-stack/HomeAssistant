@@ -543,9 +543,9 @@ class ProtectedHaDataBackup:
         validate_backup_record(record)
         passphrase, mac_key = self._keys(transaction_id)
         with self._file(directory, BACKUP_METADATA_NAME) as metadata:
-            raw = metadata.read(16_385)
+            raw = metadata.read(BACKUP_METADATA_MAX_BYTES + 1)
         try:
-            if len(raw) > 16_384:
+            if len(raw) > BACKUP_METADATA_MAX_BYTES:
                 raise ValueError("oversized metadata")
             stored = json.loads(raw)
         except (UnicodeError, ValueError) as error:
