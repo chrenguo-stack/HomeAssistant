@@ -253,6 +253,35 @@ RELEASE=false
 
 No live mutation may begin until the user explicitly grants the next live gate. The first live mutation boundary is quiescing the updater retry/IPC control plane for the atomic pyz replacement.
 
+## 6A. Live authorization grant
+
+```text
+AUTHORIZATION_GATE=N3W_T1_V1_3_KF144_LIVE_REPAIR_20261123_01
+AUTHORIZATION_SOURCE=USER_EXPLICIT_APPROVAL_IN_CONTINUATION_CHAT
+AUTHORIZATION_STATUS=APPROVED
+AUTHORIZED_PHASES=A_THROUGH_D
+AUTHORIZED_UPDATER_PATCH=true
+AUTHORIZED_U4_RETIREMENT=true
+AUTHORIZED_MANAGER_SUCCESSOR=true
+AUTHORIZED_CANDIDATE_MONITORING_ACTIVATION=true
+AUTHORIZED_MANAGER_BROKER_HA_SELF_TEST=true
+AUTHORIZED_FRESH_HA_PREPARE=false
+AUTHORIZED_HA_INSTALL_OR_CUTOVER=false
+AUTHORIZED_BROKER_OTA=false
+AUTHORIZED_REBOOT=false
+AUTHORIZED_MERGE=false
+AUTHORIZED_RELEASE=false
+```
+
+Generic V2 requires a machine-valid authorization ID with prefix `N3W_T1_CORE_UPDATER_`. Within the approved Phase-C scope, the execution package binds the Manager apply to:
+
+```text
+MANAGER_GENERIC_V2_AUTHORIZATION_ID=N3W_T1_CORE_UPDATER_KF144_MANAGER_SUCCESSOR_20261123_01
+PARENT_AUTHORIZATION_GATE=N3W_T1_V1_3_KF144_LIVE_REPAIR_20261123_01
+```
+
+This child ID is only the machine-consumable identifier for the already approved Manager-successor action; it does not broaden the parent authorization.
+
 ## 7. Archive status
 
 ```text
