@@ -79,6 +79,31 @@ rejection of stale ancestry or source drift. Historical public-safe closure and 
 documents are archived byte-for-byte. No T1, USB, Docker, service, production runtime or board
 mutation occurs. R5 remains a separate real-T1 read-only authorization boundary.
 
+## Task-navigation framework — scaffold ready, task chain pending
+
+The repository now separates long-term task planning from current-state and handoff snapshots.
+The governance authority is [STAGE_EXECUTION_PLAN_STANDARD.md](STAGE_EXECUTION_PLAN_STANDARD.md);
+specific long-task chains will be created later from
+[STAGE_EXECUTION_PLAN_TEMPLATE.md](templates/STAGE_EXECUTION_PLAN_TEMPLATE.md).
+
+```text
+TASK_NAVIGATION_FRAMEWORK=READY
+STAGE_EXECUTION_PLAN_STANDARD=docs/development/STAGE_EXECUTION_PLAN_STANDARD.md
+STAGE_EXECUTION_PLAN_TEMPLATE=docs/development/templates/STAGE_EXECUTION_PLAN_TEMPLATE.md
+
+ACTIVE_STAGE_EXECUTION_PLAN=UNBOUND
+ACTIVE_STAGE_EXECUTION_PLAN_SHA=UNBOUND
+ACTIVE_STAGE_ID=UNBOUND
+CURRENT_TASK_ID=UNBOUND
+NEXT_TASK_ID=UNBOUND
+TASK_CHAIN_STATUS=FRAMEWORK_READY_TASKS_PENDING
+TASK_CHAIN_MUTATION_ALLOWED=false
+```
+
+This scaffold does **not** replace or reinterpret the technical OTA state below. Until a concrete
+master Stage Execution Plan is populated and bound, existing architecture authority, exact
+`NEXT_ONE_GATE` facts, authorization boundaries and fresh evidence remain unchanged.
+
 ## Latest authority — 2026-11-06 mandatory-USB HA OTA R4 host integration CLOSED_PASS
 
 ```text
