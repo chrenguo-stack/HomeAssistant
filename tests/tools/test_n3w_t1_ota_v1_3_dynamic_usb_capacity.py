@@ -56,6 +56,20 @@ def test_16gb_product_minimum_is_separate_from_transaction_free_space() -> None:
     assert classify_candidate(candidate) == ()
 
 
+def test_v13_runtime_source_contains_no_legacy_static_usb_formula() -> None:
+    source = (
+        REPO / "tools/n3w_t1_core_updater_ha_usb_media.py"
+    ).read_text(encoding="utf-8")
+    for forbidden in (
+        "UsbCapacityInputs",
+        "assess_capacity",
+        "predecessor_recovery_worst_case_bytes",
+        "ha_data_backup_worst_case_bytes",
+        "removable_media_reserve_bytes",
+    ):
+        assert forbidden not in source
+
+
 def test_prepare_authority_v2_does_not_accept_static_predecessor_or_reserve_budget() -> None:
     document = {"transaction_id_sha256": "a" * 64}
     grant = {
