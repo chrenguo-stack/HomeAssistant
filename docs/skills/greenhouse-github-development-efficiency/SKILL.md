@@ -565,12 +565,16 @@ CI 在运行时可继续：
 
 # Documentation and Handoff Efficiency
 
-## 1. 使用现有状态文档和正式交接模板
+## 1. 使用现有状态文档和分级交接模板
 
 当前状态记录在 [N3W_CURRENT_STATE.md](../../development/N3W_CURRENT_STATE.md)，
 通过 [状态索引](../../development/N3W_CURRENT_STATE_INDEX.md)定位相关记录。
-阶段交接使用[正式模板](../../development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md)，只记录本次增量。
-新会话按[最小读取集](../../development/N3W_PROJECT_WORKING_CONTEXT.md#12-minimum-new-chat-read-set)读取适用规则和相关章节。
+
+普通切换对话在 GitHub 已对齐、没有未归档关键结果、没有待执行的一次性高风险授权、没有实机/生产恢复现场、没有关键状态歧义时，使用 [mini handoff 模板](../../development/templates/mini-handoff-template.md)。mini handoff 只提供当前停点、GitHub 续接入口、下一动作和 fresh rebind 要求，不复制完整项目历史。
+
+以下情况使用[正式模板 V1.4](../../development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md)：实机/生产写入或恢复、回滚/断电、复杂一次性授权、关键状态 UNKNOWN/UNPROVEN、多个 exact authority 必须冻结、重要故障/误判/源码修复尚未稳定收口、跨执行者完整接手，或用户明确要求正式交接。
+
+两种模板都不替代 GitHub current state、KF、closure 或授权记录，也不授予新权限。新会话按[最小读取集](../../development/N3W_PROJECT_WORKING_CONTEXT.md#12-minimum-new-chat-read-set)读取适用规则和相关章节，并对下一动作真正依赖的状态做 fresh rebind。
 
 ---
 
@@ -578,17 +582,24 @@ CI 在运行时可继续：
 
 只有影响长期接口、产品边界或安全模型的决策才新增 ADR。普通 bug fix、CI 调整和脚本修复不单独生成冗长设计文档。
 
-## 3. 阶段交接按里程碑生成
+## 3. 阶段交接按风险和里程碑分级
 
-以下时机才生成完整交接：
+默认规则：
 
-- 阶段门通过；
-- 生产状态变化；
-- 需要切换对话且上下文接近上限；
-- 出现必须长期保留的新阻塞；
-- 用户明确要求。
+- **普通对话切换**：GitHub 对齐后输出 mini handoff；
+- **复杂/高风险边界**：GitHub 对齐后输出正式模板 V1.4；
+- **无需切换对话**：不为了形式额外生成 handoff。
 
-普通 PR 完成后只更新适用的状态增量和必要记录。
+以下情况必须生成完整正式交接：
+
+- 实机、生产或发布状态变化；
+- 回滚、断电、恢复或部分写入现场跨对话；
+- 存在下一会话需要执行的一次性授权；
+- 出现必须长期保留的新阻塞，且 current state 不能单独表达执行边界；
+- 需要多个 SHA / artifact / transaction / runtime authority 才能安全继续；
+- 用户明确要求正式交接。
+
+普通 PR、普通 CI 等待或常规源码开发切换，只更新适用状态增量和必要记录，并使用 mini handoff。
 
 # Live Validation Efficiency
 
