@@ -1,5 +1,33 @@
 ## Current T1 Core Stack authority
 
+### 2026-11-23 — KF-148 fresh PREPARE false STOP before mutation; repaired post-activation preflight pending
+
+```text
+STATE=KF148_EXECUTOR_POST_ACTIVATION_ORACLE_REPAIR_READY_FRESH_PREPARE_PENDING
+CURRENT_LIVE_AUTHORIZATION=N3W_T1_V1_3_FRESH_HA_PREPARE_10_4_TO_10_0_20261123_01
+LIVE_AUTHORIZATION_STATUS=APPROVED_FRESH_PREPARE_ONLY
+FAILED_EXECUTOR_STAGE=READONLY_PREFLIGHT
+FAILURE=ha_recovery_candidate_compose_template_drift
+ROOT_CAUSE=PRE_ACTIVATION_CHECK_USED_AFTER_CANDIDATE_RUNTIME_ALREADY_ACTIVATED
+
+FRESH_CANDIDATE_MATERIALIZED=false
+FRESH_U1_TRANSACTION_CREATED=false
+FRESH_PREPARE_AUTHORITY_ISSUED=false
+FRESH_USB_TRANSACTION_WRITES=false
+TARGET_10_0_DOCKER_LOAD=false
+INSTALL_INTENT=false
+HA_INSTALL_OR_CUTOVER=false
+BROKER_OTA=false
+REBOOT=false
+
+PHASE_D_CANDIDATE_RUNTIME_REMAINS_EXPECTED=true
+REMOTE_STAGING_PRESERVED=/tmp/n3w-fresh-ha-prepare-20261123-01
+REPLAY_FAILED_EXECUTOR=false
+NEXT_ACTION=POST_ACTIVATION_READONLY_PROOF_THEN_CONTINUE_FRESH_PREPARE_ONLY
+```
+
+The failed executor called `check_candidate_activation()` after Phase D had already activated the candidate runtime. That function intentionally requires the ordinary pre-activation Compose template and therefore rejects the already-active `GH_N3W_T1_OTA_*` settings. The repair must verify the active candidate state directly (exact active candidate Compose/env/monitoring payload, frozen runtime images, Manager self-test capability and a fresh monitoring self-test) without re-running candidate activation.
+
 ### 2026-11-23 — KF-144 live repair CLOSED; fresh HA PREPARE pending explicit authorization
 
 ```text
