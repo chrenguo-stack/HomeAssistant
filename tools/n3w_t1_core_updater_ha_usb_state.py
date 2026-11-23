@@ -87,6 +87,10 @@ PREPARE_CAPACITY_FAILURES = frozenset({
     "ha_usb_target_space_insufficient",
     "ha_usb_predecessor_space_insufficient",
 })
+PRE_CUTOVER_TERMINAL_FAILURES = frozenset({
+    "ha_usb_predecessor_acceptance_baseline_unavailable",
+    "ha_usb_install_revalidation_failed",
+})
 
 _ALLOWED_TRANSITIONS = {
     U0: frozenset({U1}),
@@ -619,10 +623,21 @@ def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
         raise UpdaterV2Error("ha_usb_commit_status_invalid")
     if phase == U13B and status != "ROLLED_BACK":
         raise UpdaterV2Error("ha_usb_rollback_status_invalid")
+    pre_cutover_failed_without_mutation = (
+        status == "ROLLED_BACK"
+        and phase == U4
+        and not has_start_binding
+        and recovery_required is False
+        and claimed is False
+        and consumed is False
+        and auth_sha is None
+        and failure_code in PRE_CUTOVER_TERMINAL_FAILURES
+    )
     if (
         phase not in {U13A, U13B}
         and status in HA_USB_TERMINAL_STATUSES
         and not restored_before_cutover
+        and not pre_cutover_failed_without_mutation
     ):
         raise UpdaterV2Error("ha_usb_terminal_status_phase_mismatch")
     if status == "FAILED_EMERGENCY" and recovery_required is not True:
