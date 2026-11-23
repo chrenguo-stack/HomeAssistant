@@ -33,6 +33,11 @@ REBOOT=false
 REMOTE_STAGING_PRESERVED=/tmp/n3w-fresh-ha-prepare-20261123-01
 REPLAY_FAILED_EXECUTOR=false
 NEXT_ACTION=REPAIR_POST_ACTIVATION_ORACLE_THEN_CONTINUE_R8V13_06
+RESUME_EXECUTOR=N3W_T1_V1_3_FRESH_HA_PREPARE_RESUME_20261123_03.sh
+RESUME_EXECUTOR_SHA256=a38afbe7cbbfa9c3b7d912cf192061976af1dbd62c52d51b837b22e89cd3871f
+RESUME_ACTIVE_COMPOSE_PATH=/etc/n3wfc4/docker-compose.yml
+RESUME_MANAGER_TX_ORACLE=PRODUCT_V2_READER_PLUS_SEMANTIC_FIELDS
+RESUME_REPLAYS_02=false
 ```
 
 Exact source review proves `COMPOSE` is `/etc/n3wfc4/docker-compose.yml`; Resume 02 incorrectly checked the source-template path under `/opt/HomeAssistant/infra/...`. The STOP occurred before any fresh candidate materialization or HA transaction mutation. The next executor must keep the same PREPARE-only authorization, validate the active candidate against the product Compose path, and avoid unproven private-oracle hashes for the already-COMMITTED Manager transaction.
