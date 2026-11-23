@@ -4,7 +4,7 @@
 
 - Product architecture: [T1 Core Stack OTA V1.3](N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.3_20261123.md), blob `2040a5d6b9568d0646a661db23633efe60229fcc`.
 - V1.3 supersedes V1.2 for future implementation and acceptance; V1.2 remains historical evidence.
-- USB physical-media minimum is 16,000,000,000 bytes. The existing 14 GiB filesystem measured-usable floor remains a secondary sanity gate, not a per-transaction capacity guarantee.
+- Product USB minimum is 16GB or larger. Runtime does not trust a marketing label or require an exact 16,000,000,000 raw-byte value; the existing 14 GiB measured-usable filesystem floor is the machine-verifiable media eligibility gate and is not a per-transaction capacity guarantee.
 - Variable payloads use per-operation dynamic admission: exact target size, measured current predecessor export size, and measured quiesced protected-data backup size each recheck current USB free space immediately before the corresponding write.
 - Generic fixed USB reserve as a substitute for future payloads is rejected.
 - V1.3 executable code head is `af1f47aedf4a957b11101f36202cffe4831a1bf6`; source/test/CI wiring head is `1380b7c8b09d05d62b91194c24275ac9558b4ad6`.
