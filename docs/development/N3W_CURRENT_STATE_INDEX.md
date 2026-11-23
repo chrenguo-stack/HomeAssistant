@@ -2,13 +2,13 @@
 
 ### 2026-11-23 — T1 Core Stack OTA V1.3 architecture authority
 
-- Product architecture: [T1 Core Stack OTA V1.3](N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.3_20261123.md), blob `2040a5d6b9568d0646a661db23633efe60229fcc`.
+- Product architecture: [T1 Core Stack OTA V1.3](N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.3_20261123.md), blob `4f2a2a269ca492f5787b25a869a5a38889ae6aaa`.
 - V1.3 supersedes V1.2 for future implementation and acceptance; V1.2 remains historical evidence.
 - Product USB minimum is 16GB or larger. Runtime does not trust a marketing label or require an exact 16,000,000,000 raw-byte value; the existing 14 GiB measured-usable filesystem floor is the machine-verifiable media eligibility gate and is not a per-transaction capacity guarantee.
 - Variable payloads use per-operation dynamic admission: exact target size, measured current predecessor export size, and measured quiesced protected-data backup size each recheck current USB free space immediately before the corresponding write.
 - Generic fixed USB reserve as a substitute for future payloads is rejected.
-- V1.3 executable code head is `af1f47aedf4a957b11101f36202cffe4831a1bf6`; source/test/CI wiring head is `1380b7c8b09d05d62b91194c24275ac9558b4ad6`.
-- Manager A-to-B source validation passed 250 tests including the dedicated V1.3 suite. At the final permitted poll, 15 workflows were SUCCESS, 0 FAILURE and 2 exact-package workflows remained running.
+- V1.3 executable code head is `05bed5e3b82370fd4dd699fe98e464613bc284a0`; exact source/test head is `7484748c44b51da2de6a057f2ca29e9b9734309c`.
+- At the final permitted poll for that head: 12 workflows SUCCESS, 0 FAILURE, 7 RUNNING and 2 path-gated SKIPPED. Exact updater/package closure remains pending.
 - Source alignment: [V1.3 dynamic USB capacity source alignment](N3W_T1_OTA_V1_3_DYNAMIC_USB_CAPACITY_SOURCE_ALIGNMENT_20261123.md).
 - Live T1 still runs the pre-V1.3 updater; source alignment is not live deployment.
 
