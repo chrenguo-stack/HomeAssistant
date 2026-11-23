@@ -1,5 +1,26 @@
 ## Current T1 Core Stack authority
 
+### 2026-11-23 — KF-146 Manager post-apply image-ID oracle false STOP; Phase C committed, Phase D pending
+
+```text
+STATE=KF146_EXECUTOR_ORACLE_REPAIR_READY_PHASE_D_PENDING
+PARENT_AUTHORIZATION=N3W_T1_V1_3_KF144_LIVE_REPAIR_20261123_01
+PHASE_B_U4_RETIREMENT=PASS
+HA_TRANSACTION_STATUS=ROLLED_BACK
+HA_TRANSACTION_PHASE=U4_READY_TO_INSTALL
+PHASE_C_MANAGER_PLAN=PASS
+PHASE_C_MANAGER_APPLY=PASS_COMMITTED
+MANAGER_AUTHORIZATION_CONSUMED=true
+MANAGER_TARGET_REF=local/greenhouse-manager:fresh-1cae18039eee
+MANAGER_OBSERVED_RUNTIME_ID=sha256:c4bcb441de0554ebb20e3feb2b98a65cc435750539a2c951eb7be710ff191221
+PACKAGE_CONFIG_DIGEST=sha256:9547078268e5f2550b46583abbd87d9f0a6bbaa727a0af2c19379ca906954867
+EXECUTOR_FALSE_STOP=runtime_drift
+PHASE_C_REPLAY=false
+PHASE_D_EXECUTED=false
+```
+
+The private resume executor imposed a stronger postcondition than the product contract by requiring Docker host-local image Id to equal the archive config digest. Product source and regression tests explicitly permit a different host-local Id when portable image identity matches exact config semantics and rootfs diff IDs. Generic V2 apply had already returned PASS/COMMITTED before the extra executor oracle stopped. Do not replay Manager apply. Fresh read-only closure must prove the committed transaction, TARGET_BOUND_RUNNING/HEALTHY runtime, exact target tag/peers, and exact-tar portable identity verification; if exact, continue only Phase D under the existing authorization.
+
 ### 2026-11-23 — KF-145 executor ordering trap; Phase A PASS, Phase B not retired
 
 ```text
