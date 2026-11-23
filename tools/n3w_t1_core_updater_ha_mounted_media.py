@@ -16,12 +16,14 @@ from pathlib import Path
 from typing import Any, BinaryIO, ContextManager
 
 from n3w_t1_core_updater_ha_backup import (
-    HA_DATABASE_NAME, HaDataBackupRecord, ProtectedHaDataBackup, backup_record_from_document,
+    BACKUP_METADATA_MAX_BYTES, HA_DATABASE_NAME, HaDataBackupRecord, ProtectedHaDataBackup,
+    backup_record_from_document,
 )
 from n3w_t1_core_updater_ha_recovery import ImageRecoveryRecord
 from n3w_t1_core_updater_ha_usb import HaInstallMaterials, HaInternalSpace
 from n3w_t1_core_updater_ha_usb_media import (
     USB_FILESYSTEM,
+    USB_MEDIA_MIN_CAPACITY_BYTES,
     USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
     UsbCapacityReport,
     require_same_filesystem_uuid,
@@ -72,8 +74,6 @@ def _exchange_directories(first_parent: int, first: str, second_parent: int, sec
 class HaInstallSpaceBudget:
     """Additional space still needed at the current step, excluding existing files."""
 
-    usb_install_bytes: int
-    usb_recovery_bytes: int
     internal_install_bytes: int
     # Recovery overhead is additional to the measured image layers and HA restore workspace.
     internal_recovery_overhead_bytes: int
@@ -122,7 +122,8 @@ def bound_usb_device(expected_uuid: str, internal_storage: Path) -> dict[str, An
 
 def _bound_usb_device(expected_uuid: str, protected: set[str]) -> dict[str, Any] | None:
     devices = _command_json(
-        "lsblk", "--json", "--paths", "--output", "NAME,TYPE,TRAN,MAJ:MIN,UUID,FSTYPE"
+        "lsblk", "--json", "--bytes", "--paths", "--output",
+        "NAME,TYPE,TRAN,MAJ:MIN,UUID,FSTYPE,SIZE",
     ).get("blockdevices")
     if not isinstance(devices, list):
         raise UpdaterV2Error("ha_usb_device_inventory_invalid")
@@ -144,6 +145,19 @@ def _bound_usb_device(expected_uuid: str, protected: set[str]) -> dict[str, Any]
         or any(parent == disk and entry.get("maj:min") in protected for entry, _, parent in inventory)
     ):
         raise UpdaterV2Error("ha_usb_original_mount_device_mismatch")
+    parent = next(
+        (
+            entry for entry, _, _ in inventory
+            if entry.get("type") == "disk" and entry.get("maj:min") == disk
+        ),
+        None,
+    )
+    try:
+        capacity = int(parent["size"]) if isinstance(parent, dict) else 0
+    except (KeyError, TypeError, ValueError) as error:
+        raise UpdaterV2Error("ha_usb_media_capacity_unavailable") from error
+    if capacity < USB_MEDIA_MIN_CAPACITY_BYTES:
+        raise UpdaterV2Error("ha_usb_media_below_minimum_capacity")
     return row
 
 
@@ -392,9 +406,11 @@ def _open_preparation_archive(directory: int, name: str, flags: int) -> Iterator
 
 def _prepare_archive(
     directory: int, kind: str, image_ref: str, source: Callable[[], ContextManager[BinaryIO]],
-    *, limit: int, reserve: int, expected_sha256: str | None = None,
+    *, expected_size: int, expected_sha256: str | None = None,
     validate: Callable[[PortableImageIdentity], None] | None = None,
 ) -> ImageRecoveryRecord:
+    if type(expected_size) is not int or not 0 < expected_size <= MAX_ARCHIVE_BYTES:
+        raise UpdaterV2Error("ha_usb_preparation_archive_size_invalid")
     final = f"{kind}.tar"
     partial = f".{final}.part"
 
@@ -402,10 +418,10 @@ def _prepare_archive(
         with _open_preparation_archive(directory, name, os.O_RDONLY) as stream:
             fd = stream.fileno()
             metadata = os.fstat(fd)
-            if not 0 < metadata.st_size <= limit:
+            if metadata.st_size != expected_size:
                 raise UpdaterV2Error("ha_usb_preparation_archive_size_invalid")
             digest = hashlib.file_digest(stream, "sha256").hexdigest()
-            if expected_sha256 is not None and (digest != expected_sha256 or metadata.st_size != limit):
+            if expected_sha256 is not None and digest != expected_sha256:
                 raise UpdaterV2Error("ha_usb_preparation_target_rejected")
             stream.seek(0)
             try:
@@ -429,15 +445,17 @@ def _prepare_archive(
         with _open_preparation_archive(directory, partial, os.O_RDWR | os.O_CREAT) as output:
             output.truncate(0)
             free = os.fstatvfs(directory)
-            if free.f_frsize * free.f_bavail < limit + reserve:
-                raise UpdaterV2Error("ha_usb_preparation_space_insufficient")
+            if free.f_frsize * free.f_bavail < expected_size:
+                raise UpdaterV2Error(f"ha_usb_{kind}_space_insufficient")
             with source() as reader:
                 written = 0
-                while block := reader.read(min(ARCHIVE_BLOCK_BYTES, limit - written + 1)):
+                while block := reader.read(min(ARCHIVE_BLOCK_BYTES, expected_size - written + 1)):
                     written += len(block)
-                    if written > limit:
+                    if written > expected_size:
                         raise UpdaterV2Error("ha_usb_preparation_archive_size_invalid")
                     output.write(block)
+            if written != expected_size:
+                raise UpdaterV2Error("ha_usb_preparation_archive_size_invalid")
             output.flush()
             os.fsync(output.fileno())
         record = inspect(partial)
@@ -451,23 +469,19 @@ def prepare_mounted_archives(
     *, target_source: Callable[[], ContextManager[BinaryIO]],
     predecessor_source: Callable[[], ContextManager[BinaryIO]],
     verify_predecessor: Callable[[PortableImageIdentity], None],
-    max_predecessor_bytes: int, reserve: int,
+    predecessor_size_bytes: int,
 ) -> tuple[ImageRecoveryRecord, ImageRecoveryRecord]:
     with _open_transaction_directory(mountpoint, internal_storage, document, create=True) as (_, directory):
         target = _prepare_archive(
             directory, "target", document["target_image_ref"], target_source,
-            limit=document["target_archive_size"], reserve=max_predecessor_bytes + reserve,
+            expected_size=document["target_archive_size"],
             expected_sha256=document["target_archive_sha256"],
         )
         predecessor = _prepare_archive(
             directory, "predecessor", document["current_image_ref"], predecessor_source,
-            limit=max_predecessor_bytes, reserve=reserve, validate=verify_predecessor,
+            expected_size=predecessor_size_bytes, validate=verify_predecessor,
         )
-        free = os.fstatvfs(directory)
-        if free.f_frsize * free.f_bavail < reserve:
-            raise UpdaterV2Error("ha_usb_preparation_space_insufficient")
     return target, predecessor
-
 
 def measure_preparation_capacity(
     mountpoint: Path, internal_storage: Path, expected_uuid: str, required: int,
@@ -535,7 +549,6 @@ class HaMountedInstallMaterialVerifier:
         self, fd: int, budget: HaInstallSpaceBudget, target_bytes: int, predecessor_bytes: int,
     ) -> tuple[UsbCapacityReport, HaInternalSpace]:
         values = (
-            budget.usb_install_bytes, budget.usb_recovery_bytes,
             budget.internal_install_bytes, budget.internal_recovery_overhead_bytes,
         )
         if any(type(value) is not int or value <= 0 for value in values):
@@ -558,19 +571,15 @@ class HaMountedInstallMaterialVerifier:
             recovery_workspace_bytes=workspace,
         )
         usable = (usb.f_blocks - usb.f_bfree + usb.f_bavail) * usb.f_frsize
-        required = max(values[:2])
         floor = USB_MEASURED_USABLE_CAPACITY_MIN_BYTES
-        space_ok = (
-            (usb.f_bavail * usb.f_frsize) >= required
-            and space.available_bytes >= space.required_bytes
-        )
+        internal_ok = space.available_bytes >= space.required_bytes
         return UsbCapacityReport(
             measured_usable_bytes=usable,
-            required_bytes=required,
+            required_bytes=0,
             measured_floor_bytes=floor,
             measured_floor_pass=usable >= floor,
-            transaction_formula_pass=space_ok,
-            capacity_pass=usable >= floor and space_ok,
+            transaction_formula_pass=internal_ok,
+            capacity_pass=usable >= floor and internal_ok,
         ), space
 
 
@@ -659,9 +668,26 @@ class HaMountedBackupProvider:
             raise UpdaterV2Error("ha_data_backup_transaction_identity_drift")
         self._require_stopped(current)
         self._internal_work_root()
+        measured = self.backup.measure_archive_size(transaction_id_sha256)
+        self._require_stopped(self._document())
+        with _open_transaction_directory(
+            self.mountpoint, self.internal_storage, current
+        ) as (_, parent):
+            free = os.fstatvfs(parent)
+            if free.f_frsize <= 0:
+                raise UpdaterV2Error("ha_data_backup_usb_space_unavailable")
+            block = free.f_frsize
+            archive_bytes = ((measured + block - 1) // block) * block
+            metadata_bytes = ((BACKUP_METADATA_MAX_BYTES + block - 1) // block) * block
+            directory_bytes = block
+            required = archive_bytes + metadata_bytes + directory_bytes
+            if free.f_bavail * block < required:
+                raise UpdaterV2Error("ha_data_backup_usb_space_insufficient")
         with self._backup_directory(current, create=True) as directory:
             self._require_stopped(self._document())
             record = self.backup.create(directory, transaction_id_sha256)
+            if record.archive_size_bytes != measured:
+                raise UpdaterV2Error("ha_data_backup_measurement_drift")
             self._require_stopped(self._document())
         return record
 
