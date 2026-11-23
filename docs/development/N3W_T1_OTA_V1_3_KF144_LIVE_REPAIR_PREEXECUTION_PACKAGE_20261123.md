@@ -295,6 +295,35 @@ STOP_BEFORE_FRESH_HA_PREPARE=true
 
 The operator copy contains a private T1 runtime locator and therefore is not committed to the public repository. The durable public execution contract is this pre-execution package plus the exact source/artifact bindings above. The operator script downloads exact GitHub artifacts by ID, independently verifies artifact/payload hashes, performs a fresh remote preflight, fails closed on any drift, and preserves remote staging on failure for forensic recovery.
 
+## 6C. KF-145 bounded resume executor
+
+The first authorized executor completed Phase A and then stopped before Phase B because it incorrectly kept the recovery retry timer inactive while calling the retirement entry point. The STOP handler re-armed the timer/socket and preserved staging. No Manager successor or candidate activation occurred.
+
+The repaired resume executor starts from the exact post-Phase-A state and does not replay the pyz patch:
+
+```text
+RESUME_EXECUTOR=N3W_T1_V1_3_KF144_LIVE_REPAIR_RESUME_20261123_02.sh
+RESUME_EXECUTOR_SHA256=04f0384fd4468e364906d2e0d2f79f9542eaeb4ffbc1aca879329c052566a93a
+BASH_SYNTAX=PASS
+EMBEDDED_REMOTE_PYTHON_COMPILE=PASS
+PARENT_AUTHORIZATION=N3W_T1_V1_3_KF144_LIVE_REPAIR_20261123_01
+PHASE_A_REPLAY=false
+RESUME_PHASES=B_THROUGH_D
+STOP_BEFORE_FRESH_HA_PREPARE=true
+```
+
+Resume admission requires:
+
+- live updater pyz exactly `eee49d52ae4ea7f9ecb20a27d1fc467e66708d4fc7df28493acf7bb7f8a049cf`;
+- HA transaction still byte-exact `a22a4260...`, ACTIVE U4 with the KF-144 baseline-unavailable failure and no authorization claim/consumption;
+- original HA/Manager/Broker runtime identities still healthy;
+- recovery retry timer and IPC socket enabled + active;
+- old expired prepare/install/release records still exact at resume entry;
+- target HA 10.0 still absent;
+- preserved staging artifact hashes exact.
+
+Before invoking retirement, the resume executor imports the exact installed pyz and performs a read-only internal preflight of `capture_start_binding()`, signed-predecessor binding, target absence, install-authority validation, and launch-hash parity. It then invokes the public `--retire-precutover-failure` path with the recovery timer still armed.
+
 ## 7. Archive status
 
 ```text
