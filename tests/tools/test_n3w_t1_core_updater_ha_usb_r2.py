@@ -61,6 +61,7 @@ from n3w_t1_core_updater_ha_usb import (
     record_media_bound,
     record_predecessor_capacity_released,
     record_predecessor_recovery_and_ha_quiesced,
+    record_pre_cutover_failure_terminal,
     record_recovery_admission,
     record_rollback_complete,
     record_target_accepted,
@@ -228,6 +229,30 @@ def first_stop_fixture(tmp_path):
     store = HaUsbStateStore(tmp_path / "state")
     store.write(tx)
     return predecessor, store, PredecessorRuntime(store)
+
+
+def test_u4_baseline_failure_can_finish_without_fabricating_rollback(tmp_path):
+    failed, *_ = prepare_to_u4(tmp_path)
+    failed = {
+        **failed,
+        "failure_code": "ha_usb_predecessor_acceptance_baseline_unavailable",
+    }
+    terminal = record_pre_cutover_failure_terminal(failed)
+    assert terminal["status"] == "ROLLED_BACK"
+    assert terminal["phase"] == U4
+    assert terminal["recovery_required"] is False
+    assert terminal["authorization_claimed"] is False
+    assert terminal["authorization_consumed"] is False
+    assert "predecessor_start" not in terminal
+
+    store = HaUsbStateStore(tmp_path / "precutover-terminal")
+    store.write(terminal)
+    projected = HaUsbIpcExecutor(store=store, admission_resolver=None).status()
+    assert projected == {
+        "phase": "ROLLED_BACK",
+        "progress_percent": None,
+        "error_code": "ha_usb_predecessor_acceptance_baseline_unavailable",
+    }
 
 
 def test_first_stop_requires_successfully_persisted_restart_binding(tmp_path, monkeypatch):
