@@ -17,6 +17,15 @@ PROTECTED_DATA_SIZE_SOURCE=QUIESCED_SAME_PIPELINE_COUNT_ONLY_MEASUREMENT
 
 Every variable-size USB write must re-read current free space immediately before that operation. Fixed constants may cover only explicitly bounded metadata/filesystem overhead. If protected-data capacity becomes insufficient after first stop, predecessor service recovery has priority and the capacity cause remains durably observable.
 
+```text
+V1_3_EXECUTABLE_CODE_HEAD=05bed5e3b82370fd4dd699fe98e464613bc284a0
+V1_3_EXACT_SOURCE_TEST_HEAD=7484748c44b51da2de6a057f2ca29e9b9734309c
+V1_3_CI_AT_POLL_LIMIT=12_SUCCESS_0_FAILURE_7_RUNNING_2_SKIPPED
+LIVE_V1_3_UPDATER_DEPLOYED=false
+```
+
+Pre-stop target/predecessor space blocks are stable waiting states: timer wakes may re-measure free bytes but may not repeat the write while the gate still fails. A user who must change to a larger USB can issue a fresh PREPARE; only that pre-stop capacity-blocked U3 may be replaced, and its prior transaction/USB contents remain archived. Post-stop protected-data capacity failure restores the predecessor before presenting the failure.
+
 Current repository implementation is on PR #824; live T1 is not yet aligned to V1.3. Read [current state](N3W_CURRENT_STATE.md) and [V1.3 source alignment](N3W_T1_OTA_V1_3_DYNAMIC_USB_CAPACITY_SOURCE_ALIGNMENT_20261123.md) before any R8 live continuation. The existing fresh U1 is valid and held; do not rerun PREPARE or use the retired static-reserve U1→U4 command.
 
 ## Stable updater authority — PR #788 mandatory-USB HA OTA R4 clean successor, 2026-11-06
