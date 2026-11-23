@@ -168,7 +168,7 @@ TASK=N3W_T1_OTA_V1_3_SOURCE_CLOSURE_TO_R8_REACCEPTANCE
 - 已归档：
   - source/tests/docs 均在 PR #824 branch；
   - exact CI run 与 artifact identity 已在上述 source-alignment/current-state 文档记录；
-  - 本交接文件即本次 continuation authority；最终固定 commit / PR comment 由交接归档步骤补充。
+  - 本交接文件即本次 continuation authority；初始创建 commit `344d1e8134bd420a9215fa313c00d63bb71ce234`，current-state 绑定 commits `128353bd545d7ec86a7a8cea0e9bb3fd92d2ed73` / `1c9979692f87e4ab5d76df7f61162d2ca3ebb80a`，PR #824 固定归档 comment `7091625137`。
 - 未归档重要资料：无。私有 T1 地址、原始 USB UUID、SSH locator 等不写入公开仓库；必要时由私有上下文重新取得，不影响公开交接完整性。
 
 ```text
