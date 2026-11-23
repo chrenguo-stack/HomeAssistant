@@ -102,9 +102,9 @@ The USB block device is present and exact identity is known, but it was not moun
 
 ```text
 USB_DEVICE_CLASS=existing_removable_ext4
-USB_FILESYSTEM_UUID=b72ac2fc-79a0-4fb8-888e-f35b0114f959
+USB_LOCATOR=PRIVATE_RUNTIME_EVIDENCE
 USB_FSTYPE=ext4
-USB_MAJOR_MINOR=8:1
+
 USB_MOUNT_PRESENT=false
 USB_PREPARATION_STATE=ORIGINAL_MOUNT_REQUIRED
 USB_FORMAT_REQUIRED=false
