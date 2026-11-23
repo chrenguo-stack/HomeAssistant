@@ -15,7 +15,7 @@ sys.path.insert(0, str(REPO / "tools"))
 import n3w_t1_core_updater_ha_mounted_media as mounted_media
 import n3w_t1_core_updater_ha_recovery_startup as startup
 from n3w_t1_core_updater_ha_usb import request_prepare, record_existing_media_bound, start_target_preparation
-from n3w_t1_core_updater_ha_usb_state import U7, new_transaction, record_usb_capacity_event
+from n3w_t1_core_updater_ha_usb_state import HaUsbStateStore, U7, new_transaction, record_usb_capacity_event
 from n3w_t1_core_updater_ha_usb_media import (
     USB_PRODUCT_MIN_CAPACITY_GB,
     USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
@@ -274,6 +274,68 @@ def test_prepare_capacity_block_waits_without_repeating_write_until_space_recove
     assert startup._dispatch_pending_candidate(Store(), Runtime()) == "READY_TO_INSTALL"
     assert Runtime.prepare_calls == 1
     assert Store.document["failure_code"] is None
+
+
+def test_only_capacity_blocked_pre_stop_transaction_can_be_replaced(tmp_path: Path) -> None:
+    store = HaUsbStateStore(tmp_path / "state")
+    original = new_transaction(
+        current_image_ref="local/n3w-homeassistant:2026.10.0-test",
+        current_image_identity={"test": "predecessor"},
+        target_manifest_identity={"release_identity": "homeassistant-test"},
+        target_image_ref="local/n3w-homeassistant:2026.10.4-test",
+        target_archive_sha256="a" * 64,
+        target_archive_size=100,
+        created_at_unix=100,
+    )
+    original = start_target_preparation(
+        record_existing_media_bound(
+            request_prepare(original),
+            filesystem_uuid="12345678-1234-5678-1234-567812345678",
+            capacity_report=UsbCapacityReport(
+                measured_usable_bytes=USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
+                required_bytes=100,
+                measured_floor_bytes=USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
+                measured_floor_pass=True,
+                transaction_formula_pass=True,
+                capacity_pass=True,
+            ),
+        )
+    )
+    store.write(original)
+
+    replacement = request_prepare(new_transaction(
+        current_image_ref=original["current_image_ref"],
+        current_image_identity=original["current_image_identity"],
+        target_manifest_identity=original["target_manifest_identity"],
+        target_image_ref=original["target_image_ref"],
+        target_archive_sha256=original["target_archive_sha256"],
+        target_archive_size=original["target_archive_size"],
+        created_at_unix=101,
+    ))
+
+    with pytest.raises(UpdaterV2Error, match="ha_usb_transaction_active"):
+        store.prepare_new(replacement=replacement)
+
+    blocked = record_usb_capacity_event(
+        original,
+        operation="target_archive",
+        required_bytes=120,
+        available_bytes_before=100,
+        capacity_pass=False,
+    )
+    blocked = {**blocked, "failure_code": "ha_usb_target_space_insufficient"}
+    store.write(blocked)
+    store.prepare_new(replacement=replacement)
+
+    current = store.read()
+    assert current is not None
+    assert current["phase"] == "U1_PREPARE_REQUESTED"
+    assert current["transaction_id_sha256"] == replacement["transaction_id_sha256"]
+    history = list(store.history.glob("*-homeassistant-usb-*.json"))
+    assert len(history) == 1
+    archived = store._read_record(history[0])
+    assert archived["transaction_id_sha256"] == blocked["transaction_id_sha256"]
+    assert archived["failure_code"] == "ha_usb_target_space_insufficient"
 
 
 def test_quiesced_ha_backup_checks_current_usb_free_space_before_real_backup_write(
