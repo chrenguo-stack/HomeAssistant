@@ -1248,7 +1248,7 @@ The user explicitly paused before `chip-id` / `flash-id` and requested a new-cha
 # N3W_PROJECT_WORKING_CONTEXT
 
 > Status: durable public project working context  
-> Version: `N3W_PROJECT_WORKING_CONTEXT_VERSION=1.10`
+> Version: `N3W_PROJECT_WORKING_CONTEXT_VERSION=1.11`
 > Scope: N3-W development for the greenhouse monitoring system  
 > Repository: `chrenguo-stack/HomeAssistant`
 
@@ -1302,13 +1302,15 @@ Formal handoff template authority is separate from historical standard authority
 
 ```text
 SOLE_VALID_HANDOFF_TEMPLATE=docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md
-SOLE_VALID_HANDOFF_TEMPLATE_VERSION=1.4
+SOLE_VALID_HANDOFF_TEMPLATE_VERSION=1.5
 OLDER_HANDOFF_TEMPLATE_VERSIONS=INVALID_FOR_NEW_HANDOFF_GENERATION
 HISTORICAL_TEMPLATE_COPIES=HISTORICAL_EVIDENCE_ONLY
 HISTORICAL_STANDARD_MAY_NOT_REACTIVATE_OLD_TEMPLATE=true
 ```
 
-A historical commit may remain authoritative for a process standard while its bundled historical handoff template is obsolete. Use V1.4 for new formal handoffs. V1.3 and earlier templates and their completed records remain historical evidence. A pinned execution or process contract retains its own scope and safety requirements.
+A historical commit may remain authoritative for a process standard while its bundled historical handoff template is obsolete. Use V1.5 for new formal handoffs. V1.4 and earlier templates and their completed records remain historical evidence. A pinned execution or process contract retains its own scope and safety requirements.
+
+Long-task navigation is governed separately by `docs/development/STAGE_EXECUTION_PLAN_STANDARD.md`. When an active stage has a master Stage Execution Plan, that document is the sole task-chain authority; `N3W_CURRENT_STATE.md` records only the current Task ID, and handoffs only restore the last stop point. Do not silently mutate a long-task chain through a handoff, PR comment, or current-state prose. The initial framework may remain `UNBOUND` until the user and project populate a concrete stage plan.
 
 ---
 
@@ -1685,12 +1687,16 @@ where the physical operation requires one.
 1. Read the current handoff and applicable `AGENTS.md` instructions, including the
    rules required by those instructions. For stable N3-W working context, select
    the sections relevant to the task and reuse the version already read.
-2. Read the handoff's named documents and sections, plus any exact execution or
-   handoff standard it binds. Use [current state](N3W_CURRENT_STATE.md) for the
-   active route, [the index](N3W_CURRENT_STATE_INDEX.md) for locating evidence,
+2. If the handoff names a `MASTER_TASK_DOCUMENT`, read that Stage Execution Plan
+   before interpreting the handoff's next action. Confirm the current Task ID and
+   next-task chain against the master plan. If the current framework is explicitly
+   `UNBOUND`, do not invent a task chain from chat history.
+3. Read the handoff's other named documents and sections, plus any exact execution
+   or handoff standard it binds. Use [current state](N3W_CURRENT_STATE.md) for the
+   active coordinate, [the index](N3W_CURRENT_STATE_INDEX.md) for locating evidence,
    and [known failures](KNOWN_FAILURES_AND_REGRESSION_GUARDS.md) for applicable
    guards. Start with the relevant sections or entries.
-3. Recheck the minimum current repository or approved runtime state needed for
+4. Recheck the minimum current repository or approved runtime state needed for
    the next action. Expand the read set when evidence is missing or conflicts,
    or when the task or applicable repository instructions require it.
 
