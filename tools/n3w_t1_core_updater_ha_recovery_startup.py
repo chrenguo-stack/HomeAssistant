@@ -68,11 +68,11 @@ RECOVERY_TIMER = "n3w-t1-ha-recovery-retry.timer"
 BOOT_CONDITION = f"ExecCondition={RECOVERY_COMMAND} --check-application-start"
 IMAGE_LOAD_TIMEOUT_SECONDS = 1800
 PREPARE_AUTHORITY_FILE = "ha-prepare-authority.json"
-PREPARE_AUTHORITY_SCHEMA = "gh.n3w-t1-ha-prepare-authority/1"
+PREPARE_AUTHORITY_SCHEMA = "gh.n3w-t1-ha-prepare-authority/2"
 INSTALL_AUTHORITY_FILE = "ha-install-authority.json"
-INSTALL_AUTHORITY_SCHEMA = "gh.n3w-t1-ha-install-authority/1"
+INSTALL_AUTHORITY_SCHEMA = "gh.n3w-t1-ha-install-authority/2"
 INSTALL_BUDGET_FIELDS = {
-    "usb_install_bytes", "usb_recovery_bytes", "internal_install_bytes", "internal_recovery_overhead_bytes",
+    "internal_install_bytes", "internal_recovery_overhead_bytes",
 }
 
 
@@ -163,13 +163,11 @@ def _validate_prepare_authority(grant: dict[str, Any], document: dict[str, Any])
     if (
         set(grant) != {
             "schema", "transaction_id_sha256", "usb_filesystem_uuid", "target_source",
-            "launch_sha256", "expires_at_unix", "max_predecessor_bytes", "usb_reserve_bytes",
+            "launch_sha256", "expires_at_unix",
         }
         or grant["schema"] != PREPARE_AUTHORITY_SCHEMA
         or grant["transaction_id_sha256"] != document["transaction_id_sha256"]
         or not isinstance(grant["target_source"], str) or not Path(grant["target_source"]).is_absolute()
-        or any(type(grant[key]) is not int or not 0 < grant[key] <= MAX_ARCHIVE_BYTES
-               for key in ("max_predecessor_bytes", "usb_reserve_bytes"))
     ):
         raise UpdaterV2Error(reason)
     grant["usb_filesystem_uuid"] = validate_filesystem_uuid(grant["usb_filesystem_uuid"])
@@ -325,6 +323,18 @@ class LocalHaPredecessorRuntime(LocalHost):
                 if process.poll() is None:
                     process.kill()
 
+
+    def _measure_predecessor_archive(self, reference: str) -> int:
+        total = 0
+        with self._export_predecessor(reference) as source:
+            while block := source.read(1024 * 1024):
+                total += len(block)
+                if total > MAX_ARCHIVE_BYTES:
+                    raise UpdaterV2Error("ha_usb_predecessor_archive_size_invalid")
+        if total <= 0:
+            raise UpdaterV2Error("ha_usb_predecessor_archive_size_invalid")
+        return total
+
     def issue_candidate_authority(self, store: HaUsbStateStore, kind: str, request: dict[str, Any]) -> str:
         """Bind an explicit operator approval to the current private transaction."""
         with store.lock():
@@ -353,7 +363,7 @@ class LocalHaPredecessorRuntime(LocalHost):
             binding_key = "transaction_id_sha256" if kind == "prepare" else "binding_sha256"
             request_fields = {"transaction_id_sha256", "expires_at_unix"}
             if kind == "prepare":
-                fields = {"usb_filesystem_uuid", "target_source", "max_predecessor_bytes", "usb_reserve_bytes"}
+                fields = {"usb_filesystem_uuid", "target_source"}
                 if document["phase"] not in {U1, U2, U3} or request.keys() != request_fields | fields:
                     raise UpdaterV2Error("ha_usb_authority_request_not_admitted")
                 grant = _validate_prepare_authority({
@@ -368,8 +378,7 @@ class LocalHaPredecessorRuntime(LocalHost):
                 mountpoint = self._original_mountpoint(uuid)
                 if document["phase"] == U1:
                     measure_preparation_capacity(
-                        mountpoint, store.root, uuid,
-                        document["target_archive_size"] + grant["max_predecessor_bytes"] + grant["usb_reserve_bytes"],
+                        mountpoint, store.root, uuid, document["target_archive_size"],
                     )
                 with self._open_target_source(Path(grant["target_source"]), document["target_archive_size"]) as archive:
                     if hashlib.file_digest(archive, "sha256").hexdigest() != document["target_archive_sha256"]:
@@ -417,11 +426,9 @@ class LocalHaPredecessorRuntime(LocalHost):
             if binding["launch_sha256"] != grant["launch_sha256"]:
                 raise UpdaterV2Error("ha_usb_prepare_authority_drift")
             mountpoint = self._original_mountpoint(uuid)
-            reserve = grant["usb_reserve_bytes"]
-            max_predecessor = grant["max_predecessor_bytes"]
             if document["phase"] == U1:
                 capacity = measure_preparation_capacity(
-                    mountpoint, store.root, uuid, document["target_archive_size"] + max_predecessor + reserve,
+                    mountpoint, store.root, uuid, document["target_archive_size"],
                 )
                 document = record_existing_media_bound(document, filesystem_uuid=uuid, capacity_report=capacity)
                 store.write(document)
@@ -442,11 +449,13 @@ class LocalHaPredecessorRuntime(LocalHost):
                 if expected is not None and expected != sha256_bytes(canonical(identity.to_dict())):
                     raise UpdaterV2Error("ha_usb_preparation_predecessor_archive_drift")
 
+            predecessor_size = self._measure_predecessor_archive(old["reference"])
             target, predecessor = prepare_mounted_archives(
                 mountpoint, store.root, document,
                 target_source=lambda: self._open_target_source(Path(grant["target_source"]), document["target_archive_size"]),
                 predecessor_source=lambda: self._export_predecessor(old["reference"]),
-                verify_predecessor=verify_predecessor, max_predecessor_bytes=max_predecessor, reserve=reserve,
+                verify_predecessor=verify_predecessor,
+                predecessor_size_bytes=predecessor_size,
             )
             if _read_prepare_authority(store, document) != grant or self.capture_start_binding(document) != binding:
                 raise UpdaterV2Error("ha_usb_prepare_authority_drift")
