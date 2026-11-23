@@ -1,5 +1,24 @@
 ## Current T1 Core Stack authority
 
+### 2026-11-23 — KF-145 executor ordering trap; Phase A PASS, Phase B not retired
+
+```text
+STATE=KF145_EXECUTOR_REPAIR_READY_LIVE_RESUME_PENDING
+PARENT_AUTHORIZATION=N3W_T1_V1_3_KF144_LIVE_REPAIR_20261123_01
+PHASE_A_UPDATER_PATCH=PASS
+LIVE_UPDATER_PYZ_SHA256=eee49d52ae4ea7f9ecb20a27d1fc467e66708d4fc7df28493acf7bb7f8a049cf
+PHASE_B_U4_RETIREMENT=NOT_EXECUTED_TO_TERMINAL
+PHASE_B_RESULT=PRE_CUTOVER_FAILURE_NOT_RETIRED
+ROOT_CAUSE=RECOVERY_TIMER_QUIESCED_BY_OPERATOR_EXECUTOR_BEFORE_RETIREMENT
+PRODUCT_TRANSACTION_MUTATION_BY_PHASE_B=false
+MANAGER_SUCCESSOR_EXECUTED=false
+CANDIDATE_MONITORING_ACTIVATED=false
+FRESH_HA_PREPARE_EXECUTED=false
+REMOTE_STAGING_PRESERVED=true
+```
+
+The executor stopped the recovery timer for the atomic pyz patch and incorrectly left it inactive while invoking `--retire-precutover-failure`. The source retirement path first verifies the installed recovery control plane through `capture_start_binding() → require_recovery_install()`, which requires the retry timer to be active. This is an executor-ordering false failure, not a new product-state failure. The STOP handler re-armed the timer/socket before returning. Resume must first prove the exact post-Phase-A state, then retry retirement with the control plane armed; do not replay Phase A.
+
 ### 2026-11-23 — KF-144 fresh live preflight SAFE_EQUIVALENT_PASS; pre-execution package ready
 
 ```text
