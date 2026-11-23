@@ -1,10 +1,23 @@
-## Current T1 Core Stack OTA product architecture — V1.2, 2026-11-20
+## Current T1 Core Stack OTA product architecture — V1.3, 2026-11-23
 
-Use [T1 Core Stack OTA V1.2](N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.2_20261119.md) as the design authority for implementation and acceptance.
-Sections 1, 3, 5, 6, 9, 10 and 11 cover the product contract, recovery and release acceptance.
-The executable OTA code and live runtime have yet to align with V1.2. For the active route,
-read the [current state](N3W_CURRENT_STATE.md) before using the historical R4/R5 sections below
-or the old OTA stack (#807, #809, #810 and #811). Earlier live authorizations do not carry forward.
+Use [T1 Core Stack OTA V1.3](N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.3_20261123.md) as the design authority for future implementation and acceptance.
+V1.3 supersedes V1.2 while preserving V1.2 as historical evidence.
+
+Stable V1.3 capacity conventions:
+
+```text
+USB_PHYSICAL_MEDIA_MIN_BYTES=16000000000
+USB_FILESYSTEM_SANITY_FLOOR_BYTES=15032385536
+PER_OPERATION_DYNAMIC_USB_CAPACITY=true
+STATIC_GENERIC_USB_RESERVE=false
+TARGET_SIZE_SOURCE=APPROVED_EXACT_MANIFEST
+PREDECESSOR_SIZE_SOURCE=READONLY_ACTUAL_EXPORT_MEASUREMENT
+PROTECTED_DATA_SIZE_SOURCE=QUIESCED_SAME_PIPELINE_COUNT_ONLY_MEASUREMENT
+```
+
+Every variable-size USB write must re-read current free space immediately before that operation. Fixed constants may cover only explicitly bounded metadata/filesystem overhead. If protected-data capacity becomes insufficient after first stop, predecessor service recovery has priority and the capacity cause remains durably observable.
+
+Current repository implementation is on PR #824; live T1 is not yet aligned to V1.3. Read [current state](N3W_CURRENT_STATE.md) and [V1.3 source alignment](N3W_T1_OTA_V1_3_DYNAMIC_USB_CAPACITY_SOURCE_ALIGNMENT_20261123.md) before any R8 live continuation. The existing fresh U1 is valid and held; do not rerun PREPARE or use the retired static-reserve U1→U4 command.
 
 ## Stable updater authority — PR #788 mandatory-USB HA OTA R4 clean successor, 2026-11-06
 
