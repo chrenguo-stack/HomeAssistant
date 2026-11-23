@@ -36,13 +36,12 @@ LIVE_UPDATER_PYZ_SHA256=ae7c74a260f6023e19a0d63f2542f7c1bbc2693c032763270047771e
 LIVE_UPDATER_ALIGNED_TO_CURRENT_SOURCE=true
 CURRENT_V1_3_SOURCE_HEAD=c702dda43780892d477bc1a10141d98abc0d8229
 
-LAST_COMPLETED_GATE=N3W_T1_V1_3_U4_IDENTITY_PATCH_20261123_01
+LAST_COMPLETED_GATE=N3W_T1_V1_3_SCHEMA_V2_PREPARE_U3_TO_U4_20261123_02
 LAST_COMPLETED_GATE_RESULT=PASS
-NEXT_ONE_GATE=SCHEMA_V2_U3_TO_U4_LIVE_ACCEPTANCE
-NEXT_GATE_SCOPE=FRESH_REBIND_THEN_SEPARATELY_AUTHORIZED_U3_TO_U4
+NEXT_ONE_GATE=N3W_T1_V1_3_U5_INSTALL_AUTHORIZATION
+NEXT_GATE_SCOPE=U4_TO_U5_INSTALL_REQUEST_AND_EXACT_INSTALL_AUTHORITY
 NEXT_GATE_AUTHORIZATION_REQUIRED=true
-SCHEMA_V2_PREPARE_AUTHORITY_AUTHORIZED_NOW=false
-U3_TO_U4_RESUME_AUTHORIZED_NOW=false
+U5_INSTALL_AUTHORIZED_NOW=false
 AUTO_EXECUTE_NEXT_GATE_AFTER_FRESH_REBIND=false
 ```
 
@@ -50,7 +49,7 @@ V1.3 freezes two separate capacity questions. The product requires a 16GB-or-lar
 
 The current exact source/test closure includes two live-discovered U3/U4 compatibility repairs: adoption of already-verified pre-V1.3 U3 archives without fabricating historical capacity events, and production-shaped predecessor identity handling at U4. The latter is tracked as KF-143. Exact source/test head `c702dda4...` completed 19 applicable SUCCESS workflows, 0 FAILURE, 0 CANCELLED and 2 expected path-gated SKIPPED. Exact recovery updater artifact `14795440698` contains pyz SHA256 `ae7c74a2...`.
 
-The live spare T1 has completed updater-only patch `N3W_T1_V1_3_U4_IDENTITY_PATCH_20261123_01`: exact source/test head `c702dda4...` / pyz `ae7c74a2...` is installed, the same ACTIVE U3 transaction is unchanged, no prepare authority is active, target 10.0 remains unloaded, and HA/Manager/Broker remain healthy. The patch boundary is closed. Schema-v2 authority issuance and U3→U4 resume remain a separate, currently unauthorized live-acceptance boundary.
+The live spare T1 has completed updater-only patch `N3W_T1_V1_3_U4_IDENTITY_PATCH_20261123_01` and the subsequent fresh schema-v2 U3→U4 live acceptance `N3W_T1_V1_3_SCHEMA_V2_PREPARE_U3_TO_U4_20261123_02`. The exact c702dda4 updater advanced the same transaction to ACTIVE `U4_READY_TO_INSTALL`; target/predecessor prepared materials are verified, target 10.0 remains unloaded, no install authority exists, and HA/Manager/Broker remain healthy. KF-143 is now live-proven and GUARDED. The next separate boundary is U5 install authorization.
 
 Source alignment:
 `docs/development/N3W_T1_OTA_V1_3_DYNAMIC_USB_CAPACITY_SOURCE_ALIGNMENT_20261123.md`.
@@ -115,6 +114,51 @@ assertions: they preserve the current P4 authority where applicable and explicit
 rejection of stale ancestry or source drift. Historical public-safe closure and architecture
 documents are archived byte-for-byte. No T1, USB, Docker, service, production runtime or board
 mutation occurs. R5 remains a separate real-T1 read-only authorization boundary.
+
+## 2026-11-23 — schema-v2 U3→U4 live acceptance PASS; KF-143 GUARDED
+
+```text
+AUTHORIZATION_ID=N3W_T1_V1_3_SCHEMA_V2_PREPARE_U3_TO_U4_20261123_02
+LIVE_ACCEPTANCE=PASS
+RESUME_RETURN_CODE=0
+RESUME_STATUS=READY_TO_INSTALL
+
+UPDATER_SOURCE_HEAD=c702dda43780892d477bc1a10141d98abc0d8229
+UPDATER_PYZ_SHA256=ae7c74a260f6023e19a0d63f2542f7c1bbc2693c032763270047771e435d3e5c
+
+TRANSACTION_STATUS=ACTIVE
+TRANSACTION_PHASE=U4_READY_TO_INSTALL
+TRANSACTION_ID_SHA256=760dc8bdab1c9ceee2b0d3dfb2797111f24e69a9e7569efb6907bc64325d71fe
+TRANSACTION_FILE_SHA256=bb46f3ba6f27b2c03194e79af3cb62a4d1302d17586e1a366169b6a61af84aa1
+
+TARGET_ARTIFACT_VERIFIED=true
+PREPARED_IMAGE_MATERIALS=PASS
+TARGET_PORTABLE_IDENTITY_SHA256=bb482735b5262e427a2053000f6423e34831ff526fc37fb3986a4d3d8b2910c9
+PREDECESSOR_PORTABLE_IDENTITY_SHA256=959df8e3547e2b6c3bd226165f92bc5d74c246eaa336b54de4c9936a1ea6af26
+
+PREPARE_AUTHORITY_SHA256=113ee964ba0e271947632b75b6bd1b3da3dbaf816ee7c26e0c691dd5dae322e4
+INSTALL_AUTHORITY=false
+TARGET_2026_10_0_LOADED=false
+HA_MANAGER_BROKER_HEALTH=PASS
+UPDATER_SOCKET_ARMED=true
+UPDATER_TIMER_ARMED=true
+REMOTE_STAGING_CLEANUP=PASS
+
+KF_143_LIVE_ACCEPTANCE=PASS
+KF_143_STATUS=GUARDED
+STOP_BEFORE_U5=true
+
+NEXT_BOUNDARY=N3W_T1_V1_3_U5_INSTALL_AUTHORIZATION
+NEXT_BOUNDARY_AUTHORIZED=false
+```
+
+Fresh rebind matched the c702dda4 updater and the exact pre-existing ACTIVE U3 transaction before authority issuance. A new schema-v2 prepare authority was issued with SHA256 `113ee964...`. One manual `--resume-pending` completed with `READY_TO_INSTALL`; repeated progress observations remained at U3 while the existing 2.4 GB-class target and predecessor materials were fully reverified, then the transaction atomically advanced to U4.
+
+The U4 transaction contains exact prepared target/predecessor portable identities, target 10.0 is still not loaded, no install authority exists, and the application runtime remained healthy. This is the live closure required by KF-143: the production-shaped predecessor identity contract now succeeds on the spare T1 with the repaired c702dda4 updater, while the explicit mismatch regression remains protected by exact CI. KF-143 is therefore GUARDED rather than OPEN.
+
+The gate stopped before U5. No install authority was issued or consumed, no HA/Manager stop occurred, no target load occurred, and no U6+ transition occurred.
+
+Public-safe execution closure: `docs/development/N3W_T1_OTA_V1_3_SCHEMA_V2_U3_TO_U4_LIVE_ACCEPTANCE_CLOSURE_20261123.md`.
 
 ## 2026-11-23 — T1 OTA V1.3 U4 identity updater patch PASS; ACTIVE U3 preserved
 

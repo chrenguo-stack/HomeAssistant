@@ -9,11 +9,13 @@
 - Exact CI for `c702dda4...`: 19 applicable SUCCESS, 0 FAILURE, 0 CANCELLED, 0 RUNNING and 2 expected path-gated SKIPPED.
 - Current exact recovery artifact: HA target-binding run `45124757720`, artifact `14795440698`, ZIP SHA256 `3bd2f94d2bd64fc35106f299fef08559d0a55c42852ce736d1e5a931cd09459e`, manifest SHA256 `6fdaa8a5c8b8c2a2f388bd536e276238edd0ae05f0a7ad23948409953ee16dd4`, pyz SHA256 `ae7c74a260f6023e19a0d63f2542f7c1bbc2693c032763270047771e435d3e5c`.
 - Live spare T1 updater-only patch `N3W_T1_V1_3_U4_IDENTITY_PATCH_20261123_01` is PASS: source/test head `c702dda43780892d477bc1a10141d98abc0d8229`, artifact `14795440698`, pyz SHA256 `ae7c74a260f6023e19a0d63f2542f7c1bbc2693c032763270047771e435d3e5c`.
-- The same HA transaction remains ACTIVE `U3_TARGET_DOWNLOADING_VERIFYING` with file SHA256 `9e663188098c6d4795115da42bd2acd4b31abb05aeb9f48ab8dfabac620988c7`; no active prepare authority exists and target 10.0 remains unloaded.
-- Patch post-audit proved 10 non-pyz install payloads unchanged, HA/Manager/Broker healthy, updater socket/timer rearmed, and remote staging cleanup PASS.
-- KF-143 source/test/package repair and live updater deployment are complete, but KF-143 remains OPEN until separately authorized schema-v2 U3→U4 live acceptance succeeds.
-- Current stop boundary is before schema-v2 authority issuance. U3→U4 is not authorized by the completed patch gate and must not auto-execute.
-- Execution closure: [V1.3 U4 identity patch execution closure](N3W_T1_OTA_V1_3_U4_IDENTITY_PATCH_EXECUTION_CLOSURE_20261123.md).
+- Fresh schema-v2 live acceptance `N3W_T1_V1_3_SCHEMA_V2_PREPARE_U3_TO_U4_20261123_02` is PASS. The same transaction is ACTIVE `U4_READY_TO_INSTALL` with file SHA256 `bb46f3ba6f27b2c03194e79af3cb62a4d1302d17586e1a366169b6a61af84aa1`.
+- U4 prepared materials are exact: target portable identity `bb482735...`, predecessor portable identity `959df8e3...`; target 10.0 remains unloaded and no install authority exists.
+- HA/Manager/Broker remained healthy, updater socket/timer remained armed, and remote staging cleanup PASS.
+- KF-143 live acceptance is PASS and the known failure is now GUARDED.
+- Current stop boundary is U4 before U5. The next separate gate is U5 install authorization.
+- U3→U4 closure: [V1.3 schema-v2 U3→U4 live acceptance closure](N3W_T1_OTA_V1_3_SCHEMA_V2_U3_TO_U4_LIVE_ACCEPTANCE_CLOSURE_20261123.md).
+- Prior patch closure: [V1.3 U4 identity patch execution closure](N3W_T1_OTA_V1_3_U4_IDENTITY_PATCH_EXECUTION_CLOSURE_20261123.md).
 - Historical execution handoff: [V1.3 U4 identity patch execution handoff](N3W_T1_OTA_V1_3_U4_IDENTITY_PATCH_EXECUTION_NEW_CHAT_HANDOFF_V1.0_20261123.md).
 - Historical handoff [V1.3 source closure → R8 reacceptance](N3W_T1_OTA_V1_3_SOURCE_CLOSURE_TO_R8_REACCEPTANCE_NEW_CHAT_HANDOFF_V1.0_20261123.md) is superseded for live-state continuation but retained as history.
 - Source alignment: [V1.3 dynamic USB capacity source alignment](N3W_T1_OTA_V1_3_DYNAMIC_USB_CAPACITY_SOURCE_ALIGNMENT_20261123.md).
