@@ -15,6 +15,7 @@
 - Next live order: fresh rebind → updater-only patch → retire proven no-mutation U4 failure → Generic V2 Manager successor → candidate monitoring activation/self-test → fresh HA PREPARE.
 - Broker OTA remains deferred.
 - Closure: [KF-144 source / CI / package closure](N3W_T1_OTA_V1_3_KF144_SOURCE_CI_PACKAGE_CLOSURE_20261123.md).
+- Current continuation handoff: [KF-144 source closed → live repair](N3W_T1_OTA_V1_3_KF144_SOURCE_CLOSED_TO_LIVE_REPAIR_NEW_CHAT_HANDOFF_V1.0_20261123.md), formal V1.4 because mini handoff is fail-closed for pending live mutation.
 
 
 ### 2026-11-23 — T1 Core Stack OTA V1.3 architecture authority
