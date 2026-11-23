@@ -1,5 +1,37 @@
 ## Current T1 Core Stack authority
 
+### 2026-11-23 — KF-144 fresh live preflight SAFE_EQUIVALENT_PASS; pre-execution package ready
+
+```text
+STATE=KF144_LIVE_REPAIR_PREEXECUTION_READY
+RAW_PREFLIGHT=STOP_DRIFT
+CLASSIFIED_PREFLIGHT=SAFE_EQUIVALENT_PASS
+FALSE_STOP_CAUSE=KNOWN_EXPIRED_PREPARE_AUTHORITY_RESIDUE
+PREPARE_AUTHORITY_SHA256=113ee964ba0e271947632b75b6bd1b3da3dbaf816ee7c26e0c691dd5dae322e4
+PREPARE_AUTHORITY_EXPIRED=true
+
+LIVE_TRANSACTION_STATUS=ACTIVE
+LIVE_TRANSACTION_PHASE=U4_READY_TO_INSTALL
+LIVE_TRANSACTION_SHA256=a22a4260401ddb04318afba1b03495edb23a32c68196372987501b50154c2a66
+LIVE_UPDATER_PYZ_SHA256=0ec63d6527be8e583b087576cda20c543edc707401a01344c20f8a0f354a0e51
+LIVE_RUNTIME_EXACT=true
+LIVE_USB_BINDING_EXACT=true
+TARGET_HA_10_0_LOADED=false
+
+REPAIRED_RECOVERY_ARTIFACT_ID=14818806074
+REPAIRED_RECOVERY_PYZ_SHA256=eee49d52ae4ea7f9ecb20a27d1fc467e66708d4fc7df28493acf7bb7f8a049cf
+RECOVERY_NON_PYZ_OLD_NEW_PARITY=PASS
+MANAGER_SUCCESSOR_ARTIFACT_ID=14819845760
+
+NEW_LIVE_AUTHORIZATION=NONE
+NEXT_GATE=N3W_T1_V1_3_KF144_LIVE_REPAIR_20261123_01
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+Fresh read-only evidence proves the live U4 failure, runtime, USB, updater and target-image absence remain exact. The only local-helper mismatch was the still-present historical schema-v2 prepare authority; its SHA256 equals the archived U3→U4 authority and it is expired. The product retirement path does not require that file to be absent, so this is classified as a safe-equivalent preflight and a checker false stop rather than live drift.
+
+Artifact comparison also proves the currently deployed recovery package and the repaired artifact have identical ten non-pyz payloads; only `ha-recovery.pyz` changed. The bounded pre-execution package is `docs/development/N3W_T1_OTA_V1_3_KF144_LIVE_REPAIR_PREEXECUTION_PACKAGE_20261123.md`. No T1 mutation has been authorized or executed.
+
 
 ### 2026-11-23 — KF-144 source / CI / package CLOSED; live repair pending
 
