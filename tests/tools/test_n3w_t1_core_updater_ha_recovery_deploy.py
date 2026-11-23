@@ -100,10 +100,15 @@ def test_exact_package_installs_and_executes_self_contained_recovery(package, tm
     assert all(flag in stdout for flag in ("--check-application-start", "--resume-pending", "--install-requested", "--serve-ipc"))
     assert "--issue-prepare-authority" in stdout and "--issue-install-authority" in stdout
     assert "--maintenance-submit-approved-release" in stdout and "--release-identity" in stdout
+    assert "--retire-precutover-failure" in stdout
     check_help = subprocess.check_output(
         (sys.executable, "-I", installed, "check-candidate-activation", "--help"), cwd=tmp_path, text=True,
     )
     assert "--manifest-sha256" in check_help
+    activate_help = subprocess.check_output(
+        (sys.executable, "-I", installed, "activate-candidate-runtime", "--help"), cwd=tmp_path, text=True,
+    )
+    assert "--manifest-sha256" in activate_help
     stage_help = subprocess.check_output(
         (sys.executable, "-I", installed, "materialize-candidate", "--help"), cwd=tmp_path, text=True,
     )
@@ -376,6 +381,7 @@ def test_activation_preflight_is_read_only(package, tmp_path, monkeypatch, fault
         "broker": "unexpected_compose_change", "transaction": "transaction_active",
         "monitoring_mount": "ha_monitoring_mount_drift", "system_id": "ha_environment_drift",
         "active_config": "install_existing_file_drift", "manager_probe": "manager_monitoring_probe_failed",
+        "legacy_manager": "manager_monitoring_self_test_required",
     }
     changes = manager.changes[:]
     if fault in errors:
@@ -387,17 +393,12 @@ def test_activation_preflight_is_read_only(package, tmp_path, monkeypatch, fault
         result = deploy.check_candidate_activation(
             staged, digest, root=root, runtime=runtime, systemctl=unit_status, render=render,
         )
-        expected_self_test = fault != "legacy_manager"
         assert result == {
             "source_head": head,
             "status": "CANDIDATE_ACTIVATION_PREFLIGHT_PASS",
             "predecessor_version": "2026.10.0",
-            "manager_monitoring_self_test_available": expected_self_test,
-            "monitoring_mode": (
-                "natural_with_self_test_fallback"
-                if expected_self_test
-                else "natural_only"
-            ),
+            "manager_monitoring_self_test_available": True,
+            "monitoring_mode": "natural_with_self_test_fallback",
         }
         assert bound == [{
             "current_image_ref": observed["image_ref"], "current_image_identity": {"runtime_image_id": observed["image_id"]},
