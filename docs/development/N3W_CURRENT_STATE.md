@@ -41,6 +41,9 @@ The exact 2026.10.0 target and current 2026.10.4 predecessor export size were re
 Current progress authority:
 `docs/development/N3W_T1_OTA_V1_2_R8_PRE_U1_PASS_TO_U1_PREPARE_REQUESTED_PROGRESS_ALIGNMENT_20261123.md`.
 
+Current new-chat handoff:
+`docs/development/N3W_T1_OTA_V1_2_R8_PRE_U1_PASS_TO_U1_PREPARE_REQUESTED_NEW_CHAT_HANDOFF_V1.0_20261123.md`.
+
 The operator intentionally stopped before running the already-prepared command that mounts the existing USB without formatting, materializes exact 2026.10.0, creates a fresh normal HA transaction and stops at U1. The next conversation begins by reviewing that command's terminal output.
 
 ## Current T1 Core Stack authority
