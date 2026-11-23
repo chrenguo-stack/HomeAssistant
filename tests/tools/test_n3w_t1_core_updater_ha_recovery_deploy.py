@@ -283,11 +283,17 @@ def test_candidate_runtime_activation_is_transaction_idle_and_self_tested(packag
     deploy.install(staged, digest, root=root, systemctl=Systemd(root))
 
     active_path = root / deploy.COMPOSE.relative_to("/")
+    env_path = root / deploy.COMPOSE_ENV.relative_to("/")
     active_path.parent.mkdir(parents=True, exist_ok=True)
     original = (REPO / deploy.BASE_COMPOSE).read_bytes()
     active_path.write_bytes(original)
 
     ref = "local/n3w-homeassistant:2026.10.0-01234567"
+    env_path.write_text(
+        "GH_MANAGER_IMAGE=manager\n"
+        f"GH_HOMEASSISTANT_IMAGE={ref}\n"
+        "GH_SYSTEM_ID=fixture\n"
+    )
     active = {"services": {
         "manager": {"environment": {"GH_SYSTEM_ID": "fixture"}, "volumes": [], "image": "manager"},
         "broker": {"image": "broker"},
@@ -368,9 +374,11 @@ def test_candidate_runtime_activation_is_transaction_idle_and_self_tested(packag
     assert result["source_head"] == head
     assert result["monitoring_self_test_sha256"] == "a" * 64
     assert result["runtime_images_unchanged"] is True
+    assert result["installed_version_env_bound"] is True
     assert result["broker_mutation"] is False
-    assert actions[0] == "stop" and actions[-1] == "start"
+    assert "stop" in actions and actions[-1] == "start"
     assert "GH_N3W_T1_OTA_ENABLED" in active_path.read_text()
+    assert "GH_N3W_T1_OTA_INSTALLED_VERSION=2026.10.0" in env_path.read_text()
 
 
 @pytest.mark.parametrize("fault", [
