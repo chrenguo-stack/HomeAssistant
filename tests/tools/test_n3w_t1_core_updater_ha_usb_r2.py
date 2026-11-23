@@ -1169,6 +1169,14 @@ def _exercise_target_import(tmp_path, monkeypatch, capsys, fault, *, single_imag
             **{key: grant[key] for key in ("binding_sha256", "authorization_id", "expires_at_unix")},
             "transaction_id_sha256": requested["transaction_id_sha256"],
         }
+        with pytest.raises(UpdaterV2Error, match="ha_usb_authority_request_not_admitted"):
+            runtime.issue_candidate_authority(store, "install", {
+                **request,
+                "space": {
+                    "internal_install_bytes": 1,
+                    "internal_recovery_overhead_bytes": 1,
+                },
+            })
         with pytest.raises(UpdaterV2Error, match="ha_usb_install_authority_invalid"):
             runtime.issue_candidate_authority(store, "install", {**request, "binding_sha256": "0" * 64})
         with monkeypatch.context() as replay:
