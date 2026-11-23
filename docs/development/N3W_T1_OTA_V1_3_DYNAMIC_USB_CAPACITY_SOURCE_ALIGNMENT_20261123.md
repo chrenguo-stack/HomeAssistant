@@ -6,7 +6,7 @@ Date: 2026-11-23
 
 `docs/development/N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.3_20261123.md`
 
-Architecture blob: `2040a5d6b9568d0646a661db23633efe60229fcc`.
+Architecture blob: `4f2a2a269ca492f5787b25a869a5a38889ae6aaa`.
 
 V1.3 supersedes V1.2 for future implementation and acceptance. V1.2 remains historical evidence.
 
@@ -33,13 +33,13 @@ If protected-data capacity is insufficient after first stop, the existing pre-cu
 
 ## Source implementation
 
-Executable code change head:
+Executable code head:
 
-`af1f47aedf4a957b11101f36202cffe4831a1bf6`
+`05bed5e3b82370fd4dd699fe98e464613bc284a0`
 
-Source/test/CI wiring head:
+Exact source/test head:
 
-`1380b7c8b09d05d62b91194c24275ac9558b4ad6`
+`7484748c44b51da2de6a057f2ca29e9b9734309c`
 
 Implemented changes:
 
@@ -58,25 +58,43 @@ Implemented changes:
 - the old blocked transaction is archived and old USB transaction contents remain untouched;
 - Manager treats the two pre-stop capacity codes as retryable preparation state and republishes the PREPARE control;
 - Home Assistant OTA attributes publish a Chinese `status_message_or_null` explaining that USB free space is insufficient and how to retry;
-- V1.3 regression tests prevent reintroduction of generic static prepare reserves and prove no write begins when the corresponding current-space gate fails.
+- each variable USB write persists `operation / required_bytes / available_bytes_before / capacity_pass / actual_written_bytes / available_bytes_after` in the durable HA transaction;
+- V1.3 regression tests prevent reintroduction of generic static prepare reserves and prove no write begins when the corresponding current-space gate fails;
+- a blocked U3 does not replay writes on timer wake; it only rechecks current free space;
+- a larger replacement USB is supported through a fresh PREPARE only for a pre-stop capacity-blocked U3; all later active transactions remain non-replaceable;
+- stale prepare authority from the archived transaction is treated as `PREPARE_WAITING_FOR_AUTHORITY`, not as a false failure; only a fresh authority bound to the new transaction can resume writes.
 
 ## Test evidence
 
-Initial source-head CI found one test-only regression: `inspect` was removed from the R1 test module while another security test still used it. This was repaired locally without product design change.
+Two local, unambiguous test-only/formatting regressions were found during implementation and repaired without changing the product design:
 
-At source/test head `1380b7c8...`:
+1. an existing R1 security test still required `inspect` after an earlier import cleanup;
+2. Manager Ruff rejected the first Chinese status-message formatting because of import-block/line-length style.
 
-- Manager A-to-B source step: SUCCESS, `250 passed`, including `test_n3w_t1_ota_v1_3_dynamic_usb_capacity.py`;
-- 15 repository workflows: SUCCESS;
-- 0 workflow failures at the final permitted poll;
-- Manager A-to-B exact-package continuation: still running;
-- Home Assistant target-binding source/package workflow: still running.
+Both were repaired before the current exact source/test head.
 
-GitHub runs still in progress when active polling stopped:
-- Manager A-to-B: https://github.com/chrenguo-stack/HomeAssistant/actions/runs/45106586861
-- Home Assistant target binding: https://github.com/chrenguo-stack/HomeAssistant/actions/runs/45106586849
+At exact source/test head `7484748c44b51da2de6a057f2ca29e9b9734309c`, active polling stopped after the project limit of three checks:
 
-No CI terminal success is claimed for those two runs in this document.
+```text
+CI_SUCCESS=12
+CI_FAILURE=0
+CI_IN_PROGRESS=7
+CI_EXPECTED_SKIPPED=2
+```
+
+Completed SUCCESS includes Public repository safety, T1 R8 spare preflight, N3W T1 Core Stack current authority, N3W fast source/closure, Broker ingress guard, Manager runtime secret ownership, roadmap/C-07 identity semantics, H0/H1 initialization, Dynamic Security, native board auth and related regression jobs.
+
+Still running when polling stopped:
+
+- greenhouse-manager CI: https://github.com/chrenguo-stack/HomeAssistant/actions/runs/45108299964
+- M2 node auth board lab CI: https://github.com/chrenguo-stack/HomeAssistant/actions/runs/45108300013
+- C-07 node retirement CI: https://github.com/chrenguo-stack/HomeAssistant/actions/runs/45108299925
+- Manager A-to-B exact updater/package CI: https://github.com/chrenguo-stack/HomeAssistant/actions/runs/45108300035
+- Home Assistant target-binding exact updater/package CI: https://github.com/chrenguo-stack/HomeAssistant/actions/runs/45108300021
+- M0 vertical slice CI: https://github.com/chrenguo-stack/HomeAssistant/actions/runs/45108299766
+- M2 private Mosquitto CI: https://github.com/chrenguo-stack/HomeAssistant/actions/runs/45108299799
+
+No terminal-success claim is made for those seven runs. In particular, the exact V1.3 recovery-updater artifact is not yet accepted/bound for live deployment.
 
 ## Live R8 boundary
 
