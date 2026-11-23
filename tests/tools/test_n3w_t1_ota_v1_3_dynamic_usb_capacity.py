@@ -198,7 +198,10 @@ def test_v13_takeover_reuses_verified_legacy_u3_archives_without_fabricating_cap
     predecessor_identity = "b" * 64
     tx = new_transaction(
         current_image_ref="local/n3w-homeassistant:2026.10.4-test",
-        current_image_identity={"portable_identity_sha256": predecessor_identity},
+        current_image_identity={
+            "runtime_image_id": "sha256:" + "e" * 64,
+            "platform": "linux/arm64",
+        },
         target_manifest_identity={"release_identity": "homeassistant-test"},
         target_image_ref="local/n3w-homeassistant:2026.10.0-test",
         target_archive_sha256="a" * 64,
@@ -282,6 +285,47 @@ def test_v13_takeover_reuses_verified_legacy_u3_archives_without_fabricating_cap
     assert Store.document.get("usb_capacity_events", []) == []
     assert Store.document["prepared_image_materials"]["target"]["archive_sha256"] == "a" * 64
     assert Store.document["prepared_image_materials"]["predecessor"]["archive_sha256"] == "f" * 64
+
+
+def test_explicit_predecessor_portable_identity_mismatch_still_fails_closed() -> None:
+    from n3w_t1_core_updater_ha_usb_state import prepared_image_materials
+
+    tx = new_transaction(
+        current_image_ref="local/n3w-homeassistant:2026.10.4-test",
+        current_image_identity={
+            "portable_identity_sha256": "1" * 64,
+            "platform": "linux/arm64",
+        },
+        target_manifest_identity={"release_identity": "homeassistant-test"},
+        target_image_ref="local/n3w-homeassistant:2026.10.0-test",
+        target_archive_sha256="a" * 64,
+        target_archive_size=100,
+    )
+    tx = request_prepare(tx)
+    tx = record_existing_media_bound(
+        tx,
+        filesystem_uuid="12345678-1234-5678-1234-567812345678",
+        capacity_report=UsbCapacityReport(
+            measured_usable_bytes=USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
+            required_bytes=100,
+            measured_floor_bytes=USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
+            measured_floor_pass=True,
+            transaction_formula_pass=True,
+            capacity_pass=True,
+        ),
+    )
+    tx = start_target_preparation(tx)
+    target = ImageRecoveryRecord(
+        "target", tx["target_image_ref"], tx["target_archive_sha256"],
+        tx["target_archive_size"], "c" * 64, "linux/arm64", True, True,
+    )
+    predecessor = ImageRecoveryRecord(
+        "predecessor", tx["current_image_ref"], "f" * 64, 200,
+        "2" * 64, "linux/arm64", True, True,
+    )
+    from n3w_t1_core_updater_ha_usb import record_target_ready
+    with pytest.raises(UpdaterV2Error, match="ha_usb_predecessor_archive_identity_drift"):
+        prepared_image_materials(record_target_ready(tx, target=target, predecessor=predecessor))
 
 
 def test_prepare_capacity_block_waits_without_repeating_write_until_space_recovers(
