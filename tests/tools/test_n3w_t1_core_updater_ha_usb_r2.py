@@ -76,8 +76,7 @@ from n3w_t1_core_updater_ha_usb_media import (
     USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
     FormatAuthorization,
     RemovableDeviceCandidate,
-    UsbCapacityInputs,
-    assess_capacity,
+    UsbCapacityReport,
     authorize_destructive_format,
     select_single_eligible_device,
 )
@@ -116,15 +115,6 @@ OTHER_UUID = "87654321-4321-8765-4321-876543218765"
 FINGERPRINT = "a" * 64
 AUTHORIZATION_ID = "N3W_T1_CORE_UPDATER_HOMEASSISTANT_USB_R2_TEST_01"
 USB_BYTES = USB_MEASURED_USABLE_CAPACITY_MIN_BYTES
-CAPACITY_INPUTS = UsbCapacityInputs(
-    target_artifact_bytes=1 * 1024**3,
-    predecessor_recovery_worst_case_bytes=2 * 1024**3,
-    ha_data_backup_worst_case_bytes=3 * 1024**3,
-    transaction_metadata_and_working_bytes=1 * 1024**3,
-    removable_media_reserve_bytes=1 * 1024**3,
-)
-
-
 def sha(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -1563,7 +1553,14 @@ def test_boot_restores_a_released_predecessor_from_bound_media(tmp_path, monkeyp
 class SyntheticUsb:
     def __init__(self, root: Path):
         self.root = root
-        self.report = assess_capacity(USB_BYTES, CAPACITY_INPUTS)
+        self.report = UsbCapacityReport(
+            measured_usable_bytes=USB_BYTES,
+            required_bytes=len(TARGET_BYTES),
+            measured_floor_bytes=USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
+            measured_floor_pass=True,
+            transaction_formula_pass=True,
+            capacity_pass=True,
+        )
 
     def format(self):
         selected = select_single_eligible_device([candidate()])
