@@ -9,6 +9,7 @@
 - Existing USB is ext4 with the bound filesystem UUID recorded in the progress authority; at the final read-only measurement it was present but not mounted, so preparation state is `ORIGINAL_MOUNT_REQUIRED`. No USB format is required or authorized.
 - No new HA transaction, USB transaction write, service stop, target load, predecessor release, reboot or format occurred before handoff.
 - Progress authority: [R8 PRE_U1 PASS to U1 preparation alignment](N3W_T1_OTA_V1_2_R8_PRE_U1_PASS_TO_U1_PREPARE_REQUESTED_PROGRESS_ALIGNMENT_20261123.md).
+- New-chat handoff: [R8 PRE_U1 PASS to U1 PREPARE_REQUESTED](N3W_T1_OTA_V1_2_R8_PRE_U1_PASS_TO_U1_PREPARE_REQUESTED_NEW_CHAT_HANDOFF_V1.0_20261123.md).
 - Next gate: run the already-prepared bounded command that mounts the existing USB without formatting, materializes exact 2026.10.0, creates a fresh normal HA transaction, and stops at `U1_PREPARE_REQUESTED`; the next conversation starts by reviewing its terminal output.
 
 ## Current T1 Core Stack authority index
