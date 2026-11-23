@@ -553,9 +553,12 @@ class HaPredecessorRecovery:
             )
             self.store.write(result)
             yield result
-        except Exception:
+        except Exception as error:
             latest = self.store.read()
             if latest is not None and _can_resume_pre_cutover(latest):
+                if isinstance(error, UpdaterV2Error) and str(error) == "ha_data_backup_usb_space_insufficient":
+                    latest = {**latest, "failure_code": "ha_usb_backup_space_insufficient"}
+                    self.store.write(latest)
                 self._restore(latest)
             raise
 
@@ -843,7 +846,7 @@ def _finish_pre_cutover_recovery(store: HaUsbStateStore, document: dict[str, Any
     store.write({
         **document, "status": "ROLLED_BACK", "recovery_required": False,
         "pre_cutover_predecessor_restored": True,
-        "failure_code": "ha_usb_pre_cutover_interrupted",
+        "failure_code": document.get("failure_code") or "ha_usb_pre_cutover_interrupted",
         "updated_at_unix": max(document["updated_at_unix"], int(time.time())),
     })
 
@@ -950,7 +953,7 @@ def record_target_ready(
         expected_image_ref=current["target_image_ref"],
         expected_archive_sha256=current["target_archive_sha256"],
     )
-    updates: dict[str, Any] = {"target_artifact_verified": True}
+    updates: dict[str, Any] = {"target_artifact_verified": True, "failure_code": None}
     if current.get("usb_binding_mode") == "existing_filesystem":
         if predecessor is None:
             raise UpdaterV2Error("ha_usb_prepared_predecessor_missing")
