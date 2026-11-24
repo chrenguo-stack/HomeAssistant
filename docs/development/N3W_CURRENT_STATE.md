@@ -1,5 +1,75 @@
 ## Current T1 Core Stack authority
 
+### 2026-11-24 — R8V13-07 fresh U5 continuation ready; authority-ID executor STOP isolated
+
+```text
+CURRENT_STATE=R8V13_07_FRESH_U5_AUTHORITY_CONTINUATION_READY
+MASTER_TASK_DOCUMENT=docs/development/templates/STAGE_EXECUTION_PLAN_TEMPLATE.md
+MASTER_TASK_DOCUMENT_SHA=b6bf93b3fbc7fba770ae4cac2c60ef9d79eeb105
+ACTIVE_STAGE_ID=N3W_T1_CORE_STACK_OTA_V1_3_R8_PHYSICAL_ACCEPTANCE
+CURRENT_TASK_ID=R8V13-07
+NEXT_TASK_ID=R8V13-08
+NEXT_TASK_BLOCKED=true
+TASK_CHAIN_STATUS=ALIGNED
+
+EXACT_EXECUTABLE_SOURCE_HEAD=9339ab22fc29ddd14d2e147d13e616ccebed945b
+KF152_STATUS=GUARDED
+LIVE_RECOVERY_PYZ_SHA256=d3e844a05571e94ef384aa62fd4763f2d53c253f281cb94f30dd37ca19743b30
+ACTIVE_COMPOSE_SHA256=6cd522b55136beceb8661820896351238d2218c23c3b3e71e98a7521ac67f0f4
+APPROVED_MANIFEST_SHA256=5fbae3dedc6af008fec90efc24e75349ce82fc3a538e935806bef6ab3cbc4a36
+USB_FILESYSTEM_UUID=b72ac2fc-79a0-4fb8-888e-f35b0114f959
+
+FRESH_TRANSACTION_ID=afbfeeb85c3ab579b62d86d347f76b7f6ee7f203b068eac028be1d18761950c3
+FRESH_TRANSACTION_STATUS=ACTIVE
+FRESH_TRANSACTION_PHASE=U5_INSTALL_REQUESTED_REVALIDATING
+FRESH_U4_TRANSACTION_SHA256=fa7d9777772d32b95ab761bbfe34e4b1d29a33a384bdc34f16191543bd8530cd
+FRESH_PREPARE_RESULT=PASS
+FRESH_U4_LEDGER=PASS
+PREDECESSOR_ARCHIVE_SHA256=6502b8cdbf706d746e32311fdaa39ffc5ca703d76f766806bbb21d3c71278d1f
+PREDECESSOR_ARCHIVE_SIZE=2447090176
+TARGET_ARCHIVE_SHA256=e52d12779f7562d3f37a265d622fbaf31e758deba5998e40cafb5a33a118b663
+TARGET_ARCHIVE_SIZE=2448553472
+
+PREINSTALL_SELF_TEST=PASS
+PREINSTALL_SELF_TEST_SHA256=cc2a9e3c867db76cc1630e460eaf036797c0daedb5c4da99460151780fba1c9e
+INSTALL_INTENT_EXECUTED=true
+INSTALL_REQUEST_BINDING_SHA256=f012b3ed4fe47090e5dc23b23c48b558099ce6247dad716b4d6252ae8ef5cd83
+FRESH_INSTALL_AUTHORITY_ISSUED=false
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+AUTHORIZATION_ID_SHA256=null
+RECOVERY_REQUIRED=false
+PREDECESSOR_START_PRESENT=false
+PREDECESSOR_RELEASE_OBSERVED=false
+TARGET_10_0_LOADED=false
+TARGET_ACTIVATION=false
+TARGET_ACCEPTANCE_PRESENT=false
+DESTRUCTIVE_BOUNDARY_CROSSED=false
+
+FAILED_PRIVATE_EXECUTOR=N3W_T1_R8V13_07_PREINSTALL_AND_FRESH_INSTALL_20261124_02.sh
+FAILED_PRIVATE_EXECUTOR_REASON=INVALID_AUTHORIZATION_ID_PREFIX
+INVALID_AUTHORIZATION_ID=N3W_T1_R8V13_07_INSTALL_CUTOVER_20261124_02
+PRODUCT_AUTHORIZATION_ID_REGEX=^N3W_T1_CORE_UPDATER_[A-Za-z0-9_-]{1,160}$
+PRODUCT_FAILURE=false
+BINDING_DRIFT=false
+INSTALL_INTENT_REPLAY_ALLOWED=false
+
+CONTINUATION_AUTHORIZATION_ID=N3W_T1_CORE_UPDATER_R8V13_07_INSTALL_CUTOVER_20261124_03
+CONTINUATION_EXECUTOR=tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_U5_AUTHORITY_CONTINUE_AND_INSTALL_20261124_03.sh
+CONTINUATION_EXECUTOR_SHA256=8a026b108954c524964a0373c516f3904c08d42424fd497605f27caa60ada9b3
+CONTINUATION_EXECUTOR_BLOB_SHA=bfe577199eaf362d5558f4098f39859effd9f7b6
+CONTINUATION_NEXT_ACTION=EXECUTE_EXISTING_U5_AUTHORITY_CONTINUATION_AND_REPORT_RESULT
+BROKER_OTA=DEFERRED
+R8V13_08_AUTO_ADVANCE=false
+```
+
+- KF-152 repaired recovery control plane is live and exact. The fresh reacceptance transaction completed candidate materialization, fresh PREPARE authority, U1→U4, durable USB archive verification and dynamic USB capacity checks. Root free after PREPARE was 4,686,393,344 bytes and USB free was 13,443,194,880 bytes.
+- The pre-INSTALL Manager→Broker→HA active self-test passed while exact 10.4 was still running. A single formal INSTALL intent then advanced the fresh transaction from U4 to U5.
+- Fresh install-authority issuance stopped before authority publication because the private executor supplied an ID that did not match the exact product regex. This is an executor defect, not a product failure. The durable transaction remains safe at U5; no authorization was claimed/consumed, HA/Manager were not stopped, predecessor was not released, and target 10.0 was not loaded.
+- Do not replay PREPARE or INSTALL intent. Continue only from the existing U5 using the archived bounded continuation package above. The corrected ID is `N3W_T1_CORE_UPDATER_R8V13_07_INSTALL_CUTOVER_20261124_03`.
+- The user will execute the continuation command outside this chat and report its final output in the next conversation. R8V13-08 remains blocked unless the reported durable terminal is healthy `COMMITTED / U13A_COMMITTED`.
+- PR #824 evidence comments: fresh PREPARE PASS `7124599609`; invalid authorization-ID STOP classification `7125179778`; bounded continuation preparation `7125215220`. Broker OTA remains deferred.
+
 ### 2026-11-24 — KF-152 GUARDED; R8V13-07 fresh physical reacceptance pending
 
 Repository production authority (distinct from spare-T1 experimental runtime): `infra/n3w-t1/production/t1-core-stack-current.json`, product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; accepted images `local/greenhouse-manager:fresh-5b32e1ae8210`, `local/n3w-homeassistant:2026.10.0-0c73235a`, `local/n3w-mosquitto:2.1.2-3184566d`. Live upgrade accepted; LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED. Historical clean reference `24382caae4a1f5d459297f86e8d18f10a848ca64` / `local/greenhouse-manager:fresh-24382caae4a1` remains immutable.
