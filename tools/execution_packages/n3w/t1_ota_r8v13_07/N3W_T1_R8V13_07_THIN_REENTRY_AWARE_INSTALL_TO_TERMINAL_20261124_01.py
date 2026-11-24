@@ -473,6 +473,9 @@ class RealOps:
 
     def start_worker(self, attempt: int) -> int:
         print(f"PHASE=PRODUCT_WORKER_DISPATCH_{attempt}")
+        from n3w_t1_core_updater_ha_recovery_startup import LocalHaPredecessorRuntime
+
+        LocalHaPredecessorRuntime().require_recovery_install()
         result = subprocess.run(
             ["systemctl", "start", RECOVERY_UNIT],
             capture_output=True,
