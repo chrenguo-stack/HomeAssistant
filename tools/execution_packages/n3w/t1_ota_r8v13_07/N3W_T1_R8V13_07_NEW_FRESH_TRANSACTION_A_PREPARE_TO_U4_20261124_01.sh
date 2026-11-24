@@ -50,7 +50,6 @@ for key in (
 ):
     print(f"{key.upper()}={json.dumps(d.get(key),separators=(',',':'))}")
 print("PREDECESSOR_START_PRESENT="+str("predecessor_start" in d).lower())
-print("TARGET_10_0_PRESENT="+str(False).lower())
 PY
 }
 
