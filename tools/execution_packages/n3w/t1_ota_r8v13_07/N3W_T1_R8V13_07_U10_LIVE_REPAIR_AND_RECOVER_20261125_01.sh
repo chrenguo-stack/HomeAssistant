@@ -255,8 +255,27 @@ systemctl stop n3w-t1-ha-recovery-retry.service
 systemctl stop n3w-t1-ha-ota-ipc.socket
 systemctl stop n3w-t1-ha-ota-ipc.service
 CONTROL_QUIESCED=true
-test "$(systemctl is-active n3w-t1-ha-recovery-retry.timer)" = inactive
-test "$(systemctl is-active n3w-t1-ha-recovery-retry.service)" = inactive
+RETRY_TIMER_STATE="$(systemctl is-active n3w-t1-ha-recovery-retry.timer || true)"
+RETRY_SERVICE_STATE="$(systemctl is-active n3w-t1-ha-recovery-retry.service || true)"
+IPC_SOCKET_STATE="$(systemctl is-active n3w-t1-ha-ota-ipc.socket || true)"
+IPC_SERVICE_STATE="$(systemctl is-active n3w-t1-ha-ota-ipc.service || true)"
+echo QUIESCED_RETRY_TIMER_STATE="$RETRY_TIMER_STATE"
+echo QUIESCED_RETRY_SERVICE_STATE="$RETRY_SERVICE_STATE"
+echo QUIESCED_IPC_SOCKET_STATE="$IPC_SOCKET_STATE"
+echo QUIESCED_IPC_SERVICE_STATE="$IPC_SERVICE_STATE"
+test "$RETRY_TIMER_STATE" = inactive
+case "$RETRY_SERVICE_STATE" in
+  inactive|failed) ;;
+  *) echo "RETRY_SERVICE_NOT_QUIET_AFTER_STOP=$RETRY_SERVICE_STATE"; exit 35 ;;
+esac
+case "$IPC_SOCKET_STATE" in
+  inactive|failed) ;;
+  *) echo "IPC_SOCKET_NOT_QUIET_AFTER_STOP=$IPC_SOCKET_STATE"; exit 36 ;;
+esac
+case "$IPC_SERVICE_STATE" in
+  inactive|failed) ;;
+  *) echo "IPC_SERVICE_NOT_QUIET_AFTER_STOP=$IPC_SERVICE_STATE"; exit 37 ;;
+esac
 test "$(sha256sum "$TX_FILE" | awk '{print $1}')" = "$EXPECTED_TX_SHA256"
 test "$(sha256sum "$ENV" | awk '{print $1}')" = "$EXPECTED_ENV_SHA256"
 candidate_recovery_check "$NEW"
