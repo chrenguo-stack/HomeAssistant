@@ -130,3 +130,13 @@ def test_python_invocations_supply_manager_and_broker_args() -> None:
     assert '_,live,txp,pred,target,manager,broker=sys.argv' in text
     assert '_,live,txp,target,manager,broker=sys.argv' in text
     assert '_,live,pred,manager,broker=sys.argv' in text
+
+
+def test_mutation_marker_precedes_release_pin_write_boundary() -> None:
+    text = source()
+    phase = text.index("echo PHASE=RELEASE_AUTHORITY_REVALIDATION")
+    marker = text.index("MUTATION_STARTED=true", phase)
+    refresh = text.index('if pin["expires_at_unix"]<=now:', phase)
+    install = text.index("echo PHASE=SUBMIT_INSTALL_INTENT", phase)
+    assert phase < marker < refresh < install
+    assert text.count("MUTATION_STARTED=true") == 1
