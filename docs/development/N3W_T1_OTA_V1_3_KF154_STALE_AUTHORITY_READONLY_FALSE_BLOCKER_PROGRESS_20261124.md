@@ -64,3 +64,35 @@ V2 rules:
 ## Boundary
 
 R8V13-07 remains NOT_PASS and R8V13-08 remains blocked. V2 must pass focused CI before any repeat read-only execution. No manual authority deletion, wait-for-expiry workaround, new transaction, install/cutover, Broker OTA, reboot, merge or release is authorized by this repair.
+
+
+## Development-route alignment review
+
+The active stage and task remain unchanged:
+
+```text
+ACTIVE_STAGE=N3W_T1_CORE_STACK_OTA_V1_3_R8_PHYSICAL_ACCEPTANCE
+CURRENT_TASK=R8V13-07
+NEXT_TASK=R8V13-08
+R8V13_08_BLOCKED=true
+TASK_CHAIN_STATUS=ALIGNED
+```
+
+The current repair work is within the R8V13-07 stop boundary: transaction A failed and safely restored exact 10.4, so its distinct failure/executor causes must be closed before a new fresh transaction A attempt. No later task has been entered.
+
+However, execution-method drift was identified: text-level test assertions and auxiliary read-only observations were becoming independent false-fail gates. This conflicts with the V1.3 architecture principle that non-core observation failures remain diagnostic and that field validation should not create unnecessary false failures.
+
+Correction:
+
+- do not add any new R8 task node;
+- do not broaden the V2 rebind beyond old-transaction/authority safety, current runtime health, release admission, USB identity and capacity evidence;
+- tests bind product constants and semantic safety properties, not incidental literal filenames;
+- once V2 rebind completes, stop expanding preflight and return directly to preparation of a new fresh R8V13-07 transaction A;
+- R8V13-08 remains blocked until transaction A reaches U13A + healthy exact 10.0.
+
+Latest focused CI test-only fixes:
+- `6a30277ac25feccbf56b019015cc941207f75212`: release pin assertion moved to product constants;
+- `2221fa3e36e87d10a0d990bc5bc9b11ed436a216`: approved manifest assertion moved to product constants;
+- V2 executor bytes were not changed by these test fixes.
+
+Current focused run: `45387271563`, IN_PROGRESS at third check; polling stopped per project rule.
