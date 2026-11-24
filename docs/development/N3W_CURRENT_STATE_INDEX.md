@@ -13,7 +13,7 @@ HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
 HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
 ```
 
-Production live upgrade accepted. The production authority above is not the spare-T1 R8 runtime.
+Live upgrade accepted for the production authority above; this is not the spare-T1 R8 runtime.
 
 ```text
 CURRENT_STATE=R8V13_07_KF153_SOURCE_REPAIR_CI_IN_PROGRESS
