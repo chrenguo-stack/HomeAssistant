@@ -226,6 +226,52 @@ def summarize(document: dict[str, Any]) -> None:
     print("TARGET_ACCEPTANCE_PRESENT=" + str("target_acceptance" in document).lower())
 
 
+def install_authority_reusable(
+    existing: dict[str, Any] | None,
+    *,
+    binding_sha256: str,
+    launch_sha256: str,
+    now: float,
+) -> bool:
+    if existing is None:
+        return False
+    return (
+        set(existing)
+        == {"schema", "binding_sha256", "authorization_id", "launch_sha256", "expires_at_unix"}
+        and existing.get("schema") == "gh.n3w-t1-ha-install-authority/3"
+        and existing.get("binding_sha256") == binding_sha256
+        and existing.get("authorization_id") == AUTH_ID
+        and existing.get("launch_sha256") == launch_sha256
+        and type(existing.get("expires_at_unix")) is int
+        and existing["expires_at_unix"] > now
+    )
+
+
+def validate_committed_document(document: dict[str, Any]) -> None:
+    if document.get("authorization_claimed") is not True:
+        raise GateError("COMMIT_AUTHORIZATION_NOT_CLAIMED")
+    if document.get("authorization_consumed") is not True:
+        raise GateError("COMMIT_AUTHORIZATION_NOT_CONSUMED")
+    if document.get("authorization_id_sha256") != hashlib.sha256(AUTH_ID.encode()).hexdigest():
+        raise GateError("COMMIT_AUTHORIZATION_ID_DRIFT")
+    if document.get("recovery_required") is not False:
+        raise GateError("COMMIT_RECOVERY_FLAG_INVALID")
+    if document.get("target_activation") != "WRITES_POSSIBLE":
+        raise GateError("COMMIT_TARGET_ACTIVATION_INVALID")
+    receipt = document.get("target_acceptance", {}).get("receipt")
+    if not isinstance(receipt, dict):
+        raise GateError("COMMIT_ACCEPTANCE_MISSING")
+    observations = receipt.get("observations")
+    if not isinstance(observations, dict) or set(observations) != {"monitoring_path", "protected_data"}:
+        raise GateError("COMMIT_ACCEPTANCE_OBSERVATIONS_INVALID")
+    if not all(isinstance(value, str) and len(value) == 64 for value in observations.values()):
+        raise GateError("COMMIT_ACCEPTANCE_OBSERVATION_HASH_INVALID")
+    if receipt.get("images", {}).get("homeassistant", {}).get("reference") != EXPECTED_TARGET_REF:
+        raise GateError("COMMIT_ACCEPTANCE_TARGET_REF_DRIFT")
+    if receipt.get("images", {}).get("homeassistant", {}).get("runtime_id") != document.get("target_loaded_image_id"):
+        raise GateError("COMMIT_ACCEPTANCE_RUNTIME_ID_DRIFT")
+
+
 class RealOps:
     def __init__(self) -> None:
         if str(LIVE) not in sys.path:
@@ -445,28 +491,7 @@ class RealOps:
     def verify_committed(self, document: dict[str, Any]) -> None:
         from n3w_t1_core_updater_ha_recovery_startup import LocalHaPredecessorRuntime
 
-        if document.get("authorization_claimed") is not True:
-            raise GateError("COMMIT_AUTHORIZATION_NOT_CLAIMED")
-        if document.get("authorization_consumed") is not True:
-            raise GateError("COMMIT_AUTHORIZATION_NOT_CONSUMED")
-        if document.get("authorization_id_sha256") != hashlib.sha256(AUTH_ID.encode()).hexdigest():
-            raise GateError("COMMIT_AUTHORIZATION_ID_DRIFT")
-        if document.get("recovery_required") is not False:
-            raise GateError("COMMIT_RECOVERY_FLAG_INVALID")
-        if document.get("target_activation") != "WRITES_POSSIBLE":
-            raise GateError("COMMIT_TARGET_ACTIVATION_INVALID")
-        receipt = document.get("target_acceptance", {}).get("receipt")
-        if not isinstance(receipt, dict):
-            raise GateError("COMMIT_ACCEPTANCE_MISSING")
-        observations = receipt.get("observations")
-        if not isinstance(observations, dict) or set(observations) != {"monitoring_path", "protected_data"}:
-            raise GateError("COMMIT_ACCEPTANCE_OBSERVATIONS_INVALID")
-        if not all(isinstance(value, str) and len(value) == 64 for value in observations.values()):
-            raise GateError("COMMIT_ACCEPTANCE_OBSERVATION_HASH_INVALID")
-        if receipt.get("images", {}).get("homeassistant", {}).get("reference") != EXPECTED_TARGET_REF:
-            raise GateError("COMMIT_ACCEPTANCE_TARGET_REF_DRIFT")
-        if receipt.get("images", {}).get("homeassistant", {}).get("runtime_id") != document.get("target_loaded_image_id"):
-            raise GateError("COMMIT_ACCEPTANCE_RUNTIME_ID_DRIFT")
+        validate_committed_document(document)
 
         runtime = LocalHaPredecessorRuntime()
         ha = runtime._runtime("homeassistant")
