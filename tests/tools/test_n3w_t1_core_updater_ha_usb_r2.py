@@ -513,7 +513,7 @@ class ReleaseStartupRuntime(StartupRuntime):
         if self.container_present:
             return [{
                 "container_id": self.container_id, "image_ref": CURRENT,
-                "image_id": self.saved["homeassistant"]["runtime_id"], "status": "exited", "replace": "",
+                "image_id": self.saved["homeassistant"]["runtime_id"], "status": "exited", "replace": "homeassistant-1",
             }]
         return []
 
