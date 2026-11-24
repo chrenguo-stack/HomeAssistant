@@ -119,9 +119,27 @@ FALSE_FAIL_CLASSIFICATION=TEST_REGEX_FALSE_POSITIVE
 EXECUTOR_CHANGED=false
 EXECUTOR_BLOB_BEFORE=df6880b684dcb845fac347243d403393465e7920
 EXECUTOR_BLOB_AFTER=df6880b684dcb845fac347243d403393465e7920
-TEST_REPAIR_HEAD=fd4321ece2d27675da073978e5f15bac6b4085fb
-NEW_FOCUSED_CI_RUN=45383913271
+TEST_REPAIR_HEAD=194b2f655c506f456b0b0c7636a263362c9058ca
+NEW_FOCUSED_CI_RUN=45384273617
 NEW_FOCUSED_CI_STATUS=IN_PROGRESS_AT_THIRD_CHECK
 ```
 
 Active polling stopped after the third status check per project rule. No T1 execution is permitted until the repaired focused run reaches SUCCESS.
+
+
+### Correction to the first repair attempt
+
+The earlier commit `fd4321ece2d27675da073978e5f15bac6b4085fb` did not actually change the test file because the string-replacement pattern did not match the repository bytes. The second CI therefore repeated the same false failure.
+
+The effective repair is:
+
+```text
+EFFECTIVE_TEST_REPAIR_HEAD=194b2f655c506f456b0b0c7636a263362c9058ca
+TEST_FILE_BLOB=71b27a4e71ad24fa7b5c6be48ef023a0b55d2847
+EXECUTOR_BLOB=df6880b684dcb845fac347243d403393465e7920
+EXECUTOR_CHANGED=false
+REPLACEMENT_FOCUSED_CI_RUN=45384273617
+REPLACEMENT_FOCUSED_CI_STATUS=IN_PROGRESS_AT_THIRD_CHECK
+```
+
+Repository readback confirms the corrected test now matches only line-leading shell `mount/umount` commands. Active polling stopped at the third check.
