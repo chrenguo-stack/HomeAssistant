@@ -1,5 +1,72 @@
 ## Current T1 Core Stack authority
 
+Repository production authority remains distinct from the spare-T1 R8 validation runtime.
+
+```text
+PRODUCTION_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+```
+
+### 2026-11-24 — KF-153 source repair / CI in progress; spare T1 recovered exact predecessor
+
+```text
+CURRENT_STATE=R8V13_07_KF153_SOURCE_REPAIR_CI_IN_PROGRESS
+ACTIVE_STAGE_ID=N3W_T1_CORE_STACK_OTA_V1_3_R8_PHYSICAL_ACCEPTANCE
+CURRENT_TASK_ID=R8V13-07
+NEXT_TASK_ID=R8V13-08
+NEXT_TASK_BLOCKED=true
+TASK_CHAIN_STATUS=ALIGNED
+
+KF153_STATUS=SOURCE_REPAIR_CI_IN_PROGRESS
+KF153_SOURCE_REPAIR_HEAD=90ce32ce4b6c329fd38c2771e352d129d6d00a86
+KF153_ROOT_CAUSE=COMPOSE_REPLACE_LABEL_MISUSED_AS_CONTAINER_OWNERSHIP_DRIFT_ORACLE
+
+FAILED_TRANSACTION_ID=afbfeeb85c3ab579b62d86d347f76b7f6ee7f203b068eac028be1d18761950c3
+FAILED_TRANSACTION_STATUS=ROLLED_BACK
+FAILED_TRANSACTION_PHASE=U8_RECOVERY_ADMISSION_COMPLETE
+FAILED_TRANSACTION_CODE=ha_usb_release_predecessor_container_drift
+RECOVERY_REQUIRED=false
+PRE_CUTOVER_PREDECESSOR_RESTORED=true
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+PREDECESSOR_RELEASE_INTENT_PRESENT=false
+PREDECESSOR_RELEASE_OBSERVED=false
+TARGET_10_0_LOADED=false
+TARGET_ACTIVATION=false
+OLD_TRANSACTION_REPLAY=false
+OLD_CONTINUATION_REPLAY=false
+
+SPARE_T1_SERVICES_OWNER=active
+SPARE_T1_BROKER_OWNER=active
+SPARE_T1_PREDECESSOR_BINDING=PASS
+SPARE_T1_LAUNCH_SHA256=67877cffd28b1c94de17f6b8eecabd1b579649f7e282fdfc65e4bcfcfd5fdc26
+SPARE_T1_HOMEASSISTANT=local/n3w-homeassistant:2026.10.4-5881590f
+SPARE_T1_MANAGER=local/greenhouse-manager:fresh-1cae18039eee
+SPARE_T1_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+SPARE_T1_TARGET_10_0_PRESENT=false
+LIVE_RECOVERY_PYZ_SHA256=d3e844a05571e94ef384aa62fd4763f2d53c253f281cb94f30dd37ca19743b30
+
+R8V13_07_RESULT=NOT_PASS
+R8V13_08_AUTO_ADVANCE=false
+BROKER_OTA=DEFERRED
+HOST_REBOOT=false
+MERGE=false
+RELEASE=false
+NEXT_ACTION=CLOSE_KF153_SOURCE_CI_AND_EXACT_PACKAGE_THEN_PREPARE_SEPARATE_LIVE_REPAIR_GATE
+```
+
+- Physical forensic proved the failed U8 residue was the exact owned Home Assistant predecessor container. It was created before the failed attempt, stopped at the U8 attempt, and the same container ID restarted during automatic recovery.
+- Image ref/runtime ID, launch binding and protected mounts are exact; target 10.0 is absent. The only failed source predicate was the normal Docker Compose metadata `com.docker.compose.replace=homeassistant-1`.
+- KF-153 repair removes only that metadata predicate from predecessor-release and rollback-target residue admission. Stronger ownership/safety checks remain unchanged.
+- The failed transaction and continuation are terminal/no-replay. R8V13-08 remains blocked. No T1 repair deployment is authorized by source closure alone.
+- Physical evidence: `docs/development/N3W_T1_OTA_V1_3_R8V13_07_U8_CONTAINER_DRIFT_PHYSICAL_STOP_PROGRESS_20261124.md`.
+
 ### 2026-11-24 — R8V13-07 fresh U5 continuation ready; authority-ID executor STOP isolated
 
 ```text
