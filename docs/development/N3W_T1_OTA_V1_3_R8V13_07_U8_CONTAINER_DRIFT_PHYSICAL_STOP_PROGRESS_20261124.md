@@ -184,3 +184,39 @@ LIVE_REVALIDATION_PENDING=true
 The recovery artifact was independently downloaded and re-hashed after upload. The ZIP SHA256 matches the GitHub artifact digest; `manifest.json` SHA256 matches the workflow-emitted install-manifest digest; the manifest binds `ha-recovery.pyz` to the exact SHA256 above and records source head `90ce32ce...`.
 
 The later repository-only documentation/security commits do not alter the recovery executable source. The next physical action must be a separate live-repair/reacceptance gate; source/package closure alone does not authorize T1 mutation.
+
+
+## KF-153 real-T1 read-only closure and live-repair authorization boundary
+
+The real spare-T1 preflight completed without mutation:
+
+```text
+DURABLE_TERMINAL_TRANSACTION=PASS
+RUNTIME_IDENTITIES=PASS
+CURRENT_PREDECESSOR_BINDING=PASS
+CURRENT_LAUNCH_SHA256=67877cffd28b1c94de17f6b8eecabd1b579649f7e282fdfc65e4bcfcfd5fdc26
+NON_PYZ_SUCCESSOR_PARITY=PASS
+TARGET_10_0_PRESENT=false
+LIVE_MUTATION=false
+RESULT=KF153_LIVE_REPAIR_READONLY_PREFLIGHT_PASS
+```
+
+The bounded live-patch executor is now exact-head CI closed:
+
+```text
+LIVE_PATCH_EXECUTOR=tools/execution_packages/n3w/t1_ota_kf153/N3W_T1_V1_3_KF153_LIVE_REPAIR_20261124_01.sh
+LIVE_PATCH_EXECUTOR_SHA256=1e6184ffae961bf8dbbb00361a1b90f4a6a56401a67a70f34b150e867000e6e9
+LIVE_PATCH_EXECUTOR_SOURCE_HEAD=ae3d43e372423d1eb46ba5f9dcadbeccd351f4ae
+FOCUSED_CI_RUN=45361435421
+FOCUSED_CI=SUCCESS
+FOCUSED_TESTS=23_PASSED
+ALL_EXACT_HEAD_WORKFLOWS=SUCCESS
+
+AUTHORIZATION_GATE=N3W_T1_V1_3_KF153_LIVE_REPAIR_20261124_01
+AUTHORIZATION_STATUS=NOT_GRANTED
+FIRST_MUTATION=STOP_RECOVERY_RETRY_TIMER
+```
+
+Scope is pyz-only. The application stack must remain running; target 10.0 must remain absent; the terminal failed transaction must remain byte-identical. On any post-publish failure, the executor re-quiesces recovery retry/IPC before atomically restoring the old pyz.
+
+R8V13-07 remains NOT_PASS until a completely new fresh physical reacceptance succeeds. R8V13-08 remains blocked.
