@@ -53,7 +53,10 @@ from n3w_t1_core_updater_ha_usb_state import (
     record_usb_capacity_event,
 )
 from n3w_t1_core_updater_host import DEFAULT_SERVICES_READINESS_TIMEOUT_SECONDS, LocalHost
-from n3w_t1_core_updater_v2_common import AUTHORIZATION_ID, COMPONENTS, SHA256, UpdaterV2Error
+from n3w_t1_core_updater_v2_common import (
+    AUTHORIZATION_ID, COMPONENTS, HA_OTA_INSTALLED_VERSION_KEY, SHA256, UpdaterV2Error,
+    homeassistant_image_version,
+)
 from n3w_t1_portable_image_identity import (
     MAX_ARCHIVE_BYTES, PortableImageIdentity, identity_from_dict, observe_docker_image, verify_runtime_document,
 )
@@ -647,6 +650,19 @@ class LocalHaPredecessorRuntime(LocalHost):
                 raise UpdaterError("ha_usb_rollback_compose_binding_drift")
             compose = copy.deepcopy(compose)
             compose["services"]["homeassistant"]["image"] = predecessor
+            expected_version = homeassistant_image_version(expected)
+            predecessor_version = homeassistant_image_version(predecessor)
+            if expected_version is None or predecessor_version is None:
+                raise UpdaterError("ha_usb_rollback_homeassistant_version_binding_invalid")
+            for service in compose["services"].values():
+                environment = service.get("environment")
+                if (
+                    isinstance(environment, dict)
+                    and HA_OTA_INSTALLED_VERSION_KEY in environment
+                ):
+                    if environment[HA_OTA_INSTALLED_VERSION_KEY] != expected_version:
+                        raise UpdaterError("ha_usb_rollback_ota_version_binding_drift")
+                    environment[HA_OTA_INSTALLED_VERSION_KEY] = predecessor_version
             references = {**references, "homeassistant": predecessor}
         images = {}
         for name, reference in references.items():
