@@ -16,14 +16,14 @@ HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
 ### 2026-11-24 — KF-153 source repair / CI in progress; spare T1 recovered exact predecessor
 
 ```text
-CURRENT_STATE=R8V13_07_KF153_LIVE_REPAIR_AUTHORIZED_READY
+CURRENT_STATE=R8V13_07_KF153_GUARDED_FRESH_REACCEPTANCE_PREFLIGHT_PREPARING
 ACTIVE_STAGE_ID=N3W_T1_CORE_STACK_OTA_V1_3_R8_PHYSICAL_ACCEPTANCE
 CURRENT_TASK_ID=R8V13-07
 NEXT_TASK_ID=R8V13-08
 NEXT_TASK_BLOCKED=true
 TASK_CHAIN_STATUS=ALIGNED
 
-KF153_STATUS=LIVE_REPAIR_AUTHORIZED_READY
+KF153_STATUS=GUARDED
 KF153_SOURCE_REPAIR_HEAD=90ce32ce4b6c329fd38c2771e352d129d6d00a86
 KF153_SOURCE_REGRESSION=327_PASSED_1_SKIPPED
 KF153_REAL_DOCKER_RELEASE_INTEGRATION=1_PASSED
@@ -44,7 +44,12 @@ KF153_LIVE_PATCH_FOCUSED_TESTS=23_PASSED
 KF153_LIVE_REPAIR_AUTHORIZATION_GATE=N3W_T1_V1_3_KF153_LIVE_REPAIR_20261124_01
 KF153_LIVE_REPAIR_AUTHORIZATION_STATUS=APPROVED
 KF153_LIVE_MUTATION_AUTHORIZATION_GRANTED=true
-KF153_LIVE_REPAIRED_PACKAGE_DEPLOYED=false
+KF153_LIVE_REPAIR_RESULT=PASS
+KF153_LIVE_REVALIDATION=PASS
+KF153_POST_PATCH_PREDECESSOR_BINDING=PASS
+KF153_DURABLE_TRANSACTION_UNCHANGED=PASS
+KF153_APPLICATION_RUNTIME_UNCHANGED=PASS
+KF153_LIVE_REPAIRED_PACKAGE_DEPLOYED=true
 KF153_ROOT_CAUSE=COMPOSE_REPLACE_LABEL_MISUSED_AS_CONTAINER_OWNERSHIP_DRIFT_ORACLE
 
 FAILED_TRANSACTION_ID=afbfeeb85c3ab579b62d86d347f76b7f6ee7f203b068eac028be1d18761950c3
@@ -70,7 +75,7 @@ SPARE_T1_HOMEASSISTANT=local/n3w-homeassistant:2026.10.4-5881590f
 SPARE_T1_MANAGER=local/greenhouse-manager:fresh-1cae18039eee
 SPARE_T1_BROKER=local/n3w-mosquitto:2.1.2-3184566d
 SPARE_T1_TARGET_10_0_PRESENT=false
-LIVE_RECOVERY_PYZ_SHA256=d3e844a05571e94ef384aa62fd4763f2d53c253f281cb94f30dd37ca19743b30
+LIVE_RECOVERY_PYZ_SHA256=5208dadc14c2cf0024c0711de60ce0f70f5a19ea27de4e74f290d4c3c8bcfe0a
 
 R8V13_07_RESULT=NOT_PASS
 R8V13_08_AUTO_ADVANCE=false
@@ -78,13 +83,13 @@ BROKER_OTA=DEFERRED
 HOST_REBOOT=false
 MERGE=false
 RELEASE=false
-NEXT_ACTION=EXECUTE_AUTHORIZED_KF153_EXACT_PYZ_ONLY_PATCH_AND_CLASSIFY
+NEXT_ACTION=PREPARE_AND_EXECUTE_FRESH_R8V13_07_READONLY_REBIND
 ```
 
 - Physical forensic proved the failed U8 residue was the exact owned Home Assistant predecessor container. It was created before the failed attempt, stopped at the U8 attempt, and the same container ID restarted during automatic recovery.
 - Image ref/runtime ID, launch binding and protected mounts are exact; target 10.0 is absent. The only failed source predicate was the normal Docker Compose metadata `com.docker.compose.replace=homeassistant-1`.
 - KF-153 repair removes only that metadata predicate from predecessor-release and rollback-target residue admission. Stronger ownership/safety checks remain unchanged.
-- The failed transaction and continuation are terminal/no-replay. The real-T1 KF-153 read-only live preflight is PASS. R8V13-08 remains blocked. The next boundary is explicit approval of the named pyz-only live-repair gate; no T1 repair deployment has occurred yet.
+- The failed transaction and continuation are terminal/no-replay. KF-153 pyz-only live repair and embedded post-patch closure are PASS, so KF-153 is GUARDED. R8V13-08 remains blocked. The next action is a fresh read-only R8V13-07 rebind before any new transaction authority.
 - Physical evidence: `docs/development/N3W_T1_OTA_V1_3_R8V13_07_U8_CONTAINER_DRIFT_PHYSICAL_STOP_PROGRESS_20261124.md`.
 
 ### 2026-11-24 — R8V13-07 fresh U5 continuation ready; authority-ID executor STOP isolated
@@ -101,7 +106,7 @@ TASK_CHAIN_STATUS=ALIGNED
 
 EXACT_EXECUTABLE_SOURCE_HEAD=9339ab22fc29ddd14d2e147d13e616ccebed945b
 KF152_STATUS=GUARDED
-LIVE_RECOVERY_PYZ_SHA256=d3e844a05571e94ef384aa62fd4763f2d53c253f281cb94f30dd37ca19743b30
+LIVE_RECOVERY_PYZ_SHA256=5208dadc14c2cf0024c0711de60ce0f70f5a19ea27de4e74f290d4c3c8bcfe0a
 ACTIVE_COMPOSE_SHA256=6cd522b55136beceb8661820896351238d2218c23c3b3e71e98a7521ac67f0f4
 APPROVED_MANIFEST_SHA256=5fbae3dedc6af008fec90efc24e75349ce82fc3a538e935806bef6ab3cbc4a36
 USB_FILESYSTEM_UUID=b72ac2fc-79a0-4fb8-888e-f35b0114f959
