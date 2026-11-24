@@ -131,6 +131,7 @@ print("TARGET_10_0_PRESENT_BEFORE_INSTALL=false")
 PY
 
 echo PHASE=RELEASE_AUTHORITY_REVALIDATION
+MUTATION_STARTED=true
 /usr/bin/python3 -I - "$LIVE" "$PIN" "$APPROVED" "$EXPECTED_MANIFEST" "$RELEASE" <<'PY'
 import hashlib,json,os,stat,sys,tempfile,time
 from pathlib import Path
@@ -213,7 +214,6 @@ print("INSTALL_AUTHORITY_RESIDUE=OLD_TERMINAL_SAFE_REPLACEABLE")
 PY
 
 echo PHASE=SUBMIT_INSTALL_INTENT
-MUTATION_STARTED=true
 /usr/bin/python3 -I "$LIVE" --maintenance-submit-approved-release INSTALL --release-identity "$RELEASE" > "$WORK/install-intent.json"
 INSTALL_INTENT_SUBMITTED=true
 
