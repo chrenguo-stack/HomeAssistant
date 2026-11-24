@@ -1,6 +1,7 @@
 #!/bin/bash
 set -euo pipefail
-HOST="root@192.168.68.195"
+# Retired historical executor template. The executed transaction is terminal/no-replay.
+HOST="${N3W_T1_SSH_TARGET:?N3W_T1_SSH_TARGET required}"
 ssh "$HOST" 'bash -s' <<'REMOTE_EOF'
 set -euo pipefail
 LIVE=/opt/n3w-t1-core-updater/ha-recovery.pyz
