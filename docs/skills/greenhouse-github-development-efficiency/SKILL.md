@@ -570,9 +570,11 @@ CI 在运行时可继续：
 当前状态记录在 [N3W_CURRENT_STATE.md](../../development/N3W_CURRENT_STATE.md)，
 通过 [状态索引](../../development/N3W_CURRENT_STATE_INDEX.md)定位相关记录。
 
-普通切换对话在 GitHub 已对齐、没有未归档关键结果、没有待执行的一次性高风险授权、没有实机/生产恢复现场、没有关键状态歧义时，使用 [mini handoff 模板](../../development/templates/mini-handoff-template.md)。mini handoff 只提供当前停点、GitHub 续接入口、下一动作和 fresh rebind 要求，不复制完整项目历史。
+跨对话续接默认优先使用 [mini handoff 模板 V1.2](../../development/templates/mini-handoff-template.md)，只记录当前停点、GitHub 续接入口、下一动作、fresh rebind 要求和下一会话真正依赖的信息，不复制完整项目历史。
 
-以下情况使用[正式模板 V1.5](../../development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md)：实机/生产写入或恢复、回滚/断电、复杂一次性授权、关键状态 UNKNOWN/UNPROVEN、多个 exact authority 必须冻结、重要故障/误判/源码修复尚未稳定收口、跨执行者完整接手，或用户明确要求正式交接。
+实机/生产写入或恢复、回滚/断电、复杂一次性授权、关键状态 UNKNOWN/UNPROVEN、多个 exact authority、重要故障/误判/源码修复尚未稳定收口、跨执行者接手等情形**不会自动禁止 mini handoff**。出现这些情形时，必须按 mini 模板补充目标、基线、授权状态、exact binding、回滚/恢复入口、最后成功步骤和停止条件等适用信息。
+
+[正式模板 V1.5](../../development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md) 用于用户明确要求正式交接，或补充信息较多、使用完整七部分结构会明显更清晰的情况。模板更长本身不是安全条件；信息完整才是。
 
 两种模板都不替代 GitHub current state、KF、closure 或授权记录，也不授予新权限。新会话按[最小读取集](../../development/N3W_PROJECT_WORKING_CONTEXT.md#12-minimum-new-chat-read-set)读取适用规则和相关章节，并对下一动作真正依赖的状态做 fresh rebind。
 
@@ -589,19 +591,21 @@ CI 在运行时可继续：
 默认规则：
 
 - **普通对话切换**：GitHub 对齐后输出 mini handoff；
-- **复杂/高风险边界**：GitHub 对齐后输出正式模板 V1.4；
+- **复杂/高风险边界**：仍可使用 mini handoff，但必须补齐对应的实机/生产、授权、回滚/恢复和 exact authority 信息；
+- **信息较多或用户明确要求正式交接**：使用正式模板 V1.5；
 - **无需切换对话**：不为了形式额外生成 handoff。
 
-以下情况必须生成完整正式交接：
+以下情况必须**补充完整信息**，而不是强制改用正式模板：
 
 - 实机、生产或发布状态变化；
 - 回滚、断电、恢复或部分写入现场跨对话；
 - 存在下一会话需要执行的一次性授权；
 - 出现必须长期保留的新阻塞，且 current state 不能单独表达执行边界；
-- 需要多个 SHA / artifact / transaction / runtime authority 才能安全继续；
-- 用户明确要求正式交接。
+- 需要多个 SHA / artifact / transaction / runtime authority 才能安全继续。
 
-普通 PR、普通 CI 等待或常规源码开发切换，只更新适用状态增量和必要记录，并使用 mini handoff。
+用户明确要求正式交接时，按用户要求使用正式模板 V1.5。否则只要 mini handoff 已把下一会话安全续接所需信息完整写明，就无需因为风险类别本身切换模板。
+
+普通 PR、普通 CI 等待或常规源码开发切换，继续只更新适用状态增量和必要记录，并使用 mini handoff。
 
 # Live Validation Efficiency
 
