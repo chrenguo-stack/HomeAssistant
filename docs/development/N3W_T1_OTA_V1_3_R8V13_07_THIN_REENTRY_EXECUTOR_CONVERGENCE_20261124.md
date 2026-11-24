@@ -201,14 +201,26 @@ The focused workflow additionally executes selected existing `test_n3w_t1_core_u
 
 ## 11. CI status
 
+The earlier run `45412479065` was superseded by PR concurrency and finished `CANCELLED`; it is not sealing evidence.
+
+The authoritative replacement run on the docs-aligned PR head completed successfully:
+
 ```text
-CI_VALIDATED_SOURCE_CANDIDATE=80f2befd4636ba6b1f17b1d2b9f1c7701377ed06
-FOCUSED_CI_RUN=45412479065
-FOCUSED_CI_STATUS=PENDING_AFTER_3_CHECKS
-ACTIVE_POLLING_STOPPED=true
+EXECUTOR_SOURCE_HEAD=80f2befd4636ba6b1f17b1d2b9f1c7701377ed06
+CI_EXECUTED_HEAD=dca5658b653a2c16e40912ff8fff2abd8c0ff3a5
+EXECUTOR_BLOB=9e8d48ae49fef6917be0b511caaf6b228e3d0e76
+FOCUSED_CI_RUN=45412793881
+FOCUSED_CI_STATUS=SUCCESS
+COMPILE_FOCUSED_R8_SOURCES=PASS
+VALIDATE_R8_SHELL_EXECUTORS=PASS
+FOCUSED_ORCHESTRATION_SUITE=56_PASSED
+PRODUCT_RECOVERY_FAULT_INJECTION=25_PASSED_71_DESELECTED
+EXECUTOR_SHA256=70b648fb03231723efcbea568fe373fdd57db5dc49aa7048c04392edaa3d691c
+EXECUTOR_DRIFT=false
+CI_SEALING=PASS
 ```
 
-No physical T1 command is admitted until this exact source candidate reaches SUCCESS and the executor SHA256 emitted by CI is sealed.
+The convergence source and CI are sealed. Per user direction, physical execution remains blocked until a new conversation first performs an independent review of this executor convergence and confirms no blocker.
 
 ## 12. Current physical boundary
 
@@ -226,7 +238,7 @@ PREDECESSOR_START_PRESENT=false
 ```
 
 ```text
-LIVE_T1_EXECUTION=BLOCKED_PENDING_FINAL_THIN_EXECUTOR_CI
+LIVE_T1_EXECUTION=BLOCKED_PENDING_NEW_CHAT_INDEPENDENT_EXECUTOR_REVIEW
 R8V13_08_BLOCKED=true
 BROKER_OTA=false
 HOST_REBOOT=false
