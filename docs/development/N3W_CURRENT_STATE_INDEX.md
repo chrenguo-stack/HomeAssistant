@@ -1,25 +1,41 @@
 ## Current pointer
 
+Repository production authority (distinct from spare-T1 experimental runtime): `infra/n3w-t1/production/t1-core-stack-current.json`, product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; accepted images `local/greenhouse-manager:fresh-5b32e1ae8210`, `local/n3w-homeassistant:2026.10.0-0c73235a`, `local/n3w-mosquitto:2.1.2-3184566d`. Live upgrade accepted; LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED. Historical clean reference `24382caae4a1f5d459297f86e8d18f10a848ca64` / `local/greenhouse-manager:fresh-24382caae4a1` remains immutable.
+
 ```text
-CURRENT_STATE=R8V13_06_FRESH_PREPARE_CLOSED_PASS_U4_READY_TO_INSTALL
-CURRENT_STATE_DOC=docs/development/N3W_CURRENT_STATE.md
+CURRENT_STATE=R8V13_07_PRE_CUTOVER_ROLLED_BACK_SOURCE_REPAIR_CI_PENDING
 MASTER_TASK_DOCUMENT=docs/development/templates/STAGE_EXECUTION_PLAN_TEMPLATE.md
 MASTER_TASK_DOCUMENT_SHA=acc4e2c2fce5b68b24cc2b993662a72faffc25ee
 ACTIVE_STAGE_ID=N3W_T1_CORE_STACK_OTA_V1_3_R8_PHYSICAL_ACCEPTANCE
 CURRENT_TASK_ID=R8V13-07
 NEXT_TASK_ID=R8V13-08
+NEXT_TASK_BLOCKED=true
 TASK_CHAIN_STATUS=ALIGNED
-EXECUTABLE_SOURCE_HEAD=1fbe674e25edb4c6fb1a3740042778adc55def68
+LIVE_EXECUTABLE_SOURCE_HEAD=1fbe674e25edb4c6fb1a3740042778adc55def68
+SOURCE_REPAIR_HEAD=6b6c735ae12a253a62dd64b0adedb90b6c5ad03f
 CURRENT_HA_TRANSACTION_ID=463c8065eea5ada915074194058ee45880ddab2c94d06715c82f09fb84481969
-CURRENT_HA_TRANSACTION_PHASE=U4_READY_TO_INSTALL
-INSTALL_AUTHORIZATION=NOT_GRANTED
-STOP_BEFORE_INSTALL=true
-NEXT_ACTION=READONLY_U4_REBIND_THEN_EXPLICIT_R8V13_07_INSTALL_CUTOVER_AUTHORIZATION
-CURRENT_MINI_HANDOFF=docs/development/N3W_T1_OTA_V1_3_R8V13_06_TO_R8V13_07_MINI_HANDOFF_20261124.md
-MINI_HANDOFF_TEMPLATE_VERSION=1.1
-MINI_HANDOFF_ELIGIBLE=false
-UNARCHIVED_CRITICAL_RESULT_COUNT=0
+CURRENT_HA_TRANSACTION_PHASE=U8_RECOVERY_ADMISSION_COMPLETE
+TRANSACTION_STATUS=ROLLED_BACK
+FAILURE_CODE=ha_usb_pre_cutover_interrupted
+AUTHORIZATION_CONSUMED=false
+RECOVERY_REQUIRED=false
+PRE_CUTOVER_PREDECESSOR_RESTORED=true
+INSTALL_AUTHORITY_PRESENT_AT_LAST_OBSERVATION=true
+OLD_TRANSACTION_REPLAY=false
+R8V13_07=FAIL
+PRE_CUTOVER_RECOVERY=PASS
+U13B_FULL_ROLLBACK=NOT_REACHED
+LIVE_HA=local/n3w-homeassistant:2026.10.4-5881590f
+LIVE_MANAGER=local/greenhouse-manager:fresh-1cae18039eee
+LIVE_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+NEXT_ACTION=SOURCE_CI_AND_PACKAGE_CLOSURE_THEN_NEW_PHYSICAL_AUTHORIZATION
+BROKER_OTA=DEFERRED
+T1_MUTATION_AUTHORIZED=false
 ```
+
+- Attempt A was authorized, reached U8 and rolled back before U9. Worker start 09:07:45, application stop 09:16:45, recovery start 09:20:01, product healthy rollback terminal 09:21:25 CST on 2026-11-24. The first exception was not retained; the observed nonempty same-repository RepoDigests is incompatible with the old gate, but the sole original exception is not proven.
+- KF-152 source repair `6b6c735ae12a253a62dd64b0adedb90b6c5ad03f` accepts valid same-repository digest aliases while keeping exact tag, runtime identity, foreign reference, container-user and non-forced deletion checks. Both install and rollback simulation fixtures now use nonempty RepoDigests. Adds pre-stop metadata validation and sanitized diagnostic preservation. CI/package/live acceptance remain pending; do not replay the terminal transaction.
+- Evidence: PR #824 comments 7119073914 and 7119119771. The source-repair CI run initially also exposed a missing canonical authority link in the first section of the index; restore the link and repository-authority markers without changing production authority or the task chain.
 
 ## Current T1 Core Stack authority index
 
