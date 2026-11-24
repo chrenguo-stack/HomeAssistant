@@ -128,6 +128,13 @@ failure_recovery() {
   set +e
   if [ "$COMPLETED" != true ]; then
     if [ "$PATCH_PUBLISHED" = true ] && [ -f "$OLD" ]; then
+      if [ "$CONTROL_QUIESCED" != true ]; then
+        systemctl stop n3w-t1-ha-recovery-retry.timer
+        systemctl stop n3w-t1-ha-recovery-retry.service
+        systemctl stop n3w-t1-ha-ota-ipc.socket
+        systemctl stop n3w-t1-ha-ota-ipc.service
+        CONTROL_QUIESCED=true
+      fi
       atomic_publish "$OLD" "$LIVE"
       if [ "$(sha256sum "$LIVE" | awk '{print $1}')" = "$EXPECTED_OLD_PYZ_SHA256" ]; then
         echo PATCH_ROLLBACK=PASS
