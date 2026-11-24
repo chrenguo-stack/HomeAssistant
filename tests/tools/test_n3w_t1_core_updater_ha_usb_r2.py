@@ -507,6 +507,9 @@ def test_target_binding_normalization_restores_frozen_predecessor_launch(tmp_pat
     ] = target_version
     runtime.owner = "inactive"
     runtime.running = {"broker"}
+    runtime._release_image = lambda reference: (
+        {"Id": runtime.image_id(reference)} if reference == CURRENT else None
+    )
 
     normalized, _ = runtime._restart_binding(replacement=(TARGET, CURRENT))
     assert normalized == expected
