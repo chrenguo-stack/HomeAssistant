@@ -220,3 +220,21 @@ FIRST_MUTATION=STOP_RECOVERY_RETRY_TIMER
 Scope is pyz-only. The application stack must remain running; target 10.0 must remain absent; the terminal failed transaction must remain byte-identical. On any post-publish failure, the executor re-quiesces recovery retry/IPC before atomically restoring the old pyz.
 
 R8V13-07 remains NOT_PASS until a completely new fresh physical reacceptance succeeds. R8V13-08 remains blocked.
+
+
+## KF-153 live repair PASS
+
+```text
+AUTHORIZATION_GATE=N3W_T1_V1_3_KF153_LIVE_REPAIR_20261124_01
+AUTHORIZATION_STATUS=APPROVED_CONSUMED_FOR_BOUNDED_SCOPE
+LIVE_PATCH_EXECUTOR_SHA256=1e6184ffae961bf8dbbb00361a1b90f4a6a56401a67a70f34b150e867000e6e9
+LIVE_RECOVERY_PYZ_SHA256=5208dadc14c2cf0024c0711de60ce0f70f5a19ea27de4e74f290d4c3c8bcfe0a
+DURABLE_TRANSACTION_UNCHANGED=PASS
+APPLICATION_RUNTIME_UNCHANGED=PASS
+POST_PATCH_PREDECESSOR_BINDING=PASS
+TARGET_10_0_PRESENT=false
+RESULT=KF153_LIVE_REPAIR_PASS
+KF153_STATUS=GUARDED
+```
+
+This closes the live deployment/revalidation requirement for KF-153. The failed transaction remains terminal/no-replay and R8V13-07 remains NOT_PASS only because the physical 10.4→10.0 reacceptance has not yet been re-run with a fresh transaction.
