@@ -25,7 +25,6 @@ on:
   push:
     branches:
       - "review/t1-ota-r8-spare-preflight-20261122"
-      - "review/t1-ota-r8-existing-tx-predecessor-prep-20261123"
     paths:
       - "tools/execution_packages/n3w/t1_ota_r8_spare_preflight/preflight.py"
       - "tools/execution_packages/n3w/t1_ota_r8_bound_usb_readonly/verify.py"
