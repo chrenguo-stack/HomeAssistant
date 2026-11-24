@@ -18,6 +18,48 @@ mod = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(mod)
 
 
+
+class FakeOps:
+    def __init__(self, states):
+        import json
+        self.states = [json.loads(json.dumps(state)) for state in states]
+        self.index = 0
+        self.calls = []
+        self.launch = "f" * 64
+
+    def preflight_static(self):
+        self.calls.append("preflight_static")
+
+    def read_transaction(self):
+        import json
+        return json.loads(json.dumps(self.states[self.index]))
+
+    def validate_runtime_binding(self, document):
+        self.calls.append("validate_runtime_binding")
+        return self.launch
+
+    def ensure_release_pin(self):
+        self.calls.append("ensure_release_pin")
+
+    def submit_install(self):
+        self.calls.append("submit_install")
+        self.index += 1
+
+    def ensure_install_authority(self, document, launch_sha256):
+        self.calls.append("ensure_install_authority")
+
+    def start_worker(self, attempt):
+        self.calls.append(f"start_worker_{attempt}")
+        if self.index < len(self.states) - 1:
+            self.index += 1
+        return 0
+
+    def verify_committed(self, document):
+        self.calls.append("verify_committed")
+
+    def verify_rolled_back(self, document):
+        self.calls.append("verify_rolled_back")
+
 def tx(*, status="ACTIVE", phase=None, recovery=False, start=False, failure=None):
     phase = mod.U4 if phase is None else phase
     document = {
@@ -100,7 +142,7 @@ def rolled_back_precutover(phase=mod.U8):
 
 
 def test_clean_u4_path_runs_install_authority_worker_and_commits():
-    ops = mod.FakeOps([tx(), tx(phase=mod.U5), committed()])
+    ops = FakeOps([tx(), tx(phase=mod.U5), committed()])
     assert mod.execute(ops) == 0
     assert ops.calls == [
         "preflight_static",
@@ -114,7 +156,7 @@ def test_clean_u4_path_runs_install_authority_worker_and_commits():
 
 
 def test_u5_reentry_does_not_resubmit_install():
-    ops = mod.FakeOps([tx(phase=mod.U5), committed()])
+    ops = FakeOps([tx(phase=mod.U5), committed()])
     assert mod.execute(ops) == 0
     assert "submit_install" not in ops.calls
     assert ops.calls.count("ensure_install_authority") == 1
@@ -122,7 +164,7 @@ def test_u5_reentry_does_not_resubmit_install():
 
 
 def test_u6_without_predecessor_start_is_safe_forward_reentry():
-    ops = mod.FakeOps([tx(phase=mod.U6), committed()])
+    ops = FakeOps([tx(phase=mod.U6), committed()])
     assert mod.execute(ops) == 0
     assert "submit_install" not in ops.calls
     assert "validate_runtime_binding" in ops.calls
@@ -130,7 +172,7 @@ def test_u6_without_predecessor_start_is_safe_forward_reentry():
 
 
 def test_pre_cutover_recovery_hands_directly_to_product_worker():
-    ops = mod.FakeOps([tx(phase=mod.U7, recovery=True, start=True), rolled_back_precutover(mod.U7)])
+    ops = FakeOps([tx(phase=mod.U7, recovery=True, start=True), rolled_back_precutover(mod.U7)])
     assert mod.execute(ops) == 2
     assert "validate_runtime_binding" not in ops.calls
     assert "ensure_release_pin" not in ops.calls
@@ -139,7 +181,7 @@ def test_pre_cutover_recovery_hands_directly_to_product_worker():
 
 
 def test_post_authorization_recovery_hands_directly_to_product_worker():
-    ops = mod.FakeOps([tx(phase=mod.U10, recovery=True, start=True), rolled_back_postcutover()])
+    ops = FakeOps([tx(phase=mod.U10, recovery=True, start=True), rolled_back_postcutover()])
     assert mod.execute(ops) == 2
     assert ops.calls == ["preflight_static", "start_worker_1", "verify_rolled_back"]
 
@@ -147,7 +189,7 @@ def test_post_authorization_recovery_hands_directly_to_product_worker():
 def test_u12_can_forward_commit_through_product_worker():
     active = tx(phase=mod.U12, start=True)
     active["target_activation"] = "WRITES_POSSIBLE"
-    ops = mod.FakeOps([active, committed()])
+    ops = FakeOps([active, committed()])
     assert mod.execute(ops) == 0
     assert ops.calls == ["preflight_static", "start_worker_1", "verify_committed"]
 
@@ -155,7 +197,7 @@ def test_u12_can_forward_commit_through_product_worker():
 def test_recoverable_active_state_gets_one_bounded_second_worker_dispatch():
     first = tx(phase=mod.U9, start=True)
     second = tx(phase=mod.U10, recovery=True, start=True)
-    ops = mod.FakeOps([first, second, rolled_back_postcutover()])
+    ops = FakeOps([first, second, rolled_back_postcutover()])
     assert mod.execute(ops) == 2
     assert ops.calls.count("start_worker_1") == 1
     assert ops.calls.count("start_worker_2") == 1
@@ -163,20 +205,20 @@ def test_recoverable_active_state_gets_one_bounded_second_worker_dispatch():
 
 
 def test_terminal_committed_is_classified_without_replay():
-    ops = mod.FakeOps([committed()])
+    ops = FakeOps([committed()])
     assert mod.execute(ops) == 0
     assert ops.calls == ["preflight_static", "verify_committed"]
 
 
 def test_terminal_pre_cutover_rollback_is_valid_terminal_state():
-    ops = mod.FakeOps([rolled_back_precutover()])
+    ops = FakeOps([rolled_back_precutover()])
     assert mod.execute(ops) == 2
     assert ops.calls == ["preflight_static", "verify_rolled_back"]
 
 
 def test_u4_pre_cutover_failure_is_not_replayed():
     document = tx(failure="ha_usb_install_revalidation_failed")
-    ops = mod.FakeOps([document])
+    ops = FakeOps([document])
     assert mod.execute(ops) == 3
     assert ops.calls == ["preflight_static"]
 
@@ -185,7 +227,7 @@ def test_second_worker_nonterminal_result_leaves_product_timer_owner():
     first = tx(phase=mod.U9, start=True)
     second = tx(phase=mod.U10, recovery=True, start=True)
     third = tx(phase=mod.U10, recovery=True, start=True)
-    ops = mod.FakeOps([first, second, third])
+    ops = FakeOps([first, second, third])
     assert mod.execute(ops) == 4
     assert ops.calls == ["preflight_static", "start_worker_1", "start_worker_2"]
 
@@ -193,7 +235,7 @@ def test_second_worker_nonterminal_result_leaves_product_timer_owner():
 def test_exact_transaction_drift_blocks_before_any_product_action():
     document = tx()
     document["transaction_id_sha256"] = "0" * 64
-    ops = mod.FakeOps([document])
+    ops = FakeOps([document])
     try:
         mod.execute(ops)
     except mod.GateError as error:
