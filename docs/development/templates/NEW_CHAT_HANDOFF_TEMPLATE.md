@@ -6,7 +6,7 @@
 
 V1.5 新增“任务权威与任务链”绑定：交接文档只负责恢复现场，不再承担长期任务规划。活动阶段已有 master Stage Execution Plan 时，必须引用它并记录当前 Task ID、下一 Task ID 和后续任务链。任务链如需改变，应先修改 master plan，再同步 Current State 和 handoff。
 
-普通切换对话在满足 mini eligibility 条件时，优先使用 [`mini-handoff-template.md`](mini-handoff-template.md)；不再为了普通上下文切换重复生成完整正式交接。涉及实机、生产、回滚、断电、复杂一次性授权、关键状态不确定，或用户明确要求正式交接时，必须使用本 V1.5 模板。
+跨对话续接默认优先选择能清晰承载当前信息量的模板。[`mini-handoff-template.md`](mini-handoff-template.md) V1.2 可以用于普通任务，也可以用于实机、生产、回滚、断电、复杂一次性授权或关键状态不确定等场景，但这些场景必须按 mini 模板补齐对应的授权、基线、回滚/恢复和 exact authority 信息。只有当用户明确要求正式交接，或补充信息已经使 mini handoff 明显失去简洁性时，再使用本 V1.5 模板。
 
 填写下方七部分。只保留本次增量，省略不适用的字段；涉及实机、生产或发布时补齐文末相应信息。
 
