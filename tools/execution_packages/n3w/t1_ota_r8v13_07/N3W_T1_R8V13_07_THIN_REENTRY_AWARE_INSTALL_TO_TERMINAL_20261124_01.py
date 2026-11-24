@@ -320,7 +320,7 @@ class RealOps:
             valid_signed_index,
         )
         from n3w_t1_core_updater_ha_recovery_startup import LocalHaPredecessorRuntime
-        from n3w_t1_core_updater_v2_common import UpdaterV2Error
+        from n3w_t1_core_updater_v2_common import SHA256, UpdaterV2Error
 
         def resolver() -> LocalApprovedHaRelease:
             return LocalApprovedHaRelease(
@@ -369,7 +369,7 @@ class RealOps:
             if pin["signed_index"] != read_signed_index(PIN.with_name(SIGNED_INDEX_STATE)):
                 raise GateError("RELEASE_PIN_SIGNED_INDEX_DRIFT")
             binding = pin.get("predecessor_binding_sha256")
-            if not isinstance(binding, str) or len(binding) != 64:
+            if not isinstance(binding, str) or SHA256.fullmatch(binding) is None:
                 raise GateError("RELEASE_PIN_PREDECESSOR_BINDING_INVALID")
         expiry = pin.get("expires_at_unix")
         if type(expiry) is not int:
