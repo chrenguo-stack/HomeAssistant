@@ -313,3 +313,35 @@ def test_old_different_binding_is_not_hard_coded_as_a_gate():
     source = MODULE_PATH.read_text(encoding="utf-8")
     assert "EXPECTED_OLD_INSTALL_BINDING" not in source
     assert "install_authority_reusable" in source
+
+
+def test_committed_durable_evidence_validator_rejects_malformed_receipt():
+    good = committed()
+    mod.validate_committed_document(good)
+
+    missing = committed()
+    del missing["target_acceptance"]["receipt"]
+    try:
+        mod.validate_committed_document(missing)
+    except mod.GateError as error:
+        assert str(error) == "COMMIT_ACCEPTANCE_MISSING"
+    else:
+        raise AssertionError("expected missing receipt rejection")
+
+    bad_observations = committed()
+    bad_observations["target_acceptance"]["receipt"]["observations"] = {"monitoring_path": "a" * 64}
+    try:
+        mod.validate_committed_document(bad_observations)
+    except mod.GateError as error:
+        assert str(error) == "COMMIT_ACCEPTANCE_OBSERVATIONS_INVALID"
+    else:
+        raise AssertionError("expected observation-set rejection")
+
+    wrong_runtime = committed()
+    wrong_runtime["target_acceptance"]["receipt"]["images"]["homeassistant"]["runtime_id"] = "sha256:" + "8" * 64
+    try:
+        mod.validate_committed_document(wrong_runtime)
+    except mod.GateError as error:
+        assert str(error) == "COMMIT_ACCEPTANCE_RUNTIME_ID_DRIFT"
+    else:
+        raise AssertionError("expected runtime-id rejection")
