@@ -1,53 +1,58 @@
 ## Current pointer
 
-Repository production authority (distinct from spare-T1 experimental runtime): `infra/n3w-t1/production/t1-core-stack-current.json`, product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; accepted images `local/greenhouse-manager:fresh-5b32e1ae8210`, `local/n3w-homeassistant:2026.10.0-0c73235a`, `local/n3w-mosquitto:2.1.2-3184566d`. Live upgrade accepted; LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED. Historical clean reference `24382caae4a1f5d459297f86e8d18f10a848ca64` / `local/greenhouse-manager:fresh-24382caae4a1` remains immutable.
+Repository production authority remains distinct from this spare-T1 R8 validation runtime. The active R8 task is still `R8V13-07`; no merge/release/production publication is authorized by this pointer.
 
 ```text
-CURRENT_STATE=R8V13_07_KF152_GUARDED_FRESH_PHYSICAL_REACCEPTANCE_PENDING
+CURRENT_STATE=R8V13_07_FRESH_U5_AUTHORITY_CONTINUATION_READY
 CURRENT_STATE_DOC=docs/development/N3W_CURRENT_STATE.md
 MASTER_TASK_DOCUMENT=docs/development/templates/STAGE_EXECUTION_PLAN_TEMPLATE.md
-MASTER_TASK_DOCUMENT_SHA=acc4e2c2fce5b68b24cc2b993662a72faffc25ee
+MASTER_TASK_DOCUMENT_SHA=b6bf93b3fbc7fba770ae4cac2c60ef9d79eeb105
 ACTIVE_STAGE_ID=N3W_T1_CORE_STACK_OTA_V1_3_R8_PHYSICAL_ACCEPTANCE
 CURRENT_TASK_ID=R8V13-07
 NEXT_TASK_ID=R8V13-08
 NEXT_TASK_BLOCKED=true
 TASK_CHAIN_STATUS=ALIGNED
-LIVE_EXECUTABLE_SOURCE_HEAD=1fbe674e25edb4c6fb1a3740042778adc55def68
-KF152_PRODUCT_SOURCE_HEAD=6b6c735ae12a253a62dd64b0adedb90b6c5ad03f
-KF152_DOCKER_INTEGRATION_HEAD=71260221ebcbc1e4f461dc7f3cea842e0406616a
-KF152_CI_CLOSURE_HEAD=9339ab22fc29ddd14d2e147d13e616ccebed945b
+
+PR=824
+BRANCH=review/t1-ota-r8-existing-tx-predecessor-prep-20261123
+EXACT_EXECUTABLE_SOURCE_HEAD=9339ab22fc29ddd14d2e147d13e616ccebed945b
 KF152_STATUS=GUARDED
-KF152_FINAL_CI=22_OF_22_SUCCESS
-RECOVERY_ARTIFACT_ID=14885876408
-RECOVERY_PYZ_SHA256=d3e844a05571e94ef384aa62fd4763f2d53c253f281cb94f30dd37ca19743b30
-HISTORICAL_TRANSACTION_ID=463c8065eea5ada915074194058ee45880ddab2c94d06715c82f09fb84481969
-HISTORICAL_TRANSACTION_STATUS=ROLLED_BACK
-HISTORICAL_TRANSACTION_PHASE=U8_RECOVERY_ADMISSION_COMPLETE
-OLD_TRANSACTION_REPLAY=false
-LIVE_KF152_REPAIR_DEPLOYED=false
-NEXT_ACTION=NEW_CHAT_FRESH_REBIND_THEN_R8V13_07_FRESH_PHYSICAL_REACCEPTANCE_PREAUTH
+LIVE_RECOVERY_PYZ_SHA256=d3e844a05571e94ef384aa62fd4763f2d53c253f281cb94f30dd37ca19743b30
+
+FRESH_TRANSACTION_ID=afbfeeb85c3ab579b62d86d347f76b7f6ee7f203b068eac028be1d18761950c3
+FRESH_TRANSACTION_STATUS=ACTIVE
+FRESH_TRANSACTION_PHASE=U5_INSTALL_REQUESTED_REVALIDATING
+FRESH_PREPARE_RESULT=PASS
+INSTALL_INTENT_EXECUTED=true
+FRESH_INSTALL_AUTHORITY_ISSUED=false
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+RECOVERY_REQUIRED=false
+DESTRUCTIVE_BOUNDARY_CROSSED=false
+
+PREINSTALL_SELF_TEST=PASS
+PREINSTALL_SELF_TEST_SHA256=cc2a9e3c867db76cc1630e460eaf036797c0daedb5c4da99460151780fba1c9e
+INSTALL_REQUEST_BINDING_SHA256=f012b3ed4fe47090e5dc23b23c48b558099ce6247dad716b4d6252ae8ef5cd83
+
+LAST_STOP_CLASS=PRIVATE_EXECUTOR_INVALID_AUTHORIZATION_ID_PREFIX
+PRODUCT_FAILURE=false
+INSTALL_INTENT_REPLAY_ALLOWED=false
+CONTINUATION_AUTHORIZATION_ID=N3W_T1_CORE_UPDATER_R8V13_07_INSTALL_CUTOVER_20261124_03
+CONTINUATION_EXECUTOR=tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_U5_AUTHORITY_CONTINUE_AND_INSTALL_20261124_03.sh
+CONTINUATION_EXECUTOR_SHA256=8a026b108954c524964a0373c516f3904c08d42424fd497605f27caa60ada9b3
+NEXT_ACTION=WAIT_FOR_USER_EXECUTION_RESULT_THEN_CLASSIFY_U13A_U13B_OR_NONTERMINAL
 BROKER_OTA=DEFERRED
-T1_MUTATION_AUTHORIZED=false
+R8V13_08_AUTO_ADVANCE=false
+
 UNARCHIVED_CRITICAL_RESULT_COUNT=0
-CURRENT_MINI_HANDOFF=docs/development/N3W_T1_OTA_V1_3_KF152_CLOSED_TO_R8V13_07_FRESH_PHYSICAL_REACCEPTANCE_MINI_HANDOFF_20261124.md
-MINI_HANDOFF_TEMPLATE_VERSION=1.1
-MINI_HANDOFF_ELIGIBLE=false
-HANDOFF_ROLE=NAVIGATION_FRESH_REBIND_AND_PREAUTH_ONLY
 IMPORTANT_CHAT_ONLY_ARTIFACT_COUNT=0
-TEAM_SHARE_COMPLETENESS=PASS
+GITHUB_STATE_ALIGNED=true
 ```
 
-### 2026-11-24 — KF-152 source / CI / real-Docker / package closure
-
-- KF-152 status: `GUARDED`.
-- Exact CI closure head: `9339ab22fc29ddd14d2e147d13e616ccebed945b`; 22/22 workflows SUCCESS.
-- Product repair head: `6b6c735ae12a253a62dd64b0adedb90b6c5ad03f`; real-Docker integration head: `71260221ebcbc1e4f461dc7f3cea842e0406616a`.
-- Real Docker Engine release proof uses the exact product non-force image-ID removal semantics and PASSed.
-- Exact recovery package: run `45317562079`, artifact `14885876408`, artifact digest `23289a67...`, manifest `6792c681...`, pyz `d3e844a0...`.
-- Fresh exact ARM64 CI race was fixed structurally by moving post-upload verification to a dependent job; run `45317562014` PASS, artifact `14886237329`.
-- Historical Attempt A remains terminal `ROLLED_BACK / U8_RECOVERY_ADMISSION_COMPLETE`; it must never be replayed. R8V13-08 remains blocked until a fresh R8V13-07 attempt reaches healthy U13A.
-- Closure: [KF-152 source/CI/Docker/package closure](N3W_T1_OTA_V1_3_KF152_SOURCE_CI_DOCKER_PACKAGE_CLOSURE_20261124.md).
-- Next live work is fresh physical reacceptance in a new conversation after read-only rebind and new explicit authorization. No live authorization is carried by this closure.
+- Fresh U1→U4 reacceptance is PASS and the current fresh transaction is already at U5 because one INSTALL intent was accepted.
+- The attempted fresh install-authority issue did not mutate authority state: the private executor used an authorization ID missing the required `N3W_T1_CORE_UPDATER_` prefix. No authorization claim/consume or destructive cutover occurred.
+- Resume only from the existing U5 with the archived continuation executor. Do not replay PREPARE or INSTALL intent.
+- The next conversation should first fresh-rebind PR/head/current state and then consume the user's reported continuation output. R8V13-08 stays blocked until healthy U13A is proven.
 
 ## Current T1 Core Stack authority index
 
