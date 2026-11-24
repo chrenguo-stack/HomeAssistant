@@ -242,7 +242,12 @@ class RealOps:
         print("STATIC_BINDING=PASS")
 
     def read_transaction(self) -> dict[str, Any]:
-        return read_json(TX_FILE)
+        from n3w_t1_core_updater_ha_usb_state import HaUsbStateStore
+
+        document = HaUsbStateStore().read()
+        if document is None:
+            raise GateError("TRANSACTION_MISSING")
+        return document
 
     def validate_runtime_binding(self, document: dict[str, Any]) -> str:
         print("PHASE=PRODUCT_RUNTIME_REBIND")
