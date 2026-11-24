@@ -278,10 +278,19 @@ GOAL=用既有 U0-U13 状态机把备用 T1 从 10.4 安全准备为 R8 所需�
 PRECONDITIONS=R8V13-06 PASS；fresh install/cutover authorization 单独取得；U4 rebind exact
 ACTIONS=INSTALL intent / authority；U5-U12；成功 commit U13A；失败按既有恢复链自动 U13B
 EXIT_CRITERIA=成功则 U13A + healthy 10.0；失败则 U13B + healthy exact 10.4，且不得留下停机系统
-EVIDENCE=transaction ledger；USB recovery materials；runtime / protected-data / monitoring evidence
+EVIDENCE=transaction ledger；USB recovery materials；runtime / protected-data / monitoring evidence；PR #824 comments 7124599609 / 7125179778 / 7125215220；tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_U5_AUTHORITY_CONTINUE_AND_INSTALL_20261124_03.sh
 NEXT_TASK=R8V13-08
 STOP_BOUNDARY=若 U13B，则先处理事务 A 失败原因；不得把已恢复的 10.4 当作正式 R8 起点
-STATUS=NOT_STARTED
+STATUS=IN_PROGRESS
+CURRENT_SUBSTATE=FRESH_REACCEPTANCE_U5_AUTHORITY_CONTINUATION_READY
+CURRENT_TRANSACTION_ID=afbfeeb85c3ab579b62d86d347f76b7f6ee7f203b068eac028be1d18761950c3
+CURRENT_TRANSACTION_PHASE=U5_INSTALL_REQUESTED_REVALIDATING
+INSTALL_INTENT_ALREADY_SUBMITTED=true
+FRESH_INSTALL_AUTHORITY_ISSUED=false
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+DESTRUCTIVE_BOUNDARY_CROSSED=false
+R8V13_08_BLOCKED=true
 ```
 
 ### R8V13-08 — exact 2026.10.0 健康前驱基线确认
@@ -417,5 +426,5 @@ TASK_CHAIN_STATUS=ALIGNED
 TASK_CHAIN_MUTATION_ALLOWED=false
 ```
 
-当前任务 R8V13-06 只覆盖 fresh PREPARE 到 U4。现有授权不自动扩展到 R8V13-07 的 INSTALL/cutover。
+当前任务 R8V13-07 正在执行 fresh physical reacceptance。fresh transaction `afbfeeb85c3ab579b62d86d347f76b7f6ee7f203b068eac028be1d18761950c3` 已完成 fresh PREPARE 并已提交一次 INSTALL intent，当前 durable state 为 `ACTIVE / U5_INSTALL_REQUESTED_REVALIDATING`。fresh install authority 尚未签发，authorization 尚未 claim/consume，HA/Manager 尚未停服，predecessor 尚未释放，target 10.0 尚未加载。下一动作只能从现有 U5 签发新的合法 authority 并进入 product worker；不得重放 PREPARE 或 INSTALL intent。R8V13-08 继续 BLOCKED，直到 R8V13-07 达到 healthy `U13A_COMMITTED`。
 
