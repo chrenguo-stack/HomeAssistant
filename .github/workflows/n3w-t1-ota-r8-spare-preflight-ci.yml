@@ -10,12 +10,14 @@ on:
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_REACCEPTANCE_READONLY_REBIND_20261124_04.sh"
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_REACCEPTANCE_READONLY_REBIND_20261124_05.sh"
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_NEW_FRESH_TRANSACTION_A_PREPARE_TO_U4_20261124_01.sh"
+      - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_TRANSACTION_A_INSTALL_TO_TERMINAL_20261124_01.sh"
       - "tests/tools/test_n3w_t1_ota_r8_spare_preflight.py"
       - "tests/tools/test_n3w_t1_ota_r8_bound_usb_readonly.py"
       - "tests/tools/test_n3w_t1_ota_kf153_live_repair_preflight.py"
       - "tests/tools/test_n3w_t1_ota_kf153_live_repair.py"
       - "tests/tools/test_n3w_t1_ota_r8v13_07_fresh_reacceptance_readonly_rebind.py"
       - "tests/tools/test_n3w_t1_ota_r8v13_07_new_fresh_transaction_a_prepare.py"
+      - "tests/tools/test_n3w_t1_ota_r8v13_07_fresh_transaction_a_install.py"
       - ".github/workflows/n3w-t1-ota-r8-spare-preflight-ci.yml"
   push:
     branches:
@@ -64,7 +66,8 @@ jobs:
             tests/tools/test_n3w_t1_ota_kf153_live_repair_preflight.py \
             tests/tools/test_n3w_t1_ota_kf153_live_repair.py \
             tests/tools/test_n3w_t1_ota_r8v13_07_fresh_reacceptance_readonly_rebind.py \
-            tests/tools/test_n3w_t1_ota_r8v13_07_new_fresh_transaction_a_prepare.py
+            tests/tools/test_n3w_t1_ota_r8v13_07_new_fresh_transaction_a_prepare.py \
+            tests/tools/test_n3w_t1_ota_r8v13_07_fresh_transaction_a_install.py
       - name: Validate R8 shell executors
         run: |
           set -euo pipefail
@@ -73,11 +76,13 @@ jobs:
           bash -n tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_REACCEPTANCE_READONLY_REBIND_20261124_04.sh
           bash -n tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_REACCEPTANCE_READONLY_REBIND_20261124_05.sh
           bash -n tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_NEW_FRESH_TRANSACTION_A_PREPARE_TO_U4_20261124_01.sh
+          bash -n tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_TRANSACTION_A_INSTALL_TO_TERMINAL_20261124_01.sh
           sha256sum tools/execution_packages/n3w/t1_ota_kf153/N3W_T1_V1_3_KF153_LIVE_REPAIR_READONLY_PREFLIGHT_20261124_01.sh
           sha256sum tools/execution_packages/n3w/t1_ota_kf153/N3W_T1_V1_3_KF153_LIVE_REPAIR_20261124_01.sh
           sha256sum tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_REACCEPTANCE_READONLY_REBIND_20261124_04.sh
           sha256sum tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_REACCEPTANCE_READONLY_REBIND_20261124_05.sh
           sha256sum tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_NEW_FRESH_TRANSACTION_A_PREPARE_TO_U4_20261124_01.sh
+          sha256sum tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_TRANSACTION_A_INSTALL_TO_TERMINAL_20261124_01.sh
       - name: Run focused R8 tests
         env:
           PYTHONPATH: tools
@@ -88,4 +93,5 @@ jobs:
             tests/tools/test_n3w_t1_ota_kf153_live_repair_preflight.py \
             tests/tools/test_n3w_t1_ota_kf153_live_repair.py \
             tests/tools/test_n3w_t1_ota_r8v13_07_fresh_reacceptance_readonly_rebind.py \
-            tests/tools/test_n3w_t1_ota_r8v13_07_new_fresh_transaction_a_prepare.py
+            tests/tools/test_n3w_t1_ota_r8v13_07_new_fresh_transaction_a_prepare.py \
+            tests/tools/test_n3w_t1_ota_r8v13_07_fresh_transaction_a_install.py
