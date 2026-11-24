@@ -1248,7 +1248,7 @@ The user explicitly paused before `chip-id` / `flash-id` and requested a new-cha
 # N3W_PROJECT_WORKING_CONTEXT
 
 > Status: durable public project working context  
-> Version: `N3W_PROJECT_WORKING_CONTEXT_VERSION=1.11`
+> Version: `N3W_PROJECT_WORKING_CONTEXT_VERSION=1.12`
 > Scope: N3-W development for the greenhouse monitoring system  
 > Repository: `chrenguo-stack/HomeAssistant`
 
@@ -1667,12 +1667,19 @@ Private working context is maintained outside the public repository and may be l
 
 ## 11. What belongs in a handoff
 
-Use the [formal template](templates/NEW_CHAT_HANDOFF_TEMPLATE.md) to record the
-current task and stop point, exact evidence needed to resume, proven and pending
-facts, authorization and limits, the next complete task, and what is archived.
-Use the applicable addenda for CI, artifacts, physical baselines, rollback, or
-production authorities. A complete handoff may still be waiting for evidence
-or authorization.
+Use the [mini handoff template](templates/mini-handoff-template.md) as the
+default concise continuation record when it can carry all information needed to
+resume safely. High-risk status alone does not forbid mini handoff. When live or
+physical mutation, production recovery, one-shot authorization, rollback,
+UNKNOWN/UNPROVEN state, or multiple exact authorities are involved, add the
+corresponding target, baseline, authorization, rollback/recovery and exact-binding
+details required by the mini template.
+
+Use the [formal template](templates/NEW_CHAT_HANDOFF_TEMPLATE.md) when the user
+explicitly asks for a formal handoff or when the required supplemental information
+is clearer in the full seven-part structure. Template length is not a safety gate;
+information completeness is. A complete handoff may still be waiting for evidence
+or authorization, but it must state that condition explicitly.
 
 Continue development, review, testing, and archiving within the authorized scope.
 Explicit stage, authorization, and recovery boundaries in the current execution
