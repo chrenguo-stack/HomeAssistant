@@ -3,7 +3,8 @@
 Repository production authority (distinct from spare-T1 experimental runtime): `infra/n3w-t1/production/t1-core-stack-current.json`, product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; accepted images `local/greenhouse-manager:fresh-5b32e1ae8210`, `local/n3w-homeassistant:2026.10.0-0c73235a`, `local/n3w-mosquitto:2.1.2-3184566d`. Live upgrade accepted; LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED. Historical clean reference `24382caae4a1f5d459297f86e8d18f10a848ca64` / `local/greenhouse-manager:fresh-24382caae4a1` remains immutable.
 
 ```text
-CURRENT_STATE=R8V13_07_PRE_CUTOVER_ROLLED_BACK_SOURCE_REPAIR_CI_PENDING
+CURRENT_STATE=R8V13_07_KF152_GUARDED_FRESH_PHYSICAL_REACCEPTANCE_PENDING
+CURRENT_STATE_DOC=docs/development/N3W_CURRENT_STATE.md
 MASTER_TASK_DOCUMENT=docs/development/templates/STAGE_EXECUTION_PLAN_TEMPLATE.md
 MASTER_TASK_DOCUMENT_SHA=acc4e2c2fce5b68b24cc2b993662a72faffc25ee
 ACTIVE_STAGE_ID=N3W_T1_CORE_STACK_OTA_V1_3_R8_PHYSICAL_ACCEPTANCE
@@ -12,30 +13,35 @@ NEXT_TASK_ID=R8V13-08
 NEXT_TASK_BLOCKED=true
 TASK_CHAIN_STATUS=ALIGNED
 LIVE_EXECUTABLE_SOURCE_HEAD=1fbe674e25edb4c6fb1a3740042778adc55def68
-SOURCE_REPAIR_HEAD=6b6c735ae12a253a62dd64b0adedb90b6c5ad03f
-CURRENT_HA_TRANSACTION_ID=463c8065eea5ada915074194058ee45880ddab2c94d06715c82f09fb84481969
-CURRENT_HA_TRANSACTION_PHASE=U8_RECOVERY_ADMISSION_COMPLETE
-TRANSACTION_STATUS=ROLLED_BACK
-FAILURE_CODE=ha_usb_pre_cutover_interrupted
-AUTHORIZATION_CONSUMED=false
-RECOVERY_REQUIRED=false
-PRE_CUTOVER_PREDECESSOR_RESTORED=true
-INSTALL_AUTHORITY_PRESENT_AT_LAST_OBSERVATION=true
+KF152_PRODUCT_SOURCE_HEAD=6b6c735ae12a253a62dd64b0adedb90b6c5ad03f
+KF152_DOCKER_INTEGRATION_HEAD=71260221ebcbc1e4f461dc7f3cea842e0406616a
+KF152_CI_CLOSURE_HEAD=9339ab22fc29ddd14d2e147d13e616ccebed945b
+KF152_STATUS=GUARDED
+KF152_FINAL_CI=22_OF_22_SUCCESS
+RECOVERY_ARTIFACT_ID=14885876408
+RECOVERY_PYZ_SHA256=d3e844a05571e94ef384aa62fd4763f2d53c253f281cb94f30dd37ca19743b30
+HISTORICAL_TRANSACTION_ID=463c8065eea5ada915074194058ee45880ddab2c94d06715c82f09fb84481969
+HISTORICAL_TRANSACTION_STATUS=ROLLED_BACK
+HISTORICAL_TRANSACTION_PHASE=U8_RECOVERY_ADMISSION_COMPLETE
 OLD_TRANSACTION_REPLAY=false
-R8V13_07=FAIL
-PRE_CUTOVER_RECOVERY=PASS
-U13B_FULL_ROLLBACK=NOT_REACHED
-LIVE_HA=local/n3w-homeassistant:2026.10.4-5881590f
-LIVE_MANAGER=local/greenhouse-manager:fresh-1cae18039eee
-LIVE_BROKER=local/n3w-mosquitto:2.1.2-3184566d
-NEXT_ACTION=SOURCE_CI_AND_PACKAGE_CLOSURE_THEN_NEW_PHYSICAL_AUTHORIZATION
+LIVE_KF152_REPAIR_DEPLOYED=false
+NEXT_ACTION=NEW_CHAT_FRESH_REBIND_THEN_R8V13_07_FRESH_PHYSICAL_REACCEPTANCE_PREAUTH
 BROKER_OTA=DEFERRED
 T1_MUTATION_AUTHORIZED=false
+UNARCHIVED_CRITICAL_RESULT_COUNT=0
 ```
 
-- Attempt A was authorized, reached U8 and rolled back before U9. Worker start 09:07:45, application stop 09:16:45, recovery start 09:20:01, product healthy rollback terminal 09:21:25 CST on 2026-11-24. The first exception was not retained; the observed nonempty same-repository RepoDigests is incompatible with the old gate, but the sole original exception is not proven.
-- KF-152 source repair `6b6c735ae12a253a62dd64b0adedb90b6c5ad03f` accepts valid same-repository digest aliases while keeping exact tag, runtime identity, foreign reference, container-user and non-forced deletion checks. Both install and rollback simulation fixtures now use nonempty RepoDigests. Adds pre-stop metadata validation and sanitized diagnostic preservation. CI/package/live acceptance remain pending; do not replay the terminal transaction.
-- Evidence: PR #824 comments 7119073914 and 7119119771. The source-repair CI run initially also exposed a missing canonical authority link in the first section of the index; restore the link and repository-authority markers without changing production authority or the task chain.
+### 2026-11-24 — KF-152 source / CI / real-Docker / package closure
+
+- KF-152 status: `GUARDED`.
+- Exact CI closure head: `9339ab22fc29ddd14d2e147d13e616ccebed945b`; 22/22 workflows SUCCESS.
+- Product repair head: `6b6c735ae12a253a62dd64b0adedb90b6c5ad03f`; real-Docker integration head: `71260221ebcbc1e4f461dc7f3cea842e0406616a`.
+- Real Docker Engine release proof uses the exact product non-force image-ID removal semantics and PASSed.
+- Exact recovery package: run `45317562079`, artifact `14885876408`, artifact digest `23289a67...`, manifest `6792c681...`, pyz `d3e844a0...`.
+- Fresh exact ARM64 CI race was fixed structurally by moving post-upload verification to a dependent job; run `45317562014` PASS, artifact `14886237329`.
+- Historical Attempt A remains terminal `ROLLED_BACK / U8_RECOVERY_ADMISSION_COMPLETE`; it must never be replayed. R8V13-08 remains blocked until a fresh R8V13-07 attempt reaches healthy U13A.
+- Closure: [KF-152 source/CI/Docker/package closure](N3W_T1_OTA_V1_3_KF152_SOURCE_CI_DOCKER_PACKAGE_CLOSURE_20261124.md).
+- Next live work is fresh physical reacceptance in a new conversation after read-only rebind and new explicit authorization. No live authorization is carried by this closure.
 
 ## Current T1 Core Stack authority index
 
