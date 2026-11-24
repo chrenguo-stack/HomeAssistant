@@ -140,3 +140,12 @@ def test_mutation_marker_precedes_release_pin_write_boundary() -> None:
     install = text.index("echo PHASE=SUBMIT_INSTALL_INTENT", phase)
     assert phase < marker < refresh < install
     assert text.count("MUTATION_STARTED=true") == 1
+
+
+def test_workdir_is_fresh_per_execution_and_has_no_stale_fixed_guard() -> None:
+    text = source()
+    assert 'WORK=""' in text
+    assert 'WORK="$(mktemp -d /tmp/n3w-r8v13-07-fresh-tx-a-install-20261124-01.XXXXXX)"' in text
+    assert 'chmod 700 "$WORK"' in text
+    assert 'test ! -e "$WORK"' not in text
+    assert 'mkdir -m 700 "$WORK"' not in text
