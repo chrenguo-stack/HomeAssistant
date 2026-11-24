@@ -46,8 +46,8 @@ EXPECTED_USB_UUID=b72ac2fc-79a0-4fb8-888e-f35b0114f959
 EXECUTOR=tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_REACCEPTANCE_READONLY_REBIND_20261124_04.sh
 EXECUTOR_SOURCE_HEAD=6b9536803d42a167fe5954bb15aa73366e2f0fdc
 EXECUTOR_SHA256=PENDING_FOCUSED_CI
-FOCUSED_CI_RUN=45381783929
-FOCUSED_CI_STATUS=PENDING_AT_THIRD_CHECK
+FOCUSED_CI_RUN=45383913271
+FOCUSED_CI_STATUS=IN_PROGRESS_AT_THIRD_CHECK
 ```
 
 The executor contains no systemctl start/stop/restart, Docker mutation, mount/unmount, image load/removal, authority publication, transaction creation or recovery replay.
@@ -99,3 +99,29 @@ Success/failure contract remains:
 SUCCESS => new fresh transaction U13A_COMMITTED + healthy exact Home Assistant 2026.10.0
 FAILURE => automatic safe recovery + healthy exact Home Assistant 2026.10.4
 ```
+
+
+## 5. Focused CI false-fail classification and repair
+
+The first focused run `45381783929` completed FAILURE with:
+
+```text
+1 failed, 27 passed
+FAILED test_rebind_is_environment_neutral_and_has_no_persistent_mutation_commands
+```
+
+Root cause was test-only: the forbidden-command regex `\bmount\s+` matched the Python variable use `for index,mount in enumerate(...)`. The executor did not contain a shell `mount` command.
+
+The test was narrowed to match only line-leading shell `mount/umount` commands. The execution script itself was not changed.
+
+```text
+FALSE_FAIL_CLASSIFICATION=TEST_REGEX_FALSE_POSITIVE
+EXECUTOR_CHANGED=false
+EXECUTOR_BLOB_BEFORE=df6880b684dcb845fac347243d403393465e7920
+EXECUTOR_BLOB_AFTER=df6880b684dcb845fac347243d403393465e7920
+TEST_REPAIR_HEAD=fd4321ece2d27675da073978e5f15bac6b4085fb
+NEW_FOCUSED_CI_RUN=45383913271
+NEW_FOCUSED_CI_STATUS=IN_PROGRESS_AT_THIRD_CHECK
+```
+
+Active polling stopped after the third status check per project rule. No T1 execution is permitted until the repaired focused run reaches SUCCESS.
