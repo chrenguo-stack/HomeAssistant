@@ -256,6 +256,13 @@ This is forward-resumable.
 - verifies predecessor health;
 - closes the attempt as rolled back.
 
+Important terminal-shape detail: `_finish_pre_cutover_recovery()` does **not** force a transition to U13B. It preserves the current pre-cutover phase and writes `status=ROLLED_BACK`, `recovery_required=false`, and `pre_cutover_predecessor_restored=true`. Historical KF-153 real-T1 evidence (`ROLLED_BACK / U8_RECOVERY_ADMISSION_COMPLETE`) matches this source behavior.
+
+Therefore a correct outer classifier must accept both:
+
+- post-cutover rollback: `ROLLED_BACK / U13B_ROLLED_BACK`;
+- pre-cutover restored terminal: `ROLLED_BACK / U6|U7|U8` with `pre_cutover_predecessor_restored=true`.
+
 This is pre-cutover automatic recovery.
 
 ### U9/U10 with predecessor_release_intent
@@ -578,3 +585,25 @@ HOST_REBOOT=false
 MERGE=false
 RELEASE=false
 ```
+
+
+### F11 — Pre-cutover terminal rollback classification: FIX REQUIRED
+
+The previous fresh executor accepted rollback success only when:
+
+```text
+status=ROLLED_BACK
+phase=U13B_ROLLED_BACK
+```
+
+This is incomplete.
+
+Source `_finish_pre_cutover_recovery()` intentionally preserves U6/U7/U8 and sets:
+
+```text
+status=ROLLED_BACK
+recovery_required=false
+pre_cutover_predecessor_restored=true
+```
+
+A thin executor must classify that durable state as a successful product rollback terminal, verify predecessor runtime health, mark R8V13-07 NOT_PASS, and stop without replay.
