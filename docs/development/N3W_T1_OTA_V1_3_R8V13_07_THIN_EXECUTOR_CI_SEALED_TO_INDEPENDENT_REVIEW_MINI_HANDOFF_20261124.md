@@ -52,7 +52,7 @@
 ## 3A. 条件补充信息（按需填写）
 
 ```text
-TARGET=root@192.168.68.195 spare T1 / R8V13-07 fresh transaction A
+TARGET=root@<spare-t1-private-ip> spare T1 / R8V13-07 fresh transaction A
 MUTATION_OR_RECOVERY_ACTION=独立复核 PASS 后，恢复 exact HA 2026.10.0 INSTALL/cutover physical acceptance；当前尚未发出新的实机命令
 PRE_ACTION_BASELINE=transaction d86669e6... is ACTIVE/U4_READY_TO_INSTALL; recovery_required=false; authorization_claimed=false; authorization_consumed=false; authorization_id_sha256=null; predecessor_start absent
 
