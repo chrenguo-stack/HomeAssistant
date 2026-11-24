@@ -526,7 +526,8 @@ class ReleaseStartupRuntime(StartupRuntime):
                 return SimpleNamespace(returncode=1, stdout=b"", stderr=b"Error: No such image")
             assert argv[-1] in {CURRENT, old_id}
             return SimpleNamespace(returncode=0, stdout=json.dumps([{
-                "Id": old_id, "RepoTags": [CURRENT], "RepoDigests": [],
+                "Id": old_id, "RepoTags": [CURRENT],
+                "RepoDigests": [CURRENT.rsplit(":", 1)[0] + "@" + old_id],
             }]).encode())
         if argv[:3] == ("docker", "image", "ls"):
             return SimpleNamespace(stdout=old_id.encode() if self.image_present else b"")
@@ -552,6 +553,38 @@ class ReleaseStartupRuntime(StartupRuntime):
         if argv[:3] == ("docker", "inspect", "--format") and argv[-1] == self.container_id:
             argv = (*argv[:-1], "homeassistant")
         return super()._run(argv, **kwargs)
+
+
+@pytest.mark.parametrize("reference", [CURRENT, TARGET])
+@pytest.mark.parametrize("tags_kind,digests_kind,expected", [
+    ("exact", "none", True),
+    ("exact", "empty", True),
+    ("exact", "same", True),
+    ("exact", "same_multiple", True),
+    ("exact", "foreign", False),
+    ("exact", "mixed", False),
+    ("exact", "malformed", False),
+    ("exact", "scalar", False),
+    ("extra", "same", False),
+    ("untagged", "same", False),
+])
+def test_release_reference_ownership_both_directions(reference, tags_kind, digests_kind, expected):
+    repository = reference.rsplit(":", 1)[0]
+    same = repository + "@sha256:" + "1" * 64
+    foreign = "other/repository@sha256:" + "2" * 64
+    tags = {"exact": [reference], "extra": [reference, repository + ":other"], "untagged": []}
+    digests = {
+        "none": None, "empty": [], "same": [same],
+        "same_multiple": [same, repository + "@sha256:" + "3" * 64],
+        "foreign": [foreign], "mixed": [same, foreign],
+        "malformed": [repository + "@sha256:short"], "scalar": same,
+    }
+    image = {"RepoTags": tags[tags_kind], "RepoDigests": digests[digests_kind]}
+    assert recovery_startup._exclusive_image_references(image, reference) is expected
+    rollback_expected = expected or tags_kind == "untagged" and digests_kind == "same"
+    assert recovery_startup._exclusive_image_references(
+        image, reference, allow_untagged=True,
+    ) is rollback_expected
 
 
 def test_first_stop_binding_requires_an_armed_recovery_timer(tmp_path, monkeypatch):
@@ -636,6 +669,7 @@ def test_release_and_boot_reconcile_exact_predecessor(tmp_path, monkeypatch, cap
     if fault == "shared":
         assert interrupted["phase"] == U8 and interrupted["status"] == "ROLLED_BACK"
         assert not interrupted["authorization_consumed"] and not runtime.removals
+        assert interrupted["failure_code"] == "ha_usb_release_predecessor_has_other_users"
         return
     if fault == "command_error_after_container":
         assert interrupted["phase"] == U13B and interrupted["authorization_consumed"]
@@ -1070,7 +1104,8 @@ def _exercise_target_import(tmp_path, monkeypatch, capsys, fault, *, single_imag
             loads.append(TARGET)
             loaded_target = {"Id": runtime_id, "Os": "linux", "Architecture": "arm64",
                              "Config": json.loads(target_config)["config"], "RootFS": {"Layers": target_layers},
-                             "RepoTags": [TARGET], "RepoDigests": []}
+                             "RepoTags": [TARGET],
+                             "RepoDigests": [TARGET.rsplit(":", 1)[0] + "@sha256:" + "9" * 64]}
             if single_image:
                 assert not runtime.image_present
                 assert available < store.read()["predecessor_release_admission"]["install_required_bytes"] + recovery_bytes
@@ -1142,7 +1177,8 @@ def _exercise_target_import(tmp_path, monkeypatch, capsys, fault, *, single_imag
                 assert f"UUID={USB_UUID}" in argv
                 return SimpleNamespace(returncode=0, stdout=json.dumps({"filesystems": mounts}).encode())
             if argv == ("docker", "image", "inspect", CURRENT) and runtime.image_present:
-                observed = {**runtime._image_document(CURRENT), "RepoTags": [CURRENT], "RepoDigests": []}
+                observed = {**runtime._image_document(CURRENT), "RepoTags": [CURRENT],
+                            "RepoDigests": [CURRENT.rsplit(":", 1)[0] + "@" + runtime.image_id(CURRENT)]}
                 return SimpleNamespace(returncode=0, stdout=json.dumps([observed]).encode())
             return original_run(argv, **kwargs)
 

@@ -6,9 +6,11 @@ import copy
 import hashlib
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -72,6 +74,35 @@ PREPARE_AUTHORITY_FILE = "ha-prepare-authority.json"
 PREPARE_AUTHORITY_SCHEMA = "gh.n3w-t1-ha-prepare-authority/2"
 INSTALL_AUTHORITY_FILE = "ha-install-authority.json"
 INSTALL_AUTHORITY_SCHEMA = "gh.n3w-t1-ha-install-authority/3"
+
+
+def _exclusive_image_references(
+    image: dict[str, Any], reference: str, *, allow_untagged: bool = False,
+) -> bool:
+    """Match Docker's single-repository ownership rule, not an empty digest list.
+
+    RepoDigests are aliases reported for the inspected image; their manifest
+    digests need not equal the host-local image ID. Keep all other ownership
+    and non-forced deletion checks independent of this metadata predicate.
+    """
+    tags = image.get("RepoTags")
+    if tags != [reference] and not (allow_untagged and tags in (None, [])):
+        return False
+    repository, separator, tag = reference.rpartition(":")
+    if not separator or not repository or not tag or "@" in reference:
+        return False
+    digests = image.get("RepoDigests")
+    if digests is None:
+        return True
+    if not isinstance(digests, list):
+        return False
+    for digest in digests:
+        if not isinstance(digest, str):
+            return False
+        name, separator, value = digest.partition("@sha256:")
+        if not separator or name != repository or SHA256.fullmatch(value) is None:
+            return False
+    return True
 
 
 def requested_install_binding_sha256(document: dict[str, Any]) -> str:
@@ -572,7 +603,13 @@ class LocalHaPredecessorRuntime(LocalHost):
                 binding == document["predecessor_start"] and counts["manager"] == counts["homeassistant"] == 0
                 and self.rollback_writers_quiesced()
             )
-        return all(counts.values()) and self._systemctl("is-active", SERVICES_UNIT) == "active"
+        if not all(counts.values()) or self._systemctl("is-active", SERVICES_UNIT) != "active":
+            return False
+        old = binding["images"]["homeassistant"]
+        image = self._release_image(old["runtime_id"])
+        if image is None or not _exclusive_image_references(image, old["reference"]):
+            raise UpdaterV2Error("ha_usb_release_predecessor_exclusive_reference_unverified")
+        return True
 
     def verify_predecessor_health(self, document: dict[str, Any]) -> None:
         live, origins = self._restart_binding()
@@ -955,7 +992,7 @@ class LocalHaPredecessorRuntime(LocalHost):
         image = self._release_image(old["runtime_id"])
         if (
             image is None or self.observe_predecessor_released(document)
-            or image.get("RepoTags") != [old["reference"]] or image.get("RepoDigests") not in (None, [])
+            or not _exclusive_image_references(image, old["reference"])
         ):
             raise UpdaterError("ha_usb_release_predecessor_exclusive_reference_unverified")
         residue = self.component_container_residue("homeassistant")
@@ -1031,8 +1068,7 @@ class LocalHaPredecessorRuntime(LocalHost):
         image_id = self._verify_target_image(document, identity_from_dict(proof), image)
         if (
             document.get("target_loaded_image_id", image_id) != image_id
-            or image.get("RepoTags") not in ([reference], [], None)
-            or image.get("RepoDigests") not in ([], None)
+            or not _exclusive_image_references(image, reference, allow_untagged=True)
         ):
             raise UpdaterError("ha_usb_rollback_target_exclusive_reference_unverified")
         return image_id
@@ -1508,6 +1544,11 @@ def main(
             elif serve_ipc:
                 status = "IPC_STARTUP_NEEDS_REVIEW"
             print(json.dumps({"status": status}))
+            # Never expose subprocess output, paths, or arbitrary exception text.
+            code = str(error) if isinstance(error, (UpdaterError, UpdaterV2Error)) else ""
+            if re.fullmatch(r"ha_[a-z0-9_]{1,190}", code) is None:
+                code = type(error).__name__
+            print(json.dumps({"failure_reason": code}), file=sys.stderr)
         return 1
     if not pending_only or status != "NO_PENDING_RECOVERY":
         print(json.dumps({"status": status}))

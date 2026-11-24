@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import re
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, BinaryIO, Protocol
 
+from n3w_t1_core_updater_common import UpdaterError
 from n3w_t1_core_updater_ha_acceptance import (
     HA_ACCEPTANCE_ATTEMPTS, HA_ACCEPTANCE_CHECKS, HA_ACCEPTANCE_RULE,
     HaAcceptanceBaseline, HaAcceptanceEvidence, HaAcceptanceObserver, expected_target_images,
@@ -560,6 +562,11 @@ class HaPredecessorRecovery:
                 if isinstance(error, UpdaterV2Error) and str(error) == "ha_data_backup_usb_space_insufficient":
                     latest = {**latest, "failure_code": "ha_usb_backup_space_insufficient"}
                     self.store.write(latest)
+                elif not latest.get("failure_code") and isinstance(error, (UpdaterError, UpdaterV2Error)):
+                    code = str(error)
+                    if re.fullmatch(r"ha_[a-z0-9_]{1,190}", code):
+                        latest = {**latest, "failure_code": code}
+                        self.store.write(latest)
                 self._restore(latest)
             raise
 
