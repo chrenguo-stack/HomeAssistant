@@ -6,7 +6,7 @@ Date: 2026-11-24
 
 ```text
 TASK=N3W_T1_OTA_V1_3_KF153_LIVE_REPAIR_READONLY_PREFLIGHT
-STATUS=PREEXECUTION_PACKAGE_READY
+STATUS=REAL_T1_READONLY_PREFLIGHT_PASS
 T1_MUTATION=false
 LIVE_MUTATION_AUTHORIZATION_GRANTED=false
 R8V13_07_RESULT=NOT_PASS
@@ -74,7 +74,7 @@ This preflight does not perform that mutation.
 
 ```text
 EXECUTOR=tools/execution_packages/n3w/t1_ota_kf153/N3W_T1_V1_3_KF153_LIVE_REPAIR_READONLY_PREFLIGHT_20261124_01.sh
-EXECUTOR_SHA256=4ba8d12307c294b8fe043ead1aaecff262380acfcd977c4454406d2e3101be33
+EXECUTOR_SHA256=9cbab3061376009338bed9dd28505c21266bcef6a9b78ac63f41125122a3305c
 BASH_SYNTAX=PASS
 REMOTE_MUTATION=false
 PRIVATE_T1_LOCATOR_IN_REPOSITORY=false
@@ -140,3 +140,37 @@ After a successful bounded pyz patch, a second read-only post-patch closure must
 - Do not restart Home Assistant, Manager or Broker for the pyz patch.
 - Broker OTA remains deferred until HA OTA acceptance closes.
 - No reboot/power-cycle, merge or release is authorized here.
+
+
+## 7. Real-T1 execution closure
+
+The operator-reported execution completed with the expected terminal PASS:
+
+```text
+PHASE=KF153_LIVE_REPAIR_READONLY_PREFLIGHT
+DURABLE_TERMINAL_TRANSACTION=PASS
+RUNTIME_IDENTITIES=PASS
+CURRENT_PREDECESSOR_BINDING=PASS
+CURRENT_LAUNCH_SHA256=67877cffd28b1c94de17f6b8eecabd1b579649f7e282fdfc65e4bcfcfd5fdc26
+EXPECTED_SOURCE_HEAD=90ce32ce4b6c329fd38c2771e352d129d6d00a86
+EXPECTED_NEW_MANIFEST_SHA256=90e83d4c4ce2a25e6c9fbce0245344b8c3ba247a4b5ecc58d4e93c4ceb169877
+EXPECTED_NEW_PYZ_SHA256=5208dadc14c2cf0024c0711de60ce0f70f5a19ea27de4e74f290d4c3c8bcfe0a
+LIVE_OLD_PYZ_SHA256=d3e844a05571e94ef384aa62fd4763f2d53c253f281cb94f30dd37ca19743b30
+NON_PYZ_SUCCESSOR_PARITY=PASS
+TARGET_10_0_PRESENT=false
+LIVE_MUTATION=false
+RESULT=KF153_LIVE_REPAIR_READONLY_PREFLIGHT_PASS
+```
+
+Focused CI on exact checkout later emitted the current repository executor SHA256
+`9cbab3061376009338bed9dd28505c21266bcef6a9b78ac63f41125122a3305c`.
+The earlier pre-execution metadata value `4ba8d123...` is superseded and must not be used as repository byte authority.
+This is a documentation-authority correction, not a live T1 drift classification. The next live-patch executor independently revalidates the complete live baseline immediately before mutation.
+
+```text
+READONLY_PREFLIGHT_LIVE_RESULT=PASS
+READONLY_PREFLIGHT_LIVE_MUTATION=false
+READONLY_EXECUTOR_CURRENT_REPOSITORY_SHA256=9cbab3061376009338bed9dd28505c21266bcef6a9b78ac63f41125122a3305c
+OLD_DOCUMENTED_EXECUTOR_SHA256=4ba8d12307c294b8fe043ead1aaecff262380acfcd977c4454406d2e3101be33
+OLD_DOCUMENTED_EXECUTOR_SHA256_STATUS=SUPERSEDED_METADATA
+```
