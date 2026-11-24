@@ -28,6 +28,8 @@ def test_executor_binds_exact_fresh_transaction_and_guarded_recovery() -> None:
         "6502b8cdbf706d746e32311fdaa39ffc5ca703d76f766806bbb21d3c71278d1f",
         "local/n3w-homeassistant:2026.10.0-0c73235a",
         "local/n3w-homeassistant:2026.10.4-5881590f",
+        "local/greenhouse-manager:fresh-1cae18039eee",
+        "local/n3w-mosquitto:2.1.2-3184566d",
     ):
         assert literal in text
 
@@ -92,6 +94,9 @@ def test_terminal_classification_stops_before_r8v13_08() -> None:
         "FRESH_TX_A_INSTALL_RESULT=ROLLED_BACK",
         "FRESH_TX_A_INSTALL_RESULT=STOPPED_NONTERMINAL",
         "NEXT_BOUNDARY=STOP_BEFORE_R8V13_08",
+        "COMMIT_ACCEPTANCE_OBSERVATIONS_INVALID",
+        "POST_COMMIT_MANAGER_RUNTIME_DRIFT",
+        "POST_COMMIT_BROKER_RUNTIME_DRIFT",
         "R8V13_08_BLOCKED=true",
         "DO_NOT_REPLAY=true",
     ):
