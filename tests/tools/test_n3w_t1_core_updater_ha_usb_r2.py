@@ -100,7 +100,9 @@ from n3w_t1_core_updater_ha_usb_state import (
     HaUsbStateStore,
     new_transaction,
 )
-from n3w_t1_core_updater_v2_common import UpdaterV2Error, canonical, sha256_bytes
+from n3w_t1_core_updater_v2_common import (
+    HA_OTA_INSTALLED_VERSION_KEY, UpdaterV2Error, canonical, homeassistant_image_version, sha256_bytes,
+)
 from n3w_t1_core_updater_v2_state import V2StateStore
 from n3w_t1_portable_image_identity import parse_image_archive
 
@@ -486,6 +488,74 @@ class StartupRuntime(recovery_startup.LocalHaPredecessorRuntime):
         self.running.remove("manager")
         self.owner = "failed"
         raise InterruptedPower()
+
+
+
+def test_target_binding_normalization_restores_frozen_predecessor_launch(tmp_path):
+    runtime = StartupRuntime(tmp_path)
+    current_version = homeassistant_image_version(CURRENT)
+    target_version = homeassistant_image_version(TARGET)
+    assert current_version is not None and target_version is not None
+    runtime.compose["services"]["manager"]["environment"] = {
+        HA_OTA_INSTALLED_VERSION_KEY: current_version,
+    }
+    expected, _ = runtime._restart_binding()
+
+    runtime.compose["services"]["homeassistant"]["image"] = TARGET
+    runtime.compose["services"]["manager"]["environment"][
+        HA_OTA_INSTALLED_VERSION_KEY
+    ] = target_version
+    runtime.owner = "inactive"
+    runtime.running = {"broker"}
+
+    normalized, _ = runtime._restart_binding(replacement=(TARGET, CURRENT))
+    assert normalized == expected
+
+    document = {
+        "predecessor_start": expected,
+        "current_image_ref": CURRENT,
+        "target_image_ref": TARGET,
+        "target_activation": recovery_startup.TARGET_BINDING,
+    }
+    runtime.verify_untouched_release_launch(document)
+
+    def rewrite(component, expected_reference, replacement):
+        assert component == "homeassistant"
+        assert runtime.compose["services"][component]["image"] == expected_reference
+        assert runtime.compose["services"]["manager"]["environment"][
+            HA_OTA_INSTALLED_VERSION_KEY
+        ] == target_version
+        runtime.compose["services"][component]["image"] = replacement
+        runtime.compose["services"]["manager"]["environment"][
+            HA_OTA_INSTALLED_VERSION_KEY
+        ] = current_version
+        runtime.rewrites += 1
+
+    runtime.rewrite_component_image = rewrite
+    runtime.restore_untouched_launch_binding(document)
+    restored, _ = runtime._restart_binding()
+    assert restored == expected
+    assert runtime.rewrites == 1
+
+    runtime.start_predecessor_if_needed(expected)
+    assert runtime.owner == "active"
+    assert runtime.running == {"broker", "manager", "homeassistant"}
+
+
+def test_target_binding_normalization_rejects_unrelated_ota_version_drift(tmp_path):
+    runtime = StartupRuntime(tmp_path)
+    target_version = homeassistant_image_version(TARGET)
+    assert target_version is not None
+    runtime.compose["services"]["homeassistant"]["image"] = TARGET
+    runtime.compose["services"]["manager"]["environment"] = {
+        HA_OTA_INSTALLED_VERSION_KEY: "2099.1.1",
+    }
+
+    with pytest.raises(
+        recovery_startup.UpdaterError,
+        match="ha_usb_rollback_ota_version_binding_drift",
+    ):
+        runtime._restart_binding(replacement=(TARGET, CURRENT))
 
 
 class ReleaseStartupRuntime(StartupRuntime):
