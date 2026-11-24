@@ -359,3 +359,9 @@ def test_global_preflight_does_not_require_release_manifest_for_recovery():
     assert "EXPECTED_PYZ" in preflight
     assert "EXPECTED_MANIFEST" not in preflight
     assert "APPROVED" not in preflight
+
+
+def test_expired_pin_refresh_uses_product_sha256_validator():
+    source = MODULE_PATH.read_text(encoding="utf-8")
+    assert "from n3w_t1_core_updater_v2_common import SHA256, UpdaterV2Error" in source
+    assert "SHA256.fullmatch(binding) is None" in source
