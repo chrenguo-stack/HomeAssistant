@@ -10,7 +10,7 @@ SCRIPT = (
     / "execution_packages"
     / "n3w"
     / "t1_ota_r8v13_07"
-    / "N3W_T1_R8V13_07_FRESH_REACCEPTANCE_READONLY_REBIND_20261124_04.sh"
+    / "N3W_T1_R8V13_07_FRESH_REACCEPTANCE_READONLY_REBIND_20261124_05.sh"
 )
 
 
@@ -85,6 +85,11 @@ def test_rebind_checks_control_plane_authorities_usb_capacity_and_business_healt
         "ha-install-authority.json",
         "ha-release-pin.json",
         "approved-homeassistant.json",
+        "ACTIVE_OLD_TERMINAL_SAFE_REPLACEABLE",
+        "ACTIVE_VALID_FOR_FRESH_PREPARE",
+        "REFRESH_REQUIRED",
+        "requested_install_binding_sha256",
+        "LocalApprovedHaRelease",
         "BOUND_USB_PRESENT=PASS",
         "ROOT_AVAILABLE_BYTES=",
         "MANAGER_BROKER_HA_SELF_TEST=PASS",
@@ -92,9 +97,10 @@ def test_rebind_checks_control_plane_authorities_usb_capacity_and_business_healt
         "run_monitoring_self_test",
     ):
         assert literal in text
+    assert "_STILL_ACTIVE" not in text
 
 
 def test_rebind_has_single_success_terminal_marker() -> None:
     text = source()
-    marker = "RESULT=R8V13_07_FRESH_REACCEPTANCE_READONLY_REBIND_PASS"
+    marker = "RESULT=R8V13_07_FRESH_REACCEPTANCE_READONLY_REBIND_V2_PASS"
     assert text.count(marker) == 1
