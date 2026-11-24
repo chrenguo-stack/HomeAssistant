@@ -233,6 +233,8 @@ class RealOps:
 
     def preflight_static(self) -> None:
         print("PHASE=STATIC_BINDING")
+        if os.geteuid() != 0:
+            raise GateError("ROOT_REQUIRED")
         if sha256_file(LIVE) != EXPECTED_PYZ:
             raise GateError("LIVE_PYZ_DRIFT")
         if sha256_file(APPROVED) != EXPECTED_MANIFEST:
@@ -492,48 +494,6 @@ class RealOps:
         if broker["image_ref"] != EXPECTED_BROKER_REF:
             raise GateError("ROLLBACK_BROKER_RUNTIME_DRIFT")
         print("ROLLBACK_RUNTIME_HEALTH=PASS")
-
-
-class FakeOps:
-    """Test-only orchestration double. Never used by main()."""
-
-    def __init__(self, states: list[dict[str, Any]]) -> None:
-        self.states = [json.loads(json.dumps(state)) for state in states]
-        self.index = 0
-        self.calls: list[str] = []
-        self.launch = "f" * 64
-
-    def preflight_static(self) -> None:
-        self.calls.append("preflight_static")
-
-    def read_transaction(self) -> dict[str, Any]:
-        return json.loads(json.dumps(self.states[self.index]))
-
-    def validate_runtime_binding(self, document: dict[str, Any]) -> str:
-        self.calls.append("validate_runtime_binding")
-        return self.launch
-
-    def ensure_release_pin(self) -> None:
-        self.calls.append("ensure_release_pin")
-
-    def submit_install(self) -> None:
-        self.calls.append("submit_install")
-        self.index += 1
-
-    def ensure_install_authority(self, document: dict[str, Any], launch_sha256: str) -> None:
-        self.calls.append("ensure_install_authority")
-
-    def start_worker(self, attempt: int) -> int:
-        self.calls.append(f"start_worker_{attempt}")
-        if self.index < len(self.states) - 1:
-            self.index += 1
-        return 0
-
-    def verify_committed(self, document: dict[str, Any]) -> None:
-        self.calls.append("verify_committed")
-
-    def verify_rolled_back(self, document: dict[str, Any]) -> None:
-        self.calls.append("verify_rolled_back")
 
 
 def worker_reentry_admitted(document: dict[str, Any]) -> bool:
