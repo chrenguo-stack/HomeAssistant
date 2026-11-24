@@ -99,8 +99,8 @@ EXECUTOR=tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_NEW_FRESH_
 EXECUTOR_IMPLEMENTATION_HEAD=fe10f4c48269e8e90809cbdefd078066cbce98bd
 TEST_HEAD=87ca44ce23206d8fbcce197c9146969ddaff6926
 CI_WIRING_HEAD=ebeeb5b9bfc14e251715473afd1b3c31de16cf36
-EXECUTOR_SHA256=PENDING_FOCUSED_CI
-FOCUSED_CI=PENDING
+EXECUTOR_SHA256=77c891cbbbd207a5eaa12ef91584017b5348678063990543e48f43c2cc9b5c45
+FOCUSED_CI=SUCCESS
 ```
 
 ## 5. Authorization boundary
@@ -129,3 +129,20 @@ NOT_PERMITTED=
 ```
 
 Focused CI must pass and the exact executor SHA256 must be bound before this gate can be presented for approval.
+
+
+## 6. Focused CI closure
+
+```text
+CI_VALIDATED_HEAD=ebeeb5b9bfc14e251715473afd1b3c31de16cf36
+FOCUSED_CI_RUN=45390981353
+FOCUSED_CI_RESULT=SUCCESS
+FOCUSED_TESTS=34_PASSED
+BASH_SYNTAX=PASS
+EXECUTOR_SHA256=77c891cbbbd207a5eaa12ef91584017b5348678063990543e48f43c2cc9b5c45
+EXECUTOR_BLOB=4c82a79328a4e72dd6485cdb66cab99869299027
+CURRENT_REPOSITORY_EXECUTOR_BLOB=4c82a79328a4e72dd6485cdb66cab99869299027
+EXECUTOR_DRIFT=false
+```
+
+The source/package is ready for the separately required explicit real-T1 mutation approval. CI success does not itself authorize execution.
