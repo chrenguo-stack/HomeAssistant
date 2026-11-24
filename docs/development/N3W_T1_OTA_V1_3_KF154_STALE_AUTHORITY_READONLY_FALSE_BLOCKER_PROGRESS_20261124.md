@@ -96,3 +96,21 @@ Latest focused CI test-only fixes:
 - V2 executor bytes were not changed by these test fixes.
 
 Current focused run: `45387271563`, IN_PROGRESS at third check; polling stopped per project rule.
+
+
+## Focused CI closure
+
+```text
+CI_VALIDATED_HEAD=2221fa3e36e87d10a0d990bc5bc9b11ed436a216
+FOCUSED_CI_RUN=45387271563
+FOCUSED_CI_RESULT=SUCCESS
+FOCUSED_TESTS=28_PASSED
+BASH_SYNTAX=PASS
+EXECUTOR_SHA256=474d99dbd64f0e80db9dadf7e6ab352f2abe4a73b3897003170c802145017c6c
+EXECUTOR_BLOB=9c53d2a704b02de801ef646ebf2b651949517ec5
+CURRENT_REPOSITORY_EXECUTOR_BLOB=9c53d2a704b02de801ef646ebf2b651949517ec5
+EXECUTOR_DRIFT=false
+KF154_STATUS=READONLY_REBIND_V2_READY
+```
+
+The V2 read-only rebind is now executable. It remains non-mutating with respect to persistent T1 product state and does not authorize a new HA transaction.
