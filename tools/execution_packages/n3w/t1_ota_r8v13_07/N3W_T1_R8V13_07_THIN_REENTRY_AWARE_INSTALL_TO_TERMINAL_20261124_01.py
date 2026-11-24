@@ -370,17 +370,12 @@ class RealOps:
             existing = read_json(INSTALL_AUTH)
         except FileNotFoundError:
             existing = None
-        if existing is not None:
-            reusable = (
-                set(existing)
-                == {"schema", "binding_sha256", "authorization_id", "launch_sha256", "expires_at_unix"}
-                and existing.get("schema") == "gh.n3w-t1-ha-install-authority/3"
-                and existing.get("binding_sha256") == binding
-                and existing.get("authorization_id") == AUTH_ID
-                and existing.get("launch_sha256") == launch_sha256
-                and type(existing.get("expires_at_unix")) is int
-                and existing["expires_at_unix"] > time.time()
-            )
+        reusable = install_authority_reusable(
+            existing,
+            binding_sha256=binding,
+            launch_sha256=launch_sha256,
+            now=time.time(),
+        )
         if reusable:
             print("INSTALL_AUTHORITY=REUSED_CURRENT_BINDING")
             return
