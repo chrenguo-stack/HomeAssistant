@@ -345,3 +345,17 @@ def test_committed_durable_evidence_validator_rejects_malformed_receipt():
         assert str(error) == "COMMIT_ACCEPTANCE_RUNTIME_ID_DRIFT"
     else:
         raise AssertionError("expected runtime-id rejection")
+
+
+def test_recovery_dispatch_uses_product_recovery_install_guard():
+    source = MODULE_PATH.read_text(encoding="utf-8")
+    assert "require_recovery_install()" in source
+    assert '["systemctl", "start", RECOVERY_UNIT]' in source
+
+
+def test_global_preflight_does_not_require_release_manifest_for_recovery():
+    source = MODULE_PATH.read_text(encoding="utf-8")
+    preflight = source.split("def preflight_static", 1)[1].split("def read_transaction", 1)[0]
+    assert "EXPECTED_PYZ" in preflight
+    assert "EXPECTED_MANIFEST" not in preflight
+    assert "APPROVED" not in preflight
