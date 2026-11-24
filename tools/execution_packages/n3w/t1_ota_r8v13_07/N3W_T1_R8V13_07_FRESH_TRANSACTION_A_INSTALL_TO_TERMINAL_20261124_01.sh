@@ -14,6 +14,8 @@ EXPECTED_MANIFEST="5fbae3dedc6af008fec90efc24e75349ce82fc3a538e935806bef6ab3cbc4
 EXPECTED_USB="b72ac2fc-79a0-4fb8-888e-f35b0114f959"
 EXPECTED_TARGET_REF="local/n3w-homeassistant:2026.10.0-0c73235a"
 EXPECTED_PREDECESSOR_REF="local/n3w-homeassistant:2026.10.4-5881590f"
+EXPECTED_MANAGER_REF="local/greenhouse-manager:fresh-1cae18039eee"
+EXPECTED_BROKER_REF="local/n3w-mosquitto:2.1.2-3184566d"
 EXPECTED_TARGET_SHA="e52d12779f7562d3f37a265d622fbaf31e758deba5998e40cafb5a33a118b663"
 EXPECTED_TARGET_SIZE="2448553472"
 EXPECTED_PREDECESSOR_SHA="6502b8cdbf706d746e32311fdaa39ffc5ca703d76f766806bbb21d3c71278d1f"
@@ -107,12 +109,16 @@ PY
 import json,sys
 sys.path.insert(0,sys.argv[1])
 from n3w_t1_core_updater_ha_recovery_startup import LocalHaPredecessorRuntime
-_,live,txp,pred,target=sys.argv
+_,live,txp,pred,target,manager,broker=sys.argv
 d=json.load(open(txp))
 r=LocalHaPredecessorRuntime()
 binding=r.capture_start_binding(d)
 if binding["images"]["homeassistant"]["reference"]!=pred:
-    raise SystemExit("PREINSTALL_RUNTIME_DRIFT")
+    raise SystemExit("PREINSTALL_HA_RUNTIME_DRIFT")
+if binding["images"]["manager"]["reference"]!=manager:
+    raise SystemExit("PREINSTALL_MANAGER_RUNTIME_DRIFT")
+if binding["images"]["broker"]["reference"]!=broker:
+    raise SystemExit("PREINSTALL_BROKER_RUNTIME_DRIFT")
 if r._release_image(target) is not None:
     raise SystemExit("TARGET_ALREADY_PRESENT")
 e=r.acceptance_observer().run_monitoring_self_test()
@@ -293,6 +299,15 @@ if d.get("status")=="COMMITTED" and d.get("phase")=="U13A_COMMITTED":
     receipt=d.get("target_acceptance",{}).get("receipt")
     if not isinstance(receipt,dict):
         raise SystemExit("COMMIT_ACCEPTANCE_MISSING")
+    observations=receipt.get("observations")
+    if not isinstance(observations,dict) or set(observations)!={"monitoring_path","protected_data"}:
+        raise SystemExit("COMMIT_ACCEPTANCE_OBSERVATIONS_INVALID")
+    if not all(isinstance(value,str) and len(value)==64 for value in observations.values()):
+        raise SystemExit("COMMIT_ACCEPTANCE_OBSERVATION_HASH_INVALID")
+    if receipt.get("images",{}).get("homeassistant",{}).get("reference")!=d.get("target_image_ref"):
+        raise SystemExit("COMMIT_ACCEPTANCE_TARGET_REF_DRIFT")
+    if receipt.get("images",{}).get("homeassistant",{}).get("runtime_id")!=d.get("target_loaded_image_id"):
+        raise SystemExit("COMMIT_ACCEPTANCE_RUNTIME_ID_DRIFT")
     print("committed")
 elif d.get("status")=="ROLLED_BACK" and d.get("phase")=="U13B_ROLLED_BACK":
     print("rolled_back")
@@ -307,12 +322,16 @@ if [ "$FINAL" = committed ]; then
 import json,sys
 sys.path.insert(0,sys.argv[1])
 from n3w_t1_core_updater_ha_recovery_startup import LocalHaPredecessorRuntime
-_,live,txp,target=sys.argv
+_,live,txp,target,manager,broker=sys.argv
 d=json.load(open(txp))
 r=LocalHaPredecessorRuntime()
-ha=r._runtime("homeassistant")
+ha=r._runtime("homeassistant"); ma=r._runtime("manager"); br=r._runtime("broker")
 if ha["image_ref"]!=target or ha["image_id"]!=d.get("target_loaded_image_id") or ha["restart_count"]!=0:
-    raise SystemExit("POST_COMMIT_RUNTIME_DRIFT")
+    raise SystemExit("POST_COMMIT_HA_RUNTIME_DRIFT")
+if ma["image_ref"]!=manager or ma["restart_count"]!=0:
+    raise SystemExit("POST_COMMIT_MANAGER_RUNTIME_DRIFT")
+if br["image_ref"]!=broker or br["restart_count"]!=0:
+    raise SystemExit("POST_COMMIT_BROKER_RUNTIME_DRIFT")
 print("POST_COMMIT_RUNTIME=PASS")
 print("TARGET_ACCEPTANCE_RECEIPT=PASS")
 print("BUSINESS_HEALTH_FROM_ACCEPTANCE=PASS")
@@ -331,9 +350,10 @@ if [ "$FINAL" = rolled_back ]; then
 import sys
 sys.path.insert(0,sys.argv[1])
 from n3w_t1_core_updater_ha_recovery_startup import LocalHaPredecessorRuntime
-_,live,pred=sys.argv
-ha=LocalHaPredecessorRuntime()._runtime("homeassistant")
-if ha["image_ref"]!=pred:
+_,live,pred,manager,broker=sys.argv
+r=LocalHaPredecessorRuntime()
+ha=r._runtime("homeassistant"); ma=r._runtime("manager"); br=r._runtime("broker")
+if ha["image_ref"]!=pred or ma["image_ref"]!=manager or br["image_ref"]!=broker:
     raise SystemExit("ROLLBACK_RUNTIME_DRIFT")
 print("ROLLBACK_RUNTIME_HEALTH=PASS")
 PY
