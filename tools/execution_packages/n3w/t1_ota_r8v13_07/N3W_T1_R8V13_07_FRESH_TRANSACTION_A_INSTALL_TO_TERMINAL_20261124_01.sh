@@ -105,7 +105,7 @@ if (pm.get("image_ref"),pm.get("archive_sha256"),pm.get("archive_size_bytes"),pm
 print("FRESH_TX_A_U4_REBIND=PASS")
 PY
 
-/usr/bin/python3 -I - "$LIVE" "$TX_FILE" "$EXPECTED_PREDECESSOR_REF" "$EXPECTED_TARGET_REF" <<'PY'
+/usr/bin/python3 -I - "$LIVE" "$TX_FILE" "$EXPECTED_PREDECESSOR_REF" "$EXPECTED_TARGET_REF" "$EXPECTED_MANAGER_REF" "$EXPECTED_BROKER_REF" <<'PY'
 import json,sys
 sys.path.insert(0,sys.argv[1])
 from n3w_t1_core_updater_ha_recovery_startup import LocalHaPredecessorRuntime
@@ -318,7 +318,7 @@ PY
 echo FINAL_CLASS="$FINAL"
 
 if [ "$FINAL" = committed ]; then
-  /usr/bin/python3 -I - "$LIVE" "$TX_FILE" "$EXPECTED_TARGET_REF" <<'PY'
+  /usr/bin/python3 -I - "$LIVE" "$TX_FILE" "$EXPECTED_TARGET_REF" "$EXPECTED_MANAGER_REF" "$EXPECTED_BROKER_REF" <<'PY'
 import json,sys
 sys.path.insert(0,sys.argv[1])
 from n3w_t1_core_updater_ha_recovery_startup import LocalHaPredecessorRuntime
@@ -346,7 +346,7 @@ PY
 fi
 
 if [ "$FINAL" = rolled_back ]; then
-  /usr/bin/python3 -I - "$LIVE" "$EXPECTED_PREDECESSOR_REF" <<'PY'
+  /usr/bin/python3 -I - "$LIVE" "$EXPECTED_PREDECESSOR_REF" "$EXPECTED_MANAGER_REF" "$EXPECTED_BROKER_REF" <<'PY'
 import sys
 sys.path.insert(0,sys.argv[1])
 from n3w_t1_core_updater_ha_recovery_startup import LocalHaPredecessorRuntime
