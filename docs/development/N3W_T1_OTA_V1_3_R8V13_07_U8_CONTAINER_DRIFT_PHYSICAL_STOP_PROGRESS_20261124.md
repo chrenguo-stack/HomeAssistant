@@ -161,3 +161,26 @@ SOURCE_REPAIR_CI=IN_PROGRESS
 ```
 
 The repair removes only the replace-label predicate. All stronger safety checks remain mandatory: a single residue at most, full SHA256 container ID, valid stopped state, exact image ref/runtime ID, protected mount equality, exact ancestor-user set, rollback-writer quiescence, and the pre-existing release-intent/destructive-boundary state machine.
+
+
+## KF-153 source / CI / exact package closure
+
+```text
+KF153_SOURCE_REPAIR_HEAD=90ce32ce4b6c329fd38c2771e352d129d6d00a86
+SOURCE_REGRESSION=327_PASSED_1_SKIPPED
+REAL_DOCKER_RELEASE_INTEGRATION=1_PASSED
+
+RECOVERY_ARTIFACT_RUN=45357836296
+RECOVERY_ARTIFACT_ID=14902399722
+RECOVERY_ARTIFACT_DIGEST_SHA256=c19280ac1fcbca7ef0de10ba2a24c0e1993898b0de988693ae14cff2c8e63a66
+RECOVERY_INSTALL_MANIFEST_SHA256=90e83d4c4ce2a25e6c9fbce0245344b8c3ba247a4b5ecc58d4e93c4ceb169877
+RECOVERY_PYZ_SHA256=5208dadc14c2cf0024c0711de60ce0f70f5a19ea27de4e74f290d4c3c8bcfe0a
+
+LIVE_T1_RECOVERY_PYZ_SHA256=d3e844a05571e94ef384aa62fd4763f2d53c253f281cb94f30dd37ca19743b30
+LIVE_REPAIRED_PACKAGE_DEPLOYED=false
+LIVE_REVALIDATION_PENDING=true
+```
+
+The recovery artifact was independently downloaded and re-hashed after upload. The ZIP SHA256 matches the GitHub artifact digest; `manifest.json` SHA256 matches the workflow-emitted install-manifest digest; the manifest binds `ha-recovery.pyz` to the exact SHA256 above and records source head `90ce32ce...`.
+
+The later repository-only documentation/security commits do not alter the recovery executable source. The next physical action must be a separate live-repair/reacceptance gate; source/package closure alone does not authorize T1 mutation.
