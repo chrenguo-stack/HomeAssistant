@@ -100,6 +100,19 @@ def test_executor_mutates_only_recovery_control_plane_then_uses_existing_recover
         assert forbidden not in text
 
 
+def test_executor_accepts_failed_as_a_quiet_retry_service_after_stop() -> None:
+    text = source()
+    quiesce = text.split("echo PHASE=QUIESCE_RECOVERY_CONTROL_PLANE", 1)[1].split(
+        "echo PHASE=ATOMIC_RECOVERY_PYZ_PATCH", 1
+    )[0]
+    assert 'RETRY_SERVICE_STATE="$(systemctl is-active n3w-t1-ha-recovery-retry.service || true)"' in quiesce
+    assert 'inactive|failed) ;;' in quiesce
+    assert 'QUIESCED_RETRY_SERVICE_STATE=' in quiesce
+    assert 'QUIESCED_IPC_SOCKET_STATE=' in quiesce
+    assert 'QUIESCED_IPC_SERVICE_STATE=' in quiesce
+    assert 'test "$RETRY_SERVICE_STATE" = inactive' not in quiesce
+
+
 def test_executor_rolls_back_only_the_pyz_if_recovery_has_not_started() -> None:
     text = source()
     failure = text.split("failure_recovery() {", 1)[1].split(
