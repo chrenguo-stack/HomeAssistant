@@ -226,3 +226,48 @@ def test_worker_reentry_matrix():
     assert mod.worker_reentry_admitted(tx(phase=mod.U9, start=True))
     assert not mod.worker_reentry_admitted(tx())
     assert not mod.worker_reentry_admitted(committed())
+
+
+def test_install_authority_reuse_contract_accepts_only_exact_current_grant():
+    binding = "1" * 64
+    launch = "2" * 64
+    exact = {
+        "schema": "gh.n3w-t1-ha-install-authority/3",
+        "binding_sha256": binding,
+        "authorization_id": mod.AUTH_ID,
+        "launch_sha256": launch,
+        "expires_at_unix": 200,
+    }
+    assert mod.install_authority_reusable(
+        exact, binding_sha256=binding, launch_sha256=launch, now=100
+    )
+    assert not mod.install_authority_reusable(
+        {**exact, "binding_sha256": "3" * 64},
+        binding_sha256=binding,
+        launch_sha256=launch,
+        now=100,
+    )
+    assert not mod.install_authority_reusable(
+        {**exact, "authorization_id": mod.AUTH_ID + "_conflict"},
+        binding_sha256=binding,
+        launch_sha256=launch,
+        now=100,
+    )
+    assert not mod.install_authority_reusable(
+        {**exact, "launch_sha256": "4" * 64},
+        binding_sha256=binding,
+        launch_sha256=launch,
+        now=100,
+    )
+    assert not mod.install_authority_reusable(
+        {**exact, "expires_at_unix": 100},
+        binding_sha256=binding,
+        launch_sha256=launch,
+        now=100,
+    )
+
+
+def test_old_different_binding_is_not_hard_coded_as_a_gate():
+    source = MODULE_PATH.read_text(encoding="utf-8")
+    assert "EXPECTED_OLD_INSTALL_BINDING" not in source
+    assert "install_authority_reusable" in source
