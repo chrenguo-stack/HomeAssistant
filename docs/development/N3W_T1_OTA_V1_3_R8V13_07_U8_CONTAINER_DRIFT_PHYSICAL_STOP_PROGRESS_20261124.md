@@ -113,3 +113,51 @@ Perform read-only forensic capture only:
 Do not replay PREPARE, INSTALL intent, install authority, continuation executor, predecessor release, target load, or recovery mutation.
 
 A new KF number should be assigned only after the exact physical mismatch is identified or the source/harness defect is otherwise independently proven.
+
+
+## KF-153 root-cause closure from read-only forensic
+
+The physical read-only capture proves the exact failed residue was not a foreign or ambiguous container.
+
+```text
+TX_FILE_SHA256=b5b7120b17539d1c4178450793dcf3d6900d0cba46c518132ad76fade8af04a0
+STATUS=ROLLED_BACK
+PHASE=U8_RECOVERY_ADMISSION_COMPLETE
+RECOVERY_REQUIRED=false
+PRE_CUTOVER_PREDECESSOR_RESTORED=true
+
+LIVE_SERVICES_OWNER=active
+LIVE_BROKER_OWNER=active
+CURRENT_PREDECESSOR_BINDING=PASS
+CURRENT_LAUNCH_SHA256=67877cffd28b1c94de17f6b8eecabd1b579649f7e282fdfc65e4bcfcfd5fdc26
+TARGET_PRESENT=false
+
+HOMEASSISTANT_CONTAINER_ID=b18431447f114c3958b68c30b20c8b9dbc4fa05d8e34ddc56d8ce0764d1ce6dd
+HOMEASSISTANT_IMAGE_REF=local/n3w-homeassistant:2026.10.4-5881590f
+HOMEASSISTANT_IMAGE_ID=sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365
+HOMEASSISTANT_REPLACE_LABEL=homeassistant-1
+HOMEASSISTANT_CREATED=2026-11-23T14:35:24.957641413Z
+HOMEASSISTANT_FAILED_ATTEMPT_FINISHED=2026-11-24T08:10:55.402856886Z
+HOMEASSISTANT_RECOVERY_RESTARTED=2026-11-24T08:14:03.538416693Z
+```
+
+The container creation time predates the failed U8 attempt and the same container ID is running after automatic recovery. Its image ref/ID match the durable predecessor exactly; launch binding and protected mounts pass; target 10.0 is absent. The nonempty Compose replace label is therefore normal metadata on the exact owned container, not evidence of replacement drift.
+
+Source predicate review shows `capture_predecessor_release()` rejected this otherwise exact exited residue solely because `container["replace"]` was nonempty. The rollback-target residue path had the same false predicate and would be vulnerable later in a real U13B path.
+
+Classification:
+
+```text
+KF=KF-153
+ROOT_CAUSE=COMPOSE_REPLACE_LABEL_MISUSED_AS_CONTAINER_OWNERSHIP_DRIFT_ORACLE
+PRODUCT_SAFETY_FAILURE=false
+PRODUCT_AVAILABILITY_RECOVERY=PASS
+R8V13_07_RESULT=NOT_PASS
+R8V13_08_BLOCKED=true
+OLD_TRANSACTION_REPLAY=false
+OLD_CONTINUATION_REPLAY=false
+SOURCE_REPAIR_HEAD=90ce32ce4b6c329fd38c2771e352d129d6d00a86
+SOURCE_REPAIR_CI=IN_PROGRESS
+```
+
+The repair removes only the replace-label predicate. All stronger safety checks remain mandatory: a single residue at most, full SHA256 container ID, valid stopped state, exact image ref/runtime ID, protected mount equality, exact ancestor-user set, rollback-writer quiescence, and the pre-existing release-intent/destructive-boundary state machine.
