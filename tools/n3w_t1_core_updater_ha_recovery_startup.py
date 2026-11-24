@@ -1003,7 +1003,7 @@ class LocalHaPredecessorRuntime(LocalHost):
             container = residue[0]
             container_id = container["container_id"]
             if (
-                SHA256.fullmatch(container_id) is None or container["status"] != "exited" or container["replace"]
+                SHA256.fullmatch(container_id) is None or container["status"] != "exited"
                 or (container["image_ref"], container["image_id"]) != (old["reference"], old["runtime_id"])
             ):
                 raise UpdaterError("ha_usb_release_predecessor_container_drift")
@@ -1095,7 +1095,7 @@ class LocalHaPredecessorRuntime(LocalHost):
             container_id = container["container_id"]
             if (
                 SHA256.fullmatch(container_id) is None or container["status"] not in {"created", "exited"}
-                or container["replace"] or (container["image_ref"], container["image_id"]) != (reference, image_id)
+                or (container["image_ref"], container["image_id"]) != (reference, image_id)
             ):
                 raise UpdaterError("ha_usb_rollback_target_container_drift")
             self._check_protected_mounts(container_id, {"/config": str(self.ha_data_root)})
