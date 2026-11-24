@@ -111,3 +111,22 @@ def test_executor_has_no_embedded_network_target() -> None:
         r"(?<![0-9])(?:10(?:\.[0-9]{1,3}){3}|192\.168(?:\.[0-9]{1,3}){2}|172\.(?:1[6-9]|2[0-9]|3[01])(?:\.[0-9]{1,3}){2})(?![0-9])",
         text,
     ) is None
+
+
+def test_python_invocations_supply_manager_and_broker_args() -> None:
+    text = source()
+    assert (
+        '/usr/bin/python3 -I - "$LIVE" "$TX_FILE" "$EXPECTED_PREDECESSOR_REF" "$EXPECTED_TARGET_REF" '
+        '"$EXPECTED_MANAGER_REF" "$EXPECTED_BROKER_REF" <<\'PY\''
+    ) in text
+    assert (
+        '  /usr/bin/python3 -I - "$LIVE" "$TX_FILE" "$EXPECTED_TARGET_REF" '
+        '"$EXPECTED_MANAGER_REF" "$EXPECTED_BROKER_REF" <<\'PY\''
+    ) in text
+    assert (
+        '  /usr/bin/python3 -I - "$LIVE" "$EXPECTED_PREDECESSOR_REF" '
+        '"$EXPECTED_MANAGER_REF" "$EXPECTED_BROKER_REF" <<\'PY\''
+    ) in text
+    assert '_,live,txp,pred,target,manager,broker=sys.argv' in text
+    assert '_,live,txp,target,manager,broker=sys.argv' in text
+    assert '_,live,pred,manager,broker=sys.argv' in text
