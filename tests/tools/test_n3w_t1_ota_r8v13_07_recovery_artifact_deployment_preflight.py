@@ -54,12 +54,12 @@ def test_recovery_artifact_deployment_preflight_is_t1_read_only() -> None:
 def test_recovery_artifact_deployment_preflight_binds_exact_candidate() -> None:
     text = source()
     for literal in (
-        "14980338287",
-        "d47d3fc4183805e63431c105682fbd93ed1cdc56b5fdc8681f41277afcd14ed1",
-        "c3071a9dcc2a5e54ca6017cfb58d1afad8d715cc47ca0640ae22493472430838",
-        "07eefc1e6d87eff464133771191d155fa9ee9d3d",
+        "14997816032",
+        "0ed412bfc923755d13b9cbe3ab744f173d4281f9730c4ca1baa490272e96a517",
+        "e28e6197c867da322528fbf144a1aa06d56a43b1a9ad91b5ba0ff6af51f96080",
+        "29ce1eb341289d0275ab064996a035e5d55ae430",
+        "807110108df6580328e9ecde2ea18321c199b07caab4fb1c087f81d8df1b7cd2",
         "9d69992a72c3b8dd60f33ebcf00ac7c8fcf88e255c7fadb8878d15aa86f10ffa",
-        "d7915bc3e42531a829ab22ecb74a7148878c3a2310313e4f1ac07acc8785185e",
         "gh.n3w-t1-ha-recovery-install/1",
         "ARTIFACT_FILE_SET_DRIFT",
         "LOCAL_ARTIFACT_BINDING=PASS",
@@ -71,8 +71,11 @@ def test_recovery_artifact_deployment_preflight_binds_exact_candidate() -> None:
 def test_recovery_artifact_deployment_preflight_binds_terminal_runtime_and_media() -> None:
     text = source()
     for literal in (
-        "d86669e6d16bb9420191920bc2b02583e7f7207eff0b51ed3f9e6321f99389d4",
+        "f6eb053e9eb21b034e98f7651e179194b0b3eed61ce561df978c4743c796467a",
         '"status": "ROLLED_BACK"',
+        '"failure_code": "ha_usb_target_acceptance_evidence_unavailable"',
+        "de25e2d5c8ea8f183a6dca35048f6896c54d3876bea70f6c35afc847819ed136",
+        "4b1cc60e5557b9bc338d3d0469d30aa94c7974c34a0c26dffae5caf9fde4b105",
         '"phase": "U13B_ROLLED_BACK"',
         '"recovery_required": False',
         '"authorization_claimed": True',
@@ -89,5 +92,7 @@ def test_recovery_artifact_deployment_preflight_binds_terminal_runtime_and_media
         "ROOT_AVAILABLE_BYTES=",
         "TX_FILE_SHA256=",
         "COMPOSE_ENV_SHA256=",
+        "ARTIFACT_DELTA_FROM_LIVE_PYZ_ONLY=true",
+        "DEPLOYMENT_ELIGIBLE=true",
     ):
         assert literal in text
