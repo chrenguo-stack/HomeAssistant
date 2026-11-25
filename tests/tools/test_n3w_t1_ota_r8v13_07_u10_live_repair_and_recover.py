@@ -149,6 +149,20 @@ def test_executor_accepts_failed_as_a_quiet_retry_service_after_stop() -> None:
     assert 'test "$RETRY_SERVICE_STATE" = inactive' not in quiesce
 
 
+def test_executor_preserves_pre_patch_control_plane_state_on_failure() -> None:
+    text = source()
+    restore = text.split("restore_control_plane() {", 1)[1].split(
+        "failure_recovery() {", 1
+    )[0]
+    assert 'if [ "$RECOVERY_STARTED" = true ]' in restore
+    assert 'if [ "$CONTROL_QUIESCED" != true ]' in restore
+    assert 'case "$PRE_IPC_SOCKET_STATE" in' in restore
+    assert 'case "$PRE_RETRY_TIMER_STATE" in' in restore
+    assert 'active|activating) systemctl start n3w-t1-ha-ota-ipc.socket' in restore
+    assert 'active|activating) systemctl start n3w-t1-ha-recovery-retry.timer' in restore
+    assert 'systemctl stop n3w-t1-ha-recovery-retry.timer' in restore
+
+
 def test_executor_rolls_back_only_the_pyz_if_recovery_has_not_started() -> None:
     text = source()
     failure = text.split("failure_recovery() {", 1)[1].split(
