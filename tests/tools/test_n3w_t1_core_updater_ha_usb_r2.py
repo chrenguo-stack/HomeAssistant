@@ -1445,9 +1445,23 @@ def _exercise_target_import(tmp_path, monkeypatch, capsys, fault, *, single_imag
                         write(document)
 
                     monkeypatch.setattr(store, "write", interrupt_commit)
-                monkeypatch.setattr(ha_usb_mod.time, "sleep", lambda _: None)
+                if fault == "accept_unavailable":
+                    monkeypatch.setattr(ha_usb_mod, "HA_ACCEPTANCE_RETRY_SECONDS", 0)
                 result = recovery.accept_and_commit_target(provider)
                 assert result == store.read()
+                if fault == "accept_unavailable":
+                    assert result["status"] == "ACTIVE" and result["phase"] == U11
+                    assert result["target_acceptance"]["attempts"] == 1
+                    assert result["target_acceptance"]["last_attempt_verdicts"] == {
+                        "monitoring_path": "EVIDENCE_UNAVAILABLE",
+                        "protected_data": "EVIDENCE_UNAVAILABLE",
+                    }
+                    assert "retry_after_unix" in result["target_acceptance"]
+                    result = recovery.accept_and_commit_target(provider)
+                    assert result["status"] == "ACTIVE" and result["phase"] == U11
+                    assert result["target_acceptance"]["attempts"] == 2
+                    result = recovery.accept_and_commit_target(provider)
+                    assert result == store.read()
     if fault in {"commit_interrupted", "commit_runtime_drift"}:
         assert store.read()["phase"] == U12 and store.read()["status"] == "ACTIVE"
         instance_changed = fault == "commit_runtime_drift"
