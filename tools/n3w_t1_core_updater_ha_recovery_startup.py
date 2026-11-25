@@ -1429,6 +1429,22 @@ def _dispatch_pending_candidate(store: HaUsbStateStore, runtime: LocalHaPredeces
         and (store.root / INSTALL_AUTHORITY_FILE).exists()
     ):
         return runtime.install_requested(store)
+    if (
+        document["phase"] == "U11_TARGET_INSTALLED_STARTED"
+        and document.get("target_activation") == TARGET_WRITES_POSSIBLE
+        and "target_acceptance" in document
+    ):
+        state = document["target_acceptance"]
+        retry_after = state.get("retry_after_unix")
+        if type(retry_after) is int and time.time() < retry_after:
+            return "TARGET_ACCEPTANCE_WAITING"
+        media = runtime.mounted_recovery_provider(store, document, require_original=True)
+        result = HaPredecessorRecovery(store, runtime, runtime).resume_target_acceptance(media)
+        if result["status"] == "COMMITTED":
+            return "COMMITTED"
+        if result["status"] == "ROLLED_BACK":
+            return "ROLLED_BACK"
+        return "TARGET_ACCEPTANCE_PENDING"
     return "NO_PENDING_RECOVERY"
 
 
