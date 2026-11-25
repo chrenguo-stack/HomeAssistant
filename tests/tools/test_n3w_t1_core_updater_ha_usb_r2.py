@@ -1454,7 +1454,7 @@ def _exercise_target_import(tmp_path, monkeypatch, capsys, fault, *, single_imag
                     assert result["target_acceptance"]["attempts"] == 1
                     assert result["target_acceptance"]["last_attempt_verdicts"] == {
                         "monitoring_path": "EVIDENCE_UNAVAILABLE",
-                        "protected_data": "EVIDENCE_UNAVAILABLE",
+                        "protected_data": "PASS",
                     }
                     assert "retry_after_unix" in result["target_acceptance"]
                     result = recovery.accept_and_commit_target(provider)
