@@ -67,6 +67,9 @@ from n3w_t1_core_updater_v2_common import (
 from n3w_t1_portable_image_identity import PortableImageIdentity
 
 
+HA_ACCEPTANCE_RETRY_SECONDS = 20
+
+
 class HaPublishedRollbackRuntime(Protocol):
     def capture_rollback_target(self, document: dict[str, Any]) -> str | None:
         ...
@@ -464,49 +467,120 @@ class HaPredecessorRecovery:
         current = self.store.read()
         observer = self._acceptance_observer
         if (
-            current is None or observer is None or current["phase"] != U11
+            current is None or current["phase"] != U11
             or current["transaction_id_sha256"] != self._install_transaction_id
             or "target_acceptance" not in current or not destructive_cutover_allowed(current)
         ):
             raise UpdaterV2Error("ha_usb_target_acceptance_not_admitted")
-        failure = "ha_usb_target_acceptance_evidence_unavailable"
         state = current["target_acceptance"]
-        for attempt in range(state["attempts"] + 1, HA_ACCEPTANCE_ATTEMPTS + 1):
-            state = {**state, "attempts": attempt}
-            current = {**current, "target_acceptance": state}
-            self.store.write(current)
-            fingerprint = _target_runtime(self.runtime, current)
-            if fingerprint is not None:
-                observations = {}
-                for check in HA_ACCEPTANCE_CHECKS:
-                    evidence = _observe_target(observer, current, check, fallback=False)
-                    if evidence.verdict == "EVIDENCE_UNAVAILABLE":
-                        evidence = _observe_target(observer, current, check, fallback=True)
-                    if evidence.verdict == "PROVEN_FAIL":
-                        break
-                    if evidence.verdict == "PASS":
-                        observations[check] = evidence.sha256
-                if fingerprint == _target_runtime(self.runtime, current):
-                    if evidence.verdict == "PROVEN_FAIL":
-                        failure = "ha_usb_target_acceptance_proven_failure"
-                        break
-                    if valid_evidence_set(observations):
-                        accepted = record_target_accepted(current, receipt={
-                            "runtime_sha256": fingerprint,
-                            "images": expected_target_images(current),
-                            "observations": observations,
-                        })
-                        self.store.write(accepted)
-                        committed = record_commit(accepted)
-                        self.store.write(committed)
-                        return committed
-            if attempt < HA_ACCEPTANCE_ATTEMPTS:
-                time.sleep(2)
+        retry_after = state.get("retry_after_unix")
+        if type(retry_after) is int and time.time() < retry_after:
+            return current
+        if state["attempts"] >= HA_ACCEPTANCE_ATTEMPTS:
+            raise UpdaterV2Error("ha_usb_target_acceptance_budget_exhausted_without_recovery")
+        attempt = state["attempts"] + 1
+        state = {key: value for key, value in state.items() if key != "retry_after_unix"}
+        state = {**state, "attempts": attempt}
+        current = {
+            **current,
+            "target_acceptance": state,
+            "updated_at_unix": max(current["updated_at_unix"], int(time.time())),
+        }
+        self.store.write(current)
 
-        self.store.write({**current, "failure_code": failure, "recovery_required": True})
+        fingerprint = _target_runtime(self.runtime, current)
+        observations: dict[str, str] = {}
+        verdicts = dict.fromkeys(HA_ACCEPTANCE_CHECKS, "EVIDENCE_UNAVAILABLE")
+        proven_fail = False
+        if fingerprint is not None and observer is not None:
+            for check in HA_ACCEPTANCE_CHECKS:
+                evidence = _observe_target(observer, current, check, fallback=False)
+                if evidence.verdict == "EVIDENCE_UNAVAILABLE":
+                    evidence = _observe_target(observer, current, check, fallback=True)
+                verdicts[check] = evidence.verdict
+                if evidence.verdict == "PROVEN_FAIL":
+                    proven_fail = True
+                    break
+                if evidence.verdict == "PASS":
+                    observations[check] = evidence.sha256
+            if fingerprint != _target_runtime(self.runtime, current):
+                fingerprint = None
+                observations = {}
+                verdicts = dict.fromkeys(HA_ACCEPTANCE_CHECKS, "EVIDENCE_UNAVAILABLE")
+
+        state = {
+            **current["target_acceptance"],
+            "last_attempt_verdicts": verdicts,
+        }
+        current = {
+            **current,
+            "target_acceptance": state,
+            "updated_at_unix": max(current["updated_at_unix"], int(time.time())),
+        }
+        self.store.write(current)
+
+        if proven_fail:
+            failure = "ha_usb_target_acceptance_proven_failure"
+        elif fingerprint is not None and valid_evidence_set(observations):
+            accepted = record_target_accepted(current, receipt={
+                "runtime_sha256": fingerprint,
+                "images": expected_target_images(current),
+                "observations": observations,
+            })
+            self.store.write(accepted)
+            committed = record_commit(accepted)
+            self.store.write(committed)
+            return committed
+        elif attempt < HA_ACCEPTANCE_ATTEMPTS:
+            state = {
+                **current["target_acceptance"],
+                "retry_after_unix": int(time.time()) + HA_ACCEPTANCE_RETRY_SECONDS,
+            }
+            pending = {
+                **current,
+                "target_acceptance": state,
+                "updated_at_unix": max(current["updated_at_unix"], int(time.time())),
+            }
+            self.store.write(pending)
+            return pending
+        else:
+            failure = "ha_usb_target_acceptance_evidence_unavailable"
+
+        final_state = {
+            key: value for key, value in current["target_acceptance"].items()
+            if key != "retry_after_unix"
+        }
+        current = {
+            **current,
+            "target_acceptance": final_state,
+            "failure_code": failure,
+            "recovery_required": True,
+            "updated_at_unix": max(current["updated_at_unix"], int(time.time())),
+        }
+        self.store.write(current)
         original_media = lambda _: media
         _resume_ha_data_rollback(self.store, self.runtime, original_media, original_media)
         return self.store.read()
+
+    def resume_target_acceptance(self, media: HaDataRestoreProvider) -> dict[str, Any]:
+        with self.store.lock():
+            current = self.store.read()
+            if (
+                current is None or current["status"] != "ACTIVE" or current["phase"] != U11
+                or current["recovery_required"] or current.get("target_activation") != TARGET_WRITES_POSSIBLE
+                or "target_acceptance" not in current
+            ):
+                raise UpdaterV2Error("ha_usb_target_acceptance_resume_not_admitted")
+            self._install_transaction_id = current["transaction_id_sha256"]
+            try:
+                try:
+                    self._acceptance_observer = self.runtime.acceptance_observer()
+                except Exception:
+                    self._acceptance_observer = None
+                return self.accept_and_commit_target(media)
+            finally:
+                self._install_transaction_id = None
+                self._acceptance_observer = None
 
     @contextmanager
     def _quiesced_for_backup(
