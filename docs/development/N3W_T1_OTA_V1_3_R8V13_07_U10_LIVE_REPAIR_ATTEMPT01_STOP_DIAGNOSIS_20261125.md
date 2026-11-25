@@ -167,3 +167,55 @@ The latest PR head `d78fd6068f96a3b18b7cc462257365bc44725950` reran the same foc
 Compare `9d6f6b19ee52673e3c372cc35e3e52d6461b5270 -> d78fd6068f96a3b18b7cc462257365bc44725950` changes only this diagnostic document. Therefore the executor tested by the successful latest-head run is the same exact executable content reviewed for the frozen-site retry.
 
 Physical retry remains bound to the existing transaction only. INSTALL replay and second transaction remain forbidden.
+
+
+## Attempt 02 durable recovery terminal evidence
+
+Attempt 02 successfully crossed the live-patch boundary and published the repaired recovery archive. The immediate synchronous `systemctl start n3w-t1-ha-recovery-retry.service` returned nonzero, so the wrapper correctly reported STOP with `RECOVERY_STARTED=true` and intentionally retained the repaired live pyz.
+
+Subsequent durable retry processing on the same transaction progressed through:
+
+- repeated historical `ha_usb_predecessor_launch_binding_drift` records from the pre-repair recovery implementation;
+- repaired recovery reaching `ha_usb_rollback_protected_data_evidence_pending`;
+- `RECOVERY_MONITORING_EVIDENCE_PENDING`;
+- terminal `ROLLED_BACK`.
+
+Post-recovery forensic evidence:
+
+```text
+TX_TRANSACTION_ID_SHA256=d86669e6d16bb9420191920bc2b02583e7f7207eff0b51ed3f9e6321f99389d4
+TX_STATUS=ROLLED_BACK
+TX_PHASE=U13B_ROLLED_BACK
+TX_FAILURE_CODE=None
+TX_RECOVERY_REQUIRED=False
+TX_AUTHORIZATION_CLAIMED=True
+TX_AUTHORIZATION_CONSUMED=True
+TX_PREDECESSOR_RELEASE_OBSERVED=True
+TX_TARGET_ACTIVATION=BINDING
+TX_TARGET_RELEASE_STEP=RELEASED
+ENV_HA_IMAGE=local/n3w-homeassistant:2026.10.4-5881590f
+ENV_HA_VERSION=2026.10.4
+TARGET_IMAGE_ID=absent
+PREDECESSOR_IMAGE_ID=sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365
+APPLICATION_OWNER_STATE=active
+BROKER_OWNER_STATE=active
+IPC_SOCKET_STATE=active
+HOMEASSISTANT_CONTAINER=local/n3w-homeassistant:2026.10.4-5881590f
+MANAGER_CONTAINER=local/greenhouse-manager:fresh-1cae18039eee
+BROKER_CONTAINER=local/n3w-mosquitto:2.1.2-3184566d
+LIVE_RECOVERY_PYZ_SHA256=d7915bc3e42531a829ab22ecb74a7148878c3a2310313e4f1ac07acc8785185e
+```
+
+This proves the existing consumed-authorization transaction recovered to the predecessor without INSTALL replay or a second transaction.
+
+The forensic command intentionally stopped the retry timer before collecting the journal. Therefore the final product-health closure still requires:
+
+1. exact resident predecessor health verification with the repaired pyz;
+2. recovery timer restoration to its normal enabled + active state;
+3. archival closure before deciding whether to run a fresh R8V13-07 acceptance transaction.
+
+### Newly observed false-failure semantics
+
+The recovery code treats `ha_usb_rollback_protected_data_evidence_pending` as a generic `UpdaterError`, causing `--resume-pending` to exit nonzero and systemd to mark the oneshot failed even though the journal remains recoverable and later retries can succeed. Monitoring pending already has a dedicated non-error pending status.
+
+This is a product/test-harness false-failure issue to review before the next fresh R8V13-07 acceptance. It does not invalidate the terminal rollback evidence above.
