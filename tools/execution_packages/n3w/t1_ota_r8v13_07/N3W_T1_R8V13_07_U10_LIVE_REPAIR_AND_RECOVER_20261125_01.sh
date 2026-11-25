@@ -77,6 +77,8 @@ CONTROL_QUIESCED=false
 PATCH_PUBLISHED=false
 RECOVERY_STARTED=false
 COMPLETED=false
+PRE_RETRY_TIMER_STATE=unknown
+PRE_IPC_SOCKET_STATE=unknown
 
 atomic_publish() {
   src="$1"
@@ -111,8 +113,22 @@ PY
 }
 
 restore_control_plane() {
-  systemctl start n3w-t1-ha-ota-ipc.socket || true
-  systemctl start n3w-t1-ha-recovery-retry.timer || true
+  if [ "$RECOVERY_STARTED" = true ]; then
+    systemctl start n3w-t1-ha-ota-ipc.socket || true
+    systemctl start n3w-t1-ha-recovery-retry.timer || true
+    return
+  fi
+  if [ "$CONTROL_QUIESCED" != true ]; then
+    return
+  fi
+  case "$PRE_IPC_SOCKET_STATE" in
+    active|activating) systemctl start n3w-t1-ha-ota-ipc.socket || true ;;
+    *) systemctl stop n3w-t1-ha-ota-ipc.socket || true ;;
+  esac
+  case "$PRE_RETRY_TIMER_STATE" in
+    active|activating) systemctl start n3w-t1-ha-recovery-retry.timer || true ;;
+    *) systemctl stop n3w-t1-ha-recovery-retry.timer || true ;;
+  esac
 }
 
 failure_recovery() {
