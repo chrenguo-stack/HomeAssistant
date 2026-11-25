@@ -3,13 +3,13 @@ set -euo pipefail
 
 HOST="${N3W_T1_SSH_TARGET:?N3W_T1_SSH_TARGET required}"
 REPO="chrenguo-stack/HomeAssistant"
-ARTIFACT_ID="14980338287"
-ARTIFACT_SHA256="d47d3fc4183805e63431c105682fbd93ed1cdc56b5fdc8681f41277afcd14ed1"
-MANIFEST_SHA256="c3071a9dcc2a5e54ca6017cfb58d1afad8d715cc47ca0640ae22493472430838"
-SOURCE_HEAD="07eefc1e6d87eff464133771191d155fa9ee9d3d"
-OLD_LIVE_PYZ_SHA256="d7915bc3e42531a829ab22ecb74a7148878c3a2310313e4f1ac07acc8785185e"
-NEW_PYZ_SHA256="9d69992a72c3b8dd60f33ebcf00ac7c8fcf88e255c7fadb8878d15aa86f10ffa"
-TX_ID="d86669e6d16bb9420191920bc2b02583e7f7207eff0b51ed3f9e6321f99389d4"
+ARTIFACT_ID="14997816032"
+ARTIFACT_SHA256="0ed412bfc923755d13b9cbe3ab744f173d4281f9730c4ca1baa490272e96a517"
+MANIFEST_SHA256="e28e6197c867da322528fbf144a1aa06d56a43b1a9ad91b5ba0ff6af51f96080"
+SOURCE_HEAD="29ce1eb341289d0275ab064996a035e5d55ae430"
+OLD_LIVE_PYZ_SHA256="9d69992a72c3b8dd60f33ebcf00ac7c8fcf88e255c7fadb8878d15aa86f10ffa"
+NEW_PYZ_SHA256="807110108df6580328e9ecde2ea18321c199b07caab4fb1c087f81d8df1b7cd2"
+TX_ID="f6eb053e9eb21b034e98f7651e179194b0b3eed61ce561df978c4743c796467a"
 USB_UUID="b72ac2fc-79a0-4fb8-888e-f35b0114f959"
 HA_REF="local/n3w-homeassistant:2026.10.4-5881590f"
 HA_ID="sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365"
@@ -116,11 +116,11 @@ expected = {
     "transaction_id_sha256": tx_id,
     "status": "ROLLED_BACK",
     "phase": "U13B_ROLLED_BACK",
-    "failure_code": None,
+    "failure_code": "ha_usb_target_acceptance_evidence_unavailable",
     "recovery_required": False,
     "authorization_claimed": True,
     "authorization_consumed": True,
-    "authorization_id_sha256": "6976d68fd1b6828b630fd05751c2855afd84efc65639753f1a318189fff62f50",
+    "authorization_id_sha256": "de25e2d5c8ea8f183a6dca35048f6896c54d3876bea70f6c35afc847819ed136",
     "predecessor_release_observed": True,
 }
 for key, value in expected.items():
@@ -204,6 +204,7 @@ read -r ROOT_SIZE_BYTES ROOT_USED_BYTES ROOT_AVAILABLE_BYTES < <(
   df -B1 --output=size,used,avail / | awk 'NR==2{print $1,$2,$3}'
 )
 
+test "$TX_SHA" = "4b1cc60e5557b9bc338d3d0469d30aa94c7974c34a0c26dffae5caf9fde4b105"
 echo TX_FILE_SHA256="$TX_SHA"
 echo COMPOSE_ENV_SHA256="$ENV_SHA"
 echo LIVE_RECOVERY_PYZ_SHA256="$LIVE_SHA"
@@ -227,6 +228,8 @@ echo EXPECTED_ARTIFACT_ID="$EXPECTED_ARTIFACT_ID"
 echo EXPECTED_ARTIFACT_SHA256="$EXPECTED_ARTIFACT_SHA256"
 echo EXPECTED_MANIFEST_SHA256="$EXPECTED_MANIFEST_SHA256"
 echo EXPECTED_NEW_PYZ_SHA256="$EXPECTED_NEW_PYZ_SHA256"
+echo ARTIFACT_DELTA_FROM_LIVE_PYZ_ONLY=true
+echo DEPLOYMENT_ELIGIBLE=true
 echo LOCAL_ARTIFACT_TEMP_ONLY=true
 echo T1_MUTATION=false
 echo INSTALL_REPLAY=false
