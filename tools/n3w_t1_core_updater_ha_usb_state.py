@@ -388,7 +388,10 @@ def _validate_target_acceptance(document: dict[str, Any]) -> None:
     state = document["target_acceptance"]
     phase = document["phase"]
     reason = "ha_usb_target_acceptance_invalid"
-    fields = {"rule", "baseline", "attempts", "receipt", "data_sample", "monitoring_method", "monitoring_fallback_sha256"}
+    fields = {
+        "rule", "baseline", "attempts", "receipt", "data_sample", "monitoring_method",
+        "monitoring_fallback_sha256", "last_attempt_verdicts", "retry_after_unix",
+    }
     if (
         not isinstance(state, dict) or set(state) - fields
         or state.get("rule") != HA_ACCEPTANCE_RULE or not valid_evidence_set(state.get("baseline"))
@@ -410,6 +413,24 @@ def _validate_target_acceptance(document: dict[str, Any]) -> None:
     if "data_sample" in state and (
         not valid_data_sample(state["data_sample"])
         or state["baseline"]["protected_data"] != sha256_bytes(canonical(state["data_sample"]))
+    ):
+        raise UpdaterV2Error(reason)
+    if "last_attempt_verdicts" in state:
+        verdicts = state["last_attempt_verdicts"]
+        if (
+            state["attempts"] == 0 or not isinstance(verdicts, dict)
+            or set(verdicts) != set(HA_ACCEPTANCE_CHECKS)
+            or any(
+                verdict not in {"PASS", "PROVEN_FAIL", "EVIDENCE_UNAVAILABLE"}
+                for verdict in verdicts.values()
+            )
+        ):
+            raise UpdaterV2Error(reason)
+    if "retry_after_unix" in state and (
+        type(state["retry_after_unix"]) is not int or state["retry_after_unix"] <= 0
+        or state["attempts"] <= 0 or state["attempts"] >= HA_ACCEPTANCE_ATTEMPTS
+        or phase != U11 or document.get("status") != "ACTIVE"
+        or document.get("recovery_required") is not False or "receipt" in state
     ):
         raise UpdaterV2Error(reason)
     if "receipt" in state:
