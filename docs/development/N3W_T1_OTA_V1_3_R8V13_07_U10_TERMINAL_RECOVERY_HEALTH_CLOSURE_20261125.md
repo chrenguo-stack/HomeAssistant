@@ -105,3 +105,51 @@ Before a fresh R8V13-07 acceptance starts:
 3. update/deploy that recovery artifact if required by the fresh-acceptance preflight;
 4. create and validate a fresh transaction/authority chain;
 5. stop before R8V13-08 until fresh R8V13-07 itself passes.
+
+
+## Protected-data pending source/artifact closure
+
+The status-classification repair completed the full Home Assistant target-binding workflow on the exact source-bearing PR lineage:
+
+```text
+HA_TARGET_BINDING_CI_RUN=45522904136
+HA_TARGET_BINDING_CI=SUCCESS
+HA_SOURCE_TESTS=330_PASSED_1_SKIPPED
+DOCKER_RELEASE_INTEGRATION=1_PASSED
+```
+
+The workflow built a new exact recovery installation candidate. Independent download/readback of the artifact ZIP confirmed:
+
+```text
+RECOVERY_ARTIFACT_SOURCE_HEAD=07eefc1e6d87eff464133771191d155fa9ee9d3d
+RECOVERY_ARTIFACT_ID=14980338287
+RECOVERY_ARTIFACT_DIGEST_SHA256=d47d3fc4183805e63431c105682fbd93ed1cdc56b5fdc8681f41277afcd14ed1
+RECOVERY_MANIFEST_SHA256=c3071a9dcc2a5e54ca6017cfb58d1afad8d715cc47ca0640ae22493472430838
+RECOVERY_PYZ_SHA256=9d69992a72c3b8dd60f33ebcf00ac7c8fcf88e255c7fadb8878d15aa86f10ffa
+MANIFEST_SOURCE_HEAD=07eefc1e6d87eff464133771191d155fa9ee9d3d
+ARTIFACT_SOURCE_BINDING=PASS
+```
+
+This new artifact contains the protected-data evidence pending classification repair and is not yet deployed to the spare T1.
+
+Current live spare-T1 recovery authority remains:
+
+```text
+LIVE_RECOVERY_PYZ_SHA256=d7915bc3e42531a829ab22ecb74a7148878c3a2310313e4f1ac07acc8785185e
+LIVE_HOMEASSISTANT=local/n3w-homeassistant:2026.10.4-5881590f
+LIVE_HOMEASSISTANT_ID=sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365
+RETRY_TIMER_STATE=active
+FAILED_TRANSACTION_STATUS=ROLLED_BACK
+FAILED_TRANSACTION_PHASE=U13B_ROLLED_BACK
+```
+
+Therefore the next action is not a fresh INSTALL or R8V13-08. A new conversation must first fresh-rebind the repository, PR, current state and live baseline, then prepare/run an exact read-only deployment preflight for recovery artifact `14980338287`. Any live replacement remains a separate mutation decision after that preflight.
+
+```text
+FAILED_TRANSACTION_RECOVERY=CLOSED_PASS
+PROTECTED_DATA_PENDING_SOURCE_CLOSURE=PASS
+NEXT_RECOVERY_ARTIFACT_BINDING=PASS
+NEXT_RECOVERY_ARTIFACT_DEPLOYED=false
+FRESH_R8V13_07_ACCEPTANCE=NOT_RUN_YET
+R8V13_08_BLOCKED=true
+```
