@@ -227,27 +227,18 @@ fi
 test "$(docker image inspect "$MANAGER_REF" --format '{{.Id}}')" = "$MANAGER_ID"
 test "$(docker image inspect "$BROKER_REF" --format '{{.Id}}')" = "$BROKER_ID"
 
-RETRY_STATE="$(systemctl is-active n3w-t1-ha-recovery-retry.service || true)"
-case "$RETRY_STATE" in
-  inactive|failed) ;;
-  *) echo "RETRY_SERVICE_NOT_QUIET=$RETRY_STATE"; exit 33 ;;
-esac
-test "$(systemctl is-active n3w-t1-ha-recovery-retry.timer)" = active
+PRE_RETRY_TIMER_STATE="$(systemctl is-active n3w-t1-ha-recovery-retry.timer || true)"
+PRE_RETRY_SERVICE_STATE="$(systemctl is-active n3w-t1-ha-recovery-retry.service || true)"
+PRE_IPC_SOCKET_STATE="$(systemctl is-active n3w-t1-ha-ota-ipc.socket || true)"
+PRE_IPC_SERVICE_STATE="$(systemctl is-active n3w-t1-ha-ota-ipc.service || true)"
+echo PRE_QUIESCE_RETRY_TIMER_STATE="$PRE_RETRY_TIMER_STATE"
+echo PRE_QUIESCE_RETRY_SERVICE_STATE="$PRE_RETRY_SERVICE_STATE"
+echo PRE_QUIESCE_IPC_SOCKET_STATE="$PRE_IPC_SOCKET_STATE"
+echo PRE_QUIESCE_IPC_SERVICE_STATE="$PRE_IPC_SERVICE_STATE"
 test "$(systemctl is-enabled n3w-t1-ha-recovery-retry.timer)" = enabled
 test "$(systemctl is-active n3wfc4-broker-activation.service)" = active
 MOUNT_TARGET="$(findmnt --list --noheadings --source "UUID=$USB_UUID" --output TARGET | awk 'NF{print; exit}')"
 test "$MOUNT_TARGET" = "$EXPECTED_USB_MOUNT_TARGET"
-
-OLD_LIVE_LAUNCH="$(/usr/bin/python3 -I - "$LIVE" <<'PY'
-import sys
-sys.path.insert(0,sys.argv[1])
-from n3w_t1_core_updater_ha_recovery_startup import LocalHaPredecessorRuntime
-binding,_=LocalHaPredecessorRuntime()._restart_binding()
-print(binding["launch_sha256"])
-PY
-)"
-test "$OLD_LIVE_LAUNCH" = "$EXPECTED_LIVE_LAUNCH_SHA256"
-candidate_recovery_check "$NEW"
 
 echo PHASE=QUIESCE_RECOVERY_CONTROL_PLANE
 systemctl stop n3w-t1-ha-recovery-retry.timer
@@ -276,9 +267,36 @@ case "$IPC_SERVICE_STATE" in
   inactive|failed) ;;
   *) echo "IPC_SERVICE_NOT_QUIET_AFTER_STOP=$IPC_SERVICE_STATE"; exit 37 ;;
 esac
+echo PHASE=POST_QUIESCE_EXACT_RECHECK
 test "$(sha256sum "$TX_FILE" | awk '{print $1}')" = "$EXPECTED_TX_SHA256"
 test "$(sha256sum "$ENV" | awk '{print $1}')" = "$EXPECTED_ENV_SHA256"
+test "$(sha256sum "$LIVE" | awk '{print $1}')" = "$EXPECTED_OLD_PYZ_SHA256"
+test "$(sha256sum "$NEW" | awk '{print $1}')" = "$EXPECTED_NEW_PYZ_SHA256"
+test "$(docker image inspect "$TARGET_REF" --format '{{.Id}}')" = "$TARGET_ID"
+if docker image inspect "$PRED_REF" >/dev/null 2>&1; then
+  echo PREDECESSOR_IMAGE_UNEXPECTEDLY_PRESENT_AFTER_QUIESCE=true
+  exit 38
+fi
+if docker image inspect "$PRED_ID" >/dev/null 2>&1; then
+  echo PREDECESSOR_IMAGE_ID_UNEXPECTEDLY_PRESENT_AFTER_QUIESCE=true
+  exit 39
+fi
+test "$(docker image inspect "$MANAGER_REF" --format '{{.Id}}')" = "$MANAGER_ID"
+test "$(docker image inspect "$BROKER_REF" --format '{{.Id}}')" = "$BROKER_ID"
+MOUNT_TARGET="$(findmnt --list --noheadings --source "UUID=$USB_UUID" --output TARGET | awk 'NF{print; exit}')"
+test "$MOUNT_TARGET" = "$EXPECTED_USB_MOUNT_TARGET"
+
+OLD_LIVE_LAUNCH="$(/usr/bin/python3 -I - "$LIVE" <<'PY'
+import sys
+sys.path.insert(0,sys.argv[1])
+from n3w_t1_core_updater_ha_recovery_startup import LocalHaPredecessorRuntime
+binding,_=LocalHaPredecessorRuntime()._restart_binding()
+print(binding["launch_sha256"])
+PY
+)"
+test "$OLD_LIVE_LAUNCH" = "$EXPECTED_LIVE_LAUNCH_SHA256"
 candidate_recovery_check "$NEW"
+echo POST_QUIESCE_EXACT_RECHECK=PASS
 
 echo PHASE=ATOMIC_RECOVERY_PYZ_PATCH
 install -m 0644 "$LIVE" "$OLD"
