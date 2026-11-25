@@ -56,7 +56,7 @@ Template authority: `main:docs/development/templates/mini-handoff-template.md`, 
 ## 3A. 条件补充信息
 
 ```text
-TARGET=spare T1 root@192.168.68.195; exact recovery control-plane artifact for source 29ce1eb341289d0275ab064996a035e5d55ae430
+TARGET=spare T1 via environment-supplied SSH target; exact recovery control-plane artifact for source 29ce1eb341289d0275ab064996a035e5d55ae430
 MUTATION_OR_RECOVERY_ACTION=NONE_YET; immediate next action is readonly deployment preflight
 PRE_ACTION_BASELINE=exact HA 2026.10.4 + Manager fresh-1cae18039eee + Broker 2.1.2-3184566d healthy; target 10.0 absent; live recovery pyz 9d69992a72c3b8dd60f33ebcf00ac7c8fcf88e255c7fadb8878d15aa86f10ffa; terminal transaction U13B
 
