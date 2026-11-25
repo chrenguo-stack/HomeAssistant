@@ -14,8 +14,8 @@ from typing import Any
 
 from n3w_t1_core_updater_common import IMAGE_ID
 from n3w_t1_core_updater_ha_acceptance import (
-    HA_ACCEPTANCE_ATTEMPTS, HA_ACCEPTANCE_RULE, MONITORING_METHODS, NATURAL_MONITORING_METHOD,
-    expected_target_images, valid_evidence_set,
+    HA_ACCEPTANCE_ATTEMPTS, HA_ACCEPTANCE_CHECKS, HA_ACCEPTANCE_RULE, MONITORING_METHODS,
+    NATURAL_MONITORING_METHOD, expected_target_images, valid_evidence_set,
 )
 from n3w_t1_core_updater_ha_backup import backup_record_from_document
 from n3w_t1_core_updater_ha_data_evidence import valid_data_sample
