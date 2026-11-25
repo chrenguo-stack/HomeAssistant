@@ -11,6 +11,7 @@ on:
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_REACCEPTANCE_READONLY_REBIND_20261124_05.sh"
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_NEW_FRESH_TRANSACTION_A_PREPARE_TO_U4_20261124_01.sh"
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_NEW_FRESH_TRANSACTION_A_PREPARE_TO_U4_20261125_02.sh"
+      - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_TX_A_U4_INSTALL_READONLY_PREFLIGHT_20261125_01.sh"
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_TRANSACTION_A_INSTALL_TO_TERMINAL_20261124_01.sh"
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_THIN_REENTRY_AWARE_INSTALL_TO_TERMINAL_20261124_01.py"
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_U10_LIVE_REPAIR_READONLY_PREFLIGHT_20261124_01.sh"
@@ -26,6 +27,7 @@ on:
       - "tests/tools/test_n3w_t1_ota_r8v13_07_fresh_reacceptance_readonly_rebind.py"
       - "tests/tools/test_n3w_t1_ota_r8v13_07_new_fresh_transaction_a_prepare.py"
       - "tests/tools/test_n3w_t1_ota_r8v13_07_new_fresh_transaction_a_prepare_v2.py"
+      - "tests/tools/test_n3w_t1_ota_r8v13_07_fresh_tx_a_u4_install_readonly_preflight.py"
       - "tests/tools/test_n3w_t1_ota_r8v13_07_fresh_transaction_a_install.py"
       - "tests/tools/test_n3w_t1_ota_r8v13_07_thin_reentry_executor.py"
       - "tests/tools/test_n3w_t1_ota_r8v13_07_u10_live_repair_preflight.py"
@@ -47,6 +49,7 @@ on:
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_REACCEPTANCE_READONLY_REBIND_20261124_05.sh"
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_NEW_FRESH_TRANSACTION_A_PREPARE_TO_U4_20261124_01.sh"
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_NEW_FRESH_TRANSACTION_A_PREPARE_TO_U4_20261125_02.sh"
+      - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_TX_A_U4_INSTALL_READONLY_PREFLIGHT_20261125_01.sh"
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_TRANSACTION_A_INSTALL_TO_TERMINAL_20261124_01.sh"
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_THIN_REENTRY_AWARE_INSTALL_TO_TERMINAL_20261124_01.py"
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_U10_LIVE_REPAIR_READONLY_PREFLIGHT_20261124_01.sh"
@@ -62,6 +65,7 @@ on:
       - "tests/tools/test_n3w_t1_ota_r8v13_07_fresh_reacceptance_readonly_rebind.py"
       - "tests/tools/test_n3w_t1_ota_r8v13_07_new_fresh_transaction_a_prepare.py"
       - "tests/tools/test_n3w_t1_ota_r8v13_07_new_fresh_transaction_a_prepare_v2.py"
+      - "tests/tools/test_n3w_t1_ota_r8v13_07_fresh_tx_a_u4_install_readonly_preflight.py"
       - "tests/tools/test_n3w_t1_ota_r8v13_07_fresh_transaction_a_install.py"
       - "tests/tools/test_n3w_t1_ota_r8v13_07_thin_reentry_executor.py"
       - "tests/tools/test_n3w_t1_ota_r8v13_07_u10_live_repair_preflight.py"
@@ -103,6 +107,7 @@ jobs:
             tests/tools/test_n3w_t1_ota_r8v13_07_fresh_reacceptance_readonly_rebind.py \
             tests/tools/test_n3w_t1_ota_r8v13_07_new_fresh_transaction_a_prepare.py \
             tests/tools/test_n3w_t1_ota_r8v13_07_new_fresh_transaction_a_prepare_v2.py \
+            tests/tools/test_n3w_t1_ota_r8v13_07_fresh_tx_a_u4_install_readonly_preflight.py \
             tests/tools/test_n3w_t1_ota_r8v13_07_fresh_transaction_a_install.py \
             tests/tools/test_n3w_t1_ota_r8v13_07_thin_reentry_executor.py \
             tests/tools/test_n3w_t1_ota_r8v13_07_u10_live_repair_preflight.py \
@@ -119,6 +124,7 @@ jobs:
           bash -n tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_REACCEPTANCE_READONLY_REBIND_20261124_05.sh
           bash -n tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_NEW_FRESH_TRANSACTION_A_PREPARE_TO_U4_20261124_01.sh
           bash -n tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_NEW_FRESH_TRANSACTION_A_PREPARE_TO_U4_20261125_02.sh
+          bash -n tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_TX_A_U4_INSTALL_READONLY_PREFLIGHT_20261125_01.sh
           bash -n tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_TRANSACTION_A_INSTALL_TO_TERMINAL_20261124_01.sh
           bash -n tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_U10_LIVE_REPAIR_READONLY_PREFLIGHT_20261124_01.sh
           bash -n tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_RECOVERY_ARTIFACT_READONLY_DEPLOYMENT_PREFLIGHT_20261125_01.sh
@@ -132,6 +138,7 @@ jobs:
           sha256sum tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_REACCEPTANCE_READONLY_REBIND_20261124_05.sh
           sha256sum tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_NEW_FRESH_TRANSACTION_A_PREPARE_TO_U4_20261124_01.sh
           sha256sum tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_NEW_FRESH_TRANSACTION_A_PREPARE_TO_U4_20261125_02.sh
+          sha256sum tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_TX_A_U4_INSTALL_READONLY_PREFLIGHT_20261125_01.sh
           sha256sum tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_TRANSACTION_A_INSTALL_TO_TERMINAL_20261124_01.sh
           sha256sum tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_U10_LIVE_REPAIR_READONLY_PREFLIGHT_20261124_01.sh
           sha256sum tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_RECOVERY_ARTIFACT_READONLY_DEPLOYMENT_PREFLIGHT_20261125_01.sh
@@ -152,6 +159,7 @@ jobs:
             tests/tools/test_n3w_t1_ota_r8v13_07_fresh_reacceptance_readonly_rebind.py \
             tests/tools/test_n3w_t1_ota_r8v13_07_new_fresh_transaction_a_prepare.py \
             tests/tools/test_n3w_t1_ota_r8v13_07_new_fresh_transaction_a_prepare_v2.py \
+            tests/tools/test_n3w_t1_ota_r8v13_07_fresh_tx_a_u4_install_readonly_preflight.py \
             tests/tools/test_n3w_t1_ota_r8v13_07_fresh_transaction_a_install.py \
             tests/tools/test_n3w_t1_ota_r8v13_07_thin_reentry_executor.py \
             tests/tools/test_n3w_t1_ota_r8v13_07_u10_live_repair_preflight.py \
