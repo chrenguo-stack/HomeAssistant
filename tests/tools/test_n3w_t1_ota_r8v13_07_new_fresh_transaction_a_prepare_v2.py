@@ -32,12 +32,14 @@ def test_v2_requires_explicit_physical_prepare_authorization_and_stops_before_in
         r"\bumount\s+",
         r"\bmkfs\b",
         "U13A_COMMITTED",
-        "U13B_ROLLED_BACK",
     ):
         assert re.search(forbidden, text) is None
     assert "NEXT_BOUNDARY=STOP_BEFORE_NEW_INSTALL_AUTHORIZATION" in text
     assert "INSTALL_INTENT=false" in text
     assert "HA_INSTALL_OR_CUTOVER=false" in text
+    assert '"phase": "U13B_ROLLED_BACK"' in text
+    assert 'd["status"]!="ACTIVE" or d["phase"]!="U4_READY_TO_INSTALL"' in text
+    assert "NEW_FRESH_TRANSACTION_A_U4=PASS" in text
 
 
 def test_v2_binds_exact_post_recovery_terminal_entry_state() -> None:
