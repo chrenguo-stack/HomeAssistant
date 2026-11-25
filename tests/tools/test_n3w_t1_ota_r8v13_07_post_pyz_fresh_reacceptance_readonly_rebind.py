@@ -10,7 +10,7 @@ SCRIPT = (
     / "execution_packages"
     / "n3w"
     / "t1_ota_r8v13_07"
-    / "N3W_T1_R8V13_07_FRESH_REACCEPTANCE_READONLY_REBIND_20261125_06.sh"
+    / "N3W_T1_R8V13_07_FRESH_REACCEPTANCE_READONLY_REBIND_20261125_07.sh"
 )
 
 
@@ -87,6 +87,14 @@ def test_post_pyz_rebind_preserves_r8v13_07_boundary() -> None:
         "PERSISTENT_CONFIGURATION_MUTATION=false",
         "OLD_TRANSACTION_REPLAY=false",
         "NEW_TRANSACTION=false",
-        "RESULT=R8V13_07_POST_PYZ_FRESH_REACCEPTANCE_READONLY_REBIND_PASS",
+        "RESULT=R8V13_07_POST_PYZ_FRESH_REACCEPTANCE_READONLY_REBIND_V2_PASS",
     ):
         assert literal in text
+
+
+def test_post_pyz_rebind_hashes_large_usb_target_with_bounded_memory() -> None:
+    text = source()
+    assert 'source.read_bytes()' not in text
+    assert 'with source.open("rb") as stream:' in text
+    assert 'block=stream.read(1024*1024)' in text
+    assert 'hasher.update(block)' in text
