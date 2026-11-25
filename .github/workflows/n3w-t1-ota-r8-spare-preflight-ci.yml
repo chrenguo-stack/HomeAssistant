@@ -16,6 +16,7 @@ on:
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_RECOVERY_ARTIFACT_READONLY_DEPLOYMENT_PREFLIGHT_20261125_01.sh"
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_RECOVERY_ARTIFACT_CONTROLLED_PYZ_REPLACEMENT_20261125_01.sh"
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_REACCEPTANCE_READONLY_REBIND_20261125_06.sh"
+      - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_REACCEPTANCE_READONLY_REBIND_20261125_07.sh"
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_U10_LIVE_REPAIR_AND_RECOVER_20261125_01.sh"
       - "tests/tools/test_n3w_t1_ota_r8_spare_preflight.py"
       - "tests/tools/test_n3w_t1_ota_r8_bound_usb_readonly.py"
@@ -49,6 +50,7 @@ on:
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_RECOVERY_ARTIFACT_READONLY_DEPLOYMENT_PREFLIGHT_20261125_01.sh"
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_RECOVERY_ARTIFACT_CONTROLLED_PYZ_REPLACEMENT_20261125_01.sh"
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_REACCEPTANCE_READONLY_REBIND_20261125_06.sh"
+      - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_REACCEPTANCE_READONLY_REBIND_20261125_07.sh"
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_U10_LIVE_REPAIR_AND_RECOVER_20261125_01.sh"
       - "tests/tools/test_n3w_t1_ota_r8_spare_preflight.py"
       - "tests/tools/test_n3w_t1_ota_r8_bound_usb_readonly.py"
@@ -116,6 +118,7 @@ jobs:
           bash -n tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_RECOVERY_ARTIFACT_READONLY_DEPLOYMENT_PREFLIGHT_20261125_01.sh
           bash -n tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_RECOVERY_ARTIFACT_CONTROLLED_PYZ_REPLACEMENT_20261125_01.sh
           bash -n tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_REACCEPTANCE_READONLY_REBIND_20261125_06.sh
+          bash -n tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_REACCEPTANCE_READONLY_REBIND_20261125_07.sh
           bash -n tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_U10_LIVE_REPAIR_AND_RECOVER_20261125_01.sh
           sha256sum tools/execution_packages/n3w/t1_ota_kf153/N3W_T1_V1_3_KF153_LIVE_REPAIR_READONLY_PREFLIGHT_20261124_01.sh
           sha256sum tools/execution_packages/n3w/t1_ota_kf153/N3W_T1_V1_3_KF153_LIVE_REPAIR_20261124_01.sh
@@ -127,6 +130,7 @@ jobs:
           sha256sum tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_RECOVERY_ARTIFACT_READONLY_DEPLOYMENT_PREFLIGHT_20261125_01.sh
           sha256sum tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_RECOVERY_ARTIFACT_CONTROLLED_PYZ_REPLACEMENT_20261125_01.sh
           sha256sum tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_REACCEPTANCE_READONLY_REBIND_20261125_06.sh
+          sha256sum tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_REACCEPTANCE_READONLY_REBIND_20261125_07.sh
           sha256sum tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_U10_LIVE_REPAIR_AND_RECOVER_20261125_01.sh
           sha256sum tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_THIN_REENTRY_AWARE_INSTALL_TO_TERMINAL_20261124_01.py
       - name: Run focused R8 tests
