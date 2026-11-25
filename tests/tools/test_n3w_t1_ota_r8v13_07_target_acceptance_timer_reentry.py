@@ -99,4 +99,4 @@ def test_u11_retry_timer_reenters_acceptance_without_install_replay(
     assert startup._dispatch_pending_candidate(store, runtime) == expected
     assert len(runtime.media_calls) == 1
     assert runtime.media_calls[0][2] is True
-    assert calls == [calls[0]]
+    assert len(calls) == 1
