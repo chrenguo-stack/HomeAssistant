@@ -118,3 +118,34 @@ SUCCESSOR_PYZ_PUBLISHED=false
 RECOVERY_STARTED=false
 R8V13_08_BLOCKED=true
 ```
+
+
+## Frozen-site failure-path closure
+
+A final source review found that a pre-patch failure still unconditionally re-armed the retry timer, which would undo an intentionally frozen recovery control plane. This was repaired without changing product recovery semantics:
+
+- when `RECOVERY_STARTED=true`, failure handling still arms IPC + retry timer so the repaired recovery owner can continue;
+- before recovery has started, failure handling restores the pre-quiesce control-plane state instead of unconditionally arming the timer;
+- when the site was intentionally frozen before the attempt, a pre-patch STOP therefore remains frozen.
+
+Executor repair commit: `8232bcd2584946c3a0bc370a1cd167fa7e7862c8`.
+Regression-test head: `9d6f6b19ee52673e3c372cc35e3e52d6461b5270`.
+
+Focused CI run for this exact head: `45516331111`.
+
+After three checks the run had been created but remained `queued`; active polling stopped per project policy.
+
+Current physical state remains intentionally frozen and exact:
+
+```text
+RETRY_TIMER_STATE=inactive
+RETRY_SERVICE_STATE=failed
+TX_FILE_SHA256=4c68793fb1909366aa9acee7c06b74f3bac12dfae8681b1c4a6407abd6d2bd44
+COMPOSE_ENV_SHA256=8f4a73bfa8126f9e4ee993197cece40fddcdf140c994687a391014d627c0e8cc
+LIVE_PYZ_SHA256=5208dadc14c2cf0024c0711de60ce0f70f5a19ea27de4e74f290d4c3c8bcfe0a
+TX_STATUS=ACTIVE
+TX_PHASE=U10_INTERNAL_PREDECESSOR_CAPACITY_RELEASED
+TX_RECOVERY_REQUIRED=True
+```
+
+No second live-repair attempt is authorized to execute until exact focused CI `45516331111` reaches SUCCESS and the final executor binding is rechecked.
