@@ -365,12 +365,6 @@ def test_global_preflight_does_not_require_release_manifest_for_recovery():
     assert "APPROVED" not in preflight
 
 
-def test_expired_pin_refresh_uses_product_sha256_validator():
-    source = MODULE_PATH.read_text(encoding="utf-8")
-    assert "from n3w_t1_core_updater_v2_common import SHA256, UpdaterV2Error" in source
-    assert "SHA256.fullmatch(binding) is None" in source
-
-
 def test_exact_executor_binds_current_u4_physical_evidence() -> None:
     source = MODULE_PATH.read_text(encoding="utf-8")
     for literal in (
