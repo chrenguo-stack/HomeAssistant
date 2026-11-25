@@ -171,14 +171,25 @@ from n3w_t1_core_updater_ha_recovery_startup import LocalHaPredecessorRuntime
 
 document = json.load(open(sys.argv[2], encoding="utf-8"))
 runtime = LocalHaPredecessorRuntime()
-binding, _ = runtime._restart_binding()
-if binding != document["predecessor_start"]:
-    raise SystemExit("RECOVERED_BINDING_DRIFT")
-runtime.verify_resident_predecessor_health(document)
+expected = document["predecessor_start"]
+journal = document.get("ha_data_restore")
+raw_binding, _ = runtime._restart_binding()
+if not isinstance(journal, dict) or journal.get("step") != "PUBLISHED":
+    raise SystemExit("RECOVERED_PUBLISHED_DATA_JOURNAL_MISSING")
+normalized_binding, _ = runtime._restart_binding(published=journal)
+if raw_binding["images"] != expected["images"]:
+    raise SystemExit("RECOVERED_IMAGE_BINDING_DRIFT")
+if normalized_binding != expected:
+    raise SystemExit("RECOVERED_NORMALIZED_BINDING_DRIFT")
+runtime.verify_published_predecessor_health(document)
 print("RECOVERED_RUNTIME_HEALTH=PASS")
-print("RECOVERED_LAUNCH_SHA256=" + binding["launch_sha256"])
+print("RECOVERED_BINDING_MODE=PUBLISHED_DATA_NORMALIZED")
+print("RECOVERED_RAW_LAUNCH_SHA256=" + raw_binding["launch_sha256"])
+print("RECOVERED_NORMALIZED_LAUNCH_SHA256=" + normalized_binding["launch_sha256"])
+print("RECOVERED_EXPECTED_LAUNCH_SHA256=" + expected["launch_sha256"])
+print("RECOVERED_RAW_LAUNCH_DIFFERS=" + str(raw_binding["launch_sha256"] != expected["launch_sha256"]).lower())
 for name in ("manager", "broker", "homeassistant"):
-    image = binding["images"][name]
+    image = normalized_binding["images"][name]
     print(f"RUNTIME_{name.upper()}_REF=" + image["reference"])
     print(f"RUNTIME_{name.upper()}_ID=" + image["runtime_id"])
 PY
