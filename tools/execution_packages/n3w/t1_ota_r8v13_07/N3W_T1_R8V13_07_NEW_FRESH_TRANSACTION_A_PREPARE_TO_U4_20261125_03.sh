@@ -267,23 +267,46 @@ if available<required:
 print("INTERNAL_CANDIDATE_CAPACITY=PASS")
 PY
 
-python3 - "$SOURCE" <<'PY'
-import os,sys
+/usr/bin/python3 -I - "$LIVE" "$SOURCE" "$PRED_REF" "$EXPECTED_TARGET_SIZE" "$TX_FILE" <<'PY'
+import json,os,sys
 from pathlib import Path
-source=Path(sys.argv[1])
+sys.path.insert(0,sys.argv[1])
+from n3w_t1_core_updater_ha_recovery_startup import LocalHaPredecessorRuntime
+
+_,live,source_raw,pred_ref,target_size_raw,tx_path=sys.argv
+source=Path(source_raw)
+target_size=int(target_size_raw)
+transaction=json.load(open(tx_path,encoding="utf-8"))
+prepared=transaction.get("prepared_image_materials",{}).get("predecessor",{})
+previous_size=prepared.get("archive_size_bytes")
+
+runtime=LocalHaPredecessorRuntime()
+measured_predecessor=runtime._measure_predecessor_archive(pred_ref)
+if type(previous_size) is int and measured_predecessor!=previous_size:
+    raise SystemExit("PREDECESSOR_ARCHIVE_MEASUREMENT_DRIFT")
+
 mount=source
 while not mount.is_mount():
     if mount.parent==mount:
         raise SystemExit("USB_MOUNT_RESOLUTION_FAILED")
     mount=mount.parent
 v=os.statvfs(mount)
-available=v.f_bavail*v.f_frsize
-required=2447090176+v.f_frsize
+block=v.f_frsize
+if block<=0:
+    raise SystemExit("USB_BLOCK_SIZE_INVALID")
+available=v.f_bavail*block
+target_required=((target_size+block-1)//block)*block+block
+predecessor_required=((measured_predecessor+block-1)//block)*block+block
+sequential_required=target_required+predecessor_required
+
 print("USB_AVAILABLE_BYTES="+str(available))
-print("USB_PREDECESSOR_EXPORT_REQUIRED_BYTES="+str(required))
-if available<required:
-    raise SystemExit("USB_PREDECESSOR_EXPORT_SPACE_INSUFFICIENT")
-print("USB_PREDECESSOR_EXPORT_CAPACITY=PASS")
+print("TARGET_WRITE_REQUIRED_BYTES="+str(target_required))
+print("MEASURED_PREDECESSOR_ARCHIVE_BYTES="+str(measured_predecessor))
+print("PREDECESSOR_WRITE_REQUIRED_BYTES="+str(predecessor_required))
+print("FRESH_PREPARE_SEQUENTIAL_REQUIRED_BYTES="+str(sequential_required))
+if available<sequential_required:
+    raise SystemExit("FRESH_PREPARE_USB_SPACE_INSUFFICIENT_PREMUTATION")
+print("FRESH_PREPARE_SEQUENTIAL_CAPACITY=PASS")
 PY
 
 echo PHASE=MATERIALIZE_FRESH_CANDIDATE
@@ -396,11 +419,11 @@ echo PHASE=PREPARE_TO_FRESH_U4
 /usr/bin/python3 -I "$LIVE" --resume-pending > "$REMOTE_STAGE/resume.json"
 
 echo PHASE=FINAL_U4_CLASSIFICATION
-/usr/bin/python3 -I - "$LIVE" "$TX_FILE" "$NEW_TX" "$EXPECTED_USB_UUID" "$PRED_REF" "$TARGET_REF" "$EXPECTED_TARGET_SHA256" "$EXPECTED_TARGET_SIZE" "$INSTALL_AUTH" <<'PY'
+/usr/bin/python3 -I - "$LIVE" "$TX_FILE" "$NEW_TX" "$EXPECTED_USB_UUID" "$PRED_REF" "$TARGET_REF" "$EXPECTED_TARGET_SHA256" "$EXPECTED_TARGET_SIZE" "$INSTALL_AUTH" "$EXPECTED_NEW_BASELINE_LAUNCH_SHA256" <<'PY'
 import json,os,sys
 sys.path.insert(0,sys.argv[1])
 from n3w_t1_core_updater_ha_recovery_startup import LocalHaPredecessorRuntime, requested_install_binding_sha256
-_,live,txp,tx,uuid,pred,target,target_sha,target_size,install_auth=sys.argv
+_,live,txp,tx,uuid,pred,target,target_sha,target_size,install_auth,expected_launch=sys.argv
 d=json.load(open(txp))
 if d["transaction_id_sha256"]!=tx:
     raise SystemExit("FINAL_TRANSACTION_ID_DRIFT")
@@ -436,7 +459,7 @@ runtime=LocalHaPredecessorRuntime()
 binding=runtime.capture_start_binding(d)
 if binding["images"]["homeassistant"]["reference"]!=pred:
     raise SystemExit("FINAL_RUNTIME_PREDECESSOR_DRIFT")
-if binding["launch_sha256"]!="987189ccd61c0784db089b08e51a9ad3ff317372ad8a952dcda7a03a6d844c70":
+if binding["launch_sha256"]!=expected_launch:
     raise SystemExit("FINAL_NEW_BASELINE_LAUNCH_DRIFT")
 evidence=runtime.acceptance_observer().run_monitoring_self_test()
 if evidence.verdict!="PASS":
