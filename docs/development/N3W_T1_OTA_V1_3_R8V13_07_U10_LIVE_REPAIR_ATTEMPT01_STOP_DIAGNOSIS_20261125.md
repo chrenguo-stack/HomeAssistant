@@ -149,3 +149,21 @@ TX_RECOVERY_REQUIRED=True
 ```
 
 No second live-repair attempt is authorized to execute until exact focused CI `45516331111` reaches SUCCESS and the final executor binding is rechecked.
+
+
+## Final focused CI and executor binding closure
+
+The earlier exact-source run `45516331111` was cancelled after the PR advanced. This was a superseded run, not a test failure.
+
+The latest PR head `d78fd6068f96a3b18b7cc462257365bc44725950` reran the same focused workflow and completed SUCCESS:
+
+- focused workflow run: `45516392976`
+- focused job: SUCCESS
+- focused tests: `68 passed`
+- product recovery subset: `25 passed, 73 deselected`
+- executor blob: `618d2470856cf20b3e1ef47ab3e70e0bff7d42af`
+- executor SHA256 emitted by CI: `57f7b2014290687a9ed06d9490821d87bf727f76f31750958c6988c6292b83ad`
+
+Compare `9d6f6b19ee52673e3c372cc35e3e52d6461b5270 -> d78fd6068f96a3b18b7cc462257365bc44725950` changes only this diagnostic document. Therefore the executor tested by the successful latest-head run is the same exact executable content reviewed for the frozen-site retry.
+
+Physical retry remains bound to the existing transaction only. INSTALL replay and second transaction remain forbidden.
