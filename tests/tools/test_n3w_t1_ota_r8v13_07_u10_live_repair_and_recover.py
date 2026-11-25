@@ -59,9 +59,45 @@ def test_executor_revalidates_the_exact_u10_state_before_mutation() -> None:
         'GH_N3W_T1_OTA_INSTALLED_VERSION")!="2026.10.0"',
         'test "$(sha256sum "$TX_FILE"',
         'test "$(sha256sum "$ENV"',
-        'candidate_recovery_check "$NEW"',
     ):
         assert literal in precheck
+    assert 'candidate_recovery_check "$NEW"' not in precheck
+
+    post_quiesce = text.split("echo PHASE=POST_QUIESCE_EXACT_RECHECK", 1)[1].split(
+        "echo PHASE=ATOMIC_RECOVERY_PYZ_PATCH", 1
+    )[0]
+    for literal in (
+        'test "$(sha256sum "$TX_FILE"',
+        'test "$(sha256sum "$ENV"',
+        'test "$(sha256sum "$LIVE"',
+        'test "$(sha256sum "$NEW"',
+        'test "$(docker image inspect "$TARGET_REF"',
+        'test "$(docker image inspect "$MANAGER_REF"',
+        'test "$(docker image inspect "$BROKER_REF"',
+        'candidate_recovery_check "$NEW"',
+        'POST_QUIESCE_EXACT_RECHECK=PASS',
+    ):
+        assert literal in post_quiesce
+
+
+def test_executor_quiesces_a_timer_racing_retry_worker_before_final_recheck() -> None:
+    text = source()
+    precheck = text.split("echo PHASE=LIVE_REPAIR_PRECHECK", 1)[1].split(
+        "echo PHASE=QUIESCE_RECOVERY_CONTROL_PLANE", 1
+    )[0]
+    assert 'PRE_QUIESCE_RETRY_SERVICE_STATE=' in precheck
+    assert 'RETRY_SERVICE_NOT_QUIET=' not in precheck
+    assert 'inactive|failed) ;;' not in precheck
+    assert 'systemctl stop n3w-t1-ha-recovery-retry.timer' not in precheck
+
+    quiesce = text.split("echo PHASE=QUIESCE_RECOVERY_CONTROL_PLANE", 1)[1].split(
+        "echo PHASE=POST_QUIESCE_EXACT_RECHECK", 1
+    )[0]
+    assert quiesce.index("systemctl stop n3w-t1-ha-recovery-retry.timer") < quiesce.index(
+        "systemctl stop n3w-t1-ha-recovery-retry.service"
+    )
+    assert 'QUIESCED_RETRY_TIMER_STATE=' in quiesce
+    assert 'QUIESCED_RETRY_SERVICE_STATE=' in quiesce
 
 
 def test_candidate_successor_proves_the_normalized_predecessor_binding_before_publish() -> None:
