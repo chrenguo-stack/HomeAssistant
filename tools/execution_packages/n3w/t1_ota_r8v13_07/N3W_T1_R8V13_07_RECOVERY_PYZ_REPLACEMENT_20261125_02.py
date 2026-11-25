@@ -28,6 +28,9 @@ TARGET_ID = "sha256:c261fa53f30508951833492ba2a19af6cfbb6aa8f2806b531d8f5c659926
 LIVE = Path("/opt/n3w-t1-core-updater/ha-recovery.pyz")
 TX_FILE = Path("/var/lib/n3w-t1-core-updater/homeassistant-usb-upgrade.json")
 ENV_FILE = Path("/etc/n3wfc4/docker-compose.env")
+STAGE = Path("/tmp/n3w-r8v13-07-recovery-pyz-replacement-20261125-02")
+CANDIDATE = STAGE / "new-ha-recovery.pyz"
+BACKUP = STAGE / "old-ha-recovery.pyz"
 UNITS = {
     "timer": "n3w-t1-ha-recovery-retry.timer",
     "retry": "n3w-t1-ha-recovery-retry.service",
@@ -120,13 +123,16 @@ def verify_runtime(pyz: Path) -> None:
 def verify_images_and_media() -> None:
     if run("docker", "image", "inspect", EXPECTED_HA_REF, "--format", "{{.Id}}") != EXPECTED_HA_ID:
         raise RuntimeError("ha_image_drift")
-    if subprocess.run(["docker", "image", "inspect", TARGET_REF], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
+    if subprocess.run(["docker", "image", "inspect", TARGET_REF], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60).returncode == 0:
         raise RuntimeError("target_image_present")
-    if subprocess.run(["docker", "image", "inspect", TARGET_ID], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
+    if subprocess.run(["docker", "image", "inspect", TARGET_ID], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60).returncode == 0:
         raise RuntimeError("target_image_id_present")
-    mount = run("findmnt", "--list", "--noheadings", "--source", f"UUID={EXPECTED_USB_UUID}", "--output", "TARGET")
-    if not mount:
-        raise RuntimeError("bound_usb_missing")
+    mount = run(
+        "findmnt", "--list", "--noheadings", "--source", f"UUID={EXPECTED_USB_UUID}",
+        "--output", "TARGET,FSTYPE,OPTIONS",
+    ).split(maxsplit=2)
+    if len(mount) != 3 or mount[1] != "ext4" or "rw" not in mount[2].split(","):
+        raise RuntimeError("bound_usb_mount_drift")
 
 def restore(states: dict[str, str]) -> None:
     if states["socket"] in {"active", "activating"}:
@@ -139,10 +145,17 @@ def restore(states: dict[str, str]) -> None:
 def main() -> int:
     if os.environ.get(APPROVAL_ENV) != "YES":
         raise SystemExit("explicit replacement approval required")
-    if len(sys.argv) != 2:
-        raise SystemExit("usage: replacement.py <staged-new-ha-recovery.pyz>")
-    candidate = Path(sys.argv[1]).resolve(strict=True)
-    if sha256(candidate) != EXPECTED_NEW_PYZ_SHA256:
+    if os.geteuid() != 0:
+        raise SystemExit("root required")
+    if len(sys.argv) != 1:
+        raise SystemExit("replacement executor accepts no positional arguments")
+    metadata = STAGE.lstat()
+    if not STAGE.is_dir() or metadata.st_uid != 0 or (metadata.st_mode & 0o077):
+        raise SystemExit("stage_directory_invalid")
+    candidate_metadata = CANDIDATE.lstat()
+    if not CANDIDATE.is_file() or CANDIDATE.is_symlink() or candidate_metadata.st_uid != 0:
+        raise SystemExit("candidate_file_invalid")
+    if sha256(CANDIDATE) != EXPECTED_NEW_PYZ_SHA256:
         raise SystemExit("candidate_pyz_digest_drift")
     if sha256(LIVE) != EXPECTED_OLD_PYZ_SHA256:
         raise SystemExit("live_pyz_digest_drift")
@@ -155,7 +168,7 @@ def main() -> int:
     if states["timer"] != "active" or states["retry"] not in {"inactive", "failed"} or states["socket"] != "active":
         raise SystemExit("control_plane_prestate_drift")
 
-    backup = candidate.parent / "old-ha-recovery.pyz"
+    backup = BACKUP
     published = False
     quiesced = False
     try:
@@ -172,7 +185,7 @@ def main() -> int:
         if sha256(backup) != EXPECTED_OLD_PYZ_SHA256:
             raise RuntimeError("backup_digest_drift")
 
-        atomic_publish(candidate, LIVE)
+        atomic_publish(CANDIDATE, LIVE)
         published = True
         if sha256(LIVE) != EXPECTED_NEW_PYZ_SHA256:
             raise RuntimeError("new_pyz_publish_drift")
