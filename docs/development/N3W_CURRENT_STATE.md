@@ -25,6 +25,8 @@ TASK_CHAIN_STATUS=ALIGNED
 
 PR=824
 BRANCH=review/t1-ota-r8-existing-tx-predecessor-prep-20261123
+MASTER_TASK_DOCUMENT=docs/development/templates/STAGE_EXECUTION_PLAN_TEMPLATE.md
+MASTER_TASK_DOCUMENT_SHA=06c2f60b69874789a16fe7f14abf576b6832f356
 
 R8V13_07_TRANSACTION_ID=d86669e6d16bb9420191920bc2b02583e7f7207eff0b51ed3f9e6321f99389d4
 R8V13_07_TRANSACTION_STATUS=ROLLED_BACK
@@ -56,10 +58,21 @@ PROTECTED_DATA_PENDING_SOURCE_FIX_COMMIT=5fb25e4e19346564ec502531482cea67b5d5da2
 PROTECTED_DATA_PENDING_TEST_HEAD=fb722dcacffb255c0f34455b362748ae64d39072
 PROTECTED_DATA_PENDING_STATUS=RECOVERY_PROTECTED_DATA_EVIDENCE_PENDING
 PROTECTED_DATA_PENDING_EXIT_CODE=0
-PROTECTED_DATA_PENDING_FULL_HA_TARGET_BINDING_CI=PENDING
+PROTECTED_DATA_PENDING_FULL_HA_TARGET_BINDING_CI_RUN=45522904136
+PROTECTED_DATA_PENDING_FULL_HA_TARGET_BINDING_CI=SUCCESS
+PROTECTED_DATA_PENDING_HA_SOURCE_TESTS=330_PASSED_1_SKIPPED
+PROTECTED_DATA_PENDING_DOCKER_RELEASE_INTEGRATION=1_PASSED
+
+NEXT_RECOVERY_ARTIFACT_SOURCE_HEAD=07eefc1e6d87eff464133771191d155fa9ee9d3d
+NEXT_RECOVERY_ARTIFACT_ID=14980338287
+NEXT_RECOVERY_ARTIFACT_DIGEST_SHA256=d47d3fc4183805e63431c105682fbd93ed1cdc56b5fdc8681f41277afcd14ed1
+NEXT_RECOVERY_MANIFEST_SHA256=c3071a9dcc2a5e54ca6017cfb58d1afad8d715cc47ca0640ae22493472430838
+NEXT_RECOVERY_PYZ_SHA256=9d69992a72c3b8dd60f33ebcf00ac7c8fcf88e255c7fadb8878d15aa86f10ffa
+NEXT_RECOVERY_ARTIFACT_SOURCE_BINDING=PASS
+NEXT_RECOVERY_ARTIFACT_DEPLOYED=false
 
 RECOVERY_CLOSURE_DOC=docs/development/N3W_T1_OTA_V1_3_R8V13_07_U10_TERMINAL_RECOVERY_HEALTH_CLOSURE_20261125.md
-NEXT_ACTION=COMPLETE_FULL_HA_TARGET_BINDING_CI_BIND_NEW_RECOVERY_ARTIFACT_THEN_PREPARE_FRESH_R8V13_07_REACCEPTANCE
+NEXT_ACTION=NEW_CHAT_FRESH_REBIND_THEN_PREPARE_EXACT_RECOVERY_ARTIFACT_READONLY_DEPLOY_PREFLIGHT
 R8V13_08_AUTO_ADVANCE=false
 BROKER_OTA=DEFERRED
 HOST_REBOOT=false
@@ -68,7 +81,7 @@ MERGE=false
 RELEASE=false
 ```
 
-The original consumed-authorization transaction is now terminally rolled back and the T1 is healthy on the exact 2026.10.4 predecessor. This closes the failed transaction recovery only; it is not a fresh R8V13-07 acceptance PASS. The additional protected-data evidence pending status-classification repair must complete full HA target-binding CI and artifact binding before a new R8V13-07 transaction is started. R8V13-08 remains blocked.
+The original consumed-authorization transaction is now terminally rolled back and the T1 is healthy on the exact 2026.10.4 predecessor. This closes the failed transaction recovery only; it is not a fresh R8V13-07 acceptance PASS. The protected-data evidence pending status-classification repair has completed full HA target-binding CI and exact artifact binding. The new recovery artifact is not yet deployed to the spare T1; the next conversation must fresh-rebind and first prepare/run a read-only deployment preflight before any replacement or fresh R8V13-07 transaction. R8V13-08 remains blocked.
 
 ### 2026-11-24 — R8V13-07 U10 recovery defect fixed; read-only live-repair preflight CI sealed
 
