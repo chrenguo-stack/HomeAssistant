@@ -28,6 +28,9 @@ def test_replacement_v2_requires_explicit_gate_and_exact_current_binding() -> No
         'EXPECTED_NORMALIZED_LAUNCH_SHA256 = "67877cffd28b1c94de17f6b8eecabd1b579649f7e282fdfc65e4bcfcfd5fdc26"',
         'EXPECTED_RAW_LAUNCH_SHA256 = "987189ccd61c0784db089b08e51a9ad3ff317372ad8a952dcda7a03a6d844c70"',
         'EXPECTED_AUTHORIZATION_ID_SHA256 = "de25e2d5c8ea8f183a6dca35048f6896c54d3876bea70f6c35afc847819ed136"',
+        'STAGE = Path("/tmp/n3w-r8v13-07-recovery-pyz-replacement-20261125-02")',
+        'CANDIDATE = STAGE / "new-ha-recovery.pyz"',
+        'BACKUP = STAGE / "old-ha-recovery.pyz"',
         '"failure_code": "ha_usb_target_acceptance_evidence_unavailable"',
     ):
         assert literal in text
@@ -49,7 +52,11 @@ def test_replacement_v2_uses_published_data_normalized_runtime_contract() -> Non
 def test_replacement_v2_is_narrow_and_has_local_rollback() -> None:
     text = source()
     assert 'LIVE = Path("/opt/n3w-t1-core-updater/ha-recovery.pyz")' in text
-    assert 'atomic_publish(candidate, LIVE)' in text
+    assert 'replacement executor accepts no positional arguments' in text
+    assert 'stage_directory_invalid' in text
+    assert 'candidate_file_invalid' in text
+    assert 'bound_usb_mount_drift' in text
+    assert 'atomic_publish(CANDIDATE, LIVE)' in text
     assert 'atomic_publish(backup, LIVE)' in text
     assert 'print("PYZ_ROLLBACK=PASS")' in text
     assert 'run("systemctl", "stop", unit, check=False)' in text
