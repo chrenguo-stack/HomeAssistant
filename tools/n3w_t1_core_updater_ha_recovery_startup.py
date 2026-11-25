@@ -268,6 +268,10 @@ class HaRecoveryMediaRequired(UpdaterError):
     pass
 
 
+class HaRecoveryProtectedDataPending(UpdaterError):
+    pass
+
+
 class HaRecoveryMonitoringPending(UpdaterError):
     pass
 
@@ -1242,7 +1246,7 @@ class LocalHaPredecessorRuntime(LocalHost):
         if sample is None:
             return
         if _protected_data_evidence(origins).compare(sample) != "PASS":
-            raise UpdaterError("ha_usb_rollback_protected_data_evidence_pending")
+            raise HaRecoveryProtectedDataPending("ha_usb_rollback_protected_data_evidence_pending")
 
     def _verify_recovered_monitoring(self, document: dict[str, Any], origins: dict[str, dict[str, str]]) -> None:
         state = document.get("target_acceptance", {})
@@ -1546,6 +1550,9 @@ def main(
             status = _dispatch_pending_candidate(store, runtime)
     except HaRecoveryMediaRequired:
         print(json.dumps({"status": "RECOVERY_MEDIA_REQUIRED"}))
+        return 0
+    except HaRecoveryProtectedDataPending:
+        print(json.dumps({"status": "RECOVERY_PROTECTED_DATA_EVIDENCE_PENDING"}))
         return 0
     except HaRecoveryMonitoringPending:
         print(json.dumps({"status": "RECOVERY_MONITORING_EVIDENCE_PENDING"}))
