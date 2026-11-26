@@ -1,3 +1,68 @@
+### 2026-11-26 — R8V13-07 U4 Pin Refresh import STOP; successor executors repaired and latest CI PASS
+
+```text
+CURRENT_STATE=R8V13_07_U4_PIN_REFRESH_IMPORT_FAILURE_SOURCE_REPAIRED_CI_PASS_PENDING_FRESH_T1_REBIND
+ACTIVE_STAGE_ID=N3W_T1_CORE_STACK_OTA_V1_3_R8_PHYSICAL_ACCEPTANCE
+CURRENT_TASK_ID=R8V13-07
+NEXT_TASK_ID=R8V13-08
+NEXT_TASK_BLOCKED=true
+TASK_CHAIN_STATUS=ALIGNED
+
+PR=824
+PR_STATE=OPEN_DRAFT
+BRANCH=review/t1-ota-r8-existing-tx-predecessor-prep-20261123
+LATEST_PR_HEAD=b42fd47125f4641827f3ac9dd90ce6f98b476693
+USER_LOCAL_VERIFIED_HEAD=03b2808f60b8a4df157128208269af898ce4ac7c
+LOCAL_CHECKOUT_REQUIRES_ADVANCE_TO_LATEST_PR_HEAD=true
+
+MASTER_TASK_DOCUMENT=docs/development/templates/STAGE_EXECUTION_PLAN_TEMPLATE.md
+MASTER_TASK_DOCUMENT_SHA=434224b8491b7d4521ca7489c1e5a9ffd800af8a
+
+R8V13_07_TRANSACTION_ID=86b2fb28429672f6bd27269a62549d774e50814e1e428d6a79a8de531eb0cea0
+INSTALL_CUTOVER_AUTHORIZATION=USER_EXPLICIT_TRANSACTION_BOUND
+INSTALL_CUTOVER_AUTHORIZATION_REPLAY_ALLOWED=false
+ATTEMPT_01_STOP=MODULE_NOT_FOUND_n3w_t1_core_updater_ha_ipc
+ATTEMPT_01_STOP_BEFORE_PIN_WRITE=true
+ATTEMPT_01_STOP_BEFORE_INSTALL_INTENT=true
+ATTEMPT_01_INSTALL_AUTHORITY_ISSUED=false
+ATTEMPT_01_WORKER_DISPATCHED=false
+ATTEMPT_01_T1_MUTATION=false
+
+PIN_REFRESH_EXECUTOR_V2=tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_U4_PIN_REFRESH_AND_INSTALL_INTENT_20261126_02.py
+PIN_REFRESH_EXECUTOR_V2_BLOB=06db68329a36baf7f14e470e9e0a44eb62ba72f3
+PIN_REFRESH_EXECUTOR_V2_SHA256=d432512d34e5efe9d12a7fadde9b09eb5e5ad6865355f48ea87971251d60486b
+
+INSTALL_REENTRY_EXECUTOR=tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_EXACT_REENTRY_INSTALL_TO_TERMINAL_20261126_01.py
+INSTALL_REENTRY_EXECUTOR_BLOB_AT_LATEST_HEAD=4459fb5d67f584dba2e6c87d921ad14cc4ea9d76
+
+LATEST_HEAD_T1_R8_SPARE_PREFLIGHT_CI_RUN=45740740218
+LATEST_HEAD_T1_R8_SPARE_PREFLIGHT_CI=SUCCESS
+LATEST_HEAD_PUBLIC_REPOSITORY_SAFETY_RUN=45740740228
+LATEST_HEAD_PUBLIC_REPOSITORY_SAFETY=SUCCESS
+LATEST_HEAD_FOCUSED_TESTS=199_PASSED
+LATEST_HEAD_PRODUCT_RECOVERY_EXECUTION_PATHS=25_PASSED_74_DESELECTED
+LATEST_HEAD_ALL_APPLICABLE_WORKFLOWS=COMPLETED_SUCCESS
+
+T1_CURRENT_DURABLE_STATE=UNKNOWN_FRESH
+RELEASE_PIN_CURRENT_EXPIRY=UNKNOWN_FRESH
+LIVE_RECOVERY_PYZ_CURRENT_SHA256=UNKNOWN_FRESH
+USB_UUID_AND_MOUNT_CURRENT=UNKNOWN_FRESH
+HA_MANAGER_BROKER_HEALTH_CURRENT=UNKNOWN_FRESH
+
+NEXT_ACTION=LOCAL_REBIND_LATEST_PR_HEAD_THEN_FRESH_READONLY_T1_REBIND; IF_ALL_EXACT_GATES_AND_EXISTING_AUTHORIZATION_PASS_RUN_PIN_REFRESH_V2_ONCE_TO_U5; THEN_EXACT_INSTALL_REENTRY_TO_U13A_OR_U13B
+R8V13_08_BLOCKED=true
+BROKER_OTA=DEFERRED
+HOST_REBOOT=false
+MERGE=false
+RELEASE=false
+```
+
+The 2026-11-26 U4 Pin Refresh Attempt 01 passed SSH host-key verification but stopped at the first product IPC module import because the standalone Python executor had not added the verified live recovery pyz to `sys.path`. The source ordering confirms this happened before Release Pin atomic replacement and before INSTALL intent submission; no install authority or worker was dispatched. The old executor remains historical evidence and was not replayed.
+
+The successor Pin Refresh V2 now adds the live recovery pyz path only after its exact SHA verification and before importing product modules. The exact Install Reentry executor also contains the same import-path setup. Latest PR HEAD `b42fd47125f4641827f3ac9dd90ce6f98b476693` has T1 R8 spare preflight CI and public repository safety CI SUCCESS; focused tests report 199 passed and product recovery execution paths 25 passed / 74 deselected. The user's local checkout was verified at prior HEAD `03b2808f...`, so it must advance to latest PR HEAD before the next execution.
+
+The original transaction remains the only continuation target and its user authorization is transaction-bound/non-replayable. Because the physical attempt did not complete and time has advanced beyond the previous Release Pin expiry, all current T1 durable state, pin expiry, recovery pyz, USB binding and runtime health must be freshly read before any retry. Do not replay PREPARE, create another transaction, re-run Attempt 01, enter R8V13-08, start Broker OTA, reboot the host, merge or release.
+
 ## Current T1 Core Stack authority
 
 Repository production authority remains distinct from the spare-T1 R8 validation runtime.
