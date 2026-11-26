@@ -31,6 +31,9 @@ def test_pin_refresh_is_bound_to_exact_fresh_u4_transaction() -> None:
         assert literal in text
     assert 'phase") != U4' in text
     assert 'phase") != U5' in text
+    assert "runtime._original_mountpoint(EXPECTED_USB)" in text
+    assert "USB_AVAILABLE_BYTES=" in text
+    assert "TARGET_CANDIDATE" not in text
 
 
 def test_pin_refresh_changes_only_expiry_and_uses_durable_atomic_write() -> None:
