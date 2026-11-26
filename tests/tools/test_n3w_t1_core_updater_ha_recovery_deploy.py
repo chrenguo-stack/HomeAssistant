@@ -99,10 +99,16 @@ def test_exact_package_installs_and_executes_self_contained_recovery(package, tm
     stdout = subprocess.check_output((sys.executable, "-I", installed, "--help"), cwd=tmp_path, text=True)
     assert all(flag in stdout for flag in ("--check-application-start", "--resume-pending", "--install-requested", "--serve-ipc"))
     assert "--issue-prepare-authority" in stdout and "--issue-install-authority" in stdout
+    assert "--maintenance-submit-approved-release" in stdout and "--release-identity" in stdout
+    assert "--retire-precutover-failure" in stdout
     check_help = subprocess.check_output(
         (sys.executable, "-I", installed, "check-candidate-activation", "--help"), cwd=tmp_path, text=True,
     )
     assert "--manifest-sha256" in check_help
+    activate_help = subprocess.check_output(
+        (sys.executable, "-I", installed, "activate-candidate-runtime", "--help"), cwd=tmp_path, text=True,
+    )
+    assert "--manifest-sha256" in activate_help
     stage_help = subprocess.check_output(
         (sys.executable, "-I", installed, "materialize-candidate", "--help"), cwd=tmp_path, text=True,
     )
@@ -114,6 +120,105 @@ def test_exact_package_installs_and_executes_self_contained_recovery(package, tm
         assert "--trust-policy" in signed_help
     assert deploy.install(staged, digest, root=root, systemctl=manager) == result
     assert manager.changes[2:] == [("daemon-reload",)]
+
+
+def test_live_candidate_renderer_injects_predecessor_version(monkeypatch):
+    calls = []
+
+    def run(argv, **kwargs):
+        calls.append((argv, kwargs))
+        return SimpleNamespace(returncode=0, stdout=b"{}", stderr=b"")
+
+    monkeypatch.setattr(deploy.subprocess, "run", run)
+
+    assert deploy._render_candidate_compose(Path("/tmp/active.yml")) == {}
+    assert calls[-1][1]["env"] == {"PATH": os.defpath}
+
+    assert deploy._render_candidate_compose(
+        Path("/tmp/candidate.yml"), predecessor_version="2026.10.4",
+    ) == {}
+    assert calls[-1][1]["env"] == {
+        "PATH": os.defpath,
+        "GH_N3W_T1_OTA_INSTALLED_VERSION": "2026.10.4",
+    }
+
+    with pytest.raises(UpdaterError, match="predecessor_version_invalid"):
+        deploy._render_candidate_compose(
+            Path("/tmp/candidate.yml"), predecessor_version="not-a-version",
+        )
+
+
+def test_live_candidate_renderer_reports_missing_required_variable(monkeypatch):
+    def run(argv, **kwargs):
+        return SimpleNamespace(
+            returncode=1,
+            stdout=b"",
+            stderr=(
+                b"error while interpolating services.broker.image: required variable "
+                b"GH_BROKER_IMAGE is missing a value: GH_BROKER_IMAGE required"
+            ),
+        )
+
+    monkeypatch.setattr(deploy.subprocess, "run", run)
+    with pytest.raises(
+        UpdaterError,
+        match="compose_required_variable_missing:GH_BROKER_IMAGE",
+    ):
+        deploy._render_candidate_compose(Path("/tmp/candidate.yml"))
+
+
+def test_runtime_candidate_preserves_production_hybrid_binding_contract(tmp_path, monkeypatch):
+    if shutil.which("docker") is None:
+        pytest.skip("Docker Compose CLI unavailable")
+
+    active = tmp_path / "docker-compose.yml"
+    env_file = tmp_path / "docker-compose.env"
+    candidate = tmp_path / deploy.CANDIDATE_COMPOSE
+
+    manager = "local/greenhouse-manager:fixture"
+    homeassistant = "local/n3w-homeassistant:2026.10.4-fixture"
+    broker = "local/n3w-mosquitto:2.1.2-fixture"
+
+    active_text = (REPO / deploy.BASE_COMPOSE).read_text()
+    active_text = active_text.replace(
+        '    image: "${GH_BROKER_IMAGE:?GH_BROKER_IMAGE required}"',
+        f"    image: {broker}",
+        1,
+    )
+    active_text = active_text.replace(
+        "    tmpfs:\n      - /mosquitto/log\n",
+        "",
+        1,
+    )
+    assert "GH_BROKER_IMAGE" not in active_text
+    assert "/mosquitto/log" not in active_text
+    active.write_text(active_text)
+
+    env_file.write_text(
+        "\n".join([
+            f"GH_MANAGER_IMAGE={manager}",
+            f"GH_HOMEASSISTANT_IMAGE={homeassistant}",
+            "GH_MQTT_CLIENT_ID=fixture-manager",
+            "GH_MQTT_USERNAME=fixture-manager",
+            "GH_N3W_PAIRING_MANAGER_ID=fixture-manager",
+            "GH_N3W_PROVISIONING_CLIENT_ID=fixture-provisioning",
+            "GH_N3W_PROVISIONING_USERNAME=fixture-provisioning",
+            "GH_SYSTEM_ID=fixture",
+            "",
+        ])
+    )
+    assert "GH_BROKER_IMAGE=" not in env_file.read_text()
+
+    monkeypatch.setattr(deploy, "COMPOSE", active)
+    monkeypatch.setattr(deploy, "COMPOSE_ENV", env_file)
+
+    before = deploy._render_candidate_compose(active)
+    candidate.write_bytes(deploy._candidate_compose(active.read_bytes()))
+    after = deploy._render_candidate_compose(
+        candidate, predecessor_version="2026.10.4",
+    )
+    deploy._verify_candidate_delta(before, copy.deepcopy(after), "2026.10.4")
+    assert after["services"]["broker"] == before["services"]["broker"]
 
 
 def test_candidate_compose_renders_only_ota_and_ha_monitoring_bindings(package, tmp_path):
@@ -171,9 +276,114 @@ def test_candidate_compose_renders_only_ota_and_ha_monitoring_bindings(package, 
     assert render(base) == original
 
 
+def test_candidate_runtime_activation_is_transaction_idle_and_self_tested(package, tmp_path, monkeypatch):
+    staged, digest, head = package
+    root = tmp_path / "host"
+    root.mkdir()
+    deploy.install(staged, digest, root=root, systemctl=Systemd(root))
+
+    active_path = root / deploy.COMPOSE.relative_to("/")
+    env_path = root / deploy.COMPOSE_ENV.relative_to("/")
+    active_path.parent.mkdir(parents=True, exist_ok=True)
+    original = (REPO / deploy.BASE_COMPOSE).read_bytes()
+    active_path.write_bytes(original)
+
+    ref = "local/n3w-homeassistant:2026.10.0-01234567"
+    env_path.write_text(
+        "GH_MANAGER_IMAGE=manager\n"
+        f"GH_HOMEASSISTANT_IMAGE={ref}\n"
+        "GH_SYSTEM_ID=fixture\n"
+    )
+    active = {"services": {
+        "manager": {"environment": {"GH_SYSTEM_ID": "fixture"}, "volumes": [], "image": "manager"},
+        "broker": {"image": "broker"},
+        "homeassistant": {"image": ref, "volumes": [{
+            "type": "bind", "source": deploy.ACTIVE_HA_CONFIG,
+            "target": deploy.HA_CONFIG_TARGET, "read_only": True,
+        }]},
+    }}
+    proposed = copy.deepcopy(active)
+    proposed["services"]["manager"]["environment"].update(deploy._candidate_settings("2026.10.0"))
+    proposed["services"]["manager"]["volumes"] = [{
+        "type": "bind", "source": str(IPC_SOCKET.parent), "target": str(IPC_SOCKET.parent),
+        "read_only": True, "bind": {"create_host_path": False},
+    }]
+    ha = proposed["services"]["homeassistant"]
+    ha["environment"] = {"GH_SYSTEM_ID": "fixture"}
+    ha["volumes"][0]["source"] = f"/{deploy.DESTINATIONS[deploy.MONITORING_CONFIG]}"
+    ha["volumes"].append({
+        "type": "bind", "source": str(deploy.MONITORING_DESTINATION),
+        "target": deploy.MONITORING_TARGET, "read_only": True,
+        "bind": {"create_host_path": False},
+    })
+
+    monkeypatch.setattr(deploy, "check_candidate_activation", lambda *a, **k: {
+        "source_head": head,
+        "status": "CANDIDATE_ACTIVATION_PREFLIGHT_PASS",
+        "predecessor_version": "2026.10.0",
+        "manager_monitoring_self_test_available": True,
+        "monitoring_mode": "natural_with_self_test_fallback",
+    })
+
+    actions = []
+    binding = {"images": {
+        "manager": {"reference": "manager"},
+        "broker": {"reference": "broker"},
+        "homeassistant": {"reference": ref},
+    }}
+
+    class Runtime:
+        def candidate_manager_monitoring_self_test_available(self):
+            return True
+
+        def _runtime(self, name):
+            assert name == "homeassistant"
+            return {"image_ref": ref, "image_id": "sha256:" + "c" * 64}
+
+        def capture_start_binding(self, document):
+            assert document["current_image_ref"] == ref
+            return copy.deepcopy(binding)
+
+        def stop_services(self):
+            actions.append("stop")
+
+        def start_services(self, *, readiness_timeout):
+            assert readiness_timeout == deploy.HOMEASSISTANT_SERVICES_READINESS_TIMEOUT_SECONDS
+            actions.append("start")
+
+        def _replace_product_file(self, path, payload, *, verify_error):
+            actions.append(("replace", sha256_bytes(payload)))
+            path.write_bytes(payload)
+            return sha256_bytes(payload)
+
+        def acceptance_observer(self):
+            return SimpleNamespace(
+                run_monitoring_self_test=lambda: SimpleNamespace(verdict="PASS", sha256="a" * 64)
+            )
+
+    def render(path, *, predecessor_version=None):
+        if "GH_N3W_T1_OTA_ENABLED" in path.read_text():
+            return copy.deepcopy(proposed)
+        return copy.deepcopy(active)
+
+    result = deploy.activate_candidate_runtime(
+        staged, digest, root=root, runtime=Runtime(),
+        systemctl=lambda *a, **k: "", render=render,
+    )
+    assert result["status"] == "CANDIDATE_RUNTIME_ACTIVATED"
+    assert result["source_head"] == head
+    assert result["monitoring_self_test_sha256"] == "a" * 64
+    assert result["runtime_images_unchanged"] is True
+    assert result["installed_version_env_bound"] is True
+    assert result["broker_mutation"] is False
+    assert "stop" in actions and actions[-1] == "start"
+    assert "GH_N3W_T1_OTA_ENABLED" in active_path.read_text()
+    assert "GH_N3W_T1_OTA_INSTALLED_VERSION=2026.10.0" in env_path.read_text()
+
+
 @pytest.mark.parametrize("fault", [
     None, "empty_bind", "socket", "version", "mount", "create_path", "broker", "transaction",
-    "monitoring_mount", "system_id", "active_config", "manager_monitoring",
+    "monitoring_mount", "system_id", "active_config", "manager_probe", "legacy_manager",
 ])
 def test_activation_preflight_is_read_only(package, tmp_path, monkeypatch, fault):
     staged, digest, head = package
@@ -237,6 +447,11 @@ def test_activation_preflight_is_read_only(package, tmp_path, monkeypatch, fault
         store.ha_usb_path.write_text(json.dumps({"schema": HA_USB_TX_SCHEMA_GUARD, "status": "ACTIVE"}))
         store.ha_usb_path.chmod(0o600)
 
+    active_path = root / deploy.COMPOSE.relative_to("/")
+    active_path.parent.mkdir(parents=True, exist_ok=True)
+    active_payload = (REPO / deploy.BASE_COMPOSE).read_bytes()
+    active_path.write_bytes(active_payload)
+
     observed = {"image_ref": ref, "image_id": "sha256:" + "c" * 64}
     bound = []
 
@@ -246,19 +461,23 @@ def test_activation_preflight_is_read_only(package, tmp_path, monkeypatch, fault
 
     manager_checks = []
 
-    def require_candidate_manager_monitoring():
+    def candidate_manager_monitoring_self_test_available():
         manager_checks.append(True)
-        if fault == "manager_monitoring":
-            raise UpdaterError("ha_recovery_candidate_manager_monitoring_unavailable")
+        if fault == "manager_probe":
+            raise UpdaterError("ha_recovery_candidate_manager_monitoring_probe_failed")
+        return fault != "legacy_manager"
 
     runtime = SimpleNamespace(
         _runtime=lambda name: observed,
         capture_start_binding=capture_binding,
         image_binding_modes_v2=lambda: {"homeassistant": "dynamic"},
-        require_candidate_manager_monitoring=require_candidate_manager_monitoring,
+        candidate_manager_monitoring_self_test_available=candidate_manager_monitoring_self_test_available,
     )
 
-    def render(candidate):
+    render_calls = []
+
+    def render(candidate, *, predecessor_version=None):
+        render_calls.append((candidate.name, predecessor_version))
         return copy.deepcopy(active if candidate.name == "docker-compose.yml" else proposed)
 
     errors = {
@@ -266,7 +485,8 @@ def test_activation_preflight_is_read_only(package, tmp_path, monkeypatch, fault
         "mount": "manager_mount_drift", "create_path": "manager_mount_drift",
         "broker": "unexpected_compose_change", "transaction": "transaction_active",
         "monitoring_mount": "ha_monitoring_mount_drift", "system_id": "ha_environment_drift",
-        "active_config": "install_existing_file_drift", "manager_monitoring": "manager_monitoring_unavailable",
+        "active_config": "install_existing_file_drift", "manager_probe": "manager_monitoring_probe_failed",
+        "legacy_manager": "manager_monitoring_self_test_required",
     }
     changes = manager.changes[:]
     if fault in errors:
@@ -275,14 +495,28 @@ def test_activation_preflight_is_read_only(package, tmp_path, monkeypatch, fault
                 staged, digest, root=root, runtime=runtime, systemctl=unit_status, render=render,
             )
     else:
-        assert deploy.check_candidate_activation(
+        result = deploy.check_candidate_activation(
             staged, digest, root=root, runtime=runtime, systemctl=unit_status, render=render,
-        ) == {"source_head": head, "status": "CANDIDATE_ACTIVATION_PREFLIGHT_PASS", "predecessor_version": "2026.10.0"}
+        )
+        assert result == {
+            "source_head": head,
+            "status": "CANDIDATE_ACTIVATION_PREFLIGHT_PASS",
+            "predecessor_version": "2026.10.0",
+            "manager_monitoring_self_test_available": True,
+            "monitoring_mode": "natural_with_self_test_fallback",
+        }
         assert bound == [{
             "current_image_ref": observed["image_ref"], "current_image_identity": {"runtime_image_id": observed["image_id"]},
         }]
     assert manager.changes == changes
-    assert not (root / deploy.COMPOSE.relative_to("/")).exists()
+    if fault not in {"socket", "transaction", "active_config"}:
+        assert ("ha-ota-candidate.compose.yml", "2026.10.0") in render_calls
+    if fault not in {
+        "socket", "transaction", "active_config", "version", "mount", "create_path",
+        "broker", "monitoring_mount", "system_id",
+    }:
+        assert manager_checks == [True]
+    assert active_path.read_bytes() == active_payload
 
 
 @pytest.mark.parametrize("fault", [None, "manifest_digest", "archive_digest", "extra_tag", "interrupted_publication"])

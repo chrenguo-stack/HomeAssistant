@@ -7,6 +7,10 @@ from typing import Iterable
 from n3w_t1_core_updater_v2_common import SHA256, UpdaterV2Error
 
 
+USB_PRODUCT_MIN_CAPACITY_GB = 16
+# Machine-verifiable eligibility floor for a 16GB-class filesystem.
+# The product requirement is a 16GB-or-larger USB; marketed capacity is not a trusted runtime field.
+# This is not a per-transaction free-space budget.
 USB_MEASURED_USABLE_CAPACITY_MIN_BYTES = 14 * 1024**3
 USB_FILESYSTEM = "ext4"
 USB_LABEL = "N3W-UPDATE"
@@ -31,38 +35,6 @@ class FormatAuthorization:
     confirmation_verified: bool
     filesystem: str = USB_FILESYSTEM
     label: str = USB_LABEL
-
-
-@dataclass(frozen=True)
-class UsbCapacityInputs:
-    target_artifact_bytes: int
-    predecessor_recovery_worst_case_bytes: int
-    ha_data_backup_worst_case_bytes: int
-    transaction_metadata_and_working_bytes: int
-    removable_media_reserve_bytes: int
-
-    def required_bytes(self) -> int:
-        values = (
-            self.target_artifact_bytes,
-            self.predecessor_recovery_worst_case_bytes,
-            self.ha_data_backup_worst_case_bytes,
-            self.transaction_metadata_and_working_bytes,
-            self.removable_media_reserve_bytes,
-        )
-        if any(
-            not isinstance(value, int)
-            or isinstance(value, bool)
-            or value < 0
-            for value in values
-        ):
-            raise UpdaterV2Error("usb_capacity_input_invalid")
-        if (
-            self.target_artifact_bytes <= 0
-            or self.predecessor_recovery_worst_case_bytes <= 0
-            or self.ha_data_backup_worst_case_bytes <= 0
-        ):
-            raise UpdaterV2Error("usb_capacity_primary_asset_invalid")
-        return sum(values)
 
 
 @dataclass(frozen=True)
@@ -136,31 +108,6 @@ def authorize_destructive_format(
     return FormatAuthorization(
         public_fingerprint=candidate.public_fingerprint,
         confirmation_verified=True,
-    )
-
-
-def assess_capacity(
-    measured_usable_bytes: int,
-    inputs: UsbCapacityInputs,
-) -> UsbCapacityReport:
-    if (
-        not isinstance(measured_usable_bytes, int)
-        or isinstance(measured_usable_bytes, bool)
-        or measured_usable_bytes <= 0
-    ):
-        raise UpdaterV2Error("usb_measured_usable_bytes_invalid")
-    required = inputs.required_bytes()
-    floor_pass = (
-        measured_usable_bytes >= USB_MEASURED_USABLE_CAPACITY_MIN_BYTES
-    )
-    formula_pass = measured_usable_bytes >= required
-    return UsbCapacityReport(
-        measured_usable_bytes=measured_usable_bytes,
-        required_bytes=required,
-        measured_floor_bytes=USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
-        measured_floor_pass=floor_pass,
-        transaction_formula_pass=formula_pass,
-        capacity_pass=floor_pass and formula_pass,
     )
 
 

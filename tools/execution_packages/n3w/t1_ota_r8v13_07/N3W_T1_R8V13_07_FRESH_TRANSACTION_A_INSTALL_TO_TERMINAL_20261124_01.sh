@@ -1,0 +1,8 @@
+#!/bin/bash
+set -euo pipefail
+
+echo "RETIRED_EXECUTOR=N3W_T1_R8V13_07_FRESH_TRANSACTION_A_INSTALL_TO_TERMINAL_20261124_01.sh"
+echo "RETIRED_REASON=source_level_end_to_end_audit_requires_thin_reentry_aware_executor"
+echo "SUCCESSOR=tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_THIN_REENTRY_AWARE_INSTALL_TO_TERMINAL_20261124_01.py"
+echo "DO_NOT_EXECUTE_RETIRED_GATE=true"
+exit 64

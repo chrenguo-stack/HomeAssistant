@@ -31,6 +31,10 @@ IMAGE_PREFIXES = {
     "homeassistant": "local/n3w-homeassistant:",
     "broker": "local/n3w-mosquitto:",
 }
+HA_OTA_INSTALLED_VERSION_KEY = "GH_N3W_T1_OTA_INSTALLED_VERSION"
+_HA_IMAGE_VERSION = re.compile(
+    r"^local/n3w-homeassistant:([0-9]{4}\.[0-9]{1,2}\.[0-9]{1,3})-[0-9a-f]{8,64}$"
+)
 
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 AUTHORIZATION_ID = re.compile(r"^N3W_T1_CORE_UPDATER_[A-Za-z0-9_-]{1,160}$")
@@ -295,6 +299,43 @@ def parse_image_bindings(payload: bytes) -> dict[str, str]:
     return values
 
 
+def homeassistant_image_version(reference: str) -> str | None:
+    match = _HA_IMAGE_VERSION.fullmatch(reference)
+    return match[1] if match else None
+
+
+def converge_homeassistant_ota_version_env(payload: bytes, image_ref: str) -> bytes:
+    """Persist the HA version consumed by the candidate Manager in the same env file as the image."""
+    version = homeassistant_image_version(image_ref)
+    if version is None:
+        raise UpdaterV2Error("homeassistant_ota_version_image_invalid")
+    try:
+        text = payload.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise UpdaterV2Error("compose_env_encoding_invalid") from error
+    key = HA_OTA_INSTALLED_VERSION_KEY
+    lines = text.splitlines(keepends=True)
+    indexes = [i for i, line in enumerate(lines) if line.startswith(f"{key}=")]
+    if len(indexes) > 1:
+        raise UpdaterV2Error("homeassistant_ota_version_env_line_count_invalid")
+    if not indexes:
+        separator = "" if not text or text.endswith(("\n", "\r")) else "\n"
+        updated = payload + separator.encode() + f"{key}={version}\n".encode()
+    else:
+        observed = lines[indexes[0]].rstrip("\r\n").split("=", 1)[1]
+        if observed != version:
+            raise UpdaterV2Error("homeassistant_ota_version_env_drift")
+        updated = payload
+    verified = [
+        line.split("=", 1)[1]
+        for line in updated.decode("utf-8").splitlines()
+        if line.startswith(f"{key}=")
+    ]
+    if verified != [version]:
+        raise UpdaterV2Error("homeassistant_ota_version_env_verify_failed")
+    return updated
+
+
 def rewrite_component_env(
     payload: bytes,
     component: str,
@@ -317,11 +358,38 @@ def rewrite_component_env(
         raise UpdaterV2Error(f"{component}_image_env_line_count_invalid")
     index = indexes[0]
     raw = lines[index]
-    ending = "\n" if raw.endswith("\n") else ""
+    ending = "\r\n" if raw.endswith("\r\n") else ("\n" if raw.endswith("\n") else "")
     observed = raw.rstrip("\r\n").split("=", 1)[1]
     if observed != expected:
         raise UpdaterV2Error(f"{component}_image_env_predecessor_drift")
     lines[index] = f"{key}={replacement}{ending}"
+
+    ota_version_updated = False
+    if component == "homeassistant":
+        version_key = HA_OTA_INSTALLED_VERSION_KEY
+        version_indexes = [
+            i for i, line in enumerate(lines)
+            if line.startswith(f"{version_key}=")
+        ]
+        if len(version_indexes) > 1:
+            raise UpdaterV2Error("homeassistant_ota_version_env_line_count_invalid")
+        if version_indexes:
+            expected_version = homeassistant_image_version(expected)
+            replacement_version = homeassistant_image_version(replacement)
+            if expected_version is None or replacement_version is None:
+                raise UpdaterV2Error("homeassistant_ota_version_image_invalid")
+            version_index = version_indexes[0]
+            version_raw = lines[version_index]
+            version_ending = (
+                "\r\n" if version_raw.endswith("\r\n")
+                else ("\n" if version_raw.endswith("\n") else "")
+            )
+            observed_version = version_raw.rstrip("\r\n").split("=", 1)[1]
+            if observed_version != expected_version:
+                raise UpdaterV2Error("homeassistant_ota_version_env_drift")
+            lines[version_index] = f"{version_key}={replacement_version}{version_ending}"
+            ota_version_updated = True
+
     updated = "".join(lines).encode("utf-8")
     try:
         verify_text = updated.decode("utf-8")
@@ -334,6 +402,14 @@ def rewrite_component_env(
     ]
     if verified != [replacement]:
         raise UpdaterV2Error("compose_env_replace_verify_failed")
+    if ota_version_updated:
+        versions = [
+            line.split("=", 1)[1]
+            for line in verify_text.splitlines()
+            if line.startswith(f"{HA_OTA_INSTALLED_VERSION_KEY}=")
+        ]
+        if versions != [homeassistant_image_version(replacement)]:
+            raise UpdaterV2Error("homeassistant_ota_version_env_verify_failed")
     return updated
 
 

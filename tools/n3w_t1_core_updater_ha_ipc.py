@@ -34,6 +34,7 @@ from n3w_t1_core_updater_ha_usb_state import (
     U13B,
     HaUsbStateStore,
     new_transaction,
+    replaceable_capacity_blocked_preparation,
 )
 from n3w_t1_core_updater_v2_common import ComponentTarget, UpdaterV2Error, sha256_bytes
 
@@ -305,8 +306,17 @@ class HaUsbIpcExecutor:
                 "progress_percent": None,
                 "error_code": None,
             }
-        if document.get("pre_cutover_predecessor_restored") is True:
-            return {"phase": "ROLLED_BACK", "progress_percent": None, "error_code": None}
+        if (
+            document.get("pre_cutover_predecessor_restored") is True
+            or (document.get("status") == "ROLLED_BACK" and document.get("phase") == U4)
+        ):
+            failure = document.get("failure_code")
+            code = (
+                failure
+                if isinstance(failure, str) and _PUBLIC_CODE_RE.fullmatch(failure) is not None
+                else None
+            )
+            return {"phase": "ROLLED_BACK", "progress_percent": None, "error_code": code}
         if document["recovery_required"] and (
             "ha_data_restore" in document
             or "predecessor_release_intent" in document
@@ -336,6 +346,7 @@ class HaUsbIpcExecutor:
             raise UpdaterV2Error("ha_ota_ipc_phase_invalid")
         failure = document.get("failure_code")
         public_failures = {
+            U3: ("ha_usb_target_space_insufficient", "ha_usb_predecessor_space_insufficient"),
             U4: ("ha_usb_install_revalidation_failed", "ha_usb_predecessor_acceptance_baseline_unavailable"),
             U13B: ("ha_usb_target_acceptance_proven_failure", "ha_usb_target_acceptance_evidence_unavailable"),
         }
@@ -368,6 +379,10 @@ class HaUsbIpcExecutor:
         with self.store.lock():
             admission = self._resolve(release_identity)
             if action == "PREPARE":
+                current = self.store.read()
+                created_at = None
+                if current is not None and replaceable_capacity_blocked_preparation(current):
+                    created_at = max(int(time.time()), current["created_at_unix"] + 1)
                 document = new_transaction(
                     current_image_ref=admission.current_image_ref,
                     current_image_identity=dict(admission.current_image_identity),
@@ -375,6 +390,7 @@ class HaUsbIpcExecutor:
                     target_image_ref=admission.target_image_ref,
                     target_archive_sha256=admission.target_archive_sha256,
                     target_archive_size=admission.target_archive_size,
+                    created_at_unix=created_at,
                 )
                 self.store.prepare_new(replacement=request_prepare(document))
             else:

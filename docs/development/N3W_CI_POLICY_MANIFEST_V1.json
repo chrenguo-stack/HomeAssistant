@@ -550,6 +550,11 @@
       "class": "EXACT",
       "draft_policy": "run",
       "exceptions": {}
+    },
+    "n3w-t1-ota-r8-spare-preflight-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {}
     }
   }
 }

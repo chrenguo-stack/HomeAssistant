@@ -1,10 +1,27 @@
-## Current T1 Core Stack OTA product architecture — V1.2, 2026-11-20
+## Current T1 Core Stack OTA product architecture — V1.3, 2026-11-23
 
-Use [T1 Core Stack OTA V1.2](N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.2_20261119.md) as the design authority for implementation and acceptance.
-Sections 1, 3, 5, 6, 9, 10 and 11 cover the product contract, recovery and release acceptance.
-The executable OTA code and live runtime have yet to align with V1.2. For the active route,
-read the [current state](N3W_CURRENT_STATE.md) before using the historical R4/R5 sections below
-or the old OTA stack (#807, #809, #810 and #811). Earlier live authorizations do not carry forward.
+Use [T1 Core Stack OTA V1.3](N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.3_20261123.md) as the design authority for future implementation and acceptance.
+V1.3 supersedes V1.2 while preserving V1.2 as historical evidence.
+
+Stable V1.3 capacity conventions:
+
+```text
+USB_PRODUCT_MIN_CAPACITY_GB=16
+USB_MEASURED_USABLE_CAPACITY_MIN_BYTES=15032385536
+PER_OPERATION_DYNAMIC_USB_CAPACITY=true
+STATIC_GENERIC_USB_RESERVE=false
+TARGET_SIZE_SOURCE=APPROVED_EXACT_MANIFEST
+PREDECESSOR_SIZE_SOURCE=READONLY_ACTUAL_EXPORT_MEASUREMENT
+PROTECTED_DATA_SIZE_SOURCE=QUIESCED_SAME_PIPELINE_COUNT_ONLY_MEASUREMENT
+```
+
+Every variable-size USB write must re-read current free space immediately before that operation. Fixed constants may cover only explicitly bounded metadata/filesystem overhead. If protected-data capacity becomes insufficient after first stop, predecessor service recovery has priority and the capacity cause remains durably observable.
+
+Exact source heads, CI status, live transaction phase and one-shot authorization state are volatile and belong in [current state](N3W_CURRENT_STATE.md), not in this stable working-context file.
+
+Pre-stop target/predecessor space blocks are stable waiting states: timer wakes may re-measure free bytes but may not repeat the write while the gate still fails. A user who must change to a larger USB can issue a fresh PREPARE; only that pre-stop capacity-blocked U3 may be replaced, and its prior transaction/USB contents remain archived. Post-stop protected-data capacity failure restores the predecessor before presenting the failure.
+
+Current repository implementation is on PR #824. Live transaction phase, deployed updater revision, one-shot authority state, exact artifact binding, and next live gate are volatile; do not freeze them in this working-context file. Before any R8 live continuation, read [current state](N3W_CURRENT_STATE.md), [current state index](N3W_CURRENT_STATE_INDEX.md), and the current V1.3 handoff. Historical statements that the live transaction was still U1 are superseded; never rerun PREPARE, reactivate a retired prepare authority, or use the retired static-reserve U1→U4 command based on an older handoff.
 
 ## Stable updater authority — PR #788 mandatory-USB HA OTA R4 clean successor, 2026-11-06
 

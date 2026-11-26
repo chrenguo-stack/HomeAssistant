@@ -1,0 +1,35 @@
+{
+  "canonical_payload_sha256": "5046d2e180db6a0c620cfc91a58577d80a9fac2199b7155ff20015ca61caae03",
+  "canonicalization": "SHA256 of UTF-8 JSON payload with keys recursively sorted and separators=(',',':')",
+  "payload": {
+    "schema": "gh.n3w-t1-core-updater-compatibility/1",
+    "component": "manager",
+    "mutation_profile": "IMAGE_ONLY_V1",
+    "predecessor_source_head": "44e7d74727147975de88e85c4b18ba3f7493fd76",
+    "target_source_head": "1cae18039eeedb7f6dea2e3e352df26dd488a30e",
+    "product_delta_paths": [
+      "host/greenhouse-manager/src/greenhouse_manager/runtime/ha_update.py",
+      "host/greenhouse-manager/src/greenhouse_manager/runtime/mqtt_service.py",
+      "host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_simplified_isolated_mqtt_service.py",
+      "host/greenhouse-manager/src/greenhouse_manager/runtime/t1_ota_ipc.py",
+      "host/greenhouse-manager/src/greenhouse_manager/runtime/t1_ota_manager.py"
+    ],
+    "peer_contracts_compatible": true,
+    "persistent_schema_compatible": true,
+    "database_migration_required": false,
+    "config_migration_required": false,
+    "runtime_template_change_required": false,
+    "broker_change_required": false,
+    "homeassistant_change_required": false,
+    "board_change_required": false,
+    "rollback_compatible": true,
+    "ota_monitoring_self_test_added": true,
+    "live_predecessor_baseline_sha256": "78404869cda4b6fe14226b514623880b76045cd9a58a149f063d61edf57dd199",
+    "target_exact_artifact_id": 14818431290,
+    "target_exact_artifact_digest_sha256": "06baebb16e78f2d919e87cf4fd8bfadae43a59b78970151262fc4ef2d6edc4d4",
+    "target_manager_image": "local/greenhouse-manager:fresh-1cae18039eee",
+    "target_manager_image_id": "sha256:9547078268e5f2550b46583abbd87d9f0a6bbaa727a0af2c19379ca906954867",
+    "target_manager_tar_sha256": "bbce0ee5c399b2fbc315dcf34affb6391f54864144faba4f9efb983b160c8734",
+    "ha_monitoring_round_trip_ci": "PASS"
+  }
+}

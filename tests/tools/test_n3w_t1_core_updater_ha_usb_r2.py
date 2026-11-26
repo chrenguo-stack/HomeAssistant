@@ -61,6 +61,7 @@ from n3w_t1_core_updater_ha_usb import (
     record_media_bound,
     record_predecessor_capacity_released,
     record_predecessor_recovery_and_ha_quiesced,
+    record_pre_cutover_failure_terminal,
     record_recovery_admission,
     record_rollback_complete,
     record_target_accepted,
@@ -76,8 +77,7 @@ from n3w_t1_core_updater_ha_usb_media import (
     USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
     FormatAuthorization,
     RemovableDeviceCandidate,
-    UsbCapacityInputs,
-    assess_capacity,
+    UsbCapacityReport,
     authorize_destructive_format,
     select_single_eligible_device,
 )
@@ -100,7 +100,10 @@ from n3w_t1_core_updater_ha_usb_state import (
     HaUsbStateStore,
     new_transaction,
 )
-from n3w_t1_core_updater_v2_common import UpdaterV2Error, canonical, sha256_bytes
+from n3w_t1_core_updater_v2_common import (
+    HA_OTA_INSTALLED_VERSION_KEY, UpdaterV2Error, canonical, homeassistant_image_version, sha256_bytes,
+)
+from n3w_t1_core_updater_v2_state import V2StateStore
 from n3w_t1_portable_image_identity import parse_image_archive
 
 
@@ -116,15 +119,6 @@ OTHER_UUID = "87654321-4321-8765-4321-876543218765"
 FINGERPRINT = "a" * 64
 AUTHORIZATION_ID = "N3W_T1_CORE_UPDATER_HOMEASSISTANT_USB_R2_TEST_01"
 USB_BYTES = USB_MEASURED_USABLE_CAPACITY_MIN_BYTES
-CAPACITY_INPUTS = UsbCapacityInputs(
-    target_artifact_bytes=1 * 1024**3,
-    predecessor_recovery_worst_case_bytes=2 * 1024**3,
-    ha_data_backup_worst_case_bytes=3 * 1024**3,
-    transaction_metadata_and_working_bytes=1 * 1024**3,
-    removable_media_reserve_bytes=1 * 1024**3,
-)
-
-
 def sha(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -238,6 +232,74 @@ def first_stop_fixture(tmp_path):
     store = HaUsbStateStore(tmp_path / "state")
     store.write(tx)
     return predecessor, store, PredecessorRuntime(store)
+
+
+def test_u4_baseline_failure_can_finish_without_fabricating_rollback(tmp_path):
+    failed, *_ = prepare_to_u4(tmp_path)
+    failed = {
+        **failed,
+        "failure_code": "ha_usb_predecessor_acceptance_baseline_unavailable",
+    }
+    terminal = record_pre_cutover_failure_terminal(failed)
+    assert terminal["status"] == "ROLLED_BACK"
+    assert terminal["phase"] == U4
+    assert terminal["recovery_required"] is False
+    assert terminal["authorization_claimed"] is False
+    assert terminal["authorization_consumed"] is False
+    assert "predecessor_start" not in terminal
+
+    store = HaUsbStateStore(tmp_path / "precutover-terminal")
+    store.write(terminal)
+    projected = HaUsbIpcExecutor(store=store, admission_resolver=None).status()
+    assert projected == {
+        "phase": "ROLLED_BACK",
+        "progress_percent": None,
+        "error_code": "ha_usb_predecessor_acceptance_baseline_unavailable",
+    }
+
+
+def test_safe_u4_baseline_failure_retirement_allows_checker_repair(tmp_path):
+    failed, *_ = prepare_to_u4(tmp_path)
+    failed = {
+        **failed,
+        "failure_code": "ha_usb_predecessor_acceptance_baseline_unavailable",
+    }
+    store = HaUsbStateStore(tmp_path / "retire-u4")
+    store.write(failed)
+
+    class Runtime:
+        def capture_start_binding(self, document):
+            assert document["phase"] == U4
+            return {
+                "launch_sha256": "b" * 64,
+                "images": {
+                    "homeassistant": {
+                        "reference": document["current_image_ref"],
+                        "runtime_id": document["current_image_identity"].get(
+                            "runtime_image_id", "sha256:" + "1" * 64
+                        ),
+                    },
+                },
+            }
+
+        def _release_image(self, reference):
+            assert reference == failed["target_image_ref"]
+            return None
+
+    result = recovery_startup.retire_pre_cutover_failure(store, Runtime())
+    assert result == {
+        "status": "PRE_CUTOVER_FAILURE_RETIRED",
+        "transaction_status": "ROLLED_BACK",
+        "transaction_phase": U4,
+        "failure_code": "ha_usb_predecessor_acceptance_baseline_unavailable",
+        "install_authority_present": False,
+        "authorization_claimed": False,
+        "authorization_consumed": False,
+    }
+    terminal = store.read()
+    assert terminal["status"] == "ROLLED_BACK"
+    assert terminal["phase"] == U4
+    V2StateStore(store.root).prepare_new()
 
 
 def test_first_stop_requires_successfully_persisted_restart_binding(tmp_path, monkeypatch):
@@ -428,6 +490,77 @@ class StartupRuntime(recovery_startup.LocalHaPredecessorRuntime):
         raise InterruptedPower()
 
 
+
+def test_target_binding_normalization_restores_frozen_predecessor_launch(tmp_path):
+    runtime = StartupRuntime(tmp_path)
+    current_version = homeassistant_image_version(CURRENT)
+    target_version = homeassistant_image_version(TARGET)
+    assert current_version is not None and target_version is not None
+    runtime.compose["services"]["manager"]["environment"] = {
+        HA_OTA_INSTALLED_VERSION_KEY: current_version,
+    }
+    expected, _ = runtime._restart_binding()
+
+    runtime.compose["services"]["homeassistant"]["image"] = TARGET
+    runtime.compose["services"]["manager"]["environment"][
+        HA_OTA_INSTALLED_VERSION_KEY
+    ] = target_version
+    runtime.owner = "inactive"
+    runtime.running = {"broker"}
+    runtime._release_image = lambda reference: (
+        {"Id": runtime.image_id(reference)} if reference == CURRENT else None
+    )
+
+    normalized, _ = runtime._restart_binding(replacement=(TARGET, CURRENT))
+    assert normalized == expected
+
+    document = {
+        "predecessor_start": expected,
+        "current_image_ref": CURRENT,
+        "target_image_ref": TARGET,
+        "target_activation": recovery_startup.TARGET_BINDING,
+    }
+    runtime.verify_untouched_release_launch(document)
+
+    def rewrite(component, expected_reference, replacement):
+        assert component == "homeassistant"
+        assert runtime.compose["services"][component]["image"] == expected_reference
+        assert runtime.compose["services"]["manager"]["environment"][
+            HA_OTA_INSTALLED_VERSION_KEY
+        ] == target_version
+        runtime.compose["services"][component]["image"] = replacement
+        runtime.compose["services"]["manager"]["environment"][
+            HA_OTA_INSTALLED_VERSION_KEY
+        ] = current_version
+        runtime.rewrites += 1
+
+    runtime.rewrite_component_image = rewrite
+    runtime.restore_untouched_launch_binding(document)
+    restored, _ = runtime._restart_binding()
+    assert restored == expected
+    assert runtime.rewrites == 1
+
+    runtime.start_predecessor_if_needed(expected)
+    assert runtime.owner == "active"
+    assert runtime.running == {"broker", "manager", "homeassistant"}
+
+
+def test_target_binding_normalization_rejects_unrelated_ota_version_drift(tmp_path):
+    runtime = StartupRuntime(tmp_path)
+    target_version = homeassistant_image_version(TARGET)
+    assert target_version is not None
+    runtime.compose["services"]["homeassistant"]["image"] = TARGET
+    runtime.compose["services"]["manager"]["environment"] = {
+        HA_OTA_INSTALLED_VERSION_KEY: "2099.1.1",
+    }
+
+    with pytest.raises(
+        recovery_startup.UpdaterError,
+        match="ha_usb_rollback_ota_version_binding_drift",
+    ):
+        runtime._restart_binding(replacement=(TARGET, CURRENT))
+
+
 class ReleaseStartupRuntime(StartupRuntime):
     container_id = "d" * 64
 
@@ -453,7 +586,7 @@ class ReleaseStartupRuntime(StartupRuntime):
         if self.container_present:
             return [{
                 "container_id": self.container_id, "image_ref": CURRENT,
-                "image_id": self.saved["homeassistant"]["runtime_id"], "status": "exited", "replace": "",
+                "image_id": self.saved["homeassistant"]["runtime_id"], "status": "exited", "replace": "homeassistant-1",
             }]
         return []
 
@@ -466,7 +599,8 @@ class ReleaseStartupRuntime(StartupRuntime):
                 return SimpleNamespace(returncode=1, stdout=b"", stderr=b"Error: No such image")
             assert argv[-1] in {CURRENT, old_id}
             return SimpleNamespace(returncode=0, stdout=json.dumps([{
-                "Id": old_id, "RepoTags": [CURRENT], "RepoDigests": [],
+                "Id": old_id, "RepoTags": [CURRENT],
+                "RepoDigests": [CURRENT.rsplit(":", 1)[0] + "@" + old_id],
             }]).encode())
         if argv[:3] == ("docker", "image", "ls"):
             return SimpleNamespace(stdout=old_id.encode() if self.image_present else b"")
@@ -492,6 +626,38 @@ class ReleaseStartupRuntime(StartupRuntime):
         if argv[:3] == ("docker", "inspect", "--format") and argv[-1] == self.container_id:
             argv = (*argv[:-1], "homeassistant")
         return super()._run(argv, **kwargs)
+
+
+@pytest.mark.parametrize("reference", [CURRENT, TARGET])
+@pytest.mark.parametrize("tags_kind,digests_kind,expected", [
+    ("exact", "none", True),
+    ("exact", "empty", True),
+    ("exact", "same", True),
+    ("exact", "same_multiple", True),
+    ("exact", "foreign", False),
+    ("exact", "mixed", False),
+    ("exact", "malformed", False),
+    ("exact", "scalar", False),
+    ("extra", "same", False),
+    ("untagged", "same", False),
+])
+def test_release_reference_ownership_both_directions(reference, tags_kind, digests_kind, expected):
+    repository = reference.rsplit(":", 1)[0]
+    same = repository + "@sha256:" + "1" * 64
+    foreign = "other/repository@sha256:" + "2" * 64
+    tags = {"exact": [reference], "extra": [reference, repository + ":other"], "untagged": []}
+    digests = {
+        "none": None, "empty": [], "same": [same],
+        "same_multiple": [same, repository + "@sha256:" + "3" * 64],
+        "foreign": [foreign], "mixed": [same, foreign],
+        "malformed": [repository + "@sha256:short"], "scalar": same,
+    }
+    image = {"RepoTags": tags[tags_kind], "RepoDigests": digests[digests_kind]}
+    assert recovery_startup._exclusive_image_references(image, reference) is expected
+    rollback_expected = expected or tags_kind == "untagged" and digests_kind == "same"
+    assert recovery_startup._exclusive_image_references(
+        image, reference, allow_untagged=True,
+    ) is rollback_expected
 
 
 def test_first_stop_binding_requires_an_armed_recovery_timer(tmp_path, monkeypatch):
@@ -576,6 +742,7 @@ def test_release_and_boot_reconcile_exact_predecessor(tmp_path, monkeypatch, cap
     if fault == "shared":
         assert interrupted["phase"] == U8 and interrupted["status"] == "ROLLED_BACK"
         assert not interrupted["authorization_consumed"] and not runtime.removals
+        assert interrupted["failure_code"] == "ha_usb_release_predecessor_has_other_users"
         return
     if fault == "command_error_after_container":
         assert interrupted["phase"] == U13B and interrupted["authorization_consumed"]
@@ -664,8 +831,8 @@ def test_boot_entry_leaves_legacy_and_post_cutover_transactions_alone(tmp_path, 
     assert store.read() == post_cutover
 
 
-@pytest.mark.parametrize("monitoring_pending", [False, True])
-def test_boot_reconciles_selected_data_rollback_and_waits_for_health(tmp_path, monkeypatch, capsys, monitoring_pending):
+@pytest.mark.parametrize("pending_kind", ["error", "protected", "monitoring"])
+def test_boot_reconciles_selected_data_rollback_and_waits_for_health(tmp_path, monkeypatch, capsys, pending_kind):
     units = Path(__file__).resolve().parents[2] / "infra" / "n3w-t1" / "systemd"
     guard = units / f"{recovery_startup.SERVICES_UNIT}.d" / "ota-ha-recovery.conf"
     assert recovery_startup.BOOT_CONDITION in guard.read_text().splitlines()
@@ -709,8 +876,10 @@ def test_boot_reconciles_selected_data_rollback_and_waits_for_health(tmp_path, m
 
     def health_pending(document):
         assert recovery_startup.main(application_condition=True) == 0
-        if monitoring_pending:
+        if pending_kind == "monitoring":
             raise recovery_startup.HaRecoveryMonitoringPending("simulated monitoring interruption")
+        if pending_kind == "protected":
+            raise recovery_startup.HaRecoveryProtectedDataPending("ha_usb_rollback_protected_data_evidence_pending")
         raise recovery_startup.UpdaterError("simulated readiness interruption")
 
     with monkeypatch.context() as patch:
@@ -718,8 +887,12 @@ def test_boot_reconciles_selected_data_rollback_and_waits_for_health(tmp_path, m
             restore_preupgrade_data=publish_data,
         ))
         patch.setattr(runtime, "verify_published_predecessor_health", health_pending)
-        assert recovery_startup.main() == (0 if monitoring_pending else 1)
-        expected = "RECOVERY_MONITORING_EVIDENCE_PENDING" if monitoring_pending else "RECOVERY_STARTUP_NEEDS_REVIEW"
+        assert recovery_startup.main() == (1 if pending_kind == "error" else 0)
+        expected = {
+            "error": "RECOVERY_STARTUP_NEEDS_REVIEW",
+            "protected": "RECOVERY_PROTECTED_DATA_EVIDENCE_PENDING",
+            "monitoring": "RECOVERY_MONITORING_EVIDENCE_PENDING",
+        }[pending_kind]
         assert json.loads(capsys.readouterr().out) == {"status": expected}
     assert store.read()["phase"] == U11
     assert store.read()["ha_data_restore"]["step"] == "PUBLISHED"
@@ -1010,7 +1183,8 @@ def _exercise_target_import(tmp_path, monkeypatch, capsys, fault, *, single_imag
             loads.append(TARGET)
             loaded_target = {"Id": runtime_id, "Os": "linux", "Architecture": "arm64",
                              "Config": json.loads(target_config)["config"], "RootFS": {"Layers": target_layers},
-                             "RepoTags": [TARGET], "RepoDigests": []}
+                             "RepoTags": [TARGET],
+                             "RepoDigests": [TARGET.rsplit(":", 1)[0] + "@sha256:" + "9" * 64]}
             if single_image:
                 assert not runtime.image_present
                 assert available < store.read()["predecessor_release_admission"]["install_required_bytes"] + recovery_bytes
@@ -1082,7 +1256,8 @@ def _exercise_target_import(tmp_path, monkeypatch, capsys, fault, *, single_imag
                 assert f"UUID={USB_UUID}" in argv
                 return SimpleNamespace(returncode=0, stdout=json.dumps({"filesystems": mounts}).encode())
             if argv == ("docker", "image", "inspect", CURRENT) and runtime.image_present:
-                observed = {**runtime._image_document(CURRENT), "RepoTags": [CURRENT], "RepoDigests": []}
+                observed = {**runtime._image_document(CURRENT), "RepoTags": [CURRENT],
+                            "RepoDigests": [CURRENT.rsplit(":", 1)[0] + "@" + runtime.image_id(CURRENT)]}
                 return SimpleNamespace(returncode=0, stdout=json.dumps([observed]).encode())
             return original_run(argv, **kwargs)
 
@@ -1105,8 +1280,6 @@ def _exercise_target_import(tmp_path, monkeypatch, capsys, fault, *, single_imag
             "transaction_id_sha256": pending["transaction_id_sha256"],
             "usb_filesystem_uuid": USB_UUID,
             "target_source": str(target_path),
-            "max_predecessor_bytes": predecessor.archive_size_bytes,
-            "usb_reserve_bytes": 1024,
             "expires_at_unix": 0x7FFFFFFF,
         }
         customer_file = usb.root / "customer.txt"
@@ -1140,12 +1313,13 @@ def _exercise_target_import(tmp_path, monkeypatch, capsys, fault, *, single_imag
             interruption.setattr(store, "write", fail_ready)
             with pytest.raises(InterruptedPower):
                 recovery_startup.cli(["--resume-pending"])
-        assert store.read()["phase"] == U3 and exports == [CURRENT]
+        assert store.read()["phase"] == U3 and exports == [CURRENT, CURRENT]
         assert recovery_startup.cli(["--resume-pending"]) == 0
         assert json.loads(capsys.readouterr().out)["status"] == "READY_TO_INSTALL"
-        assert store.read()["phase"] == U4 and exports == [CURRENT]
+        assert store.read()["phase"] == U4 and exports == [CURRENT, CURRENT, CURRENT]
         assert (directory / "target.tar").read_bytes() == candidate_data
         assert (directory / "predecessor.tar").read_bytes() == old_path.read_bytes()
+        assert target_path.read_bytes() == candidate_data
         assert customer_file.read_bytes() == b"keep this file"
         assert not loads and runtime.starts == runtime.rewrites == 0
         assert recovery_startup.cli(["--resume-pending"]) == 0
@@ -1164,7 +1338,6 @@ def _exercise_target_import(tmp_path, monkeypatch, capsys, fault, *, single_imag
             "authorization_id": AUTHORIZATION_ID,
             "launch_sha256": binding["launch_sha256"],
             "expires_at_unix": 0x7FFFFFFF,
-            "space": dict.fromkeys(recovery_startup.INSTALL_BUDGET_FIELDS, 1024),
         }
         for wrong in (
             {"binding_sha256": "0" * 64}, {"expires_at_unix": 1}, {"launch_sha256": "0" * 64},
@@ -1178,9 +1351,17 @@ def _exercise_target_import(tmp_path, monkeypatch, capsys, fault, *, single_imag
                 assert submit("INSTALL")["accepted"] is True
         grant_path.unlink()
         request = {
-            **{key: grant[key] for key in ("binding_sha256", "authorization_id", "expires_at_unix", "space")},
+            **{key: grant[key] for key in ("binding_sha256", "authorization_id", "expires_at_unix")},
             "transaction_id_sha256": requested["transaction_id_sha256"],
         }
+        with pytest.raises(UpdaterV2Error, match="ha_usb_authority_request_not_admitted"):
+            runtime.issue_candidate_authority(store, "install", {
+                **request,
+                "space": {
+                    "internal_install_bytes": 1,
+                    "internal_recovery_overhead_bytes": 1,
+                },
+            })
         with pytest.raises(UpdaterV2Error, match="ha_usb_install_authority_invalid"):
             runtime.issue_candidate_authority(store, "install", {**request, "binding_sha256": "0" * 64})
         with monkeypatch.context() as replay:
@@ -1264,9 +1445,23 @@ def _exercise_target_import(tmp_path, monkeypatch, capsys, fault, *, single_imag
                         write(document)
 
                     monkeypatch.setattr(store, "write", interrupt_commit)
-                monkeypatch.setattr(ha_usb_mod.time, "sleep", lambda _: None)
+                if fault == "accept_unavailable":
+                    monkeypatch.setattr(ha_usb_mod, "HA_ACCEPTANCE_RETRY_SECONDS", 0)
                 result = recovery.accept_and_commit_target(provider)
                 assert result == store.read()
+                if fault == "accept_unavailable":
+                    assert result["status"] == "ACTIVE" and result["phase"] == U11
+                    assert result["target_acceptance"]["attempts"] == 1
+                    assert result["target_acceptance"]["last_attempt_verdicts"] == {
+                        "monitoring_path": "EVIDENCE_UNAVAILABLE",
+                        "protected_data": "PASS",
+                    }
+                    assert "retry_after_unix" in result["target_acceptance"]
+                    result = recovery.accept_and_commit_target(provider)
+                    assert result["status"] == "ACTIVE" and result["phase"] == U11
+                    assert result["target_acceptance"]["attempts"] == 2
+                    result = recovery.accept_and_commit_target(provider)
+                    assert result == store.read()
     if fault in {"commit_interrupted", "commit_runtime_drift"}:
         assert store.read()["phase"] == U12 and store.read()["status"] == "ACTIVE"
         instance_changed = fault == "commit_runtime_drift"
@@ -1564,7 +1759,14 @@ def test_boot_restores_a_released_predecessor_from_bound_media(tmp_path, monkeyp
 class SyntheticUsb:
     def __init__(self, root: Path):
         self.root = root
-        self.report = assess_capacity(USB_BYTES, CAPACITY_INPUTS)
+        self.report = UsbCapacityReport(
+            measured_usable_bytes=USB_BYTES,
+            required_bytes=len(TARGET_BYTES),
+            measured_floor_bytes=USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
+            measured_floor_pass=True,
+            transaction_formula_pass=True,
+            capacity_pass=True,
+        )
 
     def format(self):
         selected = select_single_eligible_device([candidate()])
@@ -1907,7 +2109,6 @@ def test_verify_existing_usb_media_from_bound_archives(tmp_path, monkeypatch, fa
         internal_storage=tmp_path,
         image_storage=tmp_path,
         ha_data_root=ha.root,
-        budget=lambda _: mounted_media.HaInstallSpaceBudget(1024, 2048, 1024, 2048),
         verify_prestate=lambda _: True,
     )
     errors = {

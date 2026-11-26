@@ -6,9 +6,11 @@ import copy
 import hashlib
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -37,20 +39,24 @@ from n3w_t1_core_updater_ha_monitoring_evidence import (
     LocalHaMonitoringEvidence, READ_HA_RECEIPTS, REQUEST_MANAGER_SELF_TEST,
 )
 from n3w_t1_core_updater_ha_mounted_media import (
-    HaInstallSpaceBudget, HaMountedBackupProvider, HaMountedInstallMaterialVerifier, bound_usb_device,
+    HaMountedBackupProvider, HaMountedInstallMaterialVerifier, bound_usb_device,
     measure_preparation_capacity, prepare_mounted_archives,
 )
 from n3w_t1_core_updater_ha_usb import (
     HaDataRestoreProvider, HaPredecessorRecovery, HaPredecessorRelease, destructive_cutover_allowed,
-    ha_data_rollback_required, record_existing_media_bound, record_target_ready, resume_host_recovery,
-    start_target_preparation,
+    ha_data_rollback_required, record_existing_media_bound, record_pre_cutover_failure_terminal,
+    record_target_ready, resume_host_recovery, start_target_preparation,
 )
 from n3w_t1_core_updater_ha_usb_media import USB_FILESYSTEM, validate_filesystem_uuid
 from n3w_t1_core_updater_ha_usb_state import (
-    TARGET_BINDING, TARGET_WRITES_POSSIBLE, U1, U2, U3, U5, U6, U9, U10, HaUsbStateStore,
+    TARGET_BINDING, TARGET_WRITES_POSSIBLE, U1, U2, U3, U4, U5, U6, U9, U10, HaUsbStateStore,
+    record_usb_capacity_event,
 )
 from n3w_t1_core_updater_host import DEFAULT_SERVICES_READINESS_TIMEOUT_SECONDS, LocalHost
-from n3w_t1_core_updater_v2_common import AUTHORIZATION_ID, COMPONENTS, SHA256, UpdaterV2Error
+from n3w_t1_core_updater_v2_common import (
+    AUTHORIZATION_ID, COMPONENTS, HA_OTA_INSTALLED_VERSION_KEY, SHA256, UpdaterV2Error,
+    homeassistant_image_version,
+)
 from n3w_t1_portable_image_identity import (
     MAX_ARCHIVE_BYTES, PortableImageIdentity, identity_from_dict, observe_docker_image, verify_runtime_document,
 )
@@ -68,12 +74,38 @@ RECOVERY_TIMER = "n3w-t1-ha-recovery-retry.timer"
 BOOT_CONDITION = f"ExecCondition={RECOVERY_COMMAND} --check-application-start"
 IMAGE_LOAD_TIMEOUT_SECONDS = 1800
 PREPARE_AUTHORITY_FILE = "ha-prepare-authority.json"
-PREPARE_AUTHORITY_SCHEMA = "gh.n3w-t1-ha-prepare-authority/1"
+PREPARE_AUTHORITY_SCHEMA = "gh.n3w-t1-ha-prepare-authority/2"
 INSTALL_AUTHORITY_FILE = "ha-install-authority.json"
-INSTALL_AUTHORITY_SCHEMA = "gh.n3w-t1-ha-install-authority/1"
-INSTALL_BUDGET_FIELDS = {
-    "usb_install_bytes", "usb_recovery_bytes", "internal_install_bytes", "internal_recovery_overhead_bytes",
-}
+INSTALL_AUTHORITY_SCHEMA = "gh.n3w-t1-ha-install-authority/3"
+
+
+def _exclusive_image_references(
+    image: dict[str, Any], reference: str, *, allow_untagged: bool = False,
+) -> bool:
+    """Match Docker's single-repository ownership rule, not an empty digest list.
+
+    RepoDigests are aliases reported for the inspected image; their manifest
+    digests need not equal the host-local image ID. Keep all other ownership
+    and non-forced deletion checks independent of this metadata predicate.
+    """
+    tags = image.get("RepoTags")
+    if tags != [reference] and not (allow_untagged and tags in (None, [])):
+        return False
+    repository, separator, tag = reference.rpartition(":")
+    if not separator or not repository or not tag or "@" in reference:
+        return False
+    digests = image.get("RepoDigests")
+    if digests is None:
+        return True
+    if not isinstance(digests, list):
+        return False
+    for digest in digests:
+        if not isinstance(digest, str):
+            return False
+        name, separator, value = digest.partition("@sha256:")
+        if not separator or name != repository or SHA256.fullmatch(value) is None:
+            return False
+    return True
 
 
 def requested_install_binding_sha256(document: dict[str, Any]) -> str:
@@ -163,13 +195,11 @@ def _validate_prepare_authority(grant: dict[str, Any], document: dict[str, Any])
     if (
         set(grant) != {
             "schema", "transaction_id_sha256", "usb_filesystem_uuid", "target_source",
-            "launch_sha256", "expires_at_unix", "max_predecessor_bytes", "usb_reserve_bytes",
+            "launch_sha256", "expires_at_unix",
         }
         or grant["schema"] != PREPARE_AUTHORITY_SCHEMA
         or grant["transaction_id_sha256"] != document["transaction_id_sha256"]
         or not isinstance(grant["target_source"], str) or not Path(grant["target_source"]).is_absolute()
-        or any(type(grant[key]) is not int or not 0 < grant[key] <= MAX_ARCHIVE_BYTES
-               for key in ("max_predecessor_bytes", "usb_reserve_bytes"))
     ):
         raise UpdaterV2Error(reason)
     grant["usb_filesystem_uuid"] = validate_filesystem_uuid(grant["usb_filesystem_uuid"])
@@ -184,15 +214,48 @@ def _read_install_authority(store: HaUsbStateStore, document: dict[str, Any]) ->
 def _validate_install_authority(grant: dict[str, Any], document: dict[str, Any]) -> dict[str, Any]:
     reason = "ha_usb_install_authority_invalid"
     if (
-        set(grant) != {"schema", "binding_sha256", "authorization_id", "launch_sha256", "expires_at_unix", "space"}
+        set(grant) != {"schema", "binding_sha256", "authorization_id", "launch_sha256", "expires_at_unix"}
         or grant["schema"] != INSTALL_AUTHORITY_SCHEMA
         or grant["binding_sha256"] != requested_install_binding_sha256(document)
         or not isinstance(grant["authorization_id"], str) or not AUTHORIZATION_ID.fullmatch(grant["authorization_id"])
-        or not isinstance(grant["space"], dict) or grant["space"].keys() != INSTALL_BUDGET_FIELDS
-        or any(type(value) is not int or value <= 0 for value in grant["space"].values())
     ):
         raise UpdaterV2Error(reason)
     return grant
+
+
+def _retire_owned_candidate_archive(
+    store: HaUsbStateStore,
+    document: dict[str, Any],
+    source: Path,
+) -> bool:
+    """Free only the updater-owned internal candidate after USB has exact durable copies."""
+    expected = store.root / f"ha-target-{document['target_archive_sha256']}.tar"
+    if source != expected:
+        return False
+    try:
+        metadata = source.lstat()
+    except FileNotFoundError:
+        return True
+    if (
+        source.resolve(strict=True) != source
+        or source.parent.resolve(strict=True) != store.root.resolve(strict=True)
+        or not stat.S_ISREG(metadata.st_mode)
+        or stat.S_IMODE(metadata.st_mode) != 0o600
+        or metadata.st_uid != os.geteuid()
+        or metadata.st_nlink != 1
+        or metadata.st_size != document["target_archive_size"]
+    ):
+        raise UpdaterV2Error("ha_usb_owned_target_source_invalid")
+    try:
+        source.unlink()
+        parent = os.open(store.root, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(parent)
+        finally:
+            os.close(parent)
+    except OSError as error:
+        raise UpdaterV2Error("ha_usb_owned_target_source_retirement_failed") from error
+    return True
 
 
 def _protected_data_evidence(origins: dict[str, dict[str, str]]) -> HaProtectedDataEvidence:
@@ -205,6 +268,10 @@ class HaRecoveryMediaRequired(UpdaterError):
     pass
 
 
+class HaRecoveryProtectedDataPending(UpdaterError):
+    pass
+
+
 class HaRecoveryMonitoringPending(UpdaterError):
     pass
 
@@ -212,25 +279,33 @@ class HaRecoveryMonitoringPending(UpdaterError):
 class LocalHaPredecessorRuntime(LocalHost):
     ha_data_root = DEFAULT_HA_DATA_ROOT
 
-    def require_candidate_manager_monitoring(self) -> None:
+    def candidate_manager_monitoring_self_test_available(self) -> bool:
         manager = self._runtime("manager")
         result = self._run((
             "docker", "exec", manager["container_id"], "python3", "-I", "-B", "-c",
             "from greenhouse_manager.runtime.mqtt_service import ManagerMqttService\n"
             "raise SystemExit(0 if callable(getattr(ManagerMqttService, "
-            "'_publish_ota_monitoring_self_test', None)) else 1)",
+            "'_publish_ota_monitoring_self_test', None)) else 42)",
         ), check=False, timeout=10)
-        if result.returncode != 0:
-            raise UpdaterError("ha_recovery_candidate_manager_monitoring_unavailable")
+        if result.returncode == 0:
+            return True
+        if result.returncode == 42:
+            return False
+        raise UpdaterError("ha_recovery_candidate_manager_monitoring_probe_failed")
 
     def acceptance_observer(self) -> LocalHaAcceptanceObserver:
         binding, origins = self._restart_binding()
         if not all(self._check_running_predecessor(binding, origins).values()):
             raise UpdaterError("ha_usb_predecessor_acceptance_runtime_unavailable")
         monitoring = self._monitoring_evidence(origins)
+        self_test = (
+            monitoring.run_self_test
+            if self.candidate_manager_monitoring_self_test_available()
+            else None
+        )
         return LocalHaAcceptanceObserver(
             monitoring, _protected_data_evidence(origins), monitoring_method=NATURAL_MONITORING_METHOD,
-            self_test=monitoring.run_self_test,
+            self_test=self_test,
         )
 
     def _monitoring_evidence(self, origins: dict[str, dict[str, str]]) -> LocalHaMonitoringEvidence:
@@ -282,6 +357,18 @@ class LocalHaPredecessorRuntime(LocalHost):
                 if process.poll() is None:
                     process.kill()
 
+
+    def _measure_predecessor_archive(self, reference: str) -> int:
+        total = 0
+        with self._export_predecessor(reference) as source:
+            while block := source.read(1024 * 1024):
+                total += len(block)
+                if total > MAX_ARCHIVE_BYTES:
+                    raise UpdaterV2Error("ha_usb_predecessor_archive_size_invalid")
+        if total <= 0:
+            raise UpdaterV2Error("ha_usb_predecessor_archive_size_invalid")
+        return total
+
     def issue_candidate_authority(self, store: HaUsbStateStore, kind: str, request: dict[str, Any]) -> str:
         """Bind an explicit operator approval to the current private transaction."""
         with store.lock():
@@ -310,7 +397,7 @@ class LocalHaPredecessorRuntime(LocalHost):
             binding_key = "transaction_id_sha256" if kind == "prepare" else "binding_sha256"
             request_fields = {"transaction_id_sha256", "expires_at_unix"}
             if kind == "prepare":
-                fields = {"usb_filesystem_uuid", "target_source", "max_predecessor_bytes", "usb_reserve_bytes"}
+                fields = {"usb_filesystem_uuid", "target_source"}
                 if document["phase"] not in {U1, U2, U3} or request.keys() != request_fields | fields:
                     raise UpdaterV2Error("ha_usb_authority_request_not_admitted")
                 grant = _validate_prepare_authority({
@@ -325,15 +412,14 @@ class LocalHaPredecessorRuntime(LocalHost):
                 mountpoint = self._original_mountpoint(uuid)
                 if document["phase"] == U1:
                     measure_preparation_capacity(
-                        mountpoint, store.root, uuid,
-                        document["target_archive_size"] + grant["max_predecessor_bytes"] + grant["usb_reserve_bytes"],
+                        mountpoint, store.root, uuid, document["target_archive_size"],
                     )
                 with self._open_target_source(Path(grant["target_source"]), document["target_archive_size"]) as archive:
                     if hashlib.file_digest(archive, "sha256").hexdigest() != document["target_archive_sha256"]:
                         raise UpdaterV2Error("ha_usb_prepare_authority_target_digest_mismatch")
                 destination = store.root / PREPARE_AUTHORITY_FILE
             elif kind == "install":
-                fields = {"binding_sha256", "authorization_id", "space"}
+                fields = {"binding_sha256", "authorization_id"}
                 if (
                     document["phase"] not in {U5, U6} or document.get("usb_binding_mode") != "existing_filesystem"
                     or request.keys() != request_fields | fields
@@ -374,11 +460,9 @@ class LocalHaPredecessorRuntime(LocalHost):
             if binding["launch_sha256"] != grant["launch_sha256"]:
                 raise UpdaterV2Error("ha_usb_prepare_authority_drift")
             mountpoint = self._original_mountpoint(uuid)
-            reserve = grant["usb_reserve_bytes"]
-            max_predecessor = grant["max_predecessor_bytes"]
             if document["phase"] == U1:
                 capacity = measure_preparation_capacity(
-                    mountpoint, store.root, uuid, document["target_archive_size"] + max_predecessor + reserve,
+                    mountpoint, store.root, uuid, document["target_archive_size"],
                 )
                 document = record_existing_media_bound(document, filesystem_uuid=uuid, capacity_report=capacity)
                 store.write(document)
@@ -387,6 +471,53 @@ class LocalHaPredecessorRuntime(LocalHost):
                 store.write(document)
 
             old = binding["images"]["homeassistant"]
+
+            def capacity_admit(operation: str, required: int, available: int, passed: bool) -> None:
+                latest = store.read()
+                if (
+                    latest is None or latest["status"] != "ACTIVE" or latest["phase"] != U3
+                    or latest["transaction_id_sha256"] != document["transaction_id_sha256"]
+                ):
+                    raise UpdaterV2Error("ha_usb_capacity_event_transaction_drift")
+                store.write(record_usb_capacity_event(
+                    latest,
+                    operation=operation,
+                    required_bytes=required,
+                    available_bytes_before=available,
+                    capacity_pass=passed,
+                ))
+
+            def capacity_complete(operation: str, actual: int, available_after: int) -> None:
+                latest = store.read()
+                if (
+                    latest is None or latest["status"] != "ACTIVE" or latest["phase"] != U3
+                    or latest["transaction_id_sha256"] != document["transaction_id_sha256"]
+                ):
+                    raise UpdaterV2Error("ha_usb_capacity_event_transaction_drift")
+                events = latest.get("usb_capacity_events", [])
+                matching = [event for event in events if event["operation"] == operation]
+                if not matching:
+                    # A fully verified final archive may predate V1.3 (for example an
+                    # in-place takeover of a pre-V1.3 U3). No V1.3 write happened in
+                    # this call, so do not fabricate historical pre-write capacity
+                    # evidence. New writes still require an admission event.
+                    return
+                if matching[-1]["actual_written_bytes"] is not None:
+                    if matching[-1]["actual_written_bytes"] == actual:
+                        return
+                    raise UpdaterV2Error("ha_usb_capacity_event_completion_drift")
+                if not events or events[-1]["operation"] != operation:
+                    raise UpdaterV2Error("ha_usb_capacity_event_admission_missing")
+                admission = events[-1]
+                store.write(record_usb_capacity_event(
+                    latest,
+                    operation=operation,
+                    required_bytes=admission["required_bytes"],
+                    available_bytes_before=admission["available_bytes_before"],
+                    capacity_pass=True,
+                    actual_written_bytes=actual,
+                    available_bytes_after=available_after,
+                ))
 
             def verify_predecessor(identity: PortableImageIdentity) -> None:
                 observed = self._release_image(old["reference"])
@@ -399,15 +530,33 @@ class LocalHaPredecessorRuntime(LocalHost):
                 if expected is not None and expected != sha256_bytes(canonical(identity.to_dict())):
                     raise UpdaterV2Error("ha_usb_preparation_predecessor_archive_drift")
 
-            target, predecessor = prepare_mounted_archives(
-                mountpoint, store.root, document,
-                target_source=lambda: self._open_target_source(Path(grant["target_source"]), document["target_archive_size"]),
-                predecessor_source=lambda: self._export_predecessor(old["reference"]),
-                verify_predecessor=verify_predecessor, max_predecessor_bytes=max_predecessor, reserve=reserve,
-            )
-            if _read_prepare_authority(store, document) != grant or self.capture_start_binding(document) != binding:
+            try:
+                target, predecessor = prepare_mounted_archives(
+                    mountpoint, store.root, document,
+                    target_source=lambda: self._open_target_source(Path(grant["target_source"]), document["target_archive_size"]),
+                    predecessor_source=lambda: self._export_predecessor(old["reference"]),
+                    measure_predecessor_size=lambda: self._measure_predecessor_archive(old["reference"]),
+                    verify_predecessor=verify_predecessor,
+                    capacity_admit=capacity_admit,
+                    capacity_complete=capacity_complete,
+                )
+            except UpdaterV2Error as error:
+                code = str(error)
+                if code in {"ha_usb_target_space_insufficient", "ha_usb_predecessor_space_insufficient"}:
+                    latest = store.read()
+                    if latest is not None and latest["status"] == "ACTIVE" and latest["phase"] == U3:
+                        store.write({**latest, "failure_code": code})
+                raise
+            latest = store.read()
+            if (
+                latest is None or latest["status"] != "ACTIVE" or latest["phase"] != U3
+                or latest["transaction_id_sha256"] != document["transaction_id_sha256"]
+                or _read_prepare_authority(store, latest) != grant
+                or self.capture_start_binding(latest) != binding
+            ):
                 raise UpdaterV2Error("ha_usb_prepare_authority_drift")
-            store.write(record_target_ready(document, target=target, predecessor=predecessor))
+            _retire_owned_candidate_archive(store, latest, Path(grant["target_source"]))
+            store.write(record_target_ready(latest, target=target, predecessor=predecessor))
             return "READY_TO_INSTALL"
 
     def install_requested(self, store: HaUsbStateStore) -> str:
@@ -439,7 +588,7 @@ class LocalHaPredecessorRuntime(LocalHost):
 
         materials = HaMountedInstallMaterialVerifier(
             mountpoint=media.mountpoint, internal_storage=store.root, image_storage=image_storage,
-            ha_data_root=self.ha_data_root, budget=lambda _: HaInstallSpaceBudget(**grant["space"]),
+            ha_data_root=self.ha_data_root,
             verify_prestate=lambda current: self._verify_install_prestate(current, grant["launch_sha256"]),
         )
         result = HaPredecessorRecovery(store, self, self).install_requested(materials, media, authorize)
@@ -461,7 +610,13 @@ class LocalHaPredecessorRuntime(LocalHost):
                 binding == document["predecessor_start"] and counts["manager"] == counts["homeassistant"] == 0
                 and self.rollback_writers_quiesced()
             )
-        return all(counts.values()) and self._systemctl("is-active", SERVICES_UNIT) == "active"
+        if not all(counts.values()) or self._systemctl("is-active", SERVICES_UNIT) != "active":
+            return False
+        old = binding["images"]["homeassistant"]
+        image = self._release_image(old["runtime_id"])
+        if image is None or not _exclusive_image_references(image, old["reference"]):
+            raise UpdaterV2Error("ha_usb_release_predecessor_exclusive_reference_unverified")
+        return True
 
     def verify_predecessor_health(self, document: dict[str, Any]) -> None:
         live, origins = self._restart_binding()
@@ -499,6 +654,19 @@ class LocalHaPredecessorRuntime(LocalHost):
                 raise UpdaterError("ha_usb_rollback_compose_binding_drift")
             compose = copy.deepcopy(compose)
             compose["services"]["homeassistant"]["image"] = predecessor
+            expected_version = homeassistant_image_version(expected)
+            predecessor_version = homeassistant_image_version(predecessor)
+            if expected_version is None or predecessor_version is None:
+                raise UpdaterError("ha_usb_rollback_homeassistant_version_binding_invalid")
+            for service in compose["services"].values():
+                environment = service.get("environment")
+                if (
+                    isinstance(environment, dict)
+                    and HA_OTA_INSTALLED_VERSION_KEY in environment
+                ):
+                    if environment[HA_OTA_INSTALLED_VERSION_KEY] != expected_version:
+                        raise UpdaterError("ha_usb_rollback_ota_version_binding_drift")
+                    environment[HA_OTA_INSTALLED_VERSION_KEY] = predecessor_version
             references = {**references, "homeassistant": predecessor}
         images = {}
         for name, reference in references.items():
@@ -844,7 +1012,7 @@ class LocalHaPredecessorRuntime(LocalHost):
         image = self._release_image(old["runtime_id"])
         if (
             image is None or self.observe_predecessor_released(document)
-            or image.get("RepoTags") != [old["reference"]] or image.get("RepoDigests") not in (None, [])
+            or not _exclusive_image_references(image, old["reference"])
         ):
             raise UpdaterError("ha_usb_release_predecessor_exclusive_reference_unverified")
         residue = self.component_container_residue("homeassistant")
@@ -855,7 +1023,7 @@ class LocalHaPredecessorRuntime(LocalHost):
             container = residue[0]
             container_id = container["container_id"]
             if (
-                SHA256.fullmatch(container_id) is None or container["status"] != "exited" or container["replace"]
+                SHA256.fullmatch(container_id) is None or container["status"] != "exited"
                 or (container["image_ref"], container["image_id"]) != (old["reference"], old["runtime_id"])
             ):
                 raise UpdaterError("ha_usb_release_predecessor_container_drift")
@@ -920,8 +1088,7 @@ class LocalHaPredecessorRuntime(LocalHost):
         image_id = self._verify_target_image(document, identity_from_dict(proof), image)
         if (
             document.get("target_loaded_image_id", image_id) != image_id
-            or image.get("RepoTags") not in ([reference], [], None)
-            or image.get("RepoDigests") not in ([], None)
+            or not _exclusive_image_references(image, reference, allow_untagged=True)
         ):
             raise UpdaterError("ha_usb_rollback_target_exclusive_reference_unverified")
         return image_id
@@ -948,7 +1115,7 @@ class LocalHaPredecessorRuntime(LocalHost):
             container_id = container["container_id"]
             if (
                 SHA256.fullmatch(container_id) is None or container["status"] not in {"created", "exited"}
-                or container["replace"] or (container["image_ref"], container["image_id"]) != (reference, image_id)
+                or (container["image_ref"], container["image_id"]) != (reference, image_id)
             ):
                 raise UpdaterError("ha_usb_rollback_target_container_drift")
             self._check_protected_mounts(container_id, {"/config": str(self.ha_data_root)})
@@ -1079,7 +1246,7 @@ class LocalHaPredecessorRuntime(LocalHost):
         if sample is None:
             return
         if _protected_data_evidence(origins).compare(sample) != "PASS":
-            raise UpdaterError("ha_usb_rollback_protected_data_evidence_pending")
+            raise HaRecoveryProtectedDataPending("ha_usb_rollback_protected_data_evidence_pending")
 
     def _verify_recovered_monitoring(self, document: dict[str, Any], origins: dict[str, dict[str, str]]) -> None:
         state = document.get("target_acceptance", {})
@@ -1215,14 +1382,153 @@ def _dispatch_pending_candidate(store: HaUsbStateStore, runtime: LocalHaPredeces
     document = store.read()
     if document is None or document["status"] != "ACTIVE" or document["recovery_required"]:
         return "NO_PENDING_RECOVERY"
-    if document["phase"] in {U1, U2, U3} and (store.root / PREPARE_AUTHORITY_FILE).exists():
+    capacity_failures = {
+        "ha_usb_target_space_insufficient": "target_archive",
+        "ha_usb_predecessor_space_insufficient": "predecessor_archive",
+    }
+    failure = document.get("failure_code")
+    if document["phase"] == U3 and failure in capacity_failures:
+        operation = capacity_failures[failure]
+        events = document.get("usb_capacity_events", [])
+        matching = [
+            event for event in events
+            if event["operation"] == operation and event["capacity_pass"] is False
+        ]
+        if not matching:
+            raise UpdaterV2Error("ha_usb_capacity_block_evidence_missing")
+        blocked = matching[-1]
+        mountpoint = runtime._original_mountpoint(document["usb_filesystem_uuid"])
+        report = measure_preparation_capacity(
+            mountpoint, store.root, document["usb_filesystem_uuid"], blocked["required_bytes"],
+        )
+        if report.capacity_pass is not True:
+            return "PREPARE_WAITING_FOR_USB_SPACE"
+        with store.lock():
+            latest = store.read()
+            if (
+                latest is None or latest["status"] != "ACTIVE" or latest["phase"] != U3
+                or latest.get("failure_code") != failure
+            ):
+                raise UpdaterV2Error("ha_usb_capacity_block_transaction_drift")
+            store.write({
+                **latest,
+                "failure_code": None,
+                "updated_at_unix": max(latest["updated_at_unix"], int(time.time())),
+            })
+        document = store.read()
+    prepare_authority = store.root / PREPARE_AUTHORITY_FILE
+    if document["phase"] in {U1, U2, U3} and prepare_authority.exists():
+        raw_authority = _read_authority_file(
+            prepare_authority, "ha_usb_prepare_authority_invalid"
+        )
+        if raw_authority.get("transaction_id_sha256") != document["transaction_id_sha256"]:
+            return "PREPARE_WAITING_FOR_AUTHORITY"
         return runtime.prepare_requested(store)
     if (
         document["phase"] in {U5, U6} and "predecessor_start" not in document
         and (store.root / INSTALL_AUTHORITY_FILE).exists()
     ):
         return runtime.install_requested(store)
+    if (
+        document["phase"] == "U11_TARGET_INSTALLED_STARTED"
+        and document.get("target_activation") == TARGET_WRITES_POSSIBLE
+        and "target_acceptance" in document
+    ):
+        state = document["target_acceptance"]
+        retry_after = state.get("retry_after_unix")
+        if type(retry_after) is int and time.time() < retry_after:
+            return "TARGET_ACCEPTANCE_WAITING"
+        media = runtime.mounted_recovery_provider(store, document, require_original=True)
+        result = HaPredecessorRecovery(store, runtime, runtime).resume_target_acceptance(media)
+        if result["status"] == "COMMITTED":
+            return "COMMITTED"
+        if result["status"] == "ROLLED_BACK":
+            return "ROLLED_BACK"
+        return "TARGET_ACCEPTANCE_PENDING"
     return "NO_PENDING_RECOVERY"
+
+
+def retire_pre_cutover_failure(
+    store: HaUsbStateStore,
+    runtime: LocalHaPredecessorRuntime,
+) -> dict[str, object]:
+    """Close a proven no-mutation U4 failure so checker/runtime repair can proceed."""
+    authority_path = store.root / INSTALL_AUTHORITY_FILE
+    with store.lock():
+        document = store.read()
+        if document is None:
+            raise UpdaterV2Error("ha_usb_pre_cutover_failure_transaction_missing")
+        if (
+            document["phase"] != U4
+            or document.get("failure_code") not in {
+                "ha_usb_predecessor_acceptance_baseline_unavailable",
+                "ha_usb_install_revalidation_failed",
+            }
+            or document["recovery_required"]
+            or document["authorization_claimed"]
+            or document["authorization_consumed"]
+            or document.get("authorization_id_sha256") is not None
+            or "predecessor_start" in document
+        ):
+            raise UpdaterV2Error("ha_usb_pre_cutover_failure_retirement_not_admitted")
+        if document["status"] not in {"ACTIVE", "ROLLED_BACK"}:
+            raise UpdaterV2Error("ha_usb_pre_cutover_failure_retirement_not_admitted")
+
+        binding = runtime.capture_start_binding(document)
+        _require_signed_predecessor(document, binding)
+        if runtime._release_image(document["target_image_ref"]) is not None:
+            raise UpdaterV2Error("ha_usb_pre_cutover_failure_target_image_present")
+
+        if authority_path.exists():
+            grant = _read_authority_file(authority_path, "ha_usb_install_authority_invalid")
+            _validate_install_authority(grant, document)
+            if grant.get("launch_sha256") != binding["launch_sha256"]:
+                raise UpdaterV2Error("ha_usb_install_authority_invalid")
+
+        if document["status"] == "ACTIVE":
+            document = record_pre_cutover_failure_terminal(document)
+            store.write(document)
+
+        if authority_path.exists():
+            authority_path.unlink()
+            parent = os.open(store.root, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(parent)
+            finally:
+                os.close(parent)
+
+        return {
+            "status": "PRE_CUTOVER_FAILURE_RETIRED",
+            "transaction_status": document["status"],
+            "transaction_phase": document["phase"],
+            "failure_code": document["failure_code"],
+            "install_authority_present": authority_path.exists(),
+            "authorization_claimed": document["authorization_claimed"],
+            "authorization_consumed": document["authorization_consumed"],
+        }
+
+
+def maintenance_submit_approved_release(
+    store: HaUsbStateStore,
+    runtime: LocalHaPredecessorRuntime,
+    *,
+    action: str,
+    release_identity: str,
+) -> dict[str, object]:
+    """Submit an operator-maintenance intent through the durable HA transaction executor.
+
+    This intentionally bypasses the Manager's user-facing version ordering only.
+    Candidate admission, release pinning, transaction persistence, recovery ownership,
+    and every destructive install boundary remain unchanged.
+    """
+    resolver = LocalApprovedHaRelease(
+        store.root / RELEASE_PIN,
+        IPC_SOCKET.with_name(APPROVED_MANIFEST),
+        lambda: runtime._runtime("homeassistant"),
+    )
+    return HaUsbIpcExecutor(store=store, admission_resolver=resolver).submit(
+        action, release_identity,
+    )
 
 
 def main(
@@ -1261,6 +1567,9 @@ def main(
     except HaRecoveryMediaRequired:
         print(json.dumps({"status": "RECOVERY_MEDIA_REQUIRED"}))
         return 0
+    except HaRecoveryProtectedDataPending:
+        print(json.dumps({"status": "RECOVERY_PROTECTED_DATA_EVIDENCE_PENDING"}))
+        return 0
     except HaRecoveryMonitoringPending:
         print(json.dumps({"status": "RECOVERY_MONITORING_EVIDENCE_PENDING"}))
         return 0
@@ -1274,6 +1583,11 @@ def main(
             elif serve_ipc:
                 status = "IPC_STARTUP_NEEDS_REVIEW"
             print(json.dumps({"status": status}))
+            # Never expose subprocess output, paths, or arbitrary exception text.
+            code = str(error) if isinstance(error, (UpdaterError, UpdaterV2Error)) else ""
+            if re.fullmatch(r"ha_[a-z0-9_]{1,190}", code) is None:
+                code = type(error).__name__
+            print(json.dumps({"failure_reason": code}), file=sys.stderr)
         return 1
     if not pending_only or status != "NO_PENDING_RECOVERY":
         print(json.dumps({"status": status}))
@@ -1289,7 +1603,55 @@ def cli(argv: Sequence[str] | None = None) -> int:
     action.add_argument("--serve-ipc", action="store_true")
     action.add_argument("--issue-prepare-authority", type=Path, metavar="PRIVATE_REQUEST")
     action.add_argument("--issue-install-authority", type=Path, metavar="PRIVATE_REQUEST")
+    action.add_argument("--retire-precutover-failure", action="store_true")
+    action.add_argument(
+        "--maintenance-submit-approved-release",
+        choices=("PREPARE", "INSTALL"),
+        metavar="ACTION",
+    )
+    parser.add_argument("--release-identity")
     args = parser.parse_args(argv)
+    if args.retire_precutover_failure:
+        if os.geteuid() != 0:
+            parser.error("pre-cutover failure retirement requires root")
+        try:
+            status = retire_pre_cutover_failure(HaUsbStateStore(), LocalHaPredecessorRuntime())
+        except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as error:
+            response = {"status": "PRE_CUTOVER_FAILURE_NOT_RETIRED"}
+            if isinstance(error, UpdaterV2Error):
+                response["reason"] = str(error)
+            print(json.dumps(response, sort_keys=True))
+            return 1
+        print(json.dumps(status, sort_keys=True))
+        return 0
+    if args.maintenance_submit_approved_release is not None:
+        if os.geteuid() != 0:
+            parser.error("maintenance release submission requires root")
+        if not args.release_identity:
+            parser.error("--release-identity is required for maintenance release submission")
+        try:
+            status = maintenance_submit_approved_release(
+                HaUsbStateStore(),
+                LocalHaPredecessorRuntime(),
+                action=args.maintenance_submit_approved_release,
+                release_identity=args.release_identity,
+            )
+        except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as error:
+            response = {"status": "MAINTENANCE_INTENT_NOT_SUBMITTED"}
+            if isinstance(error, UpdaterV2Error):
+                response["reason"] = str(error)
+            print(json.dumps(response, sort_keys=True))
+            return 1
+        print(json.dumps({
+            "status": "MAINTENANCE_INTENT_SUBMITTED",
+            "action": args.maintenance_submit_approved_release,
+            "release_identity": args.release_identity,
+            "transaction": status,
+        }, sort_keys=True))
+        return 0
+    if args.release_identity is not None:
+        parser.error("--release-identity requires --maintenance-submit-approved-release")
+
     request_path = args.issue_prepare_authority or args.issue_install_authority
     if request_path is not None:
         if os.geteuid() != 0:

@@ -1,0 +1,60 @@
+{
+  "schema": "gh.n3w-t1-core-updater-homeassistant-predecessor-preparation-review/1",
+  "date": "2026-11-23",
+  "component": "homeassistant",
+  "purpose": "R8_PREDECESSOR_PREPARATION",
+  "current": {
+    "version": "2026.10.4",
+    "image": "local/n3w-homeassistant:2026.10.4-5881590f",
+    "source_head": "fb7cfc857003ace3d368521d76ca2320ba399736"
+  },
+  "preparation_target": {
+    "version": "2026.10.0",
+    "image": "local/n3w-homeassistant:2026.10.0-0c73235a",
+    "source_head": "5b32e1ae82104a42f9e4e6907fe44d9172e87615"
+  },
+  "source_review_basis": {
+    "path": "infra/n3w-t1/upgrades/homeassistant-2026.10.4-compatibility-review.json",
+    "canonical_sha256": "8b02e9bb0143fc4fc7900c4c0e4c52b27f92725cd41f1f03b82ba67ffb9e0267"
+  },
+  "storage_contract": {
+    "core.config_entries": {
+      "current": {
+        "version": 1,
+        "minor_version": 5
+      },
+      "target": {
+        "version": 1,
+        "minor_version": 5
+      }
+    },
+    "core.device_registry": {
+      "current": {
+        "version": 3,
+        "minor_version": 4
+      },
+      "target": {
+        "version": 3,
+        "minor_version": 4
+      }
+    },
+    "core.entity_registry": {
+      "current": {
+        "version": 1,
+        "minor_version": 23
+      },
+      "target": {
+        "version": 1,
+        "minor_version": 23
+      }
+    }
+  },
+  "peer_contracts_compatible": true,
+  "persistent_schema_compatible": true,
+  "reverse_preparation_source_review": true,
+  "historical_2026_10_0_data_backup_required": false,
+  "current_2026_10_4_protected_backup_required": true,
+  "current_2026_10_4_rollback_image_required": true,
+  "exact_image_artifact_required": true,
+  "live_apply_authorized": false
+}

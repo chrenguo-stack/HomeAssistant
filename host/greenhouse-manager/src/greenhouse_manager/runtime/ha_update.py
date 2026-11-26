@@ -13,6 +13,23 @@ from .topics import (
     t1_homeassistant_ota_state_topic,
 )
 
+_CAPACITY_STATUS_MESSAGES = {
+    "ha_usb_target_space_insufficient": (
+        "USB 剩余空间不足。请释放原 U 盘空间，或插入容量更大的 U 盘后重新点击“准备 Home Assistant 升级”。"
+    ),
+    "ha_usb_predecessor_space_insufficient": (
+        "USB 剩余空间不足，当前镜像备份尚未开始。请释放原 U 盘空间，"
+        "或插入容量更大的 U 盘后重新点击“准备 Home Assistant 升级”。"
+    ),
+    "ha_usb_backup_space_insufficient": (
+        "USB 剩余空间不足，系统已恢复原版本。请释放 U 盘空间或更换容量更大的 U 盘后重新准备升级。"
+    ),
+}
+
+
+def _status_message(error_code: str | None) -> str | None:
+    return _CAPACITY_STATUS_MESSAGES.get(error_code)
+
 
 def _intent_payload(action: str, release_identity: str) -> str:
     return json.dumps(
@@ -123,6 +140,7 @@ class HomeAssistantUpdateSurface:
             "ready_to_install": status.ready_to_install,
             "in_progress": status.in_progress,
             "error_code_or_null": status.error_code_or_null,
+            "status_message_or_null": _status_message(status.error_code_or_null),
         }
 
     def messages(

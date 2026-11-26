@@ -43,6 +43,10 @@ _IN_PROGRESS_PHASES = {
     "TARGET_ACCEPTANCE",
 }
 _ALLOWED_PHASES = _IDLE_PHASES | _IN_PROGRESS_PHASES
+_PREPARE_RETRYABLE_ERROR_CODES = frozenset({
+    "ha_usb_target_space_insufficient",
+    "ha_usb_predecessor_space_insufficient",
+})
 
 
 class ApprovedManifestProvider(Protocol):
@@ -435,7 +439,10 @@ class T1OtaManager:
             ota_phase=runtime.phase,
             progress_percent_or_null=runtime.progress_percent,
             ready_to_install=manifest is not None and runtime.phase == "READY_TO_INSTALL",
-            in_progress=runtime.phase in _IN_PROGRESS_PHASES,
+            in_progress=(
+                runtime.phase in _IN_PROGRESS_PHASES
+                and runtime.error_code not in _PREPARE_RETRYABLE_ERROR_CODES
+            ),
             error_code_or_null=runtime.error_code,
         )
 

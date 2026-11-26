@@ -14,8 +14,8 @@ from typing import Any
 
 from n3w_t1_core_updater_common import IMAGE_ID
 from n3w_t1_core_updater_ha_acceptance import (
-    HA_ACCEPTANCE_ATTEMPTS, HA_ACCEPTANCE_RULE, MONITORING_METHODS, NATURAL_MONITORING_METHOD,
-    expected_target_images, valid_evidence_set,
+    HA_ACCEPTANCE_ATTEMPTS, HA_ACCEPTANCE_CHECKS, HA_ACCEPTANCE_RULE, MONITORING_METHODS,
+    NATURAL_MONITORING_METHOD, expected_target_images, valid_evidence_set,
 )
 from n3w_t1_core_updater_ha_backup import backup_record_from_document
 from n3w_t1_core_updater_ha_data_evidence import valid_data_sample
@@ -82,6 +82,16 @@ PHASES = (
     U13B,
 )
 PHASE_INDEX = {phase: index for index, phase in enumerate(PHASES)}
+USB_CAPACITY_OPERATIONS = frozenset({"target_archive", "predecessor_archive", "protected_data_backup"})
+PREPARE_CAPACITY_FAILURES = frozenset({
+    "ha_usb_target_space_insufficient",
+    "ha_usb_predecessor_space_insufficient",
+})
+PRE_CUTOVER_TERMINAL_FAILURES = frozenset({
+    "ha_usb_predecessor_acceptance_baseline_unavailable",
+    "ha_usb_install_revalidation_failed",
+})
+
 _ALLOWED_TRANSITIONS = {
     U0: frozenset({U1}),
     U1: frozenset({U2}),
@@ -148,6 +158,112 @@ def _phase_at_or_after(phase: str, threshold: str) -> bool:
     return PHASE_INDEX[phase] >= PHASE_INDEX[threshold]
 
 
+def _nonnegative_int(value: Any, reason: str) -> int:
+    if (
+        not isinstance(value, int)
+        or isinstance(value, bool)
+        or value < 0
+    ):
+        raise UpdaterV2Error(reason)
+    return value
+
+
+def _validate_usb_capacity_events(document: dict[str, Any]) -> None:
+    events = document.get("usb_capacity_events", [])
+    reason = "ha_usb_capacity_event_invalid"
+    if not isinstance(events, list) or len(events) > 32:
+        raise UpdaterV2Error(reason)
+    for event in events:
+        if (
+            not isinstance(event, dict)
+            or set(event) != {
+                "operation", "required_bytes", "available_bytes_before", "capacity_pass",
+                "actual_written_bytes", "available_bytes_after",
+            }
+            or event["operation"] not in USB_CAPACITY_OPERATIONS
+        ):
+            raise UpdaterV2Error(reason)
+        required = _positive_int(event["required_bytes"], reason)
+        available = _nonnegative_int(event["available_bytes_before"], reason)
+        passed = _bool(event["capacity_pass"], reason)
+        if passed != (available >= required):
+            raise UpdaterV2Error(reason)
+        actual = event["actual_written_bytes"]
+        after = event["available_bytes_after"]
+        if (actual is None) != (after is None):
+            raise UpdaterV2Error(reason)
+        if actual is not None:
+            actual = _positive_int(actual, reason)
+            _nonnegative_int(after, reason)
+            if not passed or actual > required:
+                raise UpdaterV2Error(reason)
+
+
+def record_usb_capacity_event(
+    document: dict[str, Any],
+    *,
+    operation: str,
+    required_bytes: int,
+    available_bytes_before: int,
+    capacity_pass: bool,
+    actual_written_bytes: int | None = None,
+    available_bytes_after: int | None = None,
+) -> dict[str, Any]:
+    current = validate_transaction_document(document)
+    event = {
+        "operation": operation,
+        "required_bytes": required_bytes,
+        "available_bytes_before": available_bytes_before,
+        "capacity_pass": capacity_pass,
+        "actual_written_bytes": actual_written_bytes,
+        "available_bytes_after": available_bytes_after,
+    }
+    probe = {**current, "usb_capacity_events": [*current.get("usb_capacity_events", []), event]}
+    _validate_usb_capacity_events(probe)
+    events = list(current.get("usb_capacity_events", []))
+    if actual_written_bytes is None:
+        if (
+            events
+            and events[-1]["operation"] == operation
+            and events[-1]["capacity_pass"] is True
+            and events[-1]["actual_written_bytes"] is None
+        ):
+            events[-1] = event
+        else:
+            events.append(event)
+    else:
+        if not (
+            events
+            and events[-1]["operation"] == operation
+            and events[-1]["capacity_pass"] is True
+            and events[-1]["actual_written_bytes"] is None
+            and events[-1]["required_bytes"] == required_bytes
+            and events[-1]["available_bytes_before"] == available_bytes_before
+        ):
+            raise UpdaterV2Error("ha_usb_capacity_event_completion_without_admission")
+        events[-1] = event
+    result = {
+        **current,
+        "usb_capacity_events": events,
+        "updated_at_unix": max(current["updated_at_unix"], int(time.time())),
+    }
+    _validate_usb_capacity_events(result)
+    return result
+
+
+def replaceable_capacity_blocked_preparation(document: dict[str, Any]) -> bool:
+    current = validate_transaction_document(document)
+    return (
+        current["status"] == "ACTIVE"
+        and current["phase"] == U3
+        and current.get("failure_code") in PREPARE_CAPACITY_FAILURES
+        and current["recovery_required"] is False
+        and current["authorization_claimed"] is False
+        and current["authorization_consumed"] is False
+        and "predecessor_start" not in current
+    )
+
+
 def _validate_predecessor_start(document: dict[str, Any]) -> None:
     binding = document["predecessor_start"]
     if not isinstance(binding, dict) or set(binding) != {"launch_sha256", "images"}:
@@ -202,9 +318,13 @@ def prepared_image_materials(
     if not isinstance(materials, dict) or set(materials) != {"target", "predecessor"}:
         raise UpdaterV2Error("ha_usb_prepared_image_materials_invalid")
     target, predecessor = _validated_image_materials(document, materials)
-    if document["current_image_identity"].get(
+    source_identity = document["current_image_identity"].get(
         "portable_identity_sha256"
-    ) != predecessor.portable_identity_sha256:
+    )
+    if (
+        source_identity is not None
+        and source_identity != predecessor.portable_identity_sha256
+    ):
         raise UpdaterV2Error("ha_usb_predecessor_archive_identity_drift")
     return target, predecessor
 
@@ -268,7 +388,10 @@ def _validate_target_acceptance(document: dict[str, Any]) -> None:
     state = document["target_acceptance"]
     phase = document["phase"]
     reason = "ha_usb_target_acceptance_invalid"
-    fields = {"rule", "baseline", "attempts", "receipt", "data_sample", "monitoring_method", "monitoring_fallback_sha256"}
+    fields = {
+        "rule", "baseline", "attempts", "receipt", "data_sample", "monitoring_method",
+        "monitoring_fallback_sha256", "last_attempt_verdicts", "retry_after_unix",
+    }
     if (
         not isinstance(state, dict) or set(state) - fields
         or state.get("rule") != HA_ACCEPTANCE_RULE or not valid_evidence_set(state.get("baseline"))
@@ -290,6 +413,24 @@ def _validate_target_acceptance(document: dict[str, Any]) -> None:
     if "data_sample" in state and (
         not valid_data_sample(state["data_sample"])
         or state["baseline"]["protected_data"] != sha256_bytes(canonical(state["data_sample"]))
+    ):
+        raise UpdaterV2Error(reason)
+    if "last_attempt_verdicts" in state:
+        verdicts = state["last_attempt_verdicts"]
+        if (
+            state["attempts"] == 0 or not isinstance(verdicts, dict)
+            or set(verdicts) != set(HA_ACCEPTANCE_CHECKS)
+            or any(
+                verdict not in {"PASS", "PROVEN_FAIL", "EVIDENCE_UNAVAILABLE"}
+                for verdict in verdicts.values()
+            )
+        ):
+            raise UpdaterV2Error(reason)
+    if "retry_after_unix" in state and (
+        type(state["retry_after_unix"]) is not int or state["retry_after_unix"] <= 0
+        or state["attempts"] <= 0 or state["attempts"] >= HA_ACCEPTANCE_ATTEMPTS
+        or phase != U11 or document.get("status") != "ACTIVE"
+        or document.get("recovery_required") is not False or "receipt" in state
     ):
         raise UpdaterV2Error(reason)
     if "receipt" in state:
@@ -426,6 +567,8 @@ def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
         or recovery_required
     ):
         raise UpdaterV2Error("ha_usb_pre_cutover_restoration_invalid")
+    _validate_usb_capacity_events(document)
+
     failure_code = document.get("failure_code")
     if failure_code is not None and (
         not isinstance(failure_code, str)
@@ -501,10 +644,21 @@ def validate_transaction_document(document: dict[str, Any]) -> dict[str, Any]:
         raise UpdaterV2Error("ha_usb_commit_status_invalid")
     if phase == U13B and status != "ROLLED_BACK":
         raise UpdaterV2Error("ha_usb_rollback_status_invalid")
+    pre_cutover_failed_without_mutation = (
+        status == "ROLLED_BACK"
+        and phase == U4
+        and not has_start_binding
+        and recovery_required is False
+        and claimed is False
+        and consumed is False
+        and auth_sha is None
+        and failure_code in PRE_CUTOVER_TERMINAL_FAILURES
+    )
     if (
         phase not in {U13A, U13B}
         and status in HA_USB_TERMINAL_STATUSES
         and not restored_before_cutover
+        and not pre_cutover_failed_without_mutation
     ):
         raise UpdaterV2Error("ha_usb_terminal_status_phase_mismatch")
     if status == "FAILED_EMERGENCY" and recovery_required is not True:
@@ -900,12 +1054,23 @@ class HaUsbStateStore:
             raise UpdaterV2Error("legacy_transaction_reconciliation_required")
 
         current = self.read()
-        if current is not None and current["status"] not in HA_USB_TERMINAL_STATUSES:
+        replaceable_block = (
+            current is not None
+            and replacement is not None
+            and replaceable_capacity_blocked_preparation(current)
+        )
+        if (
+            current is not None
+            and current["status"] not in HA_USB_TERMINAL_STATUSES
+            and not replaceable_block
+        ):
             raise UpdaterV2Error("ha_usb_transaction_active")
         if replacement is not None:
             replacement = validate_transaction_document(replacement)
             if replacement["phase"] not in {U0, U1}:
                 raise UpdaterV2Error("ha_usb_replacement_phase_invalid")
+            if replaceable_block and replacement["transaction_id_sha256"] == current["transaction_id_sha256"]:
+                raise UpdaterV2Error("ha_usb_replacement_transaction_reused")
         if current is not None:
             self._archive_current(current, retain_current=replacement is not None)
         if replacement is not None:

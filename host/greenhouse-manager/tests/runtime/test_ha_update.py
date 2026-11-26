@@ -34,14 +34,18 @@ class Provider:
 
 
 class Runtime:
-    def __init__(self, phase: str, progress: int | None = None) -> None:
+    def __init__(
+        self, phase: str, progress: int | None = None, error_code: str | None = None
+    ) -> None:
         self.phase = phase
         self.progress = progress
+        self.error_code = error_code
 
     def get_homeassistant_ota_runtime_state(self) -> OtaRuntimeSnapshot:
         return OtaRuntimeSnapshot(
             phase=self.phase,
             progress_percent=self.progress,
+            error_code=self.error_code,
         )
 
 
@@ -139,6 +143,7 @@ def test_state_and_attributes_expose_only_public_projection() -> None:
         "ready_to_install": False,
         "in_progress": True,
         "error_code_or_null": None,
+        "status_message_or_null": None,
     }
     encoded = repr((state, attributes))
     for forbidden in (
@@ -150,3 +155,34 @@ def test_state_and_attributes_expose_only_public_projection() -> None:
         "target_archive_sha256",
     ):
         assert forbidden not in encoded
+
+
+def test_usb_capacity_failure_exposes_prepare_again_and_plain_language_guidance() -> None:
+    surface = HomeAssistantUpdateSurface(system_id="system-001")
+    runtime = Runtime(
+        "TARGET_DOWNLOADING_VERIFYING",
+        error_code="ha_usb_predecessor_space_insufficient",
+    )
+    ota = T1OtaManager(
+        installed_version="2026.10.0",
+        manifest_provider=Provider(),
+        runtime_state_provider=runtime,
+    )
+    projected = ota.project()
+    assert projected.status.in_progress is False
+
+    messages = by_topic(
+        surface.messages(
+            manifest=projected.manifest,
+            status=projected.status,
+        )
+    )
+    prepare = messages["homeassistant/button/n3w_t1_homeassistant_prepare/config"]
+    attributes = messages[
+        "gh/v1/system-001/state/t1/homeassistant/ota/attributes"
+    ].payload
+
+    assert prepare.payload != b""
+    assert attributes["error_code_or_null"] == "ha_usb_predecessor_space_insufficient"
+    assert "USB 剩余空间不足" in attributes["status_message_or_null"]
+    assert "重新点击“准备 Home Assistant 升级”" in attributes["status_message_or_null"]
