@@ -281,16 +281,14 @@ def validate_committed_document(document: dict[str, Any]) -> None:
 
 
 class RealOps:
-    def __init__(self) -> None:
-        if str(LIVE) not in sys.path:
-            sys.path.insert(0, str(LIVE))
-
     def preflight_static(self) -> None:
         print("PHASE=STATIC_BINDING")
         if os.geteuid() != 0:
             raise GateError("ROOT_REQUIRED")
         if sha256_file(LIVE) != EXPECTED_PYZ:
             raise GateError("LIVE_PYZ_DRIFT")
+        if str(LIVE) not in sys.path:
+            sys.path.insert(0, str(LIVE))
         print("STATIC_BINDING=PASS")
 
     def read_transaction(self) -> dict[str, Any]:

@@ -416,3 +416,15 @@ def test_exact_executor_rebind_requires_the_frozen_launch_on_all_states() -> Non
     block = source.split("def validate_runtime_binding", 1)[1].split("def require_release_authority", 1)[0]
     assert 'binding.get("launch_sha256") != EXPECTED_LAUNCH_SHA' in block
     assert 'raise GateError("RUNTIME_LAUNCH_SHA_DRIFT")' in block
+
+
+def test_live_recovery_pyz_is_verified_before_import_path_insertion() -> None:
+    source = MODULE_PATH.read_text(encoding="utf-8")
+    real_ops = source.split("class RealOps:", 1)[1].split("def summarize", 1)[0]
+    assert "sys.path.insert(0, str(LIVE))" not in real_ops.split("def preflight_static", 1)[0]
+    preflight = real_ops.split("def preflight_static", 1)[1].split("def read_transaction", 1)[0]
+    hash_check = preflight.index("if sha256_file(LIVE) != EXPECTED_PYZ:")
+    hash_reject = preflight.index('raise GateError("LIVE_PYZ_DRIFT")')
+    path_insert = preflight.index("sys.path.insert(0, str(LIVE))")
+    first_product_import = source.index("from n3w_t1_core_updater_ha_usb_state import")
+    assert hash_check < hash_reject < path_insert < first_product_import
