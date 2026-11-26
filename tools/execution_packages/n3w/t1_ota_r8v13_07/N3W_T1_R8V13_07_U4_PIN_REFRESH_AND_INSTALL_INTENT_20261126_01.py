@@ -65,6 +65,16 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+
+
+def reject_duplicate_fields(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise GateError("DUPLICATE_JSON_FIELD")
+        result[key] = value
+    return result
+
 def read_json(path: Path) -> dict[str, Any]:
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
@@ -196,15 +206,17 @@ def main() -> int:
     if sha256_file(PREPARE_AUTH) != EXPECTED_PREPARE_AUTH_SHA:
         raise GateError("PREPARE_AUTHORITY_DRIFT")
     old_install_raw = require_private_root_file(INSTALL_AUTH, EXPECTED_OLD_INSTALL_AUTH_SHA)
-    old_install = json.loads(old_install_raw)
+    old_install = json.loads(old_install_raw, object_pairs_hook=reject_duplicate_fields)
     now = int(time.time())
+    if old_install.get("schema") != "gh.n3w-t1-ha-install-authority/3":
+        raise GateError("OLD_INSTALL_AUTHORITY_SCHEMA_DRIFT")
     if type(old_install.get("expires_at_unix")) is not int or old_install["expires_at_unix"] > now:
         raise GateError("OLD_INSTALL_AUTHORITY_NOT_EXPIRED")
     if old_install.get("binding_sha256") == EXPECTED_INSTALL_BINDING:
         raise GateError("OLD_INSTALL_AUTHORITY_BINDING_COLLISION")
 
     old_pin_raw = require_private_root_file(PIN, EXPECTED_PIN_SHA)
-    pin = json.loads(old_pin_raw)
+    pin = json.loads(old_pin_raw, object_pairs_hook=reject_duplicate_fields)
     if (
         not isinstance(pin, dict)
         or (set(pin) != PIN_FIELDS and set(pin) != PIN_FIELDS | PIN_SIGNED_FIELDS)
@@ -222,7 +234,6 @@ def main() -> int:
         HaUsbIpcExecutor,
         LocalApprovedHaRelease,
         candidate_admission,
-        reject_duplicate_fields,
         read_local_release_input,
     )
     from n3w_t1_core_updater_ha_recovery_startup import (
