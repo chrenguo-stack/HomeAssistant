@@ -9,7 +9,7 @@ SCRIPT_PATH = (
     / "execution_packages"
     / "n3w"
     / "t1_ota_r8v13_07"
-    / "N3W_T1_R8V13_07_U4_PIN_REFRESH_AND_INSTALL_INTENT_20261126_01.py"
+    / "N3W_T1_R8V13_07_U4_PIN_REFRESH_AND_INSTALL_INTENT_20261126_02.py"
 )
 
 
@@ -81,3 +81,14 @@ def test_pin_refresh_requires_explicit_transaction_bound_authorization() -> None
     assert "AUTH_ID = " in text
     assert "INSTALL_INTENT_POSTCHECK=STOP" in text
     assert "DO_NOT_REPLAY_INSTALL_INTENT=true" in text
+
+
+def test_live_recovery_pyz_is_importable_before_product_module_imports() -> None:
+    text = source()
+    main = text.split("def main() -> int:", 1)[1]
+    hash_check = main.index("if sha256_file(LIVE) != EXPECTED_PYZ:")
+    hash_reject = main.index('raise GateError("LIVE_PYZ_DRIFT")')
+    path_insert = main.index("sys.path.insert(0, str(LIVE))")
+    first_product_import = main.index("from n3w_t1_core_updater_ha_ipc import")
+    assert hash_check < hash_reject < path_insert < first_product_import
+    assert "if str(LIVE) not in sys.path:" in main[:first_product_import]
