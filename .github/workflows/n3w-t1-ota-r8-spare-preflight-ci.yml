@@ -15,6 +15,7 @@ on:
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_TX_A_U4_INSTALL_READONLY_PREFLIGHT_20261125_01.sh"
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_TX_A_U4_INSTALL_READONLY_PREFLIGHT_20261125_02.sh"
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_U4_PIN_REFRESH_AND_INSTALL_INTENT_20261126_01.py"
+      - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_U4_PIN_REFRESH_AND_INSTALL_INTENT_20261126_02.py"
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_TRANSACTION_A_INSTALL_TO_TERMINAL_20261124_01.sh"
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_THIN_REENTRY_AWARE_INSTALL_TO_TERMINAL_20261124_01.py"
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_EXACT_REENTRY_INSTALL_TO_TERMINAL_20261125_02.py"
@@ -69,6 +70,7 @@ on:
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_TX_A_U4_INSTALL_READONLY_PREFLIGHT_20261125_01.sh"
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_TX_A_U4_INSTALL_READONLY_PREFLIGHT_20261125_02.sh"
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_U4_PIN_REFRESH_AND_INSTALL_INTENT_20261126_01.py"
+      - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_U4_PIN_REFRESH_AND_INSTALL_INTENT_20261126_02.py"
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_FRESH_TRANSACTION_A_INSTALL_TO_TERMINAL_20261124_01.sh"
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_THIN_REENTRY_AWARE_INSTALL_TO_TERMINAL_20261124_01.py"
       - "tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_EXACT_REENTRY_INSTALL_TO_TERMINAL_20261125_02.py"
@@ -132,6 +134,7 @@ jobs:
             tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_EXACT_REENTRY_INSTALL_TO_TERMINAL_20261125_03.py \
             tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_EXACT_REENTRY_INSTALL_TO_TERMINAL_20261126_01.py \
             tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_U4_PIN_REFRESH_AND_INSTALL_INTENT_20261126_01.py \
+            tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_U4_PIN_REFRESH_AND_INSTALL_INTENT_20261126_02.py \
             tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_RECOVERY_PYZ_REPLACEMENT_20261125_02.py \
             tests/tools/test_n3w_t1_ota_r8_spare_preflight.py \
             tests/tools/test_n3w_t1_ota_r8_bound_usb_readonly.py \
@@ -199,6 +202,7 @@ jobs:
           sha256sum tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_EXACT_REENTRY_INSTALL_TO_TERMINAL_20261125_03.py
           sha256sum tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_EXACT_REENTRY_INSTALL_TO_TERMINAL_20261126_01.py
           sha256sum tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_U4_PIN_REFRESH_AND_INSTALL_INTENT_20261126_01.py
+          sha256sum tools/execution_packages/n3w/t1_ota_r8v13_07/N3W_T1_R8V13_07_U4_PIN_REFRESH_AND_INSTALL_INTENT_20261126_02.py
       - name: Run focused R8 tests
         env:
           PYTHONPATH: tools
@@ -214,6 +218,7 @@ jobs:
             tests/tools/test_n3w_t1_ota_r8v13_07_new_fresh_transaction_a_prepare_v3.py \
             tests/tools/test_n3w_t1_ota_r8v13_07_fresh_tx_a_u4_install_readonly_preflight.py \
             tests/tools/test_n3w_t1_ota_r8v13_07_fresh_tx_a_u4_install_readonly_preflight_v2.py \
+            tests/tools/test_n3w_t1_ota_r8v13_07_u4_pin_refresh_install_intent.py \
             tests/tools/test_n3w_t1_ota_r8v13_07_fresh_transaction_a_install.py \
             tests/tools/test_n3w_t1_ota_r8v13_07_thin_reentry_executor.py \
             tests/tools/test_n3w_t1_ota_r8v13_07_exact_reentry_install_executor.py \
