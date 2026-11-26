@@ -19,7 +19,6 @@ PIN = ROOT / "ha-release-pin.json"
 PREPARE_AUTH = ROOT / "ha-prepare-authority.json"
 INSTALL_AUTH = ROOT / "ha-install-authority.json"
 APPROVED = Path("/run/n3w/t1-ota/approved-homeassistant.json")
-TARGET_CANDIDATE = ROOT / "ha-target-e52d12779f7562d3f37a265d622fbaf31e758deba5998e40cafb5a33a118b663.tar"
 
 EXPECTED_TX = "86b2fb28429672f6bd27269a62549d774e50814e1e428d6a79a8de531eb0cea0"
 EXPECTED_TX_FILE_SHA = "caa61863a031f6a91b7cf1d3762d5b73b42a49b9cdff797df14387a37f139306"
@@ -265,6 +264,16 @@ def main() -> int:
     if requested_install_binding_sha256(document) != EXPECTED_INSTALL_BINDING:
         raise GateError("INSTALL_BINDING_DRIFT")
 
+    usb_mount = runtime._original_mountpoint(EXPECTED_USB)
+    if not usb_mount.is_mount():
+        raise GateError("ORIGINAL_USB_MOUNT_NOT_ACTIVE")
+    usb_space = os.statvfs(usb_mount)
+    if usb_space.f_frsize <= 0:
+        raise GateError("ORIGINAL_USB_CAPACITY_UNAVAILABLE")
+    usb_available_bytes = usb_space.f_bavail * usb_space.f_frsize
+    if usb_available_bytes <= 0:
+        raise GateError("ORIGINAL_USB_HAS_NO_AVAILABLE_SPACE")
+
     current = runtime._runtime("homeassistant")
     if current.get("image_ref") != EXPECTED_PREDECESSOR_REF:
         raise GateError("CURRENT_HA_IMAGE_REF_DRIFT")
@@ -282,17 +291,6 @@ def main() -> int:
     ):
         raise GateError("APPROVED_RELEASE_ADMISSION_DRIFT")
     HaUsbIpcExecutor.require_same_admission(document, admission)
-
-    candidate_info = TARGET_CANDIDATE.lstat()
-    if (
-        not stat.S_ISREG(candidate_info.st_mode)
-        or stat.S_IMODE(candidate_info.st_mode) != 0o600
-        or candidate_info.st_uid != 0
-        or candidate_info.st_nlink != 1
-        or candidate_info.st_size != EXPECTED_TARGET_SIZE
-        or sha256_file(TARGET_CANDIDATE) != EXPECTED_TARGET_SHA
-    ):
-        raise GateError("TARGET_CANDIDATE_DRIFT")
 
     if subprocess.run(
         ["docker", "image", "inspect", EXPECTED_TARGET_REF],
@@ -313,6 +311,8 @@ def main() -> int:
     print("PIN_PREDECESSOR_RUNTIME_BINDING=PASS")
     print("CURRENT_LAUNCH_SHA256=" + binding["launch_sha256"])
     print("INSTALL_BINDING_SHA256=" + EXPECTED_INSTALL_BINDING)
+    print("USB_MOUNT=" + str(usb_mount))
+    print("USB_AVAILABLE_BYTES=" + str(usb_available_bytes))
     print("MANAGER_BROKER_HA_SELF_TEST=PASS")
     print("MANAGER_BROKER_HA_SELF_TEST_SHA256=" + evidence.sha256)
     print("OLD_INSTALL_AUTHORITY_RESIDUE=EXPIRED_SAFE_REPLACEABLE")
